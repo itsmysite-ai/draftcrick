@@ -19,11 +19,14 @@
     "expo-linking": "~7.0.0",
     "expo-constants": "~17.0.0",
     "react": "^18.3.0",
-    "react-native": "0.76.0",
-    "react-native-safe-area-context": "4.14.0",
-    "react-native-screens": "~4.1.0",
+    "react-dom": "^18.3.0",
+    "react-native": "0.76.9",
+    "react-native-web": "~0.19.13",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.4.0",
     "react-native-gesture-handler": "~2.20.0",
     "react-native-reanimated": "~3.16.0",
+    "@babel/runtime": "^7.26.0",
     "tamagui": "^1.114.0",
     "@tamagui/config": "^1.114.0",
     "@tanstack/react-query": "^5.62.0",
@@ -41,6 +44,8 @@
   "devDependencies": {
     "@draftcrick/tsconfig": "workspace:*",
     "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "babel-preset-expo": "~12.0.0",
     "typescript": "^5.7.0"
   }
 }
