@@ -1,0 +1,7 @@
+{
+  "name": "DraftCrick",
+  "description": "AI-Driven Fantasy Cricket with Cricket Guru Voice AI and smart squad optimization.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
