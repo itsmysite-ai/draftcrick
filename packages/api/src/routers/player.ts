@@ -5,6 +5,13 @@ import { players, playerMatchScores } from "@draftcrick/db";
 
 export const playerRouter = router({
   /**
+   * List all players (for draft/auction rooms)
+   */
+  list: publicProcedure.query(async ({ ctx }) => {
+    return ctx.db.query.players.findMany({ limit: 200 });
+  }),
+
+  /**
    * Search players by name, team, or role
    */
   search: publicProcedure

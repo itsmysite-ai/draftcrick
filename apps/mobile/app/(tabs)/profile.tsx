@@ -11,13 +11,18 @@ import { useComfortMode } from "../../providers/ComfortModeProvider";
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { enabled: comfortMode, toggle: toggleComfort } = useComfortMode();
+  const { enabled: comfortMode, enable: enableComfort } = useComfortMode();
 
   const wallet = trpc.wallet.getBalance.useQuery(undefined, {
     retry: false,
   });
 
   const isLoggedIn = !wallet.error;
+
+  const handleComfortToggle = () => {
+    enableComfort();
+    router.replace("/(comfort-tabs)" as any);
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -77,15 +82,10 @@ export default function ProfileScreen() {
 
       {/* Settings */}
       <View style={styles.settingsSection}>
-        <TouchableOpacity style={styles.settingRow} onPress={toggleComfort}>
+        <TouchableOpacity style={styles.settingRow} onPress={handleComfortToggle}>
           <Text style={styles.settingLabel}>Comfort Mode</Text>
-          <Text
-            style={[
-              styles.settingValue,
-              comfortMode && { color: "#00F5A0" },
-            ]}
-          >
-            {comfortMode ? "On" : "Off"}
+          <Text style={[styles.settingValue, { color: "#00F5A0" }]}>
+            Switch →
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.settingRow}>
