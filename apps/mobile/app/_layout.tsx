@@ -73,6 +73,38 @@ export default function RootLayout() {
                 name="wallet/index"
                 options={{ title: "Wallet" }}
               />
+              <Stack.Screen
+                name="league/index"
+                options={{ title: "My Leagues" }}
+              />
+              <Stack.Screen
+                name="league/create"
+                options={{ title: "Create League" }}
+              />
+              <Stack.Screen
+                name="league/join"
+                options={{ title: "Join League" }}
+              />
+              <Stack.Screen
+                name="league/[id]"
+                options={{ title: "League" }}
+              />
+              <Stack.Screen
+                name="league/[id]/trades"
+                options={{ title: "Trades" }}
+              />
+              <Stack.Screen
+                name="league/[id]/settings"
+                options={{ title: "League Settings" }}
+              />
+              <Stack.Screen
+                name="draft/[id]"
+                options={{ title: "Draft Room", headerShown: false }}
+              />
+              <Stack.Screen
+                name="auction/[id]"
+                options={{ title: "Auction Room", headerShown: false }}
+              />
             </Stack>
           </ComfortModeProvider>
         </AuthProvider>
