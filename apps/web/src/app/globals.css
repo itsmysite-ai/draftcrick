@@ -1,0 +1,45 @@
+:root {
+  /* CrickUI Design Tokens */
+  --navy: #0A1628;
+  --navy-light: #0E1D35;
+  --green: #00F5A0;
+  --green-dark: #00C880;
+  --amber: #FFB800;
+  --red: #FF4D4F;
+  --charcoal: #1A2332;
+  --warm-white: #F8F9FA;
+
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-heading: var(--font-space-grotesk), system-ui, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--navy);
+  color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+a {
+  color: var(--green);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
