@@ -23,7 +23,9 @@ A modern, AI-native, GCP-powered fantasy sports platform that delivers every fea
 13. [GCP Infrastructure & Cost Estimates](#13-gcp-infrastructure--cost-estimates)
 14. [How to Start (Step-by-Step)](#14-how-to-start-step-by-step)
 15. [Key Differentiators vs CrickBattle](#15-key-differentiators-vs-crickbattle)
-16. [Risk Mitigation & Failsafes](#16-risk-mitigation--failsafes)
+16. [Monetization & Pricing Strategy](#16-monetization--pricing-strategy)
+17. [Risk Mitigation & Failsafes](#17-risk-mitigation--failsafes)
+18. [References](#18-references)
 
 ---
 
@@ -1399,7 +1401,113 @@ Build the simplest vertical slice to prove the architecture works:
 
 ---
 
-## 16. Risk Mitigation & Failsafes
+## 16. Monetization & Pricing Strategy
+
+### Critical Regulatory Context (August 2025)
+
+India passed **The Promotion and Regulation of Online Gaming Act, 2025** on August 22, 2025, which **completely bans all real-money online games** — including fantasy sports with entry fees — regardless of skill vs. chance classification. Penalties: up to 3 years imprisonment + Rs 1 crore fine. Dream11, My11Circle, MPL, and others have pivoted to free-to-play. The Supreme Court is hearing consolidated challenges (as of Feb 2026), so this *may* be reversed.
+
+**DraftCrick must operate a dual-model approach:** free-to-play for India, real-money for global markets.
+
+### Model A: India (Free-to-Play, Legally Compliant)
+
+#### Revenue Streams
+
+| Revenue Stream | Pricing | Est. Revenue/User/Month |
+|---|---|---|
+| **Freemium Subscription ("Guru Pro")** | Rs 99/mo or Rs 799/year | Rs 50-80 (blended) |
+| **Brand-Sponsored Contests** | Free entry, brands fund prizes (Swiggy/Tata Neu/Amazon model) | Rs 10-30 (ad revenue share) |
+| **In-App Purchases** | Cosmetics, premium player cards, team skins: Rs 29-499 | Rs 15-40 |
+| **Ad Revenue** | Rewarded video ads, banner ads between screens | Rs 5-15 |
+| **Corporate/White-Label** | Rs 2-10 lakh per company per season | High margin, low volume |
+
+#### Subscription Tiers
+
+| Tier | Price | What You Get |
+|---|---|---|
+| **Free** | Rs 0 | Basic fantasy, 3 contests/day, ads, basic Cricket Guru |
+| **Guru Pro** | **Rs 99/month** or **Rs 799/year** | Unlimited contests, AI player projections, advanced stats, ad-free, Comfort Mode voice features, priority support |
+| **Guru Elite** | **Rs 299/month** or **Rs 2,499/year** | Everything in Pro + exclusive draft rooms, early access to features, custom league templates, white-label auction hosting (1/month), VIP leaderboards |
+
+#### Sponsored Contest Examples
+
+| Sponsor | Contest | Prize |
+|---|---|---|
+| Swiggy | "IPL Mega League" | Rs 500 food vouchers to top 100 |
+| Amazon | "World Cup Challenge" | Echo Dot devices, Prime memberships |
+| Cred | "Weekly H2H Championship" | Cred coins, cashback vouchers |
+| PhonePe | "Predict & Win" | Rs 100-500 cashback |
+
+### Model B: Global Markets (Real-Money Contests)
+
+Real-money fantasy is legal in **USA (most states), UK, Australia, UAE, Canada, South Africa**.
+
+#### Contest Pricing (USD)
+
+| Contest Type | Entry Fee | Max Entries | Prize Pool | Commission (Rake) |
+|---|---|---|---|---|
+| **Free Practice** | $0 | Unlimited | Small prizes / tokens | $0 (acquisition) |
+| **Micro Stakes** | $0.25 - $1 | 100-1,000 | $20-800 | 15% |
+| **Low Stakes** | $1 - $5 | 50-500 | $40-2,000 | 12-15% |
+| **Mid Stakes** | $5 - $25 | 20-200 | $80-4,000 | 10-12% |
+| **High Stakes** | $25 - $100 | 10-50 | $200-4,000 | 8-10% |
+| **Premium H2H** | $50 - $500 | 2 | $90-900 | 8-10% |
+| **Mega GPP** | $5 - $50 | 1,000-10,000 | $5,000-100,000 | 12-15% |
+
+#### Commission Structure
+
+| Contest Size | DraftCrick Rake | Industry Benchmark |
+|---|---|---|
+| H2H (2 players) | **10%** | Dream11: 10-17%, DraftKings: 10% |
+| Small (3-10 players) | **12%** | Dream11: 12-17%, FanDuel: 10-12% |
+| Medium (10-100 players) | **12-15%** | Dream11: 15-25%, DraftKings: 12-14% |
+| Large (100+ / Mega) | **15%** | Dream11: 16-28%, DraftKings: 12-15% |
+| **Blended average** | **~12%** | India avg: 20%, US avg: 10% |
+
+**Positioning:** *"85-90% of every dollar goes to the prize pool"* — undercut Dream11's 15-25% rake and market it as a feature.
+
+### Wallet & Transaction Pricing (Global Markets)
+
+| Action | Fee |
+|---|---|
+| **Deposit** | Free (absorb 2-3% gateway fees) |
+| **Withdrawal** | Free first 2/month; $1 / Rs 50 after |
+| **Minimum deposit** | $5 / Rs 100 |
+| **Minimum withdrawal** | $10 / Rs 200 |
+| **Sign-up bonus** | $5 / Rs 100 (bonus balance, 3x play-through before withdrawal) |
+| **First deposit match** | 100% up to $20 / Rs 500 |
+| **Referral bonus** | $3 / Rs 50 to both referrer and referee |
+
+### Revenue Projections
+
+| Users | India Revenue/month | Global Revenue/month | **Total** |
+|---|---|---|---|
+| **10K** (beta) | Rs 3-5 lakh (~$4-6K) | $5-10K | **~$9-16K/mo** |
+| **100K** | Rs 30-60 lakh (~$36-72K) | $50-100K | **~$86-172K/mo** |
+| **500K** | Rs 1.5-3 crore (~$180-360K) | $200-400K | **~$380-760K/mo** |
+| **1M** | Rs 3-6 crore (~$360-720K) | $400-800K | **~$760K-1.5M/mo** |
+
+### Pricing by Market
+
+| Market | Primary Model | Entry Range | Commission | Est. ARPU |
+|---|---|---|---|---|
+| **India** | Freemium + Ads + Sponsors | Rs 0 (free) | N/A | **Rs 50-120/month** |
+| **USA/UK/AU** | Real-money contests | $0.25 - $500 | 10-15% | **$30-80/month** |
+| **UAE/Middle East** | Real-money (check local law) | $1 - $100 | 10-12% | **$20-50/month** |
+| **Rest of World** | Freemium hybrid | Mixed | 10-12% | **$5-20/month** |
+
+### Strategic Notes
+
+1. **Launch global real-money markets first** (USA, UK, AU, UAE) — that's where the revenue is and it's legal
+2. **Launch India as free-to-play from day one** — monetize via Guru Pro subscriptions + sponsors + ads
+3. **Monitor Supreme Court case** — if ban is overturned, infrastructure is ready to enable real-money in India instantly
+4. **Corporate leagues are ban-proof** — companies pay for the platform, not gambling; target 200+ enterprise clients like CrickBattle
+5. **Guru Pro subscription is the moat** — no other fantasy app has an AI assistant; price aggressively at Rs 99/mo
+6. **Keep rake at 10-12%** in global markets — lower than competitors, market it as a differentiator
+
+---
+
+## 17. Risk Mitigation & Failsafes
 
 ### Technical Risks
 
@@ -1416,7 +1524,7 @@ Build the simplest vertical slice to prove the architecture works:
 
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
-| **Regulatory changes (India)** | Fantasy sports banned in some states | Geo-fencing; legal counsel; comply with AIGF guidelines |
+| **India real-money ban (Aug 2025)** | Cannot charge entry fees in India | Dual-model: free-to-play India + real-money global; Guru Pro subscription; brand-sponsored contests; monitor Supreme Court challenge |
 | **Payment gateway issues** | Users can't deposit/withdraw | Dual gateway (Razorpay + Stripe); manual fallback process |
 | **Data breach** | User trust destroyed | Encryption at rest (Cloud SQL), in transit (TLS), Secret Manager for keys, security audits |
 | **Low adoption of Comfort Mode** | Wasted development effort | Phase it — MVP Comfort Mode in Phase 3, iterate based on usage data |
@@ -1434,7 +1542,7 @@ Build the simplest vertical slice to prove the architecture works:
 
 ---
 
-## References
+## 18. References
 
 1. CricBattle Official Website — https://www.cricbattle.com/
 2. CricBattle iOS App Store — https://apps.apple.com/us/app/cricbattle-fantasy-sports/id1154839276
