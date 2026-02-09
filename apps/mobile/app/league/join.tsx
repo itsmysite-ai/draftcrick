@@ -1,16 +1,13 @@
-import { View, Text, TextInput, Pressable } from "react-native";
+import { TextInput } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
+import { YStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Button } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
-
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
 
 export default function JoinLeagueScreen() {
   const router = useRouter();
+  const theme = useTamaguiTheme();
   const [inviteCode, setInviteCode] = useState("");
 
   const joinMutation = trpc.league.join.useMutation({
@@ -20,46 +17,24 @@ export default function JoinLeagueScreen() {
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG, padding: 16, justifyContent: "center" }}>
-      <Text style={{ color: TEXT, fontSize: 28, fontWeight: "800", textAlign: "center", marginBottom: 8 }}>
-        Join a League
-      </Text>
-      <Text style={{ color: MUTED, fontSize: 15, textAlign: "center", marginBottom: 32 }}>
-        Enter the invite code shared by your league commissioner
-      </Text>
-
+    <YStack flex={1} backgroundColor="$background" padding="$4" justifyContent="center">
+      <Text fontFamily="$heading" fontWeight="800" fontSize={28} color="$color" textAlign="center" marginBottom="$2">Join a League</Text>
+      <Text fontFamily="$body" fontSize={15} color="$colorMuted" textAlign="center" marginBottom="$8">Enter the invite code shared by your league commissioner</Text>
       <TextInput
         value={inviteCode}
         onChangeText={setInviteCode}
         placeholder="Enter invite code"
-        placeholderTextColor={MUTED}
+        placeholderTextColor={theme.placeholderColor.val}
         autoCapitalize="none"
         autoCorrect={false}
-        style={{
-          backgroundColor: CARD, color: TEXT, borderRadius: 14, padding: 18, fontSize: 20,
-          textAlign: "center", letterSpacing: 3, fontWeight: "700",
-          borderWidth: 1, borderColor: "#2A3442", marginBottom: 20,
-        }}
+        style={{ backgroundColor: theme.backgroundSurface.val, color: theme.color.val, borderRadius: 14, padding: 18, fontSize: 20, textAlign: "center", letterSpacing: 3, fontWeight: "700", borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }}
       />
-
-      <Pressable
-        onPress={() => joinMutation.mutate({ inviteCode: inviteCode.trim() })}
-        disabled={joinMutation.isPending || !inviteCode.trim()}
-        style={{
-          backgroundColor: !inviteCode.trim() ? MUTED : ACCENT,
-          borderRadius: 14, padding: 16, alignItems: "center",
-        }}
-      >
-        <Text style={{ color: BG, fontSize: 18, fontWeight: "800" }}>
-          {joinMutation.isPending ? "Joining..." : "Join League"}
-        </Text>
-      </Pressable>
-
+      <Button variant="primary" size="lg" onPress={() => joinMutation.mutate({ inviteCode: inviteCode.trim() })} disabled={joinMutation.isPending || !inviteCode.trim()} opacity={!inviteCode.trim() ? 0.4 : 1}>
+        {joinMutation.isPending ? "Joining..." : "Join League"}
+      </Button>
       {joinMutation.error && (
-        <Text style={{ color: "#FF4C4C", textAlign: "center", marginTop: 16, fontSize: 14 }}>
-          {joinMutation.error.message}
-        </Text>
+        <Text fontFamily="$body" color="$error" textAlign="center" marginTop="$4" fontSize={14}>{joinMutation.error.message}</Text>
       )}
-    </View>
+    </YStack>
   );
 }

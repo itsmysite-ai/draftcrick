@@ -1,14 +1,7 @@
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
 import { useState } from "react";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Button, Card } from "@draftcrick/ui";
 
 interface Message {
   id: string;
@@ -23,16 +16,14 @@ const SUGGESTIONS = [
   "Preview of CSK vs MI",
 ];
 
-/**
- * Cricket Guru — AI-powered assistant
- */
 export default function GuruScreen() {
+  const theme = useTamaguiTheme();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "guru",
-      content:
-        "Hi! I'm your Cricket Guru. Ask me anything about fantasy cricket — team picks, rule explanations, match previews, or player comparisons.",
+      content: "Hi! I'm your Cricket Guru. Ask me anything about fantasy cricket — team picks, rule explanations, match previews, or player comparisons.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -40,17 +31,11 @@ export default function GuruScreen() {
   const sendMessage = () => {
     if (!input.trim()) return;
 
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input.trim(),
-    };
-
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: input.trim() };
     const guruMsg: Message = {
       id: (Date.now() + 1).toString(),
       role: "guru",
-      content:
-        "I'm not connected to the AI backend yet. Once the AI service is integrated, I'll be able to answer your cricket questions with real-time data!",
+      content: "I'm not connected to the AI backend yet. Once the AI service is integrated, I'll be able to answer your cricket questions with real-time data!",
     };
 
     setMessages((prev) => [...prev, userMsg, guruMsg]);
@@ -59,7 +44,7 @@ export default function GuruScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={{ flex: 1, backgroundColor: theme.background.val }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={100}
     >
@@ -67,139 +52,92 @@ export default function GuruScreen() {
         data={messages}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View
-            style={[
-              styles.messageBubble,
-              item.role === "user" ? styles.userBubble : styles.guruBubble,
-            ]}
+          <YStack
+            maxWidth="85%"
+            padding="$4"
+            borderRadius="$4"
+            alignSelf={item.role === "user" ? "flex-end" : "flex-start"}
+            backgroundColor={item.role === "user" ? "$accentBackground" : "$backgroundSurface"}
+            borderBottomRightRadius={item.role === "user" ? 4 : "$4"}
+            borderBottomLeftRadius={item.role === "guru" ? 4 : "$4"}
+            borderWidth={item.role === "guru" ? 1 : 0}
+            borderColor={item.role === "guru" ? "$borderColor" : "transparent"}
           >
             {item.role === "guru" && (
-              <Text style={styles.guruLabel}>Cricket Guru</Text>
+              <Text fontFamily="$mono" fontSize={11} color="$accentBackground" fontWeight="700" marginBottom="$1">
+                Cricket Guru
+              </Text>
             )}
-            <Text style={styles.messageText}>{item.content}</Text>
-          </View>
+            <Text
+              fontFamily="$body"
+              fontSize={15}
+              lineHeight={22}
+              color={item.role === "user" ? "$accentColor" : "$color"}
+            >
+              {item.content}
+            </Text>
+          </YStack>
         )}
-        contentContainerStyle={styles.messageList}
+        contentContainerStyle={{ padding: 16, gap: 12 }}
       />
 
       {/* Suggestion chips */}
       {messages.length <= 1 && (
-        <View style={styles.suggestions}>
+        <XStack flexWrap="wrap" gap="$2" paddingHorizontal="$4" paddingBottom="$3">
           {SUGGESTIONS.map((s) => (
-            <TouchableOpacity
+            <XStack
               key={s}
-              style={styles.suggestionChip}
-              onPress={() => {
-                setInput(s);
-              }}
+              backgroundColor="$backgroundSurface"
+              borderRadius="$round"
+              paddingHorizontal="$4"
+              paddingVertical="$2"
+              borderWidth={1}
+              borderColor="$borderColor"
+              onPress={() => setInput(s)}
+              cursor="pointer"
+              pressStyle={{ scale: 0.97, backgroundColor: "$backgroundSurfaceHover" }}
             >
-              <Text style={styles.suggestionText}>{s}</Text>
-            </TouchableOpacity>
+              <Text fontFamily="$body" fontSize={13} color="$colorSecondary">{s}</Text>
+            </XStack>
           ))}
-        </View>
+        </XStack>
       )}
 
       {/* Input */}
-      <View style={styles.inputRow}>
+      <XStack
+        padding="$3"
+        paddingBottom="$6"
+        gap="$2"
+        borderTopWidth={1}
+        borderTopColor="$borderColor"
+      >
         <TextInput
-          style={styles.input}
+          style={{
+            flex: 1,
+            backgroundColor: theme.backgroundSurface.val,
+            borderRadius: 24,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            color: theme.color.val,
+            fontSize: 15,
+          }}
           placeholder="Ask Cricket Guru..."
-          placeholderTextColor="#6C757D"
+          placeholderTextColor={theme.placeholderColor.val}
           value={input}
           onChangeText={setInput}
           onSubmitEditing={sendMessage}
           returnKeyType="send"
         />
-        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-          <Text style={styles.sendButtonText}>Send</Text>
-        </TouchableOpacity>
-      </View>
+        <Button
+          variant="primary"
+          size="md"
+          borderRadius={24}
+          paddingHorizontal="$5"
+          onPress={sendMessage}
+        >
+          Send
+        </Button>
+      </XStack>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0A1628",
-  },
-  messageList: {
-    padding: 16,
-    gap: 12,
-  },
-  messageBubble: {
-    maxWidth: "85%",
-    padding: 14,
-    borderRadius: 16,
-  },
-  userBubble: {
-    backgroundColor: "#00F5A0",
-    alignSelf: "flex-end",
-    borderBottomRightRadius: 4,
-  },
-  guruBubble: {
-    backgroundColor: "#1A2332",
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  guruLabel: {
-    fontSize: 11,
-    color: "#00F5A0",
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#FFFFFF",
-  },
-  suggestions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  suggestionChip: {
-    backgroundColor: "#1A2332",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  suggestionText: {
-    color: "#ADB5BD",
-    fontSize: 13,
-  },
-  inputRow: {
-    flexDirection: "row",
-    padding: 12,
-    paddingBottom: 24,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#1A2332",
-  },
-  input: {
-    flex: 1,
-    backgroundColor: "#1A2332",
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: "#FFFFFF",
-    fontSize: 15,
-  },
-  sendButton: {
-    backgroundColor: "#00F5A0",
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    justifyContent: "center",
-  },
-  sendButtonText: {
-    color: "#0A1628",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-});

@@ -1,22 +1,25 @@
 import { Tabs } from "expo-router";
-import { Colors } from "../../lib/design";
+import { FontFamily } from "../../lib/design";
 import { CustomTabBar } from "../../components/TabBar";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function TabLayout() {
+  const { t } = useTheme();
+
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerStyle: {
-          backgroundColor: Colors.bg,
+          backgroundColor: t.bg,
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 0,
         },
-        headerTintColor: Colors.text,
-        headerTitleStyle: { fontWeight: "700", fontSize: 17 },
+        headerTintColor: t.text,
+        headerTitleStyle: { fontWeight: "700", fontSize: 17, fontFamily: FontFamily.heading },
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: Colors.bg },
+        contentStyle: { backgroundColor: t.bg },
       }}
     >
       <Tabs.Screen name="index" options={{ headerShown: false }} />

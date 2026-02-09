@@ -1,99 +1,53 @@
-import { createTamagui, createFont, createTokens } from 'tamagui';
+import { createTamagui, createFont } from 'tamagui';
+import { tokens, animations, light, dark } from '@draftcrick/ui';
 
-const interFont = createFont({
-  family: 'Inter, sans-serif',
-  size: { 1: 12, 2: 14, 3: 16, 4: 18, 5: 20, 6: 24, 7: 32, 8: 48, 9: 64 },
-  lineHeight: { 1: 17, 2: 22, 3: 25, 4: 28, 5: 32, 6: 36, 7: 42, 8: 56, 9: 72 },
-  weight: { 1: '300', 4: '400', 5: '500', 6: '600', 7: '700', 8: '800', 9: '900' },
-  letterSpacing: { 1: 0, 4: 0, 7: -1, 8: -1.5, 9: -2 },
+/**
+ * tami·draft — Tamagui Configuration
+ * Fonts: DM Sans (body) + DM Mono (data/stats)
+ * Theme: warm off-whites + earthy cricket-pitch greens
+ *
+ * Uses tokens & themes from @draftcrick/ui for consistency
+ * across mobile, web, and shared UI components.
+ */
+
+const dmSansFont = createFont({
+  family: "'DM Sans', sans-serif",
+  size: { 1: 11, 2: 12, 3: 13, 4: 14, 5: 16, 6: 18, 7: 20, 8: 24, 9: 30 },
+  lineHeight: { 1: 16, 2: 18, 3: 20, 4: 22, 5: 24, 6: 28, 7: 30, 8: 32, 9: 38 },
+  weight: { 4: '400', 5: '500', 6: '600', 7: '700' },
+  letterSpacing: { 1: 0, 4: 0, 7: -0.3, 8: -0.5, 9: -0.8 },
+  face: {
+    400: { normal: 'DMSans_400Regular' },
+    500: { normal: 'DMSans_500Medium' },
+    600: { normal: 'DMSans_600SemiBold' },
+    700: { normal: 'DMSans_700Bold' },
+  },
 });
 
-const tokens = createTokens({
-  size: { 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, true: 16, 5: 20, 6: 24, 7: 32, 8: 48, 9: 64, 10: 96, 11: 128 },
-  space: { 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, true: 16, 5: 20, 6: 24, 7: 32, 8: 48, 9: 64, 10: 96, 11: 128 },
-  radius: { 0: 0, 1: 2, 2: 4, 3: 6, 4: 8, 5: 10, 6: 12, 7: 16, 8: 20, 9: 24, 10: 32, true: 8, round: 1000 },
-  zIndex: { 0: 0, 1: 100, 2: 200, 3: 300, 4: 400, 5: 500 },
-  color: {
-    brand: '#00F5A0',
-    brandHover: '#00D98E',
-    brandActive: '#00BF7D',
-    brandDark: '#050B14',
-    accent: '#3B82F6',
-    accentHover: '#2563EB',
-    surface: '#0A1628',
-    surfaceHover: '#0F1E32',
-    border: '#1e293b',
-    borderHover: '#334155',
-    white: '#FFFFFF',
-    black: '#000000',
-    red: '#FF4D4F',
-    redHover: '#FF3335',
-    success: '#00F5A0',
-    warning: '#F59E0B',
-    info: '#3B82F6',
-    text: '#f8fafc',
-    textSecondary: '#94a3b8',
-    textMuted: '#64748b',
-    
-    // Light theme colors
-    lightBg: '#F8FAFC',
-    lightSurface: '#FFFFFF',
-    lightBorder: '#E2E8F0',
-    lightText: '#0F172A',
-    lightTextSecondary: '#475569',
-    lightBrand: '#3B82F6',
-    lightBrandHover: '#2563EB',
+const dmMonoFont = createFont({
+  family: "'DM Mono', monospace",
+  size: { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 16, 8: 18, 9: 22 },
+  lineHeight: { 1: 14, 2: 16, 3: 17, 4: 18, 5: 20, 6: 22, 7: 24, 8: 28, 9: 30 },
+  weight: { 4: '400', 5: '500' },
+  letterSpacing: { 1: 0.5, 4: 0.3, 7: 0, 8: -0.3, 9: -0.5 },
+  face: {
+    400: { normal: 'DMMono_400Regular' },
+    500: { normal: 'DMMono_500Medium' },
   },
 });
 
 export const tamaguiConfig = createTamagui({
   fonts: {
-    heading: interFont,
-    body: interFont,
+    heading: dmSansFont,
+    body: dmSansFont,
+    mono: dmMonoFont,
   },
   tokens,
   themes: {
-    dark: {
-      bg: '#050B14',
-      bgSecondary: '#0A0F1A',
-      color: '#f8fafc',
-      colorHover: '#ffffff',
-      border: '#1e293b',
-      borderHover: '#334155',
-      brand: '#00F5A0',
-      brandHover: '#00D98E',
-      surface: '#0A1628',
-      surfaceHover: '#0F1E32',
-      surfaceElevated: '#12202F',
-      red: '#FF4D4F',
-      redHover: '#FF3335',
-      accent: '#3B82F6',
-      accentHover: '#2563EB',
-      success: '#00F5A0',
-      warning: '#F59E0B',
-      shadowColor: 'rgba(0, 0, 0, 0.5)',
-    },
-    light: {
-      bg: '#F8FAFC',
-      bgSecondary: '#F1F5F9',
-      color: '#0F172A',
-      colorHover: '#000000',
-      border: '#E2E8F0',
-      borderHover: '#CBD5E1',
-      brand: '#3B82F6',
-      brandHover: '#2563EB',
-      surface: '#FFFFFF',
-      surfaceHover: '#F8FAFC',
-      surfaceElevated: '#FFFFFF',
-      red: '#EF4444',
-      redHover: '#DC2626',
-      accent: '#3B82F6',
-      accentHover: '#2563EB',
-      success: '#10B981',
-      warning: '#F59E0B',
-      shadowColor: 'rgba(0, 0, 0, 0.1)',
-    },
+    light,
+    dark,
   },
+  animations,
   shorthands: {
     f: 'flex',
     ai: 'alignItems',

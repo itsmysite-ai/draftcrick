@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Radius, Spacing, Font, FontFamily } from "../../lib/design";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Button } from "@draftcrick/ui";
 
 const TEAMS = ["CSK", "MI", "RCB", "KKR", "DC", "SRH", "PBKS", "GT", "LSG", "RR"];
 const FORMATS = [
@@ -13,6 +13,7 @@ const FORMATS = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const theme = useTamaguiTheme();
   const [step, setStep] = useState(0);
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
   const [preferredFormat, setPreferredFormat] = useState<string | null>(null);
@@ -22,110 +23,74 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={s.container}>
-      <View style={s.progress}>
+    <YStack flex={1} backgroundColor="$background" paddingHorizontal="$6" paddingTop={60}>
+      <XStack justifyContent="center" gap="$2" marginBottom={40}>
         {[0, 1].map((i) => (
-          <View key={i} style={[s.dot, step >= i && s.dotActive]} />
+          <YStack key={i} width={step >= i ? 24 : 8} height={8} borderRadius={4} backgroundColor={step >= i ? "$accentBackground" : "$borderColor"} />
         ))}
-      </View>
+      </XStack>
 
       {step === 0 && (
-        <View style={s.step}>
-          <Text style={s.title}>Pick Your Team</Text>
-          <Text style={s.subtitle}>Who do you support?</Text>
-          <View style={s.grid}>
+        <YStack flex={1}>
+          <Text fontFamily="$heading" fontWeight="700" fontSize={28} color="$color" marginBottom="$2">Pick Your Team</Text>
+          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">Who do you support?</Text>
+          <XStack flexWrap="wrap" gap="$3">
             {TEAMS.map((team) => (
-              <Pressable
+              <XStack
                 key={team}
+                borderRadius="$round"
+                paddingHorizontal="$5"
+                paddingVertical="$3"
+                borderWidth={1}
+                backgroundColor={favoriteTeam === team ? "$colorAccentLight" : "$backgroundSurface"}
+                borderColor={favoriteTeam === team ? "$accentBackground" : "$borderColor"}
                 onPress={() => setFavoriteTeam(team)}
-                style={({ hovered }) => [
-                  s.chip,
-                  favoriteTeam === team && s.chipSelected,
-                  hovered && { backgroundColor: Colors.bgSurfaceHover },
-                ]}
+                cursor="pointer"
+                pressStyle={{ scale: 0.96, opacity: 0.9 }}
+                hoverStyle={{ backgroundColor: "$backgroundSurfaceHover" }}
               >
-                <Text style={[s.chipText, favoriteTeam === team && s.chipTextSelected]}>{team}</Text>
-              </Pressable>
+                <Text fontFamily="$body" fontWeight="600" fontSize={15} color={favoriteTeam === team ? "$accentBackground" : "$color"}>{team}</Text>
+              </XStack>
             ))}
-          </View>
-          <Pressable
-            disabled={!favoriteTeam}
-            onPress={() => setStep(1)}
-            style={({ hovered }) => [s.nextBtn, !favoriteTeam && s.nextBtnDisabled, hovered && { opacity: 0.9 }]}
-          >
-            <Text style={s.nextBtnText}>Next</Text>
-          </Pressable>
-        </View>
+          </XStack>
+          <YStack marginTop="auto" marginBottom={32}>
+            <Button variant="primary" size="lg" disabled={!favoriteTeam} opacity={!favoriteTeam ? 0.4 : 1} onPress={() => setStep(1)}>Next</Button>
+          </YStack>
+        </YStack>
       )}
 
       {step === 1 && (
-        <View style={s.step}>
-          <Text style={s.title}>Choose Your Style</Text>
-          <Text style={s.subtitle}>How do you want to play?</Text>
-          <View style={{ gap: 12 }}>
+        <YStack flex={1}>
+          <Text fontFamily="$heading" fontWeight="700" fontSize={28} color="$color" marginBottom="$2">Choose Your Style</Text>
+          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">How do you want to play?</Text>
+          <YStack gap="$3">
             {FORMATS.map((f) => (
-              <Pressable
+              <XStack
                 key={f.key}
+                backgroundColor={preferredFormat === f.key ? "$colorAccentLight" : "$backgroundSurface"}
+                borderColor={preferredFormat === f.key ? "$accentBackground" : "$borderColor"}
+                borderWidth={2}
+                borderRadius="$3"
+                padding="$5"
+                alignItems="center"
+                gap="$4"
                 onPress={() => setPreferredFormat(f.key)}
-                style={({ hovered }) => [
-                  s.formatCard,
-                  preferredFormat === f.key && s.formatSelected,
-                  hovered && { backgroundColor: Colors.bgSurfaceHover },
-                ]}
+                cursor="pointer"
+                pressStyle={{ scale: 0.98, backgroundColor: "$backgroundSurfaceHover" }}
               >
-                <View style={s.formatRow}>
-                  <Ionicons name={f.icon} size={20} color={preferredFormat === f.key ? Colors.accent : Colors.textTertiary} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.formatTitle, preferredFormat === f.key && { color: Colors.accent }]}>{f.label}</Text>
-                    <Text style={s.formatDesc}>{f.desc}</Text>
-                  </View>
-                </View>
-              </Pressable>
+                <Ionicons name={f.icon} size={20} color={preferredFormat === f.key ? theme.accentBackground.val : theme.colorMuted.val} />
+                <YStack flex={1}>
+                  <Text fontFamily="$heading" fontWeight="700" fontSize={17} color={preferredFormat === f.key ? "$accentBackground" : "$color"}>{f.label}</Text>
+                  <Text fontFamily="$body" fontSize={13} color="$colorSecondary" marginTop={2}>{f.desc}</Text>
+                </YStack>
+              </XStack>
             ))}
-          </View>
-          <Pressable
-            disabled={!preferredFormat}
-            onPress={handleComplete}
-            style={({ hovered }) => [s.nextBtn, !preferredFormat && s.nextBtnDisabled, hovered && { opacity: 0.9 }]}
-          >
-            <Text style={s.nextBtnText}>Let's Go</Text>
-          </Pressable>
-        </View>
+          </YStack>
+          <YStack marginTop="auto" marginBottom={32}>
+            <Button variant="primary" size="lg" disabled={!preferredFormat} opacity={!preferredFormat ? 0.4 : 1} onPress={handleComplete}>Let's Go</Button>
+          </YStack>
+        </YStack>
       )}
-    </View>
+    </YStack>
   );
 }
-
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg, paddingHorizontal: Spacing["2xl"], paddingTop: 60 },
-  progress: { flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 40 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
-  dotActive: { backgroundColor: Colors.accent, width: 24 },
-  step: { flex: 1 },
-  title: { fontFamily: FontFamily.headingBold, fontSize: Font["3xl"], color: Colors.text, marginBottom: 8 },
-  subtitle: { fontFamily: FontFamily.body, fontSize: Font.lg, color: Colors.textTertiary, marginBottom: 32 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  chip: {
-    backgroundColor: Colors.bgSurface, borderRadius: Radius.xl,
-    paddingHorizontal: 20, paddingVertical: 12,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  chipSelected: { backgroundColor: Colors.accentMuted, borderColor: Colors.accent },
-  chipText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.text },
-  chipTextSelected: { color: Colors.accent },
-  formatCard: {
-    backgroundColor: Colors.bgSurface, borderRadius: Radius.md,
-    padding: Spacing.xl, borderWidth: 2, borderColor: Colors.border,
-  },
-  formatSelected: { borderColor: Colors.accent, backgroundColor: Colors.accentMuted },
-  formatRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
-  formatTitle: { fontFamily: FontFamily.headingBold, fontSize: Font.xl, color: Colors.text },
-  formatDesc: { fontFamily: FontFamily.body, fontSize: Font.sm, color: Colors.textSecondary, marginTop: 2 },
-  nextBtn: {
-    backgroundColor: Colors.accent, borderRadius: Radius.md,
-    paddingVertical: Spacing.lg, alignItems: "center",
-    marginTop: "auto", marginBottom: 32,
-  },
-  nextBtnDisabled: { opacity: 0.4 },
-  nextBtnText: { fontFamily: FontFamily.headingBold, fontSize: Font.lg, color: Colors.textInverse },
-});

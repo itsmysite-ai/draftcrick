@@ -1,32 +1,19 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  TextInput,
-  Alert,
-  RefreshControl,
-} from "react-native";
+import { ScrollView, ActivityIndicator, RefreshControl, TextInput, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback } from "react";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Card, Button } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 
 export default function WalletScreen() {
   const router = useRouter();
+  const theme = useTamaguiTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [showDeposit, setShowDeposit] = useState(false);
 
-  const wallet = trpc.wallet.getBalance.useQuery(undefined, {
-    retry: false,
-  });
-
-  const transactions = trpc.wallet.getTransactions.useQuery(
-    { limit: 20 },
-    { retry: false }
-  );
+  const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false });
+  const transactions = trpc.wallet.getTransactions.useQuery({ limit: 20 }, { retry: false });
 
   const deposit = trpc.wallet.deposit.useMutation({
     onSuccess: () => {
@@ -50,26 +37,25 @@ export default function WalletScreen() {
   // Not authenticated
   if (wallet.error?.data?.code === "UNAUTHORIZED") {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorTitle}>Sign In Required</Text>
-        <Text style={styles.errorSubtitle}>
+      <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center" padding="$5">
+        <Text fontFamily="$heading" fontWeight="700" fontSize={20} color="$color" marginBottom="$2">
+          Sign In Required
+        </Text>
+        <Text fontFamily="$body" fontSize={14} color="$colorMuted" marginBottom="$5">
           Sign in to access your wallet
         </Text>
-        <TouchableOpacity
-          style={styles.signInButton}
-          onPress={() => router.push("/auth/login")}
-        >
-          <Text style={styles.signInText}>Sign In</Text>
-        </TouchableOpacity>
-      </View>
+        <Button variant="primary" size="md" onPress={() => router.push("/auth/login")}>
+          Sign In
+        </Button>
+      </YStack>
     );
   }
 
   if (wallet.isLoading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator color="#00F5A0" size="large" />
-      </View>
+      <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center">
+        <ActivityIndicator color={theme.accentBackground.val} size="large" />
+      </YStack>
     );
   }
 
@@ -77,91 +63,105 @@ export default function WalletScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={{ flex: 1, backgroundColor: theme.background.val }}
       refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor="#00F5A0"
-        />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />
       }
     >
       {/* Balance Card */}
       {w && (
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Total Balance</Text>
-          <Text style={styles.balanceAmount}>
-            ₹{w.totalBalance.toFixed(2)}
+        <Card margin="$4" padding="$5" borderColor="$colorAccentLight">
+          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textTransform="uppercase" letterSpacing={0.5}>
+            Total Balance
           </Text>
-          <View style={styles.breakdownRow}>
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Cash</Text>
-              <Text style={styles.breakdownValue}>
-                ₹{w.cashBalance.toFixed(2)}
+          <Text fontFamily="$heading" fontWeight="800" fontSize={36} color="$accentBackground" marginTop="$1" marginBottom="$4">
+            {"\u20B9"}{w.totalBalance.toFixed(2)}
+          </Text>
+          <XStack borderTopWidth={1} borderTopColor="$borderColor" paddingTop="$4">
+            <YStack flex={1} alignItems="center">
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Cash</Text>
+              <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+                {"\u20B9"}{w.cashBalance.toFixed(2)}
               </Text>
-            </View>
-            <View style={styles.breakdownDivider} />
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Bonus</Text>
-              <Text style={styles.breakdownValue}>
-                ₹{w.bonusBalance.toFixed(2)}
+            </YStack>
+            <YStack width={1} backgroundColor="$borderColor" />
+            <YStack flex={1} alignItems="center">
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Bonus</Text>
+              <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+                {"\u20B9"}{w.bonusBalance.toFixed(2)}
               </Text>
-            </View>
-            <View style={styles.breakdownDivider} />
-            <View style={styles.breakdownItem}>
-              <Text style={styles.breakdownLabel}>Winnings</Text>
-              <Text style={[styles.breakdownValue, { color: "#00F5A0" }]}>
-                ₹{w.totalWinnings.toFixed(2)}
+            </YStack>
+            <YStack width={1} backgroundColor="$borderColor" />
+            <YStack flex={1} alignItems="center">
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Winnings</Text>
+              <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$accentBackground" marginTop="$1">
+                {"\u20B9"}{w.totalWinnings.toFixed(2)}
               </Text>
-            </View>
-          </View>
-        </View>
+            </YStack>
+          </XStack>
+        </Card>
       )}
 
       {/* Action Buttons */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.depositButton}
-          onPress={() => setShowDeposit(!showDeposit)}
-        >
-          <Text style={styles.depositButtonText}>
-            {showDeposit ? "Cancel" : "Add Cash"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.withdrawButton}>
-          <Text style={styles.withdrawButtonText}>Withdraw</Text>
-        </TouchableOpacity>
-      </View>
+      <XStack paddingHorizontal="$4" gap="$3" marginBottom="$4">
+        <Button variant="primary" size="md" flex={1} onPress={() => setShowDeposit(!showDeposit)}>
+          {showDeposit ? "Cancel" : "Add Cash"}
+        </Button>
+        <Button variant="secondary" size="md" flex={1}>
+          Withdraw
+        </Button>
+      </XStack>
 
       {/* Deposit Form */}
       {showDeposit && (
-        <View style={styles.depositForm}>
-          <Text style={styles.depositTitle}>Add Cash</Text>
+        <Card marginHorizontal="$4" marginBottom="$4" padding="$4">
+          <Text fontFamily="$heading" fontWeight="700" fontSize={16} color="$color" marginBottom="$3">
+            Add Cash
+          </Text>
           <TextInput
-            style={styles.amountInput}
             placeholder="Enter amount"
-            placeholderTextColor="#6C757D"
+            placeholderTextColor={theme.placeholderColor.val}
             keyboardType="numeric"
             value={depositAmount}
             onChangeText={setDepositAmount}
+            style={{
+              backgroundColor: theme.background.val,
+              borderRadius: 10,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 18,
+              color: theme.color.val,
+              fontWeight: "700",
+              borderWidth: 1,
+              borderColor: theme.borderColor.val,
+              marginBottom: 12,
+            }}
           />
-          <View style={styles.quickAmounts}>
+          <XStack gap="$2" marginBottom="$3">
             {[100, 500, 1000, 2000].map((amount) => (
-              <TouchableOpacity
+              <XStack
                 key={amount}
-                style={styles.quickAmountButton}
+                flex={1}
+                backgroundColor="$borderColor"
+                borderRadius="$2"
+                paddingVertical="$2"
+                alignItems="center"
+                justifyContent="center"
                 onPress={() => setDepositAmount(String(amount))}
+                cursor="pointer"
+                pressStyle={{ scale: 0.97, opacity: 0.9 }}
               >
-                <Text style={styles.quickAmountText}>₹{amount}</Text>
-              </TouchableOpacity>
+                <Text fontFamily="$mono" fontWeight="600" fontSize={13} color="$color">
+                  {"\u20B9"}{amount}
+                </Text>
+              </XStack>
             ))}
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.confirmDeposit,
-              (!depositAmount || deposit.isPending) && { opacity: 0.4 },
-            ]}
+          </XStack>
+          <Button
+            variant="primary"
+            size="md"
             disabled={!depositAmount || deposit.isPending}
+            opacity={!depositAmount ? 0.4 : 1}
             onPress={() => {
               const amount = Number(depositAmount);
               if (isNaN(amount) || amount < 1) {
@@ -171,316 +171,69 @@ export default function WalletScreen() {
               deposit.mutate({ amount });
             }}
           >
-            <Text style={styles.confirmDepositText}>
-              {deposit.isPending ? "Processing..." : `Add ₹${depositAmount || "0"}`}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {deposit.isPending ? "Processing..." : `Add \u20B9${depositAmount || "0"}`}
+          </Button>
+        </Card>
       )}
 
       {/* Stats Row */}
       {w && (
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Total Deposited</Text>
-            <Text style={styles.statValue}>₹{w.totalDeposited.toFixed(0)}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Total Withdrawn</Text>
-            <Text style={styles.statValue}>₹{w.totalWithdrawn.toFixed(0)}</Text>
-          </View>
-        </View>
+        <XStack paddingHorizontal="$4" gap="$3" marginBottom="$4">
+          <Card flex={1} padding="$3">
+            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Total Deposited</Text>
+            <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+              {"\u20B9"}{w.totalDeposited.toFixed(0)}
+            </Text>
+          </Card>
+          <Card flex={1} padding="$3">
+            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Total Withdrawn</Text>
+            <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+              {"\u20B9"}{w.totalWithdrawn.toFixed(0)}
+            </Text>
+          </Card>
+        </XStack>
       )}
 
       {/* Transaction History */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Transactions</Text>
+      <YStack paddingHorizontal="$4" marginBottom="$8">
+        <Text fontFamily="$heading" fontWeight="700" fontSize={18} color="$color" marginBottom="$3">
+          Recent Transactions
+        </Text>
         {transactions.isLoading ? (
-          <ActivityIndicator color="#00F5A0" style={{ padding: 20 }} />
+          <ActivityIndicator color={theme.accentBackground.val} style={{ padding: 20 }} />
         ) : transactions.data && transactions.data.length > 0 ? (
           transactions.data.map((txn) => {
-            const isCredit =
-              txn.type === "deposit" ||
-              txn.type === "winnings" ||
-              txn.type === "bonus" ||
-              txn.type === "refund";
+            const isCredit = txn.type === "deposit" || txn.type === "winnings" || txn.type === "bonus" || txn.type === "refund";
             return (
-              <View key={txn.id} style={styles.txnRow}>
-                <View style={styles.txnInfo}>
-                  <Text style={styles.txnType}>
-                    {txn.type.replace("_", " ").toUpperCase()}
+              <Card key={txn.id} marginBottom="$1" padding="$4">
+                <XStack justifyContent="space-between" alignItems="center">
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" textTransform="capitalize">
+                      {txn.type.replace("_", " ").toUpperCase()}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" marginTop={2}>
+                      {new Date(txn.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </Text>
+                  </YStack>
+                  <Text
+                    fontFamily="$mono"
+                    fontWeight="700"
+                    fontSize={16}
+                    marginLeft="$3"
+                    color={isCredit ? "$accentBackground" : "$error"}
+                  >
+                    {isCredit ? "+" : "-"}{"\u20B9"}{txn.amount.toFixed(2)}
                   </Text>
-                  <Text style={styles.txnDate}>
-                    {new Date(txn.createdAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.txnAmount,
-                    { color: isCredit ? "#00F5A0" : "#FF4D4F" },
-                  ]}
-                >
-                  {isCredit ? "+" : "-"}₹{txn.amount.toFixed(2)}
-                </Text>
-              </View>
+                </XStack>
+              </Card>
             );
           })
         ) : (
-          <View style={styles.emptyTxn}>
-            <Text style={styles.emptyTxnText}>No transactions yet</Text>
-          </View>
+          <Card padding="$6" alignItems="center">
+            <Text fontFamily="$body" color="$colorMuted" fontSize={14}>No transactions yet</Text>
+          </Card>
         )}
-      </View>
+      </YStack>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0A1628",
-  },
-  centerContainer: {
-    flex: 1,
-    backgroundColor: "#0A1628",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  errorSubtitle: {
-    fontSize: 14,
-    color: "#6C757D",
-    marginBottom: 20,
-  },
-  signInButton: {
-    backgroundColor: "#00F5A0",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  signInText: {
-    color: "#0A1628",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  balanceCard: {
-    margin: 16,
-    backgroundColor: "#1A2332",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#00F5A030",
-  },
-  balanceLabel: {
-    fontSize: 12,
-    color: "#6C757D",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  balanceAmount: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#00F5A0",
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  breakdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "#243044",
-    paddingTop: 16,
-  },
-  breakdownItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  breakdownDivider: {
-    width: 1,
-    backgroundColor: "#243044",
-  },
-  breakdownLabel: {
-    fontSize: 11,
-    color: "#6C757D",
-  },
-  breakdownValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginTop: 4,
-  },
-  actionRow: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 16,
-  },
-  depositButton: {
-    flex: 1,
-    backgroundColor: "#00F5A0",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  depositButtonText: {
-    color: "#0A1628",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  withdrawButton: {
-    flex: 1,
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  withdrawButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  depositForm: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  depositTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 12,
-  },
-  amountInput: {
-    backgroundColor: "#0A1628",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: "700",
-    borderWidth: 1,
-    borderColor: "#243044",
-    marginBottom: 12,
-  },
-  quickAmounts: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 12,
-  },
-  quickAmountButton: {
-    flex: 1,
-    backgroundColor: "#243044",
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  quickAmountText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  confirmDeposit: {
-    backgroundColor: "#00F5A0",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  confirmDepositText: {
-    color: "#0A1628",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  statsRow: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 16,
-  },
-  statItem: {
-    flex: 1,
-    backgroundColor: "#1A2332",
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  statLabel: {
-    fontSize: 11,
-    color: "#6C757D",
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginTop: 4,
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 12,
-  },
-  txnRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#1A2332",
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  txnInfo: {
-    flex: 1,
-  },
-  txnType: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    textTransform: "capitalize",
-  },
-  txnDate: {
-    fontSize: 11,
-    color: "#6C757D",
-    marginTop: 2,
-  },
-  txnAmount: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 12,
-  },
-  emptyTxn: {
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  emptyTxnText: {
-    color: "#6C757D",
-    fontSize: 14,
-  },
-});

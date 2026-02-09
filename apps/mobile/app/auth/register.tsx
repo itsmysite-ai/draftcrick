@@ -1,121 +1,93 @@
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from "react-native";
+import { TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Button } from "@draftcrick/ui";
 import { useAuth } from "../../providers/AuthProvider";
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
+  const theme = useTamaguiTheme();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleRegister = async () => {
-    // Firebase Auth createUserWithEmailAndPassword
-    // Then call tRPC syncUser to create PostgreSQL record with username
     await signUp(email, password);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>
+    <YStack flex={1} backgroundColor="$background" padding="$6" justifyContent="center">
+      <Text fontFamily="$heading" fontWeight="800" fontSize={28} color="$color" marginBottom="$2">
+        Create Account
+      </Text>
+      <Text fontFamily="$body" fontSize={15} color="$colorMuted" marginBottom="$8">
         Join thousands of fantasy cricket players
       </Text>
 
-      <View style={styles.form}>
+      <YStack gap="$4">
         <TextInput
-          style={styles.input}
           placeholder="Username"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor={theme.placeholderColor.val}
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
+          style={{
+            backgroundColor: theme.backgroundSurface.val,
+            borderRadius: 12,
+            padding: 16,
+            color: theme.color.val,
+            fontSize: 16,
+            borderWidth: 1,
+            borderColor: theme.borderColor.val,
+          }}
         />
-
         <TextInput
-          style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor={theme.placeholderColor.val}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          style={{
+            backgroundColor: theme.backgroundSurface.val,
+            borderRadius: 12,
+            padding: 16,
+            color: theme.color.val,
+            fontSize: 16,
+            borderWidth: 1,
+            borderColor: theme.borderColor.val,
+          }}
         />
-
         <TextInput
-          style={styles.input}
           placeholder="Password (8+ characters)"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor={theme.placeholderColor.val}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          style={{
+            backgroundColor: theme.backgroundSurface.val,
+            borderRadius: 12,
+            padding: 16,
+            color: theme.color.val,
+            fontSize: 16,
+            borderWidth: 1,
+            borderColor: theme.borderColor.val,
+          }}
         />
-
-        <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
-          <Text style={styles.registerButtonText}>Create Account</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push("/auth/login")}>
-          <Text style={styles.loginLink}>
+        <Button variant="primary" size="lg" onPress={handleRegister}>
+          Create Account
+        </Button>
+        <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/login")} cursor="pointer">
+          <Text fontFamily="$body" fontSize={14} color="$colorMuted">
             Already have an account?{" "}
-            <Text style={styles.loginLinkHighlight}>Sign in</Text>
           </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <Text fontFamily="$body" fontSize={14} color="$accentBackground" fontWeight="600">
+            Sign in
+          </Text>
+        </XStack>
+      </YStack>
+    </YStack>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0A1628",
-    padding: 24,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: "#6C757D",
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  input: {
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    padding: 16,
-    color: "#FFFFFF",
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  registerButton: {
-    backgroundColor: "#00F5A0",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  registerButtonText: {
-    color: "#0A1628",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  loginLink: {
-    color: "#6C757D",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 8,
-  },
-  loginLinkHighlight: {
-    color: "#00F5A0",
-    fontWeight: "600",
-  },
-});

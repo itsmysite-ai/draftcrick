@@ -4,9 +4,13 @@ export const Badge = styled(Text, {
   paddingHorizontal: "$2",
   paddingVertical: "$1",
   borderRadius: "$6", // 24px - chip/badge radius
-  fontSize: 12,
+  fontFamily: "$mono",
   fontWeight: "600",
   overflow: "hidden",
+  
+  // Disable Tamagui's automatic font size lookup
+  fontStyle: undefined,
+  textTransform: undefined,
 
   variants: {
     variant: {
@@ -15,28 +19,32 @@ export const Badge = styled(Text, {
         color: "$color",
       },
       success: {
-        backgroundColor: "$green",
-        color: "$navy",
+        backgroundColor: "$success",
+        color: "$white",
       },
       warning: {
-        backgroundColor: "$amber",
-        color: "$navy",
+        backgroundColor: "$warning",
+        color: "$charcoalDeep",
       },
       danger: {
-        backgroundColor: "$red",
+        backgroundColor: "$error",
         color: "$white",
       },
       live: {
-        backgroundColor: "$red",
+        backgroundColor: "$live",
         color: "$white",
+        shadowColor: "$liveGlow",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 1,
+        shadowRadius: 8,
       },
       captain: {
-        backgroundColor: "$amber",
-        color: "$navy",
+        backgroundColor: "$cricket",
+        color: "$white",
       },
       role: {
-        backgroundColor: "$charcoal",
-        color: "$green",
+        backgroundColor: "$backgroundSurfaceAlt",
+        color: "$colorAccent",
       },
     },
     size: {
@@ -62,4 +70,4 @@ export const Badge = styled(Text, {
     variant: "default",
     size: "md",
   },
-});
+}) as any; // Cast to any to bypass Tamagui's size prop type checking

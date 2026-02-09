@@ -1,5 +1,3 @@
 
-// This file is now deprecated. Please use tamagui.config.ts tokens.
-export const UI = {
-  deprecated: true
-};
+// tami·draft theme — see packages/ui/src/theme and tamagui.config.ts for full config
+export { tamaguiConfig } from './tamagui.config';

@@ -13,7 +13,7 @@ import { Match, Player } from './types.ts';
 import { useStore } from './store.ts';
 import { Sun, Moon, Trophy, Zap, Shield, BarChart2, ExternalLink } from '@tamagui/lucide-icons';
 
-console.log('🏗️ DraftCrick: App component loading...');
+console.log('🥚 tami·draft: App component loading...');
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -29,21 +29,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   render() {
     if (this.state.hasError) {
       return (
-        <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor="#050B14" padding={20}>
-          <Text color="#FF4D4F" fontSize={20} fontWeight="900" textAlign="center">CRITICAL BOOT ERROR</Text>
-          <Text color="white" fontSize={14} marginTop={10} opacity={0.7} textAlign="center">
+        <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor="#111210" padding={20}>
+          <Text color="#E5484D" fontSize={20} fontWeight="900" textAlign="center">CRITICAL BOOT ERROR</Text>
+          <Text color="#EDECEA" fontSize={14} marginTop={10} opacity={0.7} textAlign="center">
             {this.state.error?.message || "Unknown Application Error"}
           </Text>
-          <View 
-            marginTop={20} 
-            backgroundColor="#1e293b" 
+          <View
+            marginTop={20}
+            backgroundColor="#1C1D1B"
             paddingHorizontal={20}
-            paddingVertical={10} 
-            borderRadius={8} 
+            paddingVertical={10}
+            borderRadius={8}
             cursor="pointer"
             onPress={() => window.location.reload()}
           >
-            <Text fontWeight="800" color="white">RESTART APP</Text>
+            <Text fontWeight="800" color="#EDECEA">RESTART APP</Text>
           </View>
         </YStack>
       );
@@ -134,7 +134,7 @@ const AppContent: React.FC = () => {
       <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor="$bg" gap={16}>
         <Spinner size="large" color="$brand" />
         <Text fontWeight="800" color="$brand" letterSpacing={2} animation="quick" enterStyle={{ opacity: 0, scale: 0.8 }}>
-          DRAFTCRICK AI
+          tami·draft
         </Text>
       </YStack>
     );
@@ -190,9 +190,9 @@ const AppContent: React.FC = () => {
               animation="quick"
               hoverStyle={{ scale: 1.1, rotate: '5deg' }}
             >
-              <Text fontWeight="900" color="$brandDark">D</Text>
+              <Text fontWeight="900" color="$bg">🥚</Text>
             </View>
-            <H1 fontSize={20} letterSpacing={-1} fontWeight="800" color="$color">DraftCrick</H1>
+            <H1 fontSize={20} letterSpacing={-1} fontWeight="800" color="$color">tami·draft</H1>
           </XStack>
           
           <Button 
@@ -370,7 +370,7 @@ const AppContent: React.FC = () => {
 };
 
 export default function App() {
-  console.log('⚛️ DraftCrick: App starting render...');
+  console.log('🥚 tami·draft: App starting render...');
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

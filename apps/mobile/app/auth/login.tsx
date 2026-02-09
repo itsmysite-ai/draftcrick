@@ -1,158 +1,97 @@
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from "react-native";
+import { TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Button } from "@draftcrick/ui";
 import { useAuth } from "../../providers/AuthProvider";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
+  const theme = useTamaguiTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
-    // Firebase Auth signInWithEmailAndPassword
     await signIn(email, password);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back</Text>
-      <Text style={styles.subtitle}>Sign in to your DraftCrick account</Text>
+    <YStack flex={1} backgroundColor="$background" padding="$6" justifyContent="center">
+      <Text fontFamily="$heading" fontWeight="800" fontSize={28} color="$color" marginBottom="$2">
+        Welcome Back
+      </Text>
+      <Text fontFamily="$body" fontSize={15} color="$colorMuted" marginBottom="$8">
+        Sign in to your DraftCrick account
+      </Text>
 
-      <View style={styles.form}>
+      <YStack gap="$4">
         <TextInput
-          style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor={theme.placeholderColor.val}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
+          style={{
+            backgroundColor: theme.backgroundSurface.val,
+            borderRadius: 12,
+            padding: 16,
+            color: theme.color.val,
+            fontSize: 16,
+            borderWidth: 1,
+            borderColor: theme.borderColor.val,
+          }}
         />
 
         <TextInput
-          style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor={theme.placeholderColor.val}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          style={{
+            backgroundColor: theme.backgroundSurface.val,
+            borderRadius: 12,
+            padding: 16,
+            color: theme.color.val,
+            fontSize: 16,
+            borderWidth: 1,
+            borderColor: theme.borderColor.val,
+          }}
         />
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text style={styles.loginButtonText}>Sign In</Text>
-        </TouchableOpacity>
+        <Button variant="primary" size="lg" onPress={handleLogin}>
+          Sign In
+        </Button>
 
-        {/* Social login buttons — Firebase Auth providers */}
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or continue with</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <View style={styles.socialButtons}>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text style={styles.socialButtonText}>Google</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <Text style={styles.socialButtonText}>Apple</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity onPress={() => router.push("/auth/register")}>
-          <Text style={styles.registerLink}>
-            Don't have an account?{" "}
-            <Text style={styles.registerLinkHighlight}>Sign up</Text>
+        <XStack alignItems="center" marginVertical="$2">
+          <YStack flex={1} height={1} backgroundColor="$borderColor" />
+          <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
+            or continue with
           </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <YStack flex={1} height={1} backgroundColor="$borderColor" />
+        </XStack>
+
+        <XStack gap="$3">
+          <Button variant="secondary" size="md" flex={1}>
+            Google
+          </Button>
+          <Button variant="secondary" size="md" flex={1}>
+            Apple
+          </Button>
+        </XStack>
+
+        <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/register")} cursor="pointer">
+          <Text fontFamily="$body" fontSize={14} color="$colorMuted">
+            Don't have an account?{" "}
+          </Text>
+          <Text fontFamily="$body" fontSize={14} color="$accentBackground" fontWeight="600">
+            Sign up
+          </Text>
+        </XStack>
+      </YStack>
+    </YStack>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0A1628",
-    padding: 24,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: "#6C757D",
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  input: {
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    padding: 16,
-    color: "#FFFFFF",
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  loginButton: {
-    backgroundColor: "#00F5A0",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  loginButtonText: {
-    color: "#0A1628",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 8,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#243044",
-  },
-  dividerText: {
-    color: "#6C757D",
-    fontSize: 13,
-    paddingHorizontal: 12,
-  },
-  socialButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  socialButton: {
-    flex: 1,
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#243044",
-  },
-  socialButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  registerLink: {
-    color: "#6C757D",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 8,
-  },
-  registerLinkHighlight: {
-    color: "#00F5A0",
-    fontWeight: "600",
-  },
-});

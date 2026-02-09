@@ -147,7 +147,7 @@ export const LiveGuru: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
-          systemInstruction: 'You are the DraftCrick Guru. Help the user build their fantasy squad using your voice. Be energetic and knowledgeable about cricket stats.'
+          systemInstruction: 'You are the tami·draft Cricket Guru. Help the user build their fantasy cricket squad using your voice. Be energetic and knowledgeable about cricket stats.'
         }
       });
       sessionRef.current = await sessionPromise;

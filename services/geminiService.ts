@@ -252,8 +252,8 @@ export async function generateMascot(prompt: string) {
   if (STUB_MODE) {
     // Return a simple SVG as a data URL for stub mode
     const svgPlaceholder = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
-      <rect width="200" height="200" fill="#00F5A0"/>
-      <text x="50%" y="50%" font-family="Arial" font-size="16" fill="#0A1628" text-anchor="middle" dy=".3em">
+      <rect width="200" height="200" fill="#5DB882"/>
+      <text x="50%" y="50%" font-family="DM Sans, Arial" font-size="16" fill="#111210" text-anchor="middle" dy=".3em">
         Mascot: ${prompt.substring(0, 20)}
       </text>
     </svg>`;
