@@ -3,18 +3,12 @@ import { useLocalSearchParams } from "expo-router";
 import { useState, useEffect } from "react";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
-
-const BG = "#111210";
-const CARD = "#1C1D1B";
-const ACCENT = "#5DB882";
-const GOLD = "#D4A43D";
-const RED = "#E5484D";
-const TEXT = "#EDECEA";
-const MUTED = "#5E5D5A";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function AuctionRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { t } = useTheme();
 
   const { data: auctionState, refetch } = trpc.draft.getAuctionState.useQuery(
     { roomId: roomId! },
@@ -68,11 +62,11 @@ export default function AuctionRoomScreen() {
 
   const phaseColor = (phase: string) => {
     switch (phase) {
-      case "bidding": return ACCENT;
-      case "going_once": return GOLD;
-      case "going_twice": return RED;
-      case "sold": return ACCENT;
-      default: return MUTED;
+      case "bidding": return t.accent;
+      case "going_once": return t.gold;
+      case "going_twice": return t.red;
+      case "sold": return t.accent;
+      default: return t.textTertiary;
     }
   };
 
@@ -88,22 +82,22 @@ export default function AuctionRoomScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
       {/* Auction Status Header */}
-      <View style={{ backgroundColor: CARD, padding: 16, borderBottomWidth: 1, borderBottomColor: "#333432" }}>
+      <View style={{ backgroundColor: t.bgSurface, padding: 16, borderBottomWidth: 1, borderBottomColor: t.border }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View>
             <Text style={{ color: phaseColor(auctionState?.phase ?? ""), fontSize: 14, fontWeight: "800", letterSpacing: 1 }}>
               {phaseLabel(auctionState?.phase ?? "waiting")}
             </Text>
-            <Text style={{ color: TEXT, fontSize: 12, marginTop: 2 }}>
+            <Text style={{ color: t.text, fontSize: 12, marginTop: 2 }}>
               Sold: {auctionState?.soldPlayers?.length ?? 0} players
             </Text>
           </View>
           <View style={{ alignItems: "flex-end" }}>
-            <Text style={{ color: MUTED, fontSize: 11 }}>YOUR BUDGET</Text>
-            <Text style={{ color: ACCENT, fontSize: 22, fontWeight: "900" }}>{myBudget.toFixed(1)}</Text>
-            <Text style={{ color: MUTED, fontSize: 10 }}>Team: {myTeamSize} players</Text>
+            <Text style={{ color: t.textTertiary, fontSize: 11 }}>YOUR BUDGET</Text>
+            <Text style={{ color: t.accent, fontSize: 22, fontWeight: "900" }}>{myBudget.toFixed(1)}</Text>
+            <Text style={{ color: t.textTertiary, fontSize: 10 }}>Team: {myTeamSize} players</Text>
           </View>
         </View>
 
@@ -111,10 +105,10 @@ export default function AuctionRoomScreen() {
         {countdown !== null && (
           <View style={{
             marginTop: 10, alignSelf: "center",
-            backgroundColor: countdown <= 3 ? RED : countdown <= 5 ? GOLD : ACCENT,
+            backgroundColor: countdown <= 3 ? t.red : countdown <= 5 ? t.gold : t.accent,
             borderRadius: 12, paddingHorizontal: 24, paddingVertical: 8,
           }}>
-            <Text style={{ color: countdown <= 5 ? TEXT : BG, fontSize: 28, fontWeight: "900" }}>
+            <Text style={{ color: countdown <= 5 ? t.text : t.bg, fontSize: 28, fontWeight: "900" }}>
               {countdown}s
             </Text>
           </View>
@@ -124,26 +118,26 @@ export default function AuctionRoomScreen() {
       {/* Current Player Being Auctioned */}
       {currentPlayer && (
         <View style={{
-          backgroundColor: "rgba(93, 184, 130, 0.06)", margin: 16, borderRadius: 16, padding: 20,
-          borderWidth: 2, borderColor: ACCENT,
+          backgroundColor: t.accentMuted, margin: 16, borderRadius: 16, padding: 20,
+          borderWidth: 2, borderColor: t.accent,
         }}>
-          <Text style={{ color: MUTED, fontSize: 11, fontWeight: "600", letterSpacing: 1 }}>NOW AUCTIONING</Text>
-          <Text style={{ color: TEXT, fontSize: 22, fontWeight: "800", marginTop: 4 }}>
+          <Text style={{ color: t.textTertiary, fontSize: 11, fontWeight: "600", letterSpacing: 1 }}>NOW AUCTIONING</Text>
+          <Text style={{ color: t.text, fontSize: 22, fontWeight: "800", marginTop: 4 }}>
             {(currentPlayer as any).name}
           </Text>
-          <Text style={{ color: MUTED, fontSize: 14, marginTop: 2 }}>
+          <Text style={{ color: t.textTertiary, fontSize: 14, marginTop: 2 }}>
             {(currentPlayer as any).team} - {(currentPlayer as any).role}
           </Text>
 
           {auctionState?.highestBid && (
             <View style={{ marginTop: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <View>
-                <Text style={{ color: MUTED, fontSize: 11 }}>HIGHEST BID</Text>
-                <Text style={{ color: GOLD, fontSize: 28, fontWeight: "900" }}>
+                <Text style={{ color: t.textTertiary, fontSize: 11 }}>HIGHEST BID</Text>
+                <Text style={{ color: t.gold, fontSize: 28, fontWeight: "900" }}>
                   {auctionState.highestBid.amount}
                 </Text>
               </View>
-              <Text style={{ color: MUTED, fontSize: 12 }}>
+              <Text style={{ color: t.textTertiary, fontSize: 12 }}>
                 by {auctionState.highestBid.userId === user?.id ? "YOU" : "opponent"}
               </Text>
             </View>
@@ -158,11 +152,11 @@ export default function AuctionRoomScreen() {
                   onPress={() => handleBid(amount)}
                   disabled={bidMutation.isPending || amount > myBudget}
                   style={{
-                    flex: 1, backgroundColor: amount > myBudget ? MUTED : ACCENT,
+                    flex: 1, backgroundColor: amount > myBudget ? t.textTertiary : t.accent,
                     borderRadius: 10, padding: 12, alignItems: "center",
                   }}
                 >
-                  <Text style={{ color: BG, fontWeight: "800", fontSize: 16 }}>{amount}</Text>
+                  <Text style={{ color: t.bg, fontWeight: "800", fontSize: 16 }}>{amount}</Text>
                 </Pressable>
               ))}
             </View>
@@ -173,7 +167,7 @@ export default function AuctionRoomScreen() {
       {/* Nominate Section (when it's your turn to nominate) */}
       {isMyNomination && !currentPlayer && auctionState?.phase === "nominating" && (
         <View style={{ padding: 16 }}>
-          <Text style={{ color: GOLD, fontSize: 16, fontWeight: "800", marginBottom: 12 }}>
+          <Text style={{ color: t.gold, fontSize: 16, fontWeight: "800", marginBottom: 12 }}>
             Your turn to nominate a player!
           </Text>
         </View>
@@ -182,8 +176,8 @@ export default function AuctionRoomScreen() {
       {/* Available Players / Sold Players */}
       <View style={{ flex: 1, flexDirection: "row" }}>
         {/* Available */}
-        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: "#333432" }}>
-          <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
+        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: t.border }}>
+          <Text style={{ color: t.textTertiary, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
             AVAILABLE ({availablePlayers.length})
           </Text>
           <FlatList
@@ -194,12 +188,12 @@ export default function AuctionRoomScreen() {
                 onPress={() => isMyNomination && !currentPlayer ? handleNominate(item.id, item.name) : null}
                 disabled={!isMyNomination || !!currentPlayer}
                 style={{
-                  backgroundColor: CARD, padding: 10, marginHorizontal: 8, marginBottom: 4, borderRadius: 8,
+                  backgroundColor: t.bgSurface, padding: 10, marginHorizontal: 8, marginBottom: 4, borderRadius: 8,
                   opacity: isMyNomination && !currentPlayer ? 1 : 0.6,
                 }}
               >
-                <Text style={{ color: TEXT, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>{item.name}</Text>
-                <Text style={{ color: MUTED, fontSize: 10 }}>{item.team} - {item.role}</Text>
+                <Text style={{ color: t.text, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>{item.name}</Text>
+                <Text style={{ color: t.textTertiary, fontSize: 10 }}>{item.team} - {item.role}</Text>
               </Pressable>
             )}
           />
@@ -207,7 +201,7 @@ export default function AuctionRoomScreen() {
 
         {/* Sold */}
         <View style={{ width: "40%" }}>
-          <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
+          <Text style={{ color: t.textTertiary, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
             SOLD ({auctionState?.soldPlayers?.length ?? 0})
           </Text>
           <FlatList
@@ -217,13 +211,13 @@ export default function AuctionRoomScreen() {
               const player = (players ?? []).find((p: any) => p.id === item.playerId);
               return (
                 <View style={{
-                  backgroundColor: item.userId === user?.id ? MY_PICK : OTHER_PICK,
+                  backgroundColor: item.userId === user?.id ? t.accentMuted : t.amberMuted,
                   padding: 10, marginHorizontal: 8, marginBottom: 4, borderRadius: 8,
                 }}>
-                  <Text style={{ color: TEXT, fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
+                  <Text style={{ color: t.text, fontSize: 12, fontWeight: "600" }} numberOfLines={1}>
                     {(player as any)?.name ?? "Unknown"}
                   </Text>
-                  <Text style={{ color: GOLD, fontSize: 11, fontWeight: "700" }}>{item.amount} cr</Text>
+                  <Text style={{ color: t.gold, fontSize: 11, fontWeight: "700" }}>{item.amount} cr</Text>
                 </View>
               );
             }}
@@ -233,6 +227,3 @@ export default function AuctionRoomScreen() {
     </View>
   );
 }
-
-const MY_PICK = "rgba(93, 184, 130, 0.12)";
-const OTHER_PICK = "rgba(212, 164, 61, 0.12)";

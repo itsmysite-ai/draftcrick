@@ -2,19 +2,14 @@ import { View, Text, FlatList, Pressable, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc } from "../../../lib/trpc";
 import { useAuth } from "../../../providers/AuthProvider";
-
-const BG = "#111210";
-const CARD = "#1C1D1B";
-const ACCENT = "#5DB882";
-const GOLD = "#D4A43D";
-const RED = "#E5484D";
-const TEXT = "#EDECEA";
-const MUTED = "#5E5D5A";
+import { useTheme } from "../../../providers/ThemeProvider";
+import { FontFamily } from "../../../lib/design";
 
 export default function LeagueTradesScreen() {
   const { id: leagueId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useTheme();
 
   const { data: myTrades, refetch } = trpc.trade.myTrades.useQuery({ leagueId: leagueId! });
   const { data: leagueTrades } = trpc.trade.leagueTrades.useQuery({ leagueId: leagueId! });
@@ -43,30 +38,30 @@ export default function LeagueTradesScreen() {
 
   const statusColor = (status: string) => {
     switch (status) {
-      case "pending": return GOLD;
-      case "accepted": return ACCENT;
-      case "rejected": return RED;
-      case "expired": return MUTED;
-      default: return MUTED;
+      case "pending": return t.amber;
+      case "accepted": return t.accent;
+      case "rejected": return t.red;
+      case "expired": return t.textTertiary;
+      default: return t.textTertiary;
     }
   };
 
   const allTrades = leagueTrades ?? myTrades ?? [];
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
       <FlatList
         data={allTrades}
         keyExtractor={(item: any) => item.id}
         contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={
           <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: TEXT, fontSize: 22, fontWeight: "800", marginBottom: 4 }}>Trades</Text>
+            <Text style={{ color: t.text, fontSize: 22, fontWeight: "800", marginBottom: 4 }}>Trades</Text>
             <Pressable
               onPress={() => router.push(`/league/${leagueId}/propose-trade` as any)}
-              style={{ backgroundColor: ACCENT, borderRadius: 12, padding: 14, alignItems: "center", marginTop: 12 }}
+              style={{ backgroundColor: t.accent, borderRadius: 12, padding: 14, alignItems: "center", marginTop: 12 }}
             >
-              <Text style={{ color: BG, fontWeight: "700", fontSize: 15 }}>Propose a Trade</Text>
+              <Text style={{ color: t.bg, fontWeight: "700", fontSize: 15 }}>Propose a Trade</Text>
             </Pressable>
           </View>
         }
@@ -76,7 +71,7 @@ export default function LeagueTradesScreen() {
           const isPending = item.status === "pending";
 
           return (
-            <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, marginBottom: 10 }}>
+            <View style={{ backgroundColor: t.bgSurface, borderRadius: 14, padding: 16, marginBottom: 10 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <View style={{
                   backgroundColor: statusColor(item.status) + "20",
@@ -86,7 +81,7 @@ export default function LeagueTradesScreen() {
                     {item.status.toUpperCase()}
                   </Text>
                 </View>
-                <Text style={{ color: MUTED, fontSize: 11 }}>
+                <Text style={{ color: t.textTertiary, fontSize: 11 }}>
                   {new Date(item.createdAt).toLocaleDateString()}
                 </Text>
               </View>
@@ -94,29 +89,29 @@ export default function LeagueTradesScreen() {
               <View style={{ flexDirection: "row", gap: 12 }}>
                 {/* Offered */}
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: MUTED, fontSize: 10, fontWeight: "600", marginBottom: 4 }}>
+                  <Text style={{ color: t.textTertiary, fontSize: 10, fontWeight: "600", marginBottom: 4 }}>
                     {isSender ? "YOU OFFER" : "THEY OFFER"}
                   </Text>
                   {(item.playersOffered ?? []).map((pid: string, idx: number) => (
-                    <View key={idx} style={{ backgroundColor: "#5DB88210", borderRadius: 6, padding: 6, marginBottom: 2 }}>
-                      <Text style={{ color: ACCENT, fontSize: 12 }}>{pid.substring(0, 8)}...</Text>
+                    <View key={idx} style={{ backgroundColor: t.accentMuted, borderRadius: 6, padding: 6, marginBottom: 2 }}>
+                      <Text style={{ color: t.accent, fontSize: 12 }}>{pid.substring(0, 8)}...</Text>
                     </View>
                   ))}
                 </View>
 
                 {/* Arrow */}
                 <View style={{ justifyContent: "center" }}>
-                  <Text style={{ color: MUTED, fontSize: 20 }}>{"<->"}</Text>
+                  <Text style={{ color: t.textTertiary, fontSize: 20 }}>{"<->"}</Text>
                 </View>
 
                 {/* Requested */}
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: MUTED, fontSize: 10, fontWeight: "600", marginBottom: 4 }}>
+                  <Text style={{ color: t.textTertiary, fontSize: 10, fontWeight: "600", marginBottom: 4 }}>
                     {isSender ? "YOU WANT" : "THEY WANT"}
                   </Text>
                   {(item.playersRequested ?? []).map((pid: string, idx: number) => (
-                    <View key={idx} style={{ backgroundColor: "#D4A43D10", borderRadius: 6, padding: 6, marginBottom: 2 }}>
-                      <Text style={{ color: GOLD, fontSize: 12 }}>{pid.substring(0, 8)}...</Text>
+                    <View key={idx} style={{ backgroundColor: t.amberMuted, borderRadius: 6, padding: 6, marginBottom: 2 }}>
+                      <Text style={{ color: t.amber, fontSize: 12 }}>{pid.substring(0, 8)}...</Text>
                     </View>
                   ))}
                 </View>
@@ -130,16 +125,16 @@ export default function LeagueTradesScreen() {
                       <Pressable
                         onPress={() => handleAccept(item.id)}
                         disabled={acceptMutation.isPending}
-                        style={{ flex: 1, backgroundColor: ACCENT, borderRadius: 10, padding: 10, alignItems: "center" }}
+                        style={{ flex: 1, backgroundColor: t.accent, borderRadius: 10, padding: 10, alignItems: "center" }}
                       >
-                        <Text style={{ color: BG, fontWeight: "700", fontSize: 14 }}>Accept</Text>
+                        <Text style={{ color: t.bg, fontWeight: "700", fontSize: 14 }}>Accept</Text>
                       </Pressable>
                       <Pressable
                         onPress={() => handleReject(item.id)}
                         disabled={rejectMutation.isPending}
-                        style={{ flex: 1, backgroundColor: RED + "20", borderRadius: 10, padding: 10, alignItems: "center" }}
+                        style={{ flex: 1, backgroundColor: t.redMuted, borderRadius: 10, padding: 10, alignItems: "center" }}
                       >
-                        <Text style={{ color: RED, fontWeight: "700", fontSize: 14 }}>Reject</Text>
+                        <Text style={{ color: t.red, fontWeight: "700", fontSize: 14 }}>Reject</Text>
                       </Pressable>
                     </>
                   )}
@@ -147,9 +142,9 @@ export default function LeagueTradesScreen() {
                     <Pressable
                       onPress={() => handleCancel(item.id)}
                       disabled={cancelMutation.isPending}
-                      style={{ flex: 1, backgroundColor: MUTED + "20", borderRadius: 10, padding: 10, alignItems: "center" }}
+                      style={{ flex: 1, backgroundColor: `${t.textTertiary}20`, borderRadius: 10, padding: 10, alignItems: "center" }}
                     >
-                      <Text style={{ color: MUTED, fontWeight: "700", fontSize: 14 }}>Cancel Trade</Text>
+                      <Text style={{ color: t.textTertiary, fontWeight: "700", fontSize: 14 }}>Cancel Trade</Text>
                     </Pressable>
                   )}
                 </View>
@@ -159,8 +154,8 @@ export default function LeagueTradesScreen() {
         }}
         ListEmptyComponent={
           <View style={{ padding: 32, alignItems: "center" }}>
-            <Text style={{ color: MUTED, fontSize: 16 }}>No trades yet</Text>
-            <Text style={{ color: MUTED, fontSize: 13, marginTop: 4 }}>Propose a trade to get started</Text>
+            <Text style={{ color: t.textTertiary, fontSize: 16 }}>No trades yet</Text>
+            <Text style={{ color: t.textTertiary, fontSize: 13, marginTop: 4 }}>Propose a trade to get started</Text>
           </View>
         }
       />

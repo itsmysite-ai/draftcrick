@@ -10,11 +10,13 @@ import {
   RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function WalletScreen() {
   const router = useRouter();
+  const { t } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [showDeposit, setShowDeposit] = useState(false);
@@ -47,6 +49,255 @@ export default function WalletScreen() {
     setRefreshing(false);
   }, [wallet, transactions]);
 
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: t.bg,
+        },
+        centerContainer: {
+          flex: 1,
+          backgroundColor: t.bg,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 20,
+        },
+        errorTitle: {
+          fontSize: 20,
+          fontWeight: "700",
+          color: t.text,
+          marginBottom: 8,
+        },
+        errorSubtitle: {
+          fontSize: 14,
+          color: t.textTertiary,
+          marginBottom: 20,
+        },
+        signInButton: {
+          backgroundColor: t.accent,
+          paddingHorizontal: 24,
+          paddingVertical: 10,
+          borderRadius: 10,
+        },
+        signInText: {
+          color: t.textInverse,
+          fontSize: 15,
+          fontWeight: "700",
+        },
+        balanceCard: {
+          margin: 16,
+          backgroundColor: t.bgSurface,
+          borderRadius: 16,
+          padding: 20,
+          borderWidth: 1,
+          borderColor: t.accentMuted,
+        },
+        balanceLabel: {
+          fontSize: 12,
+          color: t.textTertiary,
+          textTransform: "uppercase",
+          letterSpacing: 0.5,
+        },
+        balanceAmount: {
+          fontSize: 36,
+          fontWeight: "800",
+          color: t.accent,
+          marginTop: 4,
+          marginBottom: 16,
+        },
+        breakdownRow: {
+          flexDirection: "row",
+          justifyContent: "space-between",
+          borderTopWidth: 1,
+          borderTopColor: t.border,
+          paddingTop: 16,
+        },
+        breakdownItem: {
+          flex: 1,
+          alignItems: "center",
+        },
+        breakdownDivider: {
+          width: 1,
+          backgroundColor: t.border,
+        },
+        breakdownLabel: {
+          fontSize: 11,
+          color: t.textTertiary,
+        },
+        breakdownValue: {
+          fontSize: 16,
+          fontWeight: "700",
+          color: t.text,
+          marginTop: 4,
+        },
+        actionRow: {
+          flexDirection: "row",
+          paddingHorizontal: 16,
+          gap: 12,
+          marginBottom: 16,
+        },
+        depositButton: {
+          flex: 1,
+          backgroundColor: t.accent,
+          borderRadius: 12,
+          paddingVertical: 14,
+          alignItems: "center",
+        },
+        depositButtonText: {
+          color: t.textInverse,
+          fontSize: 15,
+          fontWeight: "700",
+        },
+        withdrawButton: {
+          flex: 1,
+          backgroundColor: t.bgSurface,
+          borderRadius: 12,
+          paddingVertical: 14,
+          alignItems: "center",
+          borderWidth: 1,
+          borderColor: t.border,
+        },
+        withdrawButtonText: {
+          color: t.text,
+          fontSize: 15,
+          fontWeight: "600",
+        },
+        depositForm: {
+          marginHorizontal: 16,
+          marginBottom: 16,
+          backgroundColor: t.bgSurface,
+          borderRadius: 12,
+          padding: 16,
+          borderWidth: 1,
+          borderColor: t.border,
+        },
+        depositTitle: {
+          fontSize: 16,
+          fontWeight: "700",
+          color: t.text,
+          marginBottom: 12,
+        },
+        amountInput: {
+          backgroundColor: t.bg,
+          borderRadius: 10,
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          fontSize: 18,
+          color: t.text,
+          fontWeight: "700",
+          borderWidth: 1,
+          borderColor: t.border,
+          marginBottom: 12,
+        },
+        quickAmounts: {
+          flexDirection: "row",
+          gap: 8,
+          marginBottom: 12,
+        },
+        quickAmountButton: {
+          flex: 1,
+          backgroundColor: t.border,
+          borderRadius: 8,
+          paddingVertical: 8,
+          alignItems: "center",
+        },
+        quickAmountText: {
+          color: t.text,
+          fontSize: 13,
+          fontWeight: "600",
+        },
+        confirmDeposit: {
+          backgroundColor: t.accent,
+          borderRadius: 10,
+          paddingVertical: 14,
+          alignItems: "center",
+        },
+        confirmDepositText: {
+          color: t.textInverse,
+          fontSize: 15,
+          fontWeight: "700",
+        },
+        statsRow: {
+          flexDirection: "row",
+          paddingHorizontal: 16,
+          gap: 12,
+          marginBottom: 16,
+        },
+        statItem: {
+          flex: 1,
+          backgroundColor: t.bgSurface,
+          borderRadius: 10,
+          padding: 12,
+          borderWidth: 1,
+          borderColor: t.border,
+        },
+        statLabel: {
+          fontSize: 11,
+          color: t.textTertiary,
+        },
+        statValue: {
+          fontSize: 16,
+          fontWeight: "700",
+          color: t.text,
+          marginTop: 4,
+        },
+        section: {
+          paddingHorizontal: 16,
+          marginBottom: 32,
+        },
+        sectionTitle: {
+          fontSize: 18,
+          fontWeight: "700",
+          color: t.text,
+          marginBottom: 12,
+        },
+        txnRow: {
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          backgroundColor: t.bgSurface,
+          borderRadius: 10,
+          padding: 14,
+          marginBottom: 6,
+          borderWidth: 1,
+          borderColor: t.border,
+        },
+        txnInfo: {
+          flex: 1,
+        },
+        txnType: {
+          fontSize: 13,
+          fontWeight: "600",
+          color: t.text,
+          textTransform: "capitalize",
+        },
+        txnDate: {
+          fontSize: 11,
+          color: t.textTertiary,
+          marginTop: 2,
+        },
+        txnAmount: {
+          fontSize: 16,
+          fontWeight: "700",
+          marginLeft: 12,
+        },
+        emptyTxn: {
+          backgroundColor: t.bgSurface,
+          borderRadius: 12,
+          padding: 24,
+          alignItems: "center",
+          borderWidth: 1,
+          borderColor: t.border,
+        },
+        emptyTxnText: {
+          color: t.textTertiary,
+          fontSize: 14,
+        },
+      }),
+    [t]
+  );
+
   // Not authenticated
   if (wallet.error?.data?.code === "UNAUTHORIZED") {
     return (
@@ -68,7 +319,7 @@ export default function WalletScreen() {
   if (wallet.isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator color="#5DB882" size="large" />
+        <ActivityIndicator color={t.accent} size="large" />
       </View>
     );
   }
@@ -82,7 +333,7 @@ export default function WalletScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#5DB882"
+          tintColor={t.accent}
         />
       }
     >
@@ -110,7 +361,7 @@ export default function WalletScreen() {
             <View style={styles.breakdownDivider} />
             <View style={styles.breakdownItem}>
               <Text style={styles.breakdownLabel}>Winnings</Text>
-              <Text style={[styles.breakdownValue, { color: "#5DB882" }]}>
+              <Text style={[styles.breakdownValue, { color: t.accent }]}>
                 ₹{w.totalWinnings.toFixed(2)}
               </Text>
             </View>
@@ -140,7 +391,7 @@ export default function WalletScreen() {
           <TextInput
             style={styles.amountInput}
             placeholder="Enter amount"
-            placeholderTextColor="#5E5D5A"
+            placeholderTextColor={t.textTertiary}
             keyboardType="numeric"
             value={depositAmount}
             onChangeText={setDepositAmount}
@@ -196,7 +447,7 @@ export default function WalletScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
         {transactions.isLoading ? (
-          <ActivityIndicator color="#5DB882" style={{ padding: 20 }} />
+          <ActivityIndicator color={t.accent} style={{ padding: 20 }} />
         ) : transactions.data && transactions.data.length > 0 ? (
           transactions.data.map((txn) => {
             const isCredit =
@@ -222,7 +473,7 @@ export default function WalletScreen() {
                 <Text
                   style={[
                     styles.txnAmount,
-                    { color: isCredit ? "#5DB882" : "#E5484D" },
+                    { color: isCredit ? t.accent : t.red },
                   ]}
                 >
                   {isCredit ? "+" : "-"}₹{txn.amount.toFixed(2)}
@@ -239,248 +490,3 @@ export default function WalletScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#111210",
-  },
-  centerContainer: {
-    flex: 1,
-    backgroundColor: "#111210",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#EDECEA",
-    marginBottom: 8,
-  },
-  errorSubtitle: {
-    fontSize: 14,
-    color: "#5E5D5A",
-    marginBottom: 20,
-  },
-  signInButton: {
-    backgroundColor: "#5DB882",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  signInText: {
-    color: "#111210",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  balanceCard: {
-    margin: 16,
-    backgroundColor: "#1C1D1B",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(93, 184, 130, 0.19)",
-  },
-  balanceLabel: {
-    fontSize: 12,
-    color: "#5E5D5A",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  balanceAmount: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#5DB882",
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  breakdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "#333432",
-    paddingTop: 16,
-  },
-  breakdownItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  breakdownDivider: {
-    width: 1,
-    backgroundColor: "#333432",
-  },
-  breakdownLabel: {
-    fontSize: 11,
-    color: "#5E5D5A",
-  },
-  breakdownValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#EDECEA",
-    marginTop: 4,
-  },
-  actionRow: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 16,
-  },
-  depositButton: {
-    flex: 1,
-    backgroundColor: "#5DB882",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  depositButtonText: {
-    color: "#111210",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  withdrawButton: {
-    flex: 1,
-    backgroundColor: "#1C1D1B",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  withdrawButtonText: {
-    color: "#EDECEA",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  depositForm: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    backgroundColor: "#1C1D1B",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  depositTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#EDECEA",
-    marginBottom: 12,
-  },
-  amountInput: {
-    backgroundColor: "#111210",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 18,
-    color: "#EDECEA",
-    fontWeight: "700",
-    borderWidth: 1,
-    borderColor: "#333432",
-    marginBottom: 12,
-  },
-  quickAmounts: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 12,
-  },
-  quickAmountButton: {
-    flex: 1,
-    backgroundColor: "#333432",
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  quickAmountText: {
-    color: "#EDECEA",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  confirmDeposit: {
-    backgroundColor: "#5DB882",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  confirmDepositText: {
-    color: "#111210",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  statsRow: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 16,
-  },
-  statItem: {
-    flex: 1,
-    backgroundColor: "#1C1D1B",
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  statLabel: {
-    fontSize: 11,
-    color: "#5E5D5A",
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#EDECEA",
-    marginTop: 4,
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#EDECEA",
-    marginBottom: 12,
-  },
-  txnRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#1C1D1B",
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  txnInfo: {
-    flex: 1,
-  },
-  txnType: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#EDECEA",
-    textTransform: "capitalize",
-  },
-  txnDate: {
-    fontSize: 11,
-    color: "#5E5D5A",
-    marginTop: 2,
-  },
-  txnAmount: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 12,
-  },
-  emptyTxn: {
-    backgroundColor: "#1C1D1B",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  emptyTxnText: {
-    color: "#5E5D5A",
-    fontSize: 14,
-  },
-});

@@ -8,7 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTheme } from "../../providers/ThemeProvider";
 
 interface Message {
   id: string;
@@ -27,6 +28,8 @@ const SUGGESTIONS = [
  * Cricket Guru — AI-powered assistant
  */
 export default function GuruScreen() {
+  const { t } = useTheme();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -56,6 +59,96 @@ export default function GuruScreen() {
     setMessages((prev) => [...prev, userMsg, guruMsg]);
     setInput("");
   };
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: t.bg,
+        },
+        messageList: {
+          padding: 16,
+          gap: 12,
+        },
+        messageBubble: {
+          maxWidth: "85%",
+          padding: 14,
+          borderRadius: 16,
+        },
+        userBubble: {
+          backgroundColor: t.accent,
+          alignSelf: "flex-end",
+          borderBottomRightRadius: 4,
+        },
+        guruBubble: {
+          backgroundColor: t.bgSurface,
+          alignSelf: "flex-start",
+          borderBottomLeftRadius: 4,
+          borderWidth: 1,
+          borderColor: t.border,
+        },
+        guruLabel: {
+          fontSize: 11,
+          color: t.accent,
+          fontWeight: "700",
+          marginBottom: 4,
+        },
+        messageText: {
+          fontSize: 15,
+          lineHeight: 22,
+          color: t.text,
+        },
+        suggestions: {
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 8,
+          paddingHorizontal: 16,
+          paddingBottom: 12,
+        },
+        suggestionChip: {
+          backgroundColor: t.bgSurface,
+          borderRadius: 20,
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderWidth: 1,
+          borderColor: t.border,
+        },
+        suggestionText: {
+          color: t.textSecondary,
+          fontSize: 13,
+        },
+        inputRow: {
+          flexDirection: "row",
+          padding: 12,
+          paddingBottom: 24,
+          gap: 8,
+          borderTopWidth: 1,
+          borderTopColor: t.bgSurface,
+        },
+        input: {
+          flex: 1,
+          backgroundColor: t.bgSurface,
+          borderRadius: 24,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          color: t.text,
+          fontSize: 15,
+        },
+        sendButton: {
+          backgroundColor: t.accent,
+          borderRadius: 24,
+          paddingHorizontal: 20,
+          justifyContent: "center",
+        },
+        sendButtonText: {
+          color: t.textInverse,
+          fontWeight: "700",
+          fontSize: 14,
+        },
+      }),
+    [t]
+  );
 
   return (
     <KeyboardAvoidingView
@@ -104,7 +197,7 @@ export default function GuruScreen() {
         <TextInput
           style={styles.input}
           placeholder="Ask Cricket Guru..."
-          placeholderTextColor="#5E5D5A"
+          placeholderTextColor={t.textTertiary}
           value={input}
           onChangeText={setInput}
           onSubmitEditing={sendMessage}
@@ -117,89 +210,3 @@ export default function GuruScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#111210",
-  },
-  messageList: {
-    padding: 16,
-    gap: 12,
-  },
-  messageBubble: {
-    maxWidth: "85%",
-    padding: 14,
-    borderRadius: 16,
-  },
-  userBubble: {
-    backgroundColor: "#5DB882",
-    alignSelf: "flex-end",
-    borderBottomRightRadius: 4,
-  },
-  guruBubble: {
-    backgroundColor: "#1C1D1B",
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  guruLabel: {
-    fontSize: 11,
-    color: "#5DB882",
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#EDECEA",
-  },
-  suggestions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  suggestionChip: {
-    backgroundColor: "#1C1D1B",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  suggestionText: {
-    color: "#9A9894",
-    fontSize: 13,
-  },
-  inputRow: {
-    flexDirection: "row",
-    padding: 12,
-    paddingBottom: 24,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#1C1D1B",
-  },
-  input: {
-    flex: 1,
-    backgroundColor: "#1C1D1B",
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: "#EDECEA",
-    fontSize: 15,
-  },
-  sendButton: {
-    backgroundColor: "#5DB882",
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    justifyContent: "center",
-  },
-  sendButtonText: {
-    color: "#111210",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-});

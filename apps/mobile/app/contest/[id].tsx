@@ -11,11 +11,14 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useCallback } from "react";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function ContestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const styles = createStyles(t);
 
   const contest = trpc.contest.getById.useQuery(
     { id: id! },
@@ -36,7 +39,7 @@ export default function ContestDetailScreen() {
   if (contest.isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator color="#5DB882" size="large" />
+        <ActivityIndicator color={t.accent} size="large" />
       </View>
     );
   }
@@ -54,7 +57,7 @@ export default function ContestDetailScreen() {
   const isOpen = c.status === "open";
   const isLive = c.status === "live";
   const statusColor =
-    isLive ? "#E5484D" : c.status === "settled" ? "#5DB882" : "#D4A43D";
+    isLive ? t.red : c.status === "settled" ? t.accent : t.amber;
 
   return (
     <ScrollView
@@ -63,7 +66,7 @@ export default function ContestDetailScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#5DB882"
+          tintColor={t.accent}
         />
       }
     >
@@ -174,7 +177,7 @@ export default function ContestDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Leaderboard</Text>
         {standings.isLoading ? (
-          <ActivityIndicator color="#5DB882" style={{ padding: 20 }} />
+          <ActivityIndicator color={t.accent} style={{ padding: 20 }} />
         ) : standings.data && standings.data.length > 0 ? (
           standings.data.map((entry: { rank: number; userId: string; totalPoints: number }, i: number) => (
             <View
@@ -188,9 +191,9 @@ export default function ContestDetailScreen() {
                 <Text
                   style={[
                     styles.rankText,
-                    i === 0 && { color: "#D4A43D" },
-                    i === 1 && { color: "#C0C0C0" },
-                    i === 2 && { color: "#CD7F32" },
+                    i === 0 && { color: t.amber },
+                    i === 1 && { color: t.textSecondary },
+                    i === 2 && { color: t.hatch },
                   ]}
                 >
                   #{entry.rank}
@@ -220,203 +223,204 @@ export default function ContestDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#111210",
-  },
-  centerContainer: {
-    flex: 1,
-    backgroundColor: "#111210",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorText: {
-    color: "#E5484D",
-    fontSize: 16,
-  },
-  header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1C1D1B",
-  },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  contestName: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#EDECEA",
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  matchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  matchTeams: {
-    fontSize: 14,
-    color: "#EDECEA",
-    fontWeight: "600",
-  },
-  matchTournament: {
-    fontSize: 12,
-    color: "#5DB882",
-    fontWeight: "600",
-  },
-  infoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    padding: 16,
-    gap: 12,
-  },
-  infoItem: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: "#1C1D1B",
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  infoLabel: {
-    fontSize: 11,
-    color: "#5E5D5A",
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  infoValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#EDECEA",
-    marginTop: 4,
-  },
-  fillBarContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  fillBar: {
-    height: 6,
-    backgroundColor: "#333432",
-    borderRadius: 3,
-  },
-  fillBarProgress: {
-    height: 6,
-    backgroundColor: "#5DB882",
-    borderRadius: 3,
-  },
-  fillBarText: {
-    fontSize: 12,
-    color: "#5E5D5A",
-    marginTop: 6,
-    textAlign: "center",
-  },
-  joinSection: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  joinButton: {
-    backgroundColor: "#5DB882",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  joinButtonText: {
-    color: "#111210",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#EDECEA",
-    marginBottom: 12,
-  },
-  prizeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#1C1D1B",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  prizeRank: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#D4A43D",
-  },
-  prizeAmount: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#EDECEA",
-  },
-  leaderboardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1C1D1B",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  leaderboardRowTop: {
-    borderColor: "rgba(212, 164, 61, 0.25)",
-  },
-  rankBadge: {
-    width: 36,
-    alignItems: "center",
-  },
-  rankText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#EDECEA",
-  },
-  leaderboardInfo: {
-    flex: 1,
-    marginLeft: 8,
-  },
-  leaderboardName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#EDECEA",
-  },
-  leaderboardPoints: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#D4A43D",
-  },
-  emptyLeaderboard: {
-    backgroundColor: "#1C1D1B",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  emptyText: {
-    color: "#5E5D5A",
-    fontSize: 14,
-    textAlign: "center",
-  },
-});
+const createStyles = (t: ReturnType<typeof import("../../providers/ThemeProvider").useTheme>["t"]) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: t.bg,
+    },
+    centerContainer: {
+      flex: 1,
+      backgroundColor: t.bg,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    errorText: {
+      color: t.red,
+      fontSize: 16,
+    },
+    header: {
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: t.bgSurface,
+    },
+    headerTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    contestName: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: t.text,
+      flex: 1,
+    },
+    statusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      marginLeft: 8,
+    },
+    statusText: {
+      fontSize: 11,
+      fontWeight: "800",
+    },
+    matchRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    matchTeams: {
+      fontSize: 14,
+      color: t.text,
+      fontWeight: "600",
+    },
+    matchTournament: {
+      fontSize: 12,
+      color: t.accent,
+      fontWeight: "600",
+    },
+    infoGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      padding: 16,
+      gap: 12,
+    },
+    infoItem: {
+      flex: 1,
+      minWidth: "45%",
+      backgroundColor: t.bgSurface,
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    infoLabel: {
+      fontSize: 11,
+      color: t.textTertiary,
+      textTransform: "uppercase",
+      letterSpacing: 0.3,
+    },
+    infoValue: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: t.text,
+      marginTop: 4,
+    },
+    fillBarContainer: {
+      paddingHorizontal: 16,
+      marginBottom: 16,
+    },
+    fillBar: {
+      height: 6,
+      backgroundColor: t.border,
+      borderRadius: 3,
+    },
+    fillBarProgress: {
+      height: 6,
+      backgroundColor: t.accent,
+      borderRadius: 3,
+    },
+    fillBarText: {
+      fontSize: 12,
+      color: t.textTertiary,
+      marginTop: 6,
+      textAlign: "center",
+    },
+    joinSection: {
+      paddingHorizontal: 16,
+      marginBottom: 16,
+    },
+    joinButton: {
+      backgroundColor: t.accent,
+      borderRadius: 12,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    joinButtonText: {
+      color: t.textInverse,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    section: {
+      paddingHorizontal: 16,
+      marginBottom: 24,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: t.text,
+      marginBottom: 12,
+    },
+    prizeRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: t.bgSurface,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 4,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    prizeRank: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: t.amber,
+    },
+    prizeAmount: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: t.text,
+    },
+    leaderboardRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: t.bgSurface,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 4,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    leaderboardRowTop: {
+      borderColor: t.amberMuted,
+    },
+    rankBadge: {
+      width: 36,
+      alignItems: "center",
+    },
+    rankText: {
+      fontSize: 14,
+      fontWeight: "800",
+      color: t.text,
+    },
+    leaderboardInfo: {
+      flex: 1,
+      marginLeft: 8,
+    },
+    leaderboardName: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: t.text,
+    },
+    leaderboardPoints: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: t.amber,
+    },
+    emptyLeaderboard: {
+      backgroundColor: t.bgSurface,
+      borderRadius: 12,
+      padding: 24,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    emptyText: {
+      color: t.textTertiary,
+      fontSize: 14,
+      textAlign: "center",
+    },
+  });

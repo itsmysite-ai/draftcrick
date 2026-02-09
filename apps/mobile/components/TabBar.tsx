@@ -8,8 +8,9 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { useEffect } from "react";
-import { Colors, Gradients, Radius, FontFamily } from "../lib/design";
+import { useEffect, useMemo } from "react";
+import { Gradients, Radius, FontFamily } from "../lib/design";
+import { useTheme } from "../providers/ThemeProvider";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
 const TABS: Record<string, {
@@ -35,6 +36,7 @@ function TabItem({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const { t } = useTheme();
   const scale = useSharedValue(1);
   const tabOpacity = useSharedValue(isFocused ? 1 : 0.5);
 
@@ -49,6 +51,8 @@ function TabItem({
 
   const tab = TABS[route] || TABS.index;
   const isLive = route === "live";
+
+  const iconColor = isFocused ? (isLive ? t.red : t.accent) : t.textTertiary;
 
   return (
     <Pressable
@@ -65,14 +69,16 @@ function TabItem({
         <Ionicons
           name={isFocused ? tab.active : tab.inactive}
           size={21}
-          color={isFocused ? (isLive ? Colors.red : Colors.accent) : Colors.textTertiary}
+          color={iconColor}
         />
-        {isLive && isFocused && <View style={styles.liveDot} />}
+        {isLive && isFocused && (
+          <View style={[styles.liveDot, { backgroundColor: t.red }]} />
+        )}
         <Animated.Text
           style={[
             styles.tabLabel,
             {
-              color: isFocused ? (isLive ? Colors.red : Colors.accent) : Colors.textTertiary,
+              color: iconColor,
               fontFamily: isFocused ? FontFamily.bodySemiBold : FontFamily.body,
             },
           ]}
@@ -86,12 +92,26 @@ function TabItem({
 
 export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { mode, t } = useTheme();
+
+  const gradientColors = useMemo(
+    () =>
+      mode === "light"
+        ? (["transparent", "rgba(247, 245, 240, 0.9)", "#F7F5F0"] as const)
+        : Gradients.tabBar,
+    [mode],
+  );
 
   return (
     <View style={[styles.wrapper, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-      <LinearGradient colors={Gradients.tabBar as any} style={styles.fade} />
+      <LinearGradient colors={gradientColors as any} style={styles.fade} />
       <View style={styles.barOuter}>
-        <View style={styles.bar}>
+        <View
+          style={[
+            styles.bar,
+            { backgroundColor: t.bgSurface, borderColor: t.border },
+          ]}
+        >
           {state.routes.map((route, index) => (
             <TabItem
               key={route.key}
@@ -137,10 +157,8 @@ const styles = StyleSheet.create({
   },
   bar: {
     flexDirection: "row",
-    backgroundColor: Colors.bgSurface,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
     paddingVertical: 4,
     paddingHorizontal: 2,
   },
@@ -161,7 +179,6 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.red,
   },
   tabLabel: {
     fontSize: 10,

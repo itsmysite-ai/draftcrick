@@ -3,14 +3,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect } from "react";
 import { trpc } from "../../../lib/trpc";
 import { RULE_CATEGORY_LABELS, getRulesByCategory, type RuleCategory } from "@draftcrick/shared";
-
-const BG = "#111210";
-const CARD = "#1C1D1B";
-const ACCENT = "#5DB882";
-const GOLD = "#D4A43D";
-const TEXT = "#EDECEA";
-const MUTED = "#5E5D5A";
-const INPUT_BG = "#111210";
+import { useTheme } from "../../../providers/ThemeProvider";
+import { FontFamily } from "../../../lib/design";
 
 const CATEGORIES: RuleCategory[] = [
   "teamComposition", "scoring", "boosters", "transfers",
@@ -21,6 +15,7 @@ const CATEGORIES: RuleCategory[] = [
 export default function LeagueSettingsScreen() {
   const { id: leagueId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTheme();
 
   const { data: league, refetch } = trpc.league.getById.useQuery({ id: leagueId! });
   const updateMutation = trpc.league.updateSettings.useMutation({
@@ -63,62 +58,62 @@ export default function LeagueSettingsScreen() {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16 }}>
-      <Text style={{ color: TEXT, fontSize: 22, fontWeight: "800", marginBottom: 20 }}>League Settings</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 16 }}>
+      <Text style={{ color: t.text, fontSize: 22, fontWeight: "800", marginBottom: 20 }}>League Settings</Text>
 
       {/* Basic Settings */}
-      <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-        <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", marginBottom: 8 }}>BASIC SETTINGS</Text>
+      <View style={{ backgroundColor: t.bgSurface, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+        <Text style={{ color: t.textTertiary, fontSize: 12, fontWeight: "600", marginBottom: 8 }}>BASIC SETTINGS</Text>
 
-        <Text style={{ color: MUTED, fontSize: 12, marginBottom: 4 }}>League Name</Text>
+        <Text style={{ color: t.textTertiary, fontSize: 12, marginBottom: 4 }}>League Name</Text>
         <TextInput
           value={name}
           onChangeText={setName}
           style={{
-            backgroundColor: INPUT_BG, color: TEXT, borderRadius: 10, padding: 12,
-            borderWidth: 1, borderColor: "#333432", marginBottom: 12,
+            backgroundColor: t.bg, color: t.text, borderRadius: 10, padding: 12,
+            borderWidth: 1, borderColor: t.border, marginBottom: 12,
           }}
         />
 
-        <Text style={{ color: MUTED, fontSize: 12, marginBottom: 4 }}>Max Members</Text>
+        <Text style={{ color: t.textTertiary, fontSize: 12, marginBottom: 4 }}>Max Members</Text>
         <TextInput
           value={maxMembers}
           onChangeText={setMaxMembers}
           keyboardType="numeric"
           style={{
-            backgroundColor: INPUT_BG, color: TEXT, borderRadius: 10, padding: 12,
-            borderWidth: 1, borderColor: "#333432", marginBottom: 12,
+            backgroundColor: t.bg, color: t.text, borderRadius: 10, padding: 12,
+            borderWidth: 1, borderColor: t.border, marginBottom: 12,
           }}
         />
 
         <Pressable onPress={handleSave} disabled={updateMutation.isPending}
-          style={{ backgroundColor: ACCENT, borderRadius: 10, padding: 12, alignItems: "center" }}
+          style={{ backgroundColor: t.accent, borderRadius: 10, padding: 12, alignItems: "center" }}
         >
-          <Text style={{ color: BG, fontWeight: "700" }}>
+          <Text style={{ color: t.bg, fontWeight: "700" }}>
             {updateMutation.isPending ? "Saving..." : "Save Changes"}
           </Text>
         </Pressable>
       </View>
 
       {/* Invite Code */}
-      <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-        <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", marginBottom: 8 }}>INVITE CODE</Text>
-        <Text style={{ color: ACCENT, fontSize: 20, fontWeight: "700", letterSpacing: 2, marginBottom: 12 }}>
+      <View style={{ backgroundColor: t.bgSurface, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+        <Text style={{ color: t.textTertiary, fontSize: 12, fontWeight: "600", marginBottom: 8 }}>INVITE CODE</Text>
+        <Text style={{ color: t.accent, fontSize: 20, fontWeight: "700", letterSpacing: 2, marginBottom: 12 }}>
           {league?.inviteCode ?? "---"}
         </Text>
         <Pressable onPress={handleRegenCode}
-          style={{ backgroundColor: "#E5484D20", borderRadius: 10, padding: 10, alignItems: "center" }}
+          style={{ backgroundColor: t.redMuted, borderRadius: 10, padding: 10, alignItems: "center" }}
         >
-          <Text style={{ color: "#E5484D", fontWeight: "600" }}>Regenerate Code</Text>
+          <Text style={{ color: t.red, fontWeight: "600" }}>Regenerate Code</Text>
         </Pressable>
       </View>
 
       {/* Rule Categories (Collapsible) */}
       <View style={{ marginBottom: 16 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <Text style={{ color: TEXT, fontSize: 18, fontWeight: "700" }}>League Rules</Text>
+          <Text style={{ color: t.text, fontSize: 18, fontWeight: "700" }}>League Rules</Text>
           <Pressable onPress={() => setShowAdvanced(!showAdvanced)}>
-            <Text style={{ color: ACCENT, fontSize: 13 }}>
+            <Text style={{ color: t.accent, fontSize: 13 }}>
               {showAdvanced ? "Simple Mode" : "Advanced Mode"}
             </Text>
           </Pressable>
@@ -136,22 +131,22 @@ export default function LeagueSettingsScreen() {
               <Pressable
                 onPress={() => setExpandedCategory(isExpanded ? null : cat)}
                 style={{
-                  backgroundColor: CARD, borderRadius: 12, padding: 14,
+                  backgroundColor: t.bgSurface, borderRadius: 12, padding: 14,
                   flexDirection: "row", justifyContent: "space-between", alignItems: "center",
                   borderBottomLeftRadius: isExpanded ? 0 : 12,
                   borderBottomRightRadius: isExpanded ? 0 : 12,
                 }}
               >
-                <Text style={{ color: TEXT, fontWeight: "600", fontSize: 15 }}>
+                <Text style={{ color: t.text, fontWeight: "600", fontSize: 15 }}>
                   {RULE_CATEGORY_LABELS[cat]}
                 </Text>
-                <Text style={{ color: MUTED, fontSize: 14 }}>{isExpanded ? "−" : "+"}</Text>
+                <Text style={{ color: t.textTertiary, fontSize: 14 }}>{isExpanded ? "\u2212" : "+"}</Text>
               </Pressable>
 
               {isExpanded && (
                 <View style={{
-                  backgroundColor: CARD, borderBottomLeftRadius: 12, borderBottomRightRadius: 12,
-                  padding: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: "#333432",
+                  backgroundColor: t.bgSurface, borderBottomLeftRadius: 12, borderBottomRightRadius: 12,
+                  padding: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: t.border,
                 }}>
                   {displayRules.map((rule) => {
                     const keyParts = rule.key.split(".");
@@ -163,17 +158,17 @@ export default function LeagueSettingsScreen() {
                     return (
                       <View key={rule.key} style={{
                         flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-                        paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1C1D1B80",
+                        paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: t.borderSubtle,
                       }}>
                         <View style={{ flex: 1, marginRight: 12 }}>
-                          <Text style={{ color: TEXT, fontSize: 13, fontWeight: "600" }}>{rule.label}</Text>
-                          <Text style={{ color: MUTED, fontSize: 11 }}>{rule.comfortDescription}</Text>
+                          <Text style={{ color: t.text, fontSize: 13, fontWeight: "600" }}>{rule.label}</Text>
+                          <Text style={{ color: t.textTertiary, fontSize: 11 }}>{rule.comfortDescription}</Text>
                         </View>
                         <View style={{
-                          backgroundColor: INPUT_BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+                          backgroundColor: t.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
                           minWidth: 60, alignItems: "center",
                         }}>
-                          <Text style={{ color: ACCENT, fontSize: 13, fontWeight: "700" }}>
+                          <Text style={{ color: t.accent, fontSize: 13, fontWeight: "700" }}>
                             {typeof currentValue === "boolean"
                               ? currentValue ? "ON" : "OFF"
                               : String(currentValue)}

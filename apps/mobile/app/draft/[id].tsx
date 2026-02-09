@@ -3,19 +3,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect, useCallback } from "react";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
-
-const BG = "#111210";
-const CARD = "#1C1D1B";
-const ACCENT = "#5DB882";
-const TEXT = "#EDECEA";
-const MUTED = "#5E5D5A";
-const MY_PICK = "rgba(93, 184, 130, 0.12)";
-const OTHER_PICK = "rgba(212, 164, 61, 0.12)";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function DraftRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useTheme();
 
   const { data: draftState, refetch: refetchState } = trpc.draft.getState.useQuery(
     { roomId: roomId! },
@@ -63,15 +57,15 @@ export default function DraftRoomScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
       {/* Status Bar */}
-      <View style={{ backgroundColor: CARD, padding: 16, borderBottomWidth: 1, borderBottomColor: "#333432" }}>
+      <View style={{ backgroundColor: t.bgSurface, padding: 16, borderBottomWidth: 1, borderBottomColor: t.border }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View>
-            <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600" }}>
+            <Text style={{ color: t.textTertiary, fontSize: 12, fontWeight: "600" }}>
               ROUND {draftState?.currentRound ?? 0} of {draftState?.maxRounds ?? 0}
             </Text>
-            <Text style={{ color: TEXT, fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: t.text, fontSize: 18, fontWeight: "800" }}>
               {draftState?.status === "waiting"
                 ? "Waiting to start..."
                 : draftState?.status === "completed"
@@ -83,17 +77,17 @@ export default function DraftRoomScreen() {
           </View>
           {countdown !== null && draftState?.status === "in_progress" && (
             <View style={{
-              backgroundColor: countdown <= 10 ? "#E5484D" : ACCENT,
+              backgroundColor: countdown <= 10 ? t.red : t.accent,
               borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8,
             }}>
-              <Text style={{ color: countdown <= 10 ? TEXT : BG, fontSize: 24, fontWeight: "900" }}>
+              <Text style={{ color: countdown <= 10 ? t.text : t.bg, fontSize: 24, fontWeight: "900" }}>
                 {countdown}s
               </Text>
             </View>
           )}
         </View>
         {draftState?.status === "in_progress" && (
-          <Text style={{ color: ACCENT, fontSize: 13, marginTop: 4 }}>
+          <Text style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>
             Picks: {draftState.totalPicks} / {(draftState.maxRounds ?? 0) * (draftState.pickOrder?.length ?? 0)}
           </Text>
         )}
@@ -105,9 +99,9 @@ export default function DraftRoomScreen() {
           <Pressable
             onPress={() => startMutation.mutate({ roomId: roomId! })}
             disabled={startMutation.isPending}
-            style={{ backgroundColor: ACCENT, borderRadius: 14, padding: 16, alignItems: "center" }}
+            style={{ backgroundColor: t.accent, borderRadius: 14, padding: 16, alignItems: "center" }}
           >
-            <Text style={{ color: BG, fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: t.bg, fontSize: 18, fontWeight: "800" }}>
               {startMutation.isPending ? "Starting..." : "Start Draft"}
             </Text>
           </Pressable>
@@ -117,8 +111,8 @@ export default function DraftRoomScreen() {
       {/* Two-column layout: picks log + available players */}
       <View style={{ flex: 1, flexDirection: "row" }}>
         {/* Picks Log (left column) */}
-        <View style={{ width: "35%", borderRightWidth: 1, borderRightColor: "#333432" }}>
-          <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
+        <View style={{ width: "35%", borderRightWidth: 1, borderRightColor: t.border }}>
+          <Text style={{ color: t.textTertiary, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
             PICK LOG
           </Text>
           <FlatList
@@ -126,14 +120,14 @@ export default function DraftRoomScreen() {
             keyExtractor={(item: any) => item.id}
             renderItem={({ item }: { item: any }) => (
               <View style={{
-                backgroundColor: item.userId === user?.id ? MY_PICK : OTHER_PICK,
+                backgroundColor: item.userId === user?.id ? t.accentMuted : t.amberMuted,
                 padding: 10, marginHorizontal: 8, marginBottom: 4, borderRadius: 8,
               }}>
-                <Text style={{ color: MUTED, fontSize: 10 }}>#{item.pickNumber} - R{item.round}</Text>
-                <Text style={{ color: TEXT, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>
+                <Text style={{ color: t.textTertiary, fontSize: 10 }}>#{item.pickNumber} - R{item.round}</Text>
+                <Text style={{ color: t.text, fontSize: 13, fontWeight: "600" }} numberOfLines={1}>
                   {item.player?.name ?? "Unknown"}
                 </Text>
-                <Text style={{ color: MUTED, fontSize: 10 }} numberOfLines={1}>
+                <Text style={{ color: t.textTertiary, fontSize: 10 }} numberOfLines={1}>
                   by {item.user?.displayName ?? item.user?.username ?? "Unknown"}
                 </Text>
               </View>
@@ -143,7 +137,7 @@ export default function DraftRoomScreen() {
 
         {/* Available Players (right column) */}
         <View style={{ flex: 1 }}>
-          <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
+          <Text style={{ color: t.textTertiary, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
             AVAILABLE PLAYERS ({availablePlayers.length})
           </Text>
           <FlatList
@@ -154,22 +148,22 @@ export default function DraftRoomScreen() {
                 onPress={() => isMyTurn ? handlePick(item.id, item.name) : null}
                 disabled={!isMyTurn || pickMutation.isPending}
                 style={{
-                  backgroundColor: CARD, padding: 12, marginHorizontal: 8, marginBottom: 4, borderRadius: 10,
+                  backgroundColor: t.bgSurface, padding: 12, marginHorizontal: 8, marginBottom: 4, borderRadius: 10,
                   opacity: isMyTurn ? 1 : 0.6,
-                  borderWidth: isMyTurn ? 1 : 0, borderColor: ACCENT + "40",
+                  borderWidth: isMyTurn ? 1 : 0, borderColor: t.accent + "40",
                 }}
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: TEXT, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+                    <Text style={{ color: t.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
                       {item.name}
                     </Text>
-                    <Text style={{ color: MUTED, fontSize: 11 }}>
+                    <Text style={{ color: t.textTertiary, fontSize: 11 }}>
                       {item.team} - {item.role}
                     </Text>
                   </View>
                   {item.credits && (
-                    <Text style={{ color: ACCENT, fontSize: 13, fontWeight: "700" }}>
+                    <Text style={{ color: t.accent, fontSize: 13, fontWeight: "700" }}>
                       {item.credits}cr
                     </Text>
                   )}

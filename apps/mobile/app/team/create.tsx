@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 const MAX_BUDGET = 100;
 const TEAM_SIZE = 11;
@@ -41,6 +42,8 @@ export default function TeamBuilderScreen() {
     contestId?: string;
   }>();
   const router = useRouter();
+  const { t } = useTheme();
+  const styles = createStyles(t);
 
   const [selectedTab, setSelectedTab] = useState<string>("wicket_keeper");
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
@@ -224,7 +227,7 @@ export default function TeamBuilderScreen() {
   if (matchPlayers.isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#5DB882" size="large" />
+        <ActivityIndicator color={t.accent} size="large" />
         <Text style={styles.loadingText}>Loading players...</Text>
       </View>
     );
@@ -334,7 +337,7 @@ export default function TeamBuilderScreen() {
           <Text
             style={[
               styles.budgetValue,
-              creditsRemaining < 10 && { color: "#E5484D" },
+              creditsRemaining < 10 && { color: t.red },
             ]}
           >
             {creditsRemaining.toFixed(1)}
@@ -427,7 +430,7 @@ export default function TeamBuilderScreen() {
                   <Text
                     style={[
                       styles.creditsValue,
-                      isSelected && { color: "#5DB882" },
+                      isSelected && { color: t.accent },
                     ]}
                   >
                     {player.credits.toFixed(1)}
@@ -474,253 +477,254 @@ export default function TeamBuilderScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#111210",
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#111210",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-  },
-  loadingText: {
-    color: "#5E5D5A",
-    fontSize: 14,
-  },
-  budgetBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 16,
-    backgroundColor: "#1C1D1B",
-    borderBottomWidth: 1,
-    borderBottomColor: "#333432",
-  },
-  budgetLabel: {
-    fontSize: 11,
-    color: "#5E5D5A",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  budgetSubtext: {
-    fontSize: 12,
-    color: "#D4A43D",
-    marginTop: 4,
-  },
-  budgetValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#EDECEA",
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: "#333432",
-  },
-  progressFill: {
-    height: 4,
-    backgroundColor: "#5DB882",
-    borderRadius: 2,
-  },
-  tabs: {
-    flexDirection: "row",
-    padding: 12,
-    gap: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-    backgroundColor: "#1C1D1B",
-  },
-  tabActive: {
-    backgroundColor: "#5DB882",
-  },
-  tabText: {
-    color: "#9A9894",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  tabTextActive: {
-    color: "#111210",
-  },
-  tabCount: {
-    color: "#5E5D5A",
-    fontSize: 10,
-    marginTop: 2,
-  },
-  tabCountActive: {
-    color: "#111210",
-  },
-  roleHint: {
-    fontSize: 12,
-    color: "#5E5D5A",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  playerList: {
-    flex: 1,
-    paddingHorizontal: 12,
-  },
-  playerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1C1D1B",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  playerRowSelected: {
-    borderColor: "#5DB882",
-    backgroundColor: "rgba(93, 184, 130, 0.03)",
-  },
-  playerRowDisabled: {
-    opacity: 0.4,
-  },
-  playerInfo: {
-    flex: 1,
-  },
-  playerName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#EDECEA",
-  },
-  playerMeta: {
-    fontSize: 12,
-    color: "#5E5D5A",
-    marginTop: 2,
-    textTransform: "capitalize",
-  },
-  playerCredits: {
-    alignItems: "center",
-    marginRight: 12,
-  },
-  creditsValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#EDECEA",
-  },
-  creditsLabel: {
-    fontSize: 10,
-    color: "#5E5D5A",
-  },
-  selectCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#333432",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectCircleActive: {
-    backgroundColor: "#5DB882",
-    borderColor: "#5DB882",
-  },
-  checkmark: {
-    color: "#111210",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  emptyState: {
-    backgroundColor: "#1C1D1B",
-    borderRadius: 12,
-    padding: 32,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#EDECEA",
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: "#5E5D5A",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  // Captain step
-  captainRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1C1D1B",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: "#333432",
-    marginHorizontal: 12,
-  },
-  captainButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  captainBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "#333432",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  captainBadgeActive: {
-    backgroundColor: "#5DB882",
-    borderColor: "#5DB882",
-  },
-  captainBadgeText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#5E5D5A",
-  },
-  captainBadgeTextActive: {
-    color: "#111210",
-  },
-  vcBadgeActive: {
-    backgroundColor: "#D4A43D",
-    borderColor: "#D4A43D",
-  },
-  vcBadgeTextActive: {
-    color: "#111210",
-  },
-  // Bottom actions
-  bottomActions: {
-    flexDirection: "row",
-    padding: 16,
-    gap: 12,
-  },
-  backButton: {
-    flex: 1,
-    backgroundColor: "#1C1D1B",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#333432",
-  },
-  backButtonText: {
-    color: "#EDECEA",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  submitButton: {
-    flex: 2,
-    backgroundColor: "#5DB882",
-    margin: 16,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  submitText: {
-    color: "#111210",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-});
+const createStyles = (t: ReturnType<typeof import("../../providers/ThemeProvider").useTheme>["t"]) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: t.bg,
+    },
+    loadingContainer: {
+      flex: 1,
+      backgroundColor: t.bg,
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 12,
+    },
+    loadingText: {
+      color: t.textTertiary,
+      fontSize: 14,
+    },
+    budgetBar: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      padding: 16,
+      backgroundColor: t.bgSurface,
+      borderBottomWidth: 1,
+      borderBottomColor: t.border,
+    },
+    budgetLabel: {
+      fontSize: 11,
+      color: t.textTertiary,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    budgetSubtext: {
+      fontSize: 12,
+      color: t.amber,
+      marginTop: 4,
+    },
+    budgetValue: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: t.text,
+    },
+    progressBar: {
+      height: 4,
+      backgroundColor: t.border,
+    },
+    progressFill: {
+      height: 4,
+      backgroundColor: t.accent,
+      borderRadius: 2,
+    },
+    tabs: {
+      flexDirection: "row",
+      padding: 12,
+      gap: 8,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 8,
+      alignItems: "center",
+      backgroundColor: t.bgSurface,
+    },
+    tabActive: {
+      backgroundColor: t.accent,
+    },
+    tabText: {
+      color: t.textSecondary,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    tabTextActive: {
+      color: t.textInverse,
+    },
+    tabCount: {
+      color: t.textTertiary,
+      fontSize: 10,
+      marginTop: 2,
+    },
+    tabCountActive: {
+      color: t.textInverse,
+    },
+    roleHint: {
+      fontSize: 12,
+      color: t.textTertiary,
+      textAlign: "center",
+      marginBottom: 8,
+    },
+    playerList: {
+      flex: 1,
+      paddingHorizontal: 12,
+    },
+    playerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: t.bgSurface,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 6,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    playerRowSelected: {
+      borderColor: t.accent,
+      backgroundColor: t.accentMuted,
+    },
+    playerRowDisabled: {
+      opacity: 0.4,
+    },
+    playerInfo: {
+      flex: 1,
+    },
+    playerName: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: t.text,
+    },
+    playerMeta: {
+      fontSize: 12,
+      color: t.textTertiary,
+      marginTop: 2,
+      textTransform: "capitalize",
+    },
+    playerCredits: {
+      alignItems: "center",
+      marginRight: 12,
+    },
+    creditsValue: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: t.text,
+    },
+    creditsLabel: {
+      fontSize: 10,
+      color: t.textTertiary,
+    },
+    selectCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: t.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    selectCircleActive: {
+      backgroundColor: t.accent,
+      borderColor: t.accent,
+    },
+    checkmark: {
+      color: t.textInverse,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    emptyState: {
+      backgroundColor: t.bgSurface,
+      borderRadius: 12,
+      padding: 32,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    emptyTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: t.text,
+      marginBottom: 8,
+    },
+    emptySubtitle: {
+      fontSize: 13,
+      color: t.textTertiary,
+      textAlign: "center",
+      lineHeight: 20,
+    },
+    // Captain step
+    captainRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: t.bgSurface,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 6,
+      borderWidth: 1,
+      borderColor: t.border,
+      marginHorizontal: 12,
+    },
+    captainButtons: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    captainBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 2,
+      borderColor: t.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    captainBadgeActive: {
+      backgroundColor: t.accent,
+      borderColor: t.accent,
+    },
+    captainBadgeText: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: t.textTertiary,
+    },
+    captainBadgeTextActive: {
+      color: t.textInverse,
+    },
+    vcBadgeActive: {
+      backgroundColor: t.amber,
+      borderColor: t.amber,
+    },
+    vcBadgeTextActive: {
+      color: t.textInverse,
+    },
+    // Bottom actions
+    bottomActions: {
+      flexDirection: "row",
+      padding: 16,
+      gap: 12,
+    },
+    backButton: {
+      flex: 1,
+      backgroundColor: t.bgSurface,
+      borderRadius: 12,
+      paddingVertical: 16,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    backButtonText: {
+      color: t.text,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    submitButton: {
+      flex: 2,
+      backgroundColor: t.accent,
+      margin: 16,
+      borderRadius: 12,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    submitText: {
+      color: t.textInverse,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+  });
