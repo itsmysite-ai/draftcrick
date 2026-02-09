@@ -50,6 +50,24 @@ export const light = createTheme({
   colorCricketLight: tokens.color.cricketLight,
   colorHatch: tokens.color.hatch,
   colorOverlay: "rgba(0,0,0,0.35)",
+
+  // Role colors
+  roleBATBg: tokens.color.roleBatBg,
+  roleBATText: tokens.color.roleBatText,
+  roleBATLightBg: tokens.color.roleBatLightBg,
+  roleBATLightText: tokens.color.roleBatLightText,
+  roleBOWLBg: tokens.color.roleBowlBg,
+  roleBOWLText: tokens.color.roleBowlText,
+  roleBOWLLightBg: tokens.color.roleBowlLightBg,
+  roleBOWLLightText: tokens.color.roleBowlLightText,
+  roleARBg: tokens.color.roleArBg,
+  roleARText: tokens.color.roleArText,
+  roleARLightBg: tokens.color.roleArLightBg,
+  roleARLightText: tokens.color.roleArLightText,
+  roleWKBg: tokens.color.roleWkBg,
+  roleWKText: tokens.color.roleWkText,
+  roleWKLightBg: tokens.color.roleWkLightBg,
+  roleWKLightText: tokens.color.roleWkLightText,
 });
 
 /**
@@ -93,6 +111,24 @@ export const dark = createTheme({
   colorCricketLight: tokens.color.cricketLightDark,
   colorHatch: tokens.color.hatchDark,
   colorOverlay: "rgba(0,0,0,0.55)",
+
+  // Role colors (dark mode - muted)
+  roleBATBg: "#9A7225",
+  roleBATText: "#FDF5E6",
+  roleBATLightBg: "#2A2210",
+  roleBATLightText: "#D4A43D",
+  roleBOWLBg: "#2E7A52",
+  roleBOWLText: "#E8F5EE",
+  roleBOWLLightBg: "#1A2E22",
+  roleBOWLLightText: "#5DB882",
+  roleARBg: "#3A4A95",
+  roleARText: "#D8DEF5",
+  roleARLightBg: "#1A1E30",
+  roleARLightText: "#8090D0",
+  roleWKBg: "#634A8A",
+  roleWKText: "#E8DEF5",
+  roleWKLightBg: "#221A30",
+  roleWKLightText: "#A088CC",
 });
 
 export const allThemes = {

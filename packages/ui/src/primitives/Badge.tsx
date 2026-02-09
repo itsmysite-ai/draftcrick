@@ -4,10 +4,13 @@ export const Badge = styled(Text, {
   paddingHorizontal: "$2",
   paddingVertical: "$1",
   borderRadius: "$6", // 24px - chip/badge radius
-  fontSize: 12,
   fontFamily: "$mono",
   fontWeight: "600",
   overflow: "hidden",
+  
+  // Disable Tamagui's automatic font size lookup
+  fontStyle: undefined,
+  textTransform: undefined,
 
   variants: {
     variant: {
@@ -67,4 +70,4 @@ export const Badge = styled(Text, {
     variant: "default",
     size: "md",
   },
-});
+}) as any; // Cast to any to bypass Tamagui's size prop type checking

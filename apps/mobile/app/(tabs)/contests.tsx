@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Card, Badge, Button } from "@draftcrick/ui";
+import { Card, Badge, Button, SegmentTab, formatUIText, formatBadgeText } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 
 // ─── Match-based contest browser card ──────────────────────────────────
@@ -49,21 +49,16 @@ function MatchContestCard({
             backgroundColor="$colorAccentLight"
             color="$colorAccent"
             size="sm"
-            textTransform="uppercase"
-            letterSpacing={0.5}
             fontWeight="600"
           >
-            {tournament}
+            {formatBadgeText(tournament)}
           </Badge>
           <Badge
-            backgroundColor={isLive ? "$error" : "$info"}
-            color="$color"
+            variant={isLive ? "live" : "default"}
             size="sm"
             fontWeight="700"
-            letterSpacing={0.3}
-            fontSize={9}
           >
-            {isLive ? "LIVE" : "UPCOMING"}
+            {formatBadgeText(isLive ? "LIVE" : "UPCOMING")}
           </Badge>
         </XStack>
 
@@ -107,18 +102,11 @@ function MatchContestCard({
             </Badge>
           )}
           <Button
-            variant="primary"
+            variant="secondary"
             size="sm"
             onPress={onPress}
-            iconAfter={
-              <Ionicons
-                name="chevron-forward"
-                size={12}
-                color={theme.accentColor.val}
-              />
-            }
           >
-            Draft
+            {formatUIText("draft")}
           </Button>
         </XStack>
       </Card>
@@ -318,22 +306,15 @@ export default function ContestsScreen() {
         borderBottomWidth={1}
         borderBottomColor="$borderColor"
       >
-        <XStack alignItems="center" gap="$2">
-          <YStack
-            width={4}
-            height={20}
-            borderRadius={2}
-            backgroundColor="$colorCricket"
-          />
-          <Text
-            fontFamily="$heading"
-            fontWeight="700"
-            fontSize={22}
-            color="$color"
-          >
-            Contests
-          </Text>
-        </XStack>
+        <Text
+          fontFamily="$mono"
+          fontWeight="500"
+          fontSize={17}
+          color="$color"
+          letterSpacing={-0.5}
+        >
+          {formatUIText("contests")}
+        </Text>
       </XStack>
 
       {/* Tab switcher */}
@@ -341,55 +322,31 @@ export default function ContestsScreen() {
         marginHorizontal="$5"
         marginTop="$4"
         marginBottom="$4"
-        borderRadius="$2"
-        borderWidth={1}
-        borderColor="$borderColor"
-        backgroundColor="$backgroundSurface"
-        padding={3}
+        borderRadius="$3"
+        backgroundColor="$backgroundSurfaceAlt"
+        padding="$1"
+        gap="$1"
       >
-        <XStack
-          flex={1}
-          paddingVertical="$2"
-          alignItems="center"
-          justifyContent="center"
-          borderRadius="$1"
-          backgroundColor={
-            tab === "browse" ? "$backgroundPress" : "transparent"
-          }
-          onPress={() => setTab("browse")}
-          cursor="pointer"
-        >
-          <Text
-            fontFamily="$body"
-            fontWeight="600"
-            fontSize={12}
-            color={tab === "browse" ? "$color" : "$colorMuted"}
-          >
-            Browse Matches
-          </Text>
-        </XStack>
-        <XStack
-          flex={1}
-          paddingVertical="$2"
-          alignItems="center"
-          justifyContent="center"
-          borderRadius="$1"
-          backgroundColor={
-            tab === "my" ? "$backgroundPress" : "transparent"
-          }
-          onPress={() => setTab("my")}
-          cursor="pointer"
-        >
-          <Text
-            fontFamily="$body"
-            fontWeight="600"
-            fontSize={12}
-            color={tab === "my" ? "$color" : "$colorMuted"}
-          >
-            My Contests
-            {userContests.length > 0 ? ` (${userContests.length})` : ""}
-          </Text>
-        </XStack>
+        {([
+          { key: "browse" as const, label: "Browse Matches", count: aiMatches.length },
+          { key: "my" as const, label: "My Contests", count: userContests.length },
+        ]).map((tb) => (
+          <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
+            <Text
+              fontFamily="$body"
+              fontWeight="600"
+              fontSize={13}
+              color={tab === tb.key ? "$color" : "$colorMuted"}
+            >
+              {formatUIText(tb.label)}
+            </Text>
+            {tb.count > 0 && (
+              <Text fontFamily="$mono" fontSize={11} color={tab === tb.key ? "$colorSecondary" : "$colorMuted"}>
+                {tb.count}
+              </Text>
+            )}
+          </SegmentTab>
+        ))}
       </XStack>
 
       {tab === "browse" ? (
@@ -427,22 +384,18 @@ export default function ContestsScreen() {
           ) : (
             <Animated.View entering={FadeIn.delay(80)}>
               <YStack alignItems="center" gap="$3" paddingVertical="$10">
-                <Ionicons
-                  name="trophy-outline"
-                  size={36}
-                  color={theme.colorMuted.val}
-                />
-                <Text fontFamily="$heading" fontSize={18} color="$color">
-                  No available matches
+                <Text fontSize={48}>🥚</Text>
+                <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+                  {formatUIText("no available matches")}
                 </Text>
                 <Text
-                  fontFamily="$body"
-                  fontSize={14}
-                  color="$colorSecondary"
+                  fontFamily="$mono"
+                  fontSize={11}
+                  color="$colorMuted"
                   textAlign="center"
-                  lineHeight={22}
+                  lineHeight={18}
                 >
-                  Contests will appear when matches are scheduled
+                  {formatUIText("contests will appear when matches are scheduled")}
                 </Text>
               </YStack>
             </Animated.View>
@@ -458,37 +411,26 @@ export default function ContestsScreen() {
             paddingHorizontal="$8"
             gap="$3"
           >
-            <Ionicons
-              name="trophy-outline"
-              size={40}
-              color={theme.colorMuted.val}
-            />
-            <Text fontFamily="$heading" fontSize={18} color="$color">
-              Sign in to view contests
+            <Text fontSize={48}>🥚</Text>
+            <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+              {formatUIText("sign in to view contests")}
             </Text>
             <Text
-              fontFamily="$body"
-              fontSize={14}
-              color="$colorSecondary"
+              fontFamily="$mono"
+              fontSize={11}
+              color="$colorMuted"
               textAlign="center"
-              lineHeight={22}
+              lineHeight={18}
             >
-              Create and track your fantasy contests
+              {formatUIText("create and track your fantasy contests")}
             </Text>
             <Button
               variant="primary"
               size="md"
               marginTop="$3"
               onPress={() => router.push("/auth/login")}
-              iconAfter={
-                <Ionicons
-                  name="arrow-forward"
-                  size={14}
-                  color={theme.accentColor.val}
-                />
-              }
             >
-              Sign In
+              {formatUIText("sign in")}
             </Button>
           </YStack>
         </Animated.View>
@@ -508,22 +450,18 @@ export default function ContestsScreen() {
             paddingHorizontal="$8"
             gap="$3"
           >
-            <Ionicons
-              name="trophy-outline"
-              size={40}
-              color={theme.colorMuted.val}
-            />
-            <Text fontFamily="$heading" fontSize={18} color="$color">
-              No contests yet
+            <Text fontSize={48}>🥚</Text>
+            <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+              {formatUIText("no contests yet")}
             </Text>
             <Text
-              fontFamily="$body"
-              fontSize={14}
-              color="$colorSecondary"
+              fontFamily="$mono"
+              fontSize={11}
+              color="$colorMuted"
               textAlign="center"
-              lineHeight={22}
+              lineHeight={18}
             >
-              Browse matches and join your first contest
+              {formatUIText("browse matches and join your first contest")}
             </Text>
             <Button
               variant="primary"
@@ -531,7 +469,7 @@ export default function ContestsScreen() {
               marginTop="$3"
               onPress={() => setTab("browse")}
             >
-              Browse Matches
+              {formatUIText("browse matches")}
             </Button>
           </YStack>
         </Animated.View>

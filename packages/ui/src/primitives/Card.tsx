@@ -2,10 +2,11 @@ import { styled, YStack } from "tamagui";
 
 export const Card = styled(YStack, {
   backgroundColor: "$backgroundSurface",
-  borderRadius: "$3", // 12px
+  borderRadius: 16, // 16px - tami·draft card radius
   padding: "$4",
   borderWidth: 1,
   borderColor: "$borderColor",
+  animation: "quick",
 
   variants: {
     elevated: {
@@ -19,11 +20,14 @@ export const Card = styled(YStack, {
     },
     pressable: {
       true: {
+        cursor: "pointer",
+        hoverStyle: {
+          borderColor: "$accentBackground",
+          borderOpacity: 0.35,
+        },
         pressStyle: {
           scale: 0.98,
-          backgroundColor: "$backgroundSurfaceHover",
         },
-        cursor: "pointer",
       },
     },
     live: {

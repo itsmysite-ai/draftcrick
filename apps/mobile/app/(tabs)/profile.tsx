@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Card, Button } from "@draftcrick/ui";
+import { Card, Button, ModeToggle, formatUIText } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -119,12 +119,13 @@ export default function ProfileScreen() {
             </Text>
             <Text fontFamily="$body" fontSize={14} color="$colorSecondary" marginBottom="$5">
               {isLoggedIn
-                ? "Fantasy cricket champion in the making"
-                : "Sign in to track your journey"}
+                ? formatUIText("Fantasy cricket champion in the making")
+                : formatUIText("Sign in to track your journey")}
             </Text>
             {!isLoggedIn && (
               <Button
                 variant="primary"
+                size="md"
                 onPress={() => router.push("/auth/login")}
                 iconAfter={
                   <Ionicons
@@ -134,7 +135,7 @@ export default function ProfileScreen() {
                   />
                 }
               >
-                Sign In
+                {formatUIText("Sign In")}
               </Button>
             )}
           </YStack>
@@ -154,14 +155,13 @@ export default function ProfileScreen() {
               >
                 <YStack>
                   <Text
-                    fontFamily="$body"
+                    fontFamily="$mono"
                     fontSize={10}
                     color="$colorMuted"
-                    textTransform="uppercase"
                     letterSpacing={0.5}
                     marginBottom={4}
                   >
-                    Total Balance
+                    {formatUIText("Total Balance")}
                   </Text>
                   <Text fontFamily="$heading" fontSize={28} color="$accentBackground">
                     ₹{wallet.data.totalBalance.toFixed(2)}
@@ -211,39 +211,61 @@ export default function ProfileScreen() {
         <Animated.View entering={FadeInDown.delay(160).springify()}>
           <Card padding={0} overflow="hidden" marginBottom="$5">
             <Text
-              fontFamily="$body"
+              fontFamily="$mono"
               fontWeight="600"
               fontSize={10}
-              textTransform="uppercase"
               letterSpacing={0.5}
               color="$colorMuted"
               paddingHorizontal="$4"
               paddingTop="$4"
               paddingBottom="$2"
             >
-              Settings
+              {formatUIText("Settings")}
             </Text>
-            <SettingRow icon="language-outline" label="Language" value="English" />
+            <SettingRow icon="language-outline" label={formatUIText("Language")} value="English" />
             <SettingRow
               icon="wallet-outline"
-              label="Wallet"
+              label={formatUIText("Wallet")}
               onPress={() => router.push("/wallet" as never)}
             />
             <SettingRow
               icon="notifications-outline"
-              label="Notifications"
+              label={formatUIText("Notifications")}
               value="On"
               onPress={() => {}}
             />
-            <SettingRow
-              icon="moon-outline"
-              label="Theme"
-              value={mode === "dark" ? "Dark" : "Light"}
-              onPress={toggleMode}
-            />
+            <XStack
+              justifyContent="space-between"
+              alignItems="center"
+              paddingHorizontal="$4"
+              paddingVertical="$3"
+              borderBottomWidth={1}
+              borderBottomColor="$borderColor"
+            >
+              <XStack alignItems="center" gap="$3">
+                <YStack
+                  width={30}
+                  height={30}
+                  borderRadius="$1"
+                  alignItems="center"
+                  justifyContent="center"
+                  backgroundColor="$backgroundHover"
+                >
+                  <Ionicons
+                    name="moon-outline"
+                    size={15}
+                    color={theme.colorMuted.val}
+                  />
+                </YStack>
+                <Text fontFamily="$body" fontSize={14} color="$color">
+                  {formatUIText("Theme")}
+                </Text>
+              </XStack>
+              <ModeToggle mode={mode} onToggle={toggleMode} />
+            </XStack>
             <SettingRow
               icon="information-circle-outline"
-              label="App Version"
+              label={formatUIText("App Version")}
               value="0.0.1"
               last
             />

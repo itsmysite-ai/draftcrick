@@ -8,9 +8,18 @@ import {
   YStack,
   Text,
   View,
-  styled,
 } from "tamagui";
-import { Card, Badge, Button } from "@draftcrick/ui";
+import {
+  Card,
+  Badge,
+  Button,
+  InitialsAvatar,
+  HappinessMeter,
+  FilterPill,
+  SegmentTab,
+  ModeToggle,
+  StatLabel,
+} from "@draftcrick/ui";
 import { useTheme } from "../../providers/ThemeProvider";
 
 // ─── Sample player data (replace with tRPC query later) ─────────────
@@ -40,106 +49,6 @@ const ROLE_TOKENS: Record<RoleKey, { bg: string; text: string; lightBg: string; 
   WK: { bg: "$roleWkBg", text: "$roleWkText", lightBg: "$roleWkLightBg", lightText: "$roleWkLightText" },
 };
 
-// ─── Styled components ──────────────────────────────────────────────
-const FilterPill = styled(XStack, {
-  paddingHorizontal: "$3",
-  paddingVertical: "$2",
-  borderRadius: "$round",
-  borderWidth: 1,
-  borderColor: "$borderColor",
-  backgroundColor: "$backgroundSurface",
-  cursor: "pointer",
-  pressStyle: { opacity: 0.8, scale: 0.97 },
-  variants: {
-    active: {
-      true: {
-        backgroundColor: "$color",
-        borderColor: "$color",
-      },
-    },
-  } as const,
-});
-
-const SegmentTab = styled(XStack, {
-  flex: 1,
-  paddingVertical: "$3",
-  borderRadius: "$3",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "$2",
-  cursor: "pointer",
-  pressStyle: { opacity: 0.9 },
-  variants: {
-    active: {
-      true: {
-        backgroundColor: "$backgroundSurface",
-        shadowColor: "$shadowColor",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-        elevation: 2,
-      },
-    },
-  } as const,
-});
-
-// ─── Initials helpers ───────────────────────────────────────────────
-function getInitials(name: string) {
-  const parts = name.split(" ");
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-// ─── InitialsAvatar (Tamagui) ───────────────────────────────────────
-function InitialsAvatar({ name, role, ovr, size = 46 }: {
-  name: string; role: RoleKey; ovr: number; size?: number;
-}) {
-  const rt = ROLE_TOKENS[role];
-  return (
-    <YStack
-      width={size}
-      height={size}
-      borderRadius="$4"
-      backgroundColor={rt.bg as any}
-      alignItems="center"
-      justifyContent="center"
-    >
-      <Text
-        fontFamily="$mono"
-        fontSize={size * 0.36}
-        fontWeight="500"
-        color={rt.text as any}
-        letterSpacing={1}
-      >
-        {getInitials(name)}
-      </Text>
-      <XStack
-        position="absolute"
-        bottom={-5}
-        right={-5}
-        backgroundColor="$color"
-        paddingHorizontal={5}
-        paddingVertical={1}
-        borderRadius="$2"
-      >
-        <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$background" lineHeight={16}>
-          {ovr}
-        </Text>
-      </XStack>
-    </YStack>
-  );
-}
-
-// ─── StatLabel ──────────────────────────────────────────────────────
-function StatLabel({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Text fontFamily="$mono" fontSize={11}>
-      <Text color="$color" fontWeight="500">{value}</Text>
-      {" "}
-      <Text color="$colorMuted" fontSize={10}>{label}</Text>
-    </Text>
-  );
-}
 
 // ─── Main ───────────────────────────────────────────────────────────
 export default function HomeScreen() {
@@ -206,29 +115,7 @@ export default function HomeScreen() {
 
             <XStack alignItems="center" gap="$3">
               {/* Mode Toggle */}
-              <XStack
-                width={44}
-                height={24}
-                borderRadius={12}
-                backgroundColor={mode === "dark" ? "$accentBackground" : "$backgroundSurfaceAlt"}
-                pressStyle={{ opacity: 0.8 }}
-                onPress={toggleMode}
-                cursor="pointer"
-              >
-                <YStack
-                  width={18}
-                  height={18}
-                  borderRadius={9}
-                  position="absolute"
-                  top={3}
-                  left={mode === "dark" ? 23 : 3}
-                  backgroundColor={mode === "dark" ? "$backgroundSurface" : "$white"}
-                  alignItems="center"
-                  justifyContent="center"
-                >
-                  <Text fontSize={10}>{mode === "dark" ? "🌙" : "☀️"}</Text>
-                </YStack>
-              </XStack>
+              <ModeToggle mode={mode} onToggle={toggleMode} />
 
               {/* Clock */}
               <YStack alignItems="flex-end">
@@ -252,35 +139,8 @@ export default function HomeScreen() {
 
         {/* ── Happiness Meter ── */}
         <Animated.View entering={FadeInDown.delay(30).springify()}>
-          <Card
-            marginHorizontal="$4"
-            marginBottom="$3"
-            padding="$3"
-            paddingHorizontal="$4"
-          >
-            <XStack alignItems="center" gap="$3">
-              <Text fontSize={20} lineHeight={24}>{happinessEmoji}</Text>
-              <YStack flex={1}>
-                <XStack justifyContent="space-between" marginBottom={5}>
-                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">team happiness</Text>
-                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{myTeam.length}/6 drafted</Text>
-                </XStack>
-                <YStack
-                  width="100%"
-                  height={6}
-                  borderRadius="$round"
-                  backgroundColor="$backgroundSurfaceAlt"
-                  overflow="hidden"
-                >
-                  <View
-                    height="100%"
-                    borderRadius="$round"
-                    backgroundColor={happinessColor as any}
-                    width={`${happiness}%` as any}
-                  />
-                </YStack>
-              </YStack>
-            </XStack>
+          <Card marginHorizontal="$4" marginBottom="$3" padding="$3" paddingHorizontal="$4">
+            <HappinessMeter current={myTeam.length} total={6} />
           </Card>
         </Animated.View>
 
@@ -345,11 +205,22 @@ export default function HomeScreen() {
         <YStack paddingHorizontal="$4" gap="$2">
           {tab === "draft" ? (
             filtered.length > 0 ? (
-              filtered.map((p, i) => (
+              filtered.map((p, i) => {
+                const [isHovered, setIsHovered] = useState(false);
+                return (
                 <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
-                  <Card pressable>
+                  <Card 
+                    pressable
+                    onMouseEnter={() => setIsHovered(true)}
+                    onMouseLeave={() => setIsHovered(false)}
+                  >
                     <XStack alignItems="center" gap="$3">
-                      <InitialsAvatar name={p.name} role={p.role} ovr={p.ovr} />
+                      <InitialsAvatar 
+                        name={p.name} 
+                        playerRole={p.role} 
+                        ovr={p.ovr}
+                        scale={isHovered ? 1.12 : 1}
+                      />
                       <YStack flex={1} minWidth={0}>
                         <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" marginBottom={3}>
                           {p.name}
@@ -367,13 +238,15 @@ export default function HomeScreen() {
                         size="sm"
                         variant="secondary"
                         onPress={() => handleDraft(p)}
+                        backgroundColor={isHovered ? "$accentBackground" : "$backgroundSurfaceAlt"}
+                        color={isHovered ? "$white" : "$colorMuted"}
                       >
-                        <Text fontFamily="$mono" fontSize={11} fontWeight="500">draft</Text>
+                        draft
                       </Button>
                     </XStack>
                   </Card>
                 </Animated.View>
-              ))
+              )})
             ) : (
               <YStack alignItems="center" paddingVertical="$8">
                 <Text fontSize={40} marginBottom="$3">🏏</Text>
@@ -390,7 +263,7 @@ export default function HomeScreen() {
                     <Text fontFamily="$mono" fontSize={11} color="$colorMuted" width={20} textAlign="center">
                       {i + 1}
                     </Text>
-                    <InitialsAvatar name={p.name} role={p.role} ovr={p.ovr} size={40} />
+                    <InitialsAvatar name={p.name} playerRole={p.role} ovr={p.ovr} size={40} />
                     <YStack flex={1}>
                       <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" marginBottom={3}>
                         {p.name}

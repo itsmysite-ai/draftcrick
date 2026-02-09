@@ -1,9 +1,9 @@
 import { styled, Button as TamaguiButton } from "tamagui";
 
 export const Button = styled(TamaguiButton, {
-  borderRadius: "$3", // 12px
-  fontFamily: "$body",
-  fontWeight: "600",
+  borderRadius: 10, // 10px - tami·draft button radius
+  fontFamily: "$mono", // DM Mono for all buttons
+  fontWeight: "500",
   pressStyle: {
     scale: 0.97,
     opacity: 0.9,
@@ -16,10 +16,16 @@ export const Button = styled(TamaguiButton, {
         color: "$accentColor",
       },
       secondary: {
-        backgroundColor: "$backgroundSurface",
-        color: "$color",
-        borderWidth: 1,
-        borderColor: "$borderColor",
+        backgroundColor: "$backgroundSurfaceAlt",
+        color: "$colorMuted",
+        hoverStyle: {
+          backgroundColor: "$accentBackground",
+          color: "$white",
+        },
+      },
+      accent: {
+        backgroundColor: "$accentBackground",
+        color: "$white",
       },
       danger: {
         backgroundColor: "$error",
@@ -32,25 +38,19 @@ export const Button = styled(TamaguiButton, {
     },
     size: {
       sm: {
-        height: 36,
-        paddingHorizontal: "$3",
-        fontSize: 13,
+        height: 32,
+        paddingHorizontal: "$4",
+        fontSize: 11,
       },
       md: {
-        height: 44,
-        paddingHorizontal: "$4",
-        fontSize: 15,
+        height: 40,
+        paddingHorizontal: "$5",
+        fontSize: 13,
       },
       lg: {
-        height: 52,
+        height: 48,
         paddingHorizontal: "$6",
-        fontSize: 17,
-      },
-      // Comfort Mode: larger touch targets (48px minimum)
-      comfort: {
-        height: 56,
-        paddingHorizontal: "$6",
-        fontSize: 18,
+        fontSize: 15,
       },
     },
   } as const,

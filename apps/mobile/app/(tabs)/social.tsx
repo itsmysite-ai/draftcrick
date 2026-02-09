@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text } from "tamagui";
-import { Card, Badge, Button } from "@draftcrick/ui";
+import { Card, Badge, Button, formatUIText, formatBadgeText } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -84,16 +84,16 @@ function LeagueCard({
             <Text
               fontFamily="$body"
               fontWeight="600"
-              fontSize={12}
+              fontSize={11}
               color={
                 item.role === "owner" ? "$colorCricket" : "$colorSecondary"
               }
             >
-              {item.role === "owner"
-                ? "Owner"
+              {formatUIText(item.role === "owner"
+                ? "owner"
                 : item.role === "admin"
-                  ? "Admin"
-                  : "Member"}
+                  ? "admin"
+                  : "member")}
             </Text>
           </XStack>
           <Ionicons name="chevron-forward" size={14} color={t.textTertiary} />
@@ -128,8 +128,8 @@ export default function SocialScreen() {
         borderBottomWidth={1}
         borderBottomColor="$borderColor"
       >
-        <Text fontFamily="$heading" fontSize={22} color="$color">
-          Leagues
+        <Text fontFamily="$mono" fontSize={17} fontWeight="500" color="$color" letterSpacing={-0.5}>
+          {formatUIText("my leagues")}
         </Text>
       </YStack>
 
@@ -162,12 +162,14 @@ export default function SocialScreen() {
                     />
                   }
                   onPress={() => router.push("/league/create" as any)}
+                  size="md"
                 >
-                  Create League
+                  {formatUIText("create league")}
                 </Button>
                 <Button
                   flex={1}
                   variant="secondary"
+                  size="md"
                   icon={
                     <Ionicons
                       name="enter-outline"
@@ -177,7 +179,7 @@ export default function SocialScreen() {
                   }
                   onPress={() => router.push("/league/join" as any)}
                 >
-                  Join League
+                  {formatUIText("join league")}
                 </Button>
               </XStack>
             </Animated.View>
@@ -187,18 +189,18 @@ export default function SocialScreen() {
                 alignItems="center"
                 marginBottom="$3"
               >
-                <Text fontFamily="$heading" fontSize={16} color="$color">
-                  My Leagues
+                <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$color">
+                  {formatUIText("my leagues")}
                 </Text>
                 <Text
-                  fontFamily="$body"
-                  fontWeight="600"
-                  fontSize={12}
+                  fontFamily="$mono"
+                  fontWeight="500"
+                  fontSize={11}
                   color="$accentBackground"
                   onPress={() => router.push("/league" as any)}
                   cursor="pointer"
                 >
-                  View All
+                  {formatUIText("view all")}
                 </Text>
               </XStack>
             )}
@@ -223,7 +225,7 @@ export default function SocialScreen() {
               marginTop="$8"
               color="$colorMuted"
             >
-              Loading leagues...
+              {formatUIText("loading leagues...")}
             </Text>
           ) : (
             <Animated.View entering={FadeIn.delay(100)}>
@@ -233,17 +235,18 @@ export default function SocialScreen() {
                   size={36}
                   color={t.textTertiary}
                 />
-                <Text fontFamily="$heading" fontSize={16} color="$color">
-                  No leagues yet
+                <Text fontSize={48} marginBottom="$2">🥚</Text>
+                <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+                  {formatUIText("no leagues yet")}
                 </Text>
                 <Text
-                  fontFamily="$body"
-                  fontSize={14}
+                  fontFamily="$mono"
+                  fontSize={11}
                   textAlign="center"
-                  lineHeight={22}
-                  color="$colorSecondary"
+                  lineHeight={18}
+                  color="$colorMuted"
                 >
-                  Create a league or join one with an invite code
+                  {formatUIText("create a league or join one with an invite code")}
                 </Text>
               </Card>
             </Animated.View>
