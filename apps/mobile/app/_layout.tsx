@@ -16,33 +16,31 @@ function InnerLayout() {
       <StatusBar style={mode === "light" ? "dark" : "light"} />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: t.bg },
-          headerTintColor: t.text,
-          headerTitleStyle: { fontWeight: "700", fontFamily: FontFamily.heading },
+          headerShown: false,
           contentStyle: { backgroundColor: t.bg },
           animation: "slide_from_right",
           animationDuration: 220,
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: "fade" }} />
-        <Stack.Screen name="auth/login" options={{ title: "Sign In" }} />
-        <Stack.Screen name="auth/register" options={{ title: "Sign Up" }} />
-        <Stack.Screen name="auth/onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="contest/[id]" options={{ title: "Contest" }} />
-        <Stack.Screen name="match/[id]" options={{ title: "Match Center" }} />
-        <Stack.Screen name="team/create" options={{ title: "Build Team" }} />
-        <Stack.Screen name="player/[id]" options={{ title: "Player" }} />
-        <Stack.Screen name="guru/index" options={{ title: "Cricket Guru" }} />
-        <Stack.Screen name="wallet/index" options={{ title: "Wallet" }} />
-        <Stack.Screen name="league/index" options={{ title: "My Leagues" }} />
-        <Stack.Screen name="league/create" options={{ title: "Create League" }} />
-        <Stack.Screen name="league/join" options={{ title: "Join League" }} />
-        <Stack.Screen name="league/[id]" options={{ title: "League" }} />
-        <Stack.Screen name="league/[id]/trades" options={{ title: "Trades" }} />
-        <Stack.Screen name="league/[id]/settings" options={{ title: "League Settings" }} />
-        <Stack.Screen name="draft/[id]" options={{ title: "Draft Room", headerShown: false }} />
-        <Stack.Screen name="auction/[id]" options={{ title: "Auction Room", headerShown: false }} />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+        <Stack.Screen name="auth/login" />
+        <Stack.Screen name="auth/register" />
+        <Stack.Screen name="auth/onboarding" />
+        <Stack.Screen name="contest/[id]" />
+        <Stack.Screen name="match/[id]" />
+        <Stack.Screen name="team/create" />
+        <Stack.Screen name="player/[id]" />
+        <Stack.Screen name="guru/index" />
+        <Stack.Screen name="wallet/index" />
+        <Stack.Screen name="league/index" />
+        <Stack.Screen name="league/create" />
+        <Stack.Screen name="league/join" />
+        <Stack.Screen name="league/[id]" />
+        <Stack.Screen name="league/[id]/trades" />
+        <Stack.Screen name="league/[id]/settings" />
+        <Stack.Screen name="draft/[id]" />
+        <Stack.Screen name="auction/[id]" />
       </Stack>
     </>
   );

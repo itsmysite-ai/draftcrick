@@ -2,9 +2,11 @@ import { ScrollView, RefreshControl, TextInput, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
+  BackButton,
   Button,
   ModeToggle,
   AnnouncementBanner,
@@ -19,6 +21,7 @@ import { useTheme } from "../../providers/ThemeProvider";
 
 export default function WalletScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
@@ -81,7 +84,19 @@ export default function WalletScreen() {
       style={{ flex: 1, backgroundColor: theme.background.val }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}
     >
-      <XStack justifyContent="flex-end" paddingHorizontal="$4" paddingTop="$4">
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
+        paddingHorizontal="$4"
+        paddingTop={insets.top + 8}
+        paddingBottom="$3"
+      >
+        <XStack alignItems="center" gap="$3">
+          <BackButton onPress={() => router.back()} />
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("wallet")}
+          </Text>
+        </XStack>
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
 

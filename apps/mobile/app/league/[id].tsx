@@ -1,10 +1,12 @@
 import { FlatList, Alert, Share } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Badge,
+  BackButton,
   Button,
   InitialsAvatar,
   ModeToggle,
@@ -21,6 +23,7 @@ import { useTheme } from "../../providers/ThemeProvider";
 export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
@@ -65,7 +68,16 @@ export default function LeagueDetailScreen() {
     <YStack flex={1} backgroundColor="$background">
       <FlatList data={league.members ?? []} keyExtractor={(item: any) => item.userId} contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={<>
-          <XStack justifyContent="flex-end" marginBottom="$3">
+          <XStack
+            justifyContent="space-between"
+            alignItems="center"
+            paddingTop={insets.top + 8}
+            paddingBottom="$3"
+            marginBottom="$3"
+          >
+            <XStack alignItems="center" gap="$3">
+              <BackButton onPress={() => router.back()} />
+            </XStack>
             <ModeToggle mode={mode} onToggle={toggleMode} />
           </XStack>
           <AnnouncementBanner marginHorizontal={0} />

@@ -1,10 +1,13 @@
 import { TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Badge,
+  BackButton,
   Button,
   ModeToggle,
   AnnouncementBanner,
@@ -29,6 +32,8 @@ const SUGGESTIONS = [
 ];
 
 export default function GuruScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
 
@@ -61,7 +66,19 @@ export default function GuruScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={100}
     >
-      <XStack justifyContent="flex-end" paddingHorizontal="$4" paddingTop="$3" paddingBottom="$1">
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
+        paddingHorizontal="$4"
+        paddingTop={insets.top + 8}
+        paddingBottom="$3"
+      >
+        <XStack alignItems="center" gap="$3">
+          <BackButton onPress={() => router.back()} />
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("cricket guru")}
+          </Text>
+        </XStack>
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
       <AnnouncementBanner />

@@ -1,10 +1,12 @@
 import { TextInput, ScrollView } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Button,
+  BackButton,
   ModeToggle,
   AnnouncementBanner,
   DesignSystem,
@@ -33,6 +35,7 @@ const TEMPLATES: { value: Template; label: string; desc: string }[] = [
 
 export default function CreateLeagueScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
   const [name, setName] = useState("");
@@ -52,11 +55,20 @@ export default function CreateLeagueScreen() {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ padding: 16 }}>
-      <XStack justifyContent="space-between" alignItems="center" marginBottom="$6">
-        <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
-          {formatUIText("create league")}
-        </Text>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+      {/* ── Inline Header ── */}
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
+        paddingTop={insets.top + 8}
+        paddingBottom="$3"
+      >
+        <XStack alignItems="center" gap="$3">
+          <BackButton onPress={() => router.back()} />
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("create league")}
+          </Text>
+        </XStack>
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
 
@@ -153,7 +165,6 @@ export default function CreateLeagueScreen() {
       {createMutation.error && (
         <Text fontFamily="$body" color="$error" textAlign="center" marginTop="$3">{createMutation.error.message}</Text>
       )}
-      <YStack height={40} />
     </ScrollView>
   );
 }

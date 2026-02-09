@@ -1,11 +1,13 @@
 import { ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Badge,
   Button,
+  BackButton,
   InitialsAvatar,
   StatLabel,
   ModeToggle,
@@ -26,6 +28,7 @@ export default function MatchScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const match = trpc.match.getById.useQuery({ id: id! }, { enabled: !!id });
   const contests = trpc.contest.listByMatch.useQuery({ matchId: id! }, { enabled: !!id });
   const matchPlayers = trpc.player.getByMatch.useQuery({ matchId: id! }, { enabled: !!id });
@@ -51,6 +54,23 @@ export default function MatchScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }}>
+      {/* ── Inline Header ── */}
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
+        paddingHorizontal="$4"
+        paddingTop={insets.top + 8}
+        paddingBottom="$3"
+      >
+        <XStack alignItems="center" gap="$3">
+          <BackButton onPress={() => router.back()} />
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("match center")}
+          </Text>
+        </XStack>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
+
       {/* Match Header */}
       <YStack padding="$5" alignItems="center">
         <XStack justifyContent="space-between" alignItems="center" width="100%" marginBottom="$3">
@@ -60,7 +80,6 @@ export default function MatchScreen() {
             </Text>
             {isLive && <Badge variant="live" size="sm">{formatBadgeText("live")}</Badge>}
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
         <XStack alignItems="center" gap="$6">
           <YStack alignItems="center" flex={1}>

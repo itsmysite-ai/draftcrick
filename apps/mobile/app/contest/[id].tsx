@@ -2,11 +2,13 @@ import { ScrollView, RefreshControl } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useCallback } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Badge,
   Button,
+  BackButton,
   InitialsAvatar,
   StatLabel,
   ModeToggle,
@@ -25,6 +27,7 @@ export default function ContestDetailScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const contest = trpc.contest.getById.useQuery({ id: id! }, { enabled: !!id });
   const standings = trpc.contest.getStandings.useQuery({ contestId: id! }, { enabled: !!id });
@@ -49,18 +52,32 @@ export default function ContestDetailScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}>
+      {/* ── Inline Header ── */}
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
+        paddingHorizontal="$4"
+        paddingTop={insets.top + 8}
+        paddingBottom="$3"
+      >
+        <XStack alignItems="center" gap="$3">
+          <BackButton onPress={() => router.back()} />
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("contest")}
+          </Text>
+        </XStack>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
+
       {/* Contest Header */}
       <YStack padding="$5">
         <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} flex={1}>
             {c.name}
           </Text>
-          <XStack alignItems="center" gap="$3">
-            <Badge variant={isLive ? "live" : "role"} size="sm">
-              {formatBadgeText(c.status ?? "open")}
-            </Badge>
-            <ModeToggle mode={mode} onToggle={toggleMode} />
-          </XStack>
+          <Badge variant={isLive ? "live" : "role"} size="sm">
+            {formatBadgeText(c.status ?? "open")}
+          </Badge>
         </XStack>
         {match && (
           <XStack justifyContent="space-between" alignItems="center">

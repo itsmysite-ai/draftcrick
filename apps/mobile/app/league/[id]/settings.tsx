@@ -1,9 +1,11 @@
 import { TextInput, ScrollView, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Button, Card } from "@draftcrick/ui";
+import { BackButton, Button, Card, ModeToggle, formatUIText } from "@draftcrick/ui";
 import { trpc } from "../../../lib/trpc";
+import { useTheme } from "../../../providers/ThemeProvider";
 import { RULE_CATEGORY_LABELS, getRulesByCategory, type RuleCategory } from "@draftcrick/shared";
 
 const CATEGORIES: RuleCategory[] = ["teamComposition", "scoring", "boosters", "transfers", "playoffs", "salary", "autoManagement", "scoringModifiers", "draft", "auction"];
@@ -11,7 +13,9 @@ const CATEGORIES: RuleCategory[] = ["teamComposition", "scoring", "boosters", "t
 export default function LeagueSettingsScreen() {
   const { id: leagueId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const { data: league, refetch } = trpc.league.getById.useQuery({ id: leagueId! });
   const updateMutation = trpc.league.updateSettings.useMutation({ onSuccess: () => { Alert.alert("Settings updated!"); refetch(); } });
   const regenCodeMutation = trpc.league.regenerateInviteCode.useMutation({ onSuccess: () => refetch() });
@@ -28,7 +32,21 @@ export default function LeagueSettingsScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ padding: 16 }}>
-      <Text fontFamily="$heading" fontWeight="800" fontSize={22} color="$color" marginBottom="$5">League Settings</Text>
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
+        paddingTop={insets.top + 8}
+        paddingBottom="$3"
+        marginBottom="$5"
+      >
+        <XStack alignItems="center" gap="$3">
+          <BackButton onPress={() => router.back()} />
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("league settings")}
+          </Text>
+        </XStack>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
       <Card padding="$4" marginBottom="$4">
         <Text fontFamily="$mono" fontSize={12} color="$colorMuted" fontWeight="600" marginBottom="$2">BASIC SETTINGS</Text>
         <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginBottom="$1">League Name</Text>

@@ -2,11 +2,13 @@ import { ScrollView, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Badge,
   Button,
+  BackButton,
   InitialsAvatar,
   FilterPill,
   AnnouncementBanner,
@@ -33,6 +35,7 @@ export default function TeamBuilderScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
+  const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<string>("wicket_keeper");
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [captainId, setCaptainId] = useState<string | null>(null);
@@ -79,8 +82,25 @@ export default function TeamBuilderScreen() {
   if (step === "captain") {
     return (
       <YStack flex={1} backgroundColor="$background">
+        {/* ── Inline Header ── */}
+        <XStack
+          justifyContent="space-between"
+          alignItems="center"
+          paddingHorizontal="$4"
+          paddingTop={insets.top + 8}
+          paddingBottom="$3"
+        >
+          <XStack alignItems="center" gap="$3">
+            <BackButton onPress={() => router.back()} />
+            <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+              {formatUIText("build team")}
+            </Text>
+          </XStack>
+          <ModeToggle mode={mode} onToggle={toggleMode} />
+        </XStack>
+
         <YStack backgroundColor="$backgroundSurface" padding="$4">
-          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+          <Text fontFamily="$mono" fontWeight="500" fontSize={15} color="$color" letterSpacing={-0.5}>
             {formatUIText("select captain & vice-captain")}
           </Text>
           <Text fontFamily="$body" fontSize={12} color="$colorCricket" marginTop="$1">
@@ -139,6 +159,23 @@ export default function TeamBuilderScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background">
+      {/* ── Inline Header ── */}
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
+        paddingHorizontal="$4"
+        paddingTop={insets.top + 8}
+        paddingBottom="$3"
+      >
+        <XStack alignItems="center" gap="$3">
+          <BackButton onPress={() => router.back()} />
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("build team")}
+          </Text>
+        </XStack>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
+
       {/* Stats Header */}
       <XStack backgroundColor="$backgroundSurface" padding="$4" justifyContent="space-between" alignItems="center">
         <YStack>
@@ -153,15 +190,12 @@ export default function TeamBuilderScreen() {
             {selectedPlayers.length}/{TEAM_SIZE}
           </Text>
         </YStack>
-        <XStack alignItems="center" gap="$3">
-          <YStack alignItems="flex-end">
-            <Text {...textStyles.hint}>{formatBadgeText("credits used")}</Text>
-            <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$color">
-              {creditsUsed.toFixed(1)}
-            </Text>
-          </YStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
-        </XStack>
+        <YStack alignItems="flex-end">
+          <Text {...textStyles.hint}>{formatBadgeText("credits used")}</Text>
+          <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$color">
+            {creditsUsed.toFixed(1)}
+          </Text>
+        </YStack>
       </XStack>
 
       {/* Progress Bar */}

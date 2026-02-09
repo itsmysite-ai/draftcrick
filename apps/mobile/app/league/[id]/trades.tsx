@@ -1,13 +1,17 @@
 import { FlatList, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text } from "tamagui";
-import { Card, Badge, Button } from "@draftcrick/ui";
+import { Card, Badge, BackButton, Button, ModeToggle, formatUIText } from "@draftcrick/ui";
 import { trpc } from "../../../lib/trpc";
 import { useAuth } from "../../../providers/AuthProvider";
+import { useTheme } from "../../../providers/ThemeProvider";
 
 export default function LeagueTradesScreen() {
   const { id: leagueId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { mode, toggleMode } = useTheme();
   const { user } = useAuth();
   const { data: myTrades, refetch } = trpc.trade.myTrades.useQuery({ leagueId: leagueId! });
   const { data: leagueTrades } = trpc.trade.leagueTrades.useQuery({ leagueId: leagueId! });
@@ -30,7 +34,20 @@ export default function LeagueTradesScreen() {
       <FlatList data={allTrades} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={
           <YStack marginBottom="$4">
-            <Text fontFamily="$heading" fontWeight="800" fontSize={22} color="$color" marginBottom="$1">Trades</Text>
+            <XStack
+              justifyContent="space-between"
+              alignItems="center"
+              paddingTop={insets.top + 8}
+              paddingBottom="$3"
+            >
+              <XStack alignItems="center" gap="$3">
+                <BackButton onPress={() => router.back()} />
+                <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+                  {formatUIText("trades")}
+                </Text>
+              </XStack>
+              <ModeToggle mode={mode} onToggle={toggleMode} />
+            </XStack>
             <Button variant="primary" size="md" marginTop="$3" onPress={() => router.push(`/league/${leagueId}/propose-trade` as any)}>Propose a Trade</Button>
           </YStack>
         }

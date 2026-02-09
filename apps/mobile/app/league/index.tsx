@@ -2,10 +2,12 @@ import { FlatList, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Badge,
+  BackButton,
   Button,
   InitialsAvatar,
   ModeToggle,
@@ -21,6 +23,7 @@ import { useTheme } from "../../providers/ThemeProvider";
 
 export default function LeaguesListScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
   const { data: memberships, isLoading, refetch } = trpc.league.myLeagues.useQuery();
@@ -41,10 +44,19 @@ export default function LeaguesListScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}
         ListHeaderComponent={
           <YStack marginBottom="$4">
-            <XStack justifyContent="space-between" alignItems="center" marginBottom="$4">
-              <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
-                {formatUIText("my leagues")}
-              </Text>
+            <XStack
+              justifyContent="space-between"
+              alignItems="center"
+              paddingTop={insets.top + 8}
+              paddingBottom="$3"
+              marginBottom="$4"
+            >
+              <XStack alignItems="center" gap="$3">
+                <BackButton onPress={() => router.back()} />
+                <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+                  {formatUIText("my leagues")}
+                </Text>
+              </XStack>
               <ModeToggle mode={mode} onToggle={toggleMode} />
             </XStack>
             <AnnouncementBanner marginHorizontal={0} />
