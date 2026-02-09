@@ -2,25 +2,10 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { ActivityIndicator, View } from "react-native";
-import { useFonts } from "expo-font";
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from "@expo-google-fonts/inter";
-import {
-  SpaceGrotesk_700Bold,
-  SpaceGrotesk_800ExtraBold,
-} from "@expo-google-fonts/space-grotesk";
-import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider } from "../providers/AuthProvider";
 import { ComfortModeProvider } from "../providers/ComfortModeProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
 import { Colors } from "../lib/design";
-
-SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [queryClient] = useState(
@@ -36,27 +21,6 @@ export default function RootLayout() {
       })
   );
   const [trpcClient] = useState(() => getTRPCClient());
-
-  const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    SpaceGrotesk_700Bold,
-    SpaceGrotesk_800ExtraBold,
-  });
-
-  if (fontsLoaded) {
-    SplashScreen.hideAsync();
-  }
-
-  if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, backgroundColor: Colors.bg, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator color={Colors.accent} size="large" />
-      </View>
-    );
-  }
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
