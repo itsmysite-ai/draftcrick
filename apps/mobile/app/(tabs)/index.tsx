@@ -1,24 +1,16 @@
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-} from "react-native";
+import { ScrollView as RNScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, {
-  FadeInDown,
-  FadeIn,
-} from "react-native-reanimated";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import {
-  Radius,
-  Spacing,
-  Font,
-  FontFamily,
-  RoleColors,
-} from "../../lib/design";
+  XStack,
+  YStack,
+  Text,
+  View,
+  styled,
+} from "tamagui";
+import { Card, Badge, Button } from "@draftcrick/ui";
 import { useTheme } from "../../providers/ThemeProvider";
 
 // ─── Sample player data (replace with tRPC query later) ─────────────
@@ -40,103 +32,116 @@ const PLAYERS = [
 type Player = (typeof PLAYERS)[number];
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
-// ─── Initials helpers ────────────────────────────────────────────────
+// ─── Role color mapping for Tamagui ─────────────────────────────────
+const ROLE_TOKENS: Record<RoleKey, { bg: string; text: string; lightBg: string; lightText: string }> = {
+  BAT: { bg: "$roleBatBg", text: "$roleBatText", lightBg: "$roleBatLightBg", lightText: "$roleBatLightText" },
+  BOWL: { bg: "$roleBowlBg", text: "$roleBowlText", lightBg: "$roleBowlLightBg", lightText: "$roleBowlLightText" },
+  AR: { bg: "$roleArBg", text: "$roleArText", lightBg: "$roleArLightBg", lightText: "$roleArLightText" },
+  WK: { bg: "$roleWkBg", text: "$roleWkText", lightBg: "$roleWkLightBg", lightText: "$roleWkLightText" },
+};
+
+// ─── Styled components ──────────────────────────────────────────────
+const FilterPill = styled(XStack, {
+  paddingHorizontal: "$3",
+  paddingVertical: "$2",
+  borderRadius: "$round",
+  borderWidth: 1,
+  borderColor: "$borderColor",
+  backgroundColor: "$backgroundSurface",
+  cursor: "pointer",
+  pressStyle: { opacity: 0.8, scale: 0.97 },
+  variants: {
+    active: {
+      true: {
+        backgroundColor: "$color",
+        borderColor: "$color",
+      },
+    },
+  } as const,
+});
+
+const SegmentTab = styled(XStack, {
+  flex: 1,
+  paddingVertical: "$3",
+  borderRadius: "$3",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "$2",
+  cursor: "pointer",
+  pressStyle: { opacity: 0.9 },
+  variants: {
+    active: {
+      true: {
+        backgroundColor: "$backgroundSurface",
+        shadowColor: "$shadowColor",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
+      },
+    },
+  } as const,
+});
+
+// ─── Initials helpers ───────────────────────────────────────────────
 function getInitials(name: string) {
   const parts = name.split(" ");
   if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// ─── InitialsAvatar ──────────────────────────────────────────────────
-function InitialsAvatar({
-  name,
-  role,
-  ovr,
-  size = 46,
-  roleColors,
-  textPrimary,
-  bg,
-}: {
-  name: string;
-  role: RoleKey;
-  ovr: number;
-  size?: number;
-  roleColors: typeof RoleColors;
-  textPrimary: string;
-  bg: string;
+// ─── InitialsAvatar (Tamagui) ───────────────────────────────────────
+function InitialsAvatar({ name, role, ovr, size = 46 }: {
+  name: string; role: RoleKey; ovr: number; size?: number;
 }) {
-  const rs = roleColors[role];
+  const rt = ROLE_TOKENS[role];
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: 14,
-        backgroundColor: rs.bg,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
+    <YStack
+      width={size}
+      height={size}
+      borderRadius="$4"
+      backgroundColor={rt.bg as any}
+      alignItems="center"
+      justifyContent="center"
     >
       <Text
-        style={{
-          fontFamily: FontFamily.mono,
-          fontSize: size * 0.36,
-          fontWeight: "500",
-          color: rs.text,
-          letterSpacing: 1,
-        }}
+        fontFamily="$mono"
+        fontSize={size * 0.36}
+        fontWeight="500"
+        color={rt.text as any}
+        letterSpacing={1}
       >
         {getInitials(name)}
       </Text>
-      <View
-        style={{
-          position: "absolute",
-          bottom: -5,
-          right: -5,
-          backgroundColor: textPrimary,
-          paddingHorizontal: 5,
-          paddingVertical: 1,
-          borderRadius: 6,
-        }}
+      <XStack
+        position="absolute"
+        bottom={-5}
+        right={-5}
+        backgroundColor="$color"
+        paddingHorizontal={5}
+        paddingVertical={1}
+        borderRadius="$2"
       >
-        <Text
-          style={{
-            fontFamily: FontFamily.mono,
-            fontSize: 9,
-            fontWeight: "700",
-            color: bg,
-            lineHeight: 16,
-          }}
-        >
+        <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$background" lineHeight={16}>
           {ovr}
         </Text>
-      </View>
-    </View>
+      </XStack>
+    </YStack>
   );
 }
 
-// ─── StatLabel ───────────────────────────────────────────────────────
-function StatLabel({
-  label,
-  value,
-  textPrimary,
-  textMuted,
-}: {
-  label: string;
-  value: string | number;
-  textPrimary: string;
-  textMuted: string;
-}) {
+// ─── StatLabel ──────────────────────────────────────────────────────
+function StatLabel({ label, value }: { label: string; value: string | number }) {
   return (
-    <Text style={{ fontFamily: FontFamily.mono, fontSize: 11 }}>
-      <Text style={{ color: textPrimary, fontWeight: "500" }}>{value}</Text>
+    <Text fontFamily="$mono" fontSize={11}>
+      <Text color="$color" fontWeight="500">{value}</Text>
       {" "}
-      <Text style={{ color: textMuted, fontSize: 10 }}>{label}</Text>
+      <Text color="$colorMuted" fontSize={10}>{label}</Text>
     </Text>
   );
 }
 
-// ─── Main ────────────────────────────────────────────────────────────
+// ─── Main ───────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -150,7 +155,6 @@ export default function HomeScreen() {
   const [roleFilter, setRoleFilter] = useState<"all" | RoleKey>("all");
   const [clock, setClock] = useState(90);
 
-  // Draft clock
   useEffect(() => {
     const iv = setInterval(() => setClock((c) => (c <= 0 ? 90 : c - 1)), 1000);
     return () => clearInterval(iv);
@@ -165,233 +169,156 @@ export default function HomeScreen() {
   };
 
   const available = PLAYERS.filter((p) => !allDrafted.includes(p.id));
-  const filtered =
-    roleFilter === "all"
-      ? available
-      : available.filter((p) => p.role === roleFilter);
+  const filtered = roleFilter === "all" ? available : available.filter((p) => p.role === roleFilter);
   const happiness = Math.min(100, Math.round((myTeam.length / 6) * 100));
-
-  const happinessEmoji =
-    happiness >= 80 ? "😄" : happiness >= 50 ? "🙂" : happiness >= 20 ? "😐" : "🥺";
-
-  const happinessGradientColor =
-    happiness >= 60
-      ? t.accent
-      : happiness >= 30
-      ? t.cricket
-      : t.hatch;
+  const happinessEmoji = happiness >= 80 ? "😄" : happiness >= 50 ? "🙂" : happiness >= 20 ? "😐" : "🥺";
+  const happinessColor = happiness >= 60 ? "$colorAccent" : happiness >= 30 ? "$colorCricket" : "$colorHatch";
 
   return (
-    <View style={[s.root, { backgroundColor: t.bg }]}>
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-      >
+    <YStack flex={1} backgroundColor="$background">
+      <RNScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+
         {/* ── Header ── */}
-        <Animated.View
-          entering={FadeIn.delay(0)}
-          style={[
-            s.header,
-            {
-              paddingTop: insets.top + 8,
-              borderBottomColor: t.border,
-            },
-          ]}
-        >
-          <View>
-            <View style={s.headerLogoRow}>
-              <Text style={{ fontSize: 22 }}>🥚</Text>
-              <Text
-                style={[
-                  s.logoText,
-                  { color: t.text },
-                ]}
-              >
-                tami·draft
-              </Text>
-              <View
-                style={[
-                  s.cricketBadge,
-                  { backgroundColor: t.accentLight },
-                ]}
-              >
-                <Text
-                  style={[
-                    s.cricketBadgeText,
-                    { color: t.accent },
-                  ]}
-                >
-                  🏏 cricket
-                </Text>
-              </View>
-            </View>
-            <Text
-              style={[
-                s.subtitle,
-                { color: t.textTertiary },
-              ]}
-            >
-              fantasy cricket companion
-            </Text>
-          </View>
-
-          <View style={s.headerRight}>
-            {/* Mode Toggle */}
-            <Pressable
-              onPress={toggleMode}
-              style={[
-                s.modeToggle,
-                {
-                  backgroundColor:
-                    mode === "dark" ? t.accent : t.bgSurfaceAlt,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  s.modeKnob,
-                  {
-                    backgroundColor:
-                      mode === "dark" ? t.bgSurface : "#fff",
-                    left: mode === "dark" ? 23 : 3,
-                  },
-                ]}
-              >
-                <Text style={{ fontSize: 10 }}>
-                  {mode === "dark" ? "🌙" : "☀️"}
-                </Text>
-              </View>
-            </Pressable>
-
-            {/* Clock */}
-            <View style={{ alignItems: "flex-end" }}>
-              <Text
-                style={[
-                  s.clockMeta,
-                  { color: t.textTertiary },
-                ]}
-              >
-                rd {round} · pick {pick}
-              </Text>
-              <Text
-                style={[
-                  s.clockTime,
-                  {
-                    color: clock < 15 ? t.hatch : t.text,
-                  },
-                ]}
-              >
-                {String(Math.floor(clock / 60))}:
-                {String(clock % 60).padStart(2, "0")}
-              </Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* ── Happiness ── */}
-        <Animated.View entering={FadeInDown.delay(30).springify()}>
-          <View
-            style={[
-              s.happinessCard,
-              {
-                backgroundColor: t.bgSurface,
-                borderColor: t.border,
-              },
-            ]}
+        <Animated.View entering={FadeIn.delay(0)}>
+          <XStack
+            justifyContent="space-between"
+            alignItems="flex-start"
+            paddingHorizontal="$4"
+            paddingBottom="$5"
+            paddingTop={insets.top + 8}
           >
-            <Text style={{ fontSize: 20, lineHeight: 24 }}>
-              {happinessEmoji}
-            </Text>
-            <View style={{ flex: 1 }}>
-              <View style={s.happinessRow}>
-                <Text
-                  style={[s.happinessLabel, { color: t.textTertiary }]}
-                >
-                  team happiness
+            <YStack>
+              <XStack alignItems="center" gap="$2">
+                <Text fontSize={22}>🥚</Text>
+                <Text fontFamily="$mono" fontSize={17} fontWeight="500" color="$color" letterSpacing={-0.5}>
+                  tami·draft
                 </Text>
-                <Text
-                  style={[s.happinessLabel, { color: t.textTertiary }]}
-                >
-                  {myTeam.length}/6 drafted
-                </Text>
-              </View>
-              <View
-                style={[
-                  s.progressTrack,
-                  { backgroundColor: t.bgSurfaceAlt },
-                ]}
+                <XStack backgroundColor="$colorAccentLight" paddingHorizontal={7} paddingVertical={2} borderRadius="$1">
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="600" color="$colorAccent">
+                    🏏 cricket
+                  </Text>
+                </XStack>
+              </XStack>
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={3} marginLeft={30}>
+                fantasy cricket companion
+              </Text>
+            </YStack>
+
+            <XStack alignItems="center" gap="$3">
+              {/* Mode Toggle */}
+              <XStack
+                width={44}
+                height={24}
+                borderRadius={12}
+                backgroundColor={mode === "dark" ? "$accentBackground" : "$backgroundSurfaceAlt"}
+                pressStyle={{ opacity: 0.8 }}
+                onPress={toggleMode}
+                cursor="pointer"
               >
-                <View
-                  style={[
-                    s.progressFill,
-                    {
-                      width: `${happiness}%`,
-                      backgroundColor: happinessGradientColor,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          </View>
+                <YStack
+                  width={18}
+                  height={18}
+                  borderRadius={9}
+                  position="absolute"
+                  top={3}
+                  left={mode === "dark" ? 23 : 3}
+                  backgroundColor={mode === "dark" ? "$backgroundSurface" : "$white"}
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  <Text fontSize={10}>{mode === "dark" ? "🌙" : "☀️"}</Text>
+                </YStack>
+              </XStack>
+
+              {/* Clock */}
+              <YStack alignItems="flex-end">
+                <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                  rd {round} · pick {pick}
+                </Text>
+                <Text
+                  fontFamily="$mono"
+                  fontSize={22}
+                  fontWeight="500"
+                  letterSpacing={1}
+                  lineHeight={28}
+                  color={clock < 15 ? "$colorHatch" : "$color"}
+                >
+                  {String(Math.floor(clock / 60))}:{String(clock % 60).padStart(2, "0")}
+                </Text>
+              </YStack>
+            </XStack>
+          </XStack>
         </Animated.View>
 
-        {/* ── Tabs ── */}
-        <View
-          style={[
-            s.tabContainer,
-            { backgroundColor: t.bgSurfaceAlt },
-          ]}
+        {/* ── Happiness Meter ── */}
+        <Animated.View entering={FadeInDown.delay(30).springify()}>
+          <Card
+            marginHorizontal="$4"
+            marginBottom="$3"
+            padding="$3"
+            paddingHorizontal="$4"
+          >
+            <XStack alignItems="center" gap="$3">
+              <Text fontSize={20} lineHeight={24}>{happinessEmoji}</Text>
+              <YStack flex={1}>
+                <XStack justifyContent="space-between" marginBottom={5}>
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">team happiness</Text>
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{myTeam.length}/6 drafted</Text>
+                </XStack>
+                <YStack
+                  width="100%"
+                  height={6}
+                  borderRadius="$round"
+                  backgroundColor="$backgroundSurfaceAlt"
+                  overflow="hidden"
+                >
+                  <View
+                    height="100%"
+                    borderRadius="$round"
+                    backgroundColor={happinessColor as any}
+                    width={`${happiness}%` as any}
+                  />
+                </YStack>
+              </YStack>
+            </XStack>
+          </Card>
+        </Animated.View>
+
+        {/* ── Segment Tabs ── */}
+        <XStack
+          backgroundColor="$backgroundSurfaceAlt"
+          marginHorizontal="$4"
+          marginBottom="$3"
+          borderRadius="$3"
+          padding="$1"
+          gap="$1"
         >
           {([
             { key: "draft" as const, label: "Available", count: available.length },
             { key: "team" as const, label: "My Squad", count: myTeam.length },
           ]).map((tb) => (
-            <Pressable
-              key={tb.key}
-              onPress={() => setTab(tb.key)}
-              style={[
-                s.tabBtn,
-                {
-                  backgroundColor:
-                    tab === tb.key ? t.bgSurface : "transparent",
-                },
-                tab === tb.key && s.tabBtnActive,
-              ]}
-            >
+            <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
               <Text
-                style={[
-                  s.tabLabel,
-                  {
-                    color:
-                      tab === tb.key ? t.text : t.textTertiary,
-                  },
-                ]}
+                fontFamily="$body"
+                fontWeight="600"
+                fontSize={13}
+                color={tab === tb.key ? "$color" : "$colorMuted"}
               >
                 {tb.label}
               </Text>
-              <Text
-                style={[
-                  s.tabCount,
-                  {
-                    color:
-                      tab === tb.key
-                        ? t.textSecondary
-                        : t.textTertiary,
-                  },
-                ]}
-              >
+              <Text fontFamily="$mono" fontSize={11} color={tab === tb.key ? "$colorSecondary" : "$colorMuted"}>
                 {tb.count}
               </Text>
-            </Pressable>
+            </SegmentTab>
           ))}
-        </View>
+        </XStack>
 
         {/* ── Role Filter ── */}
         {tab === "draft" && (
-          <ScrollView
+          <RNScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={s.filterRow}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 6, paddingBottom: 14 }}
           >
             {([
               { key: "all" as const, label: "All" },
@@ -400,462 +327,93 @@ export default function HomeScreen() {
               { key: "AR" as const, label: "⚡ All-Round" },
               { key: "WK" as const, label: "🧤 Keepers" },
             ]).map((f) => (
-              <Pressable
-                key={f.key}
-                onPress={() => setRoleFilter(f.key)}
-                style={[
-                  s.filterPill,
-                  {
-                    backgroundColor:
-                      roleFilter === f.key ? t.text : t.bgSurface,
-                    borderColor:
-                      roleFilter === f.key ? t.text : t.border,
-                  },
-                ]}
-              >
+              <FilterPill key={f.key} active={roleFilter === f.key} onPress={() => setRoleFilter(f.key)}>
                 <Text
-                  style={[
-                    s.filterPillText,
-                    {
-                      color:
-                        roleFilter === f.key
-                          ? t.bg
-                          : t.textSecondary,
-                    },
-                  ]}
+                  fontFamily="$body"
+                  fontSize={12}
+                  fontWeight="500"
+                  color={roleFilter === f.key ? "$background" : "$colorSecondary"}
                 >
                   {f.label}
                 </Text>
-              </Pressable>
+              </FilterPill>
             ))}
-          </ScrollView>
+          </RNScrollView>
         )}
 
         {/* ── Player List ── */}
-        <View style={s.playerList}>
+        <YStack paddingHorizontal="$4" gap="$2">
           {tab === "draft" ? (
             filtered.length > 0 ? (
-              filtered.map((p, i) => {
-                const rs = roles[p.role];
-                return (
-                  <Animated.View
-                    key={p.id}
-                    entering={FadeInDown.delay(60 + i * 40).springify()}
-                  >
-                    <View
-                      style={[
-                        s.playerCard,
-                        {
-                          backgroundColor: t.bgSurface,
-                          borderColor: t.border,
-                        },
-                      ]}
-                    >
-                      <InitialsAvatar
-                        name={p.name}
-                        role={p.role}
-                        ovr={p.ovr}
-                        roleColors={roles}
-                        textPrimary={t.text}
-                        bg={t.bg}
-                      />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          style={[
-                            s.playerName,
-                            { color: t.text },
-                          ]}
-                        >
+              filtered.map((p, i) => (
+                <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
+                  <Card pressable>
+                    <XStack alignItems="center" gap="$3">
+                      <InitialsAvatar name={p.name} role={p.role} ovr={p.ovr} />
+                      <YStack flex={1} minWidth={0}>
+                        <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" marginBottom={3}>
                           {p.name}
                         </Text>
-                        <View style={s.playerMeta}>
-                          <View
-                            style={[
-                              s.roleBadge,
-                              {
-                                backgroundColor: rs.lightBg,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                s.roleBadgeText,
-                                { color: rs.lightText },
-                              ]}
-                            >
-                              {p.role}
-                            </Text>
-                          </View>
-                          <Text
-                            style={[
-                              s.teamCode,
-                              { color: t.textTertiary },
-                            ]}
-                          >
-                            {p.team}
-                          </Text>
-                          <Text style={{ color: t.border }}>·</Text>
+                        <XStack alignItems="center" gap="$2" flexWrap="wrap">
+                          <Badge variant="role" size="sm">{p.role}</Badge>
+                          <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{p.team}</Text>
+                          <Text color="$borderColor">·</Text>
                           {Object.entries(p.stats).map(([k, v]) => (
-                            <StatLabel
-                              key={k}
-                              label={k}
-                              value={v}
-                              textPrimary={t.text}
-                              textMuted={t.textTertiary}
-                            />
+                            <StatLabel key={k} label={k} value={v} />
                           ))}
-                        </View>
-                      </View>
-                      <Pressable
+                        </XStack>
+                      </YStack>
+                      <Button
+                        size="sm"
+                        variant="secondary"
                         onPress={() => handleDraft(p)}
-                        style={[
-                          s.draftBtn,
-                          { backgroundColor: t.bgSurfaceAlt },
-                        ]}
                       >
-                        <Text
-                          style={[
-                            s.draftBtnText,
-                            { color: t.textTertiary },
-                          ]}
-                        >
-                          draft
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </Animated.View>
-                );
-              })
+                        <Text fontFamily="$mono" fontSize={11} fontWeight="500">draft</Text>
+                      </Button>
+                    </XStack>
+                  </Card>
+                </Animated.View>
+              ))
             ) : (
-              <View style={s.emptyState}>
-                <Text style={{ fontSize: 40, marginBottom: 12 }}>🏏</Text>
-                <Text
-                  style={[
-                    s.emptyText,
-                    { color: t.textTertiary },
-                  ]}
-                >
+              <YStack alignItems="center" paddingVertical="$8">
+                <Text fontSize={40} marginBottom="$3">🏏</Text>
+                <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center">
                   no players in this role
                 </Text>
-              </View>
+              </YStack>
             )
           ) : myTeam.length > 0 ? (
-            myTeam.map((p, i) => {
-              const rs = roles[p.role];
-              return (
-                <Animated.View
-                  key={p.id}
-                  entering={FadeInDown.delay(60 + i * 40).springify()}
-                >
-                  <View
-                    style={[
-                      s.playerCard,
-                      {
-                        backgroundColor: t.bgSurface,
-                        borderColor: t.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        s.squadIndex,
-                        { color: t.textTertiary },
-                      ]}
-                    >
+            myTeam.map((p, i) => (
+              <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
+                <Card>
+                  <XStack alignItems="center" gap="$3">
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" width={20} textAlign="center">
                       {i + 1}
                     </Text>
-                    <InitialsAvatar
-                      name={p.name}
-                      role={p.role}
-                      ovr={p.ovr}
-                      size={40}
-                      roleColors={roles}
-                      textPrimary={t.text}
-                      bg={t.bg}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          s.playerName,
-                          { color: t.text },
-                        ]}
-                      >
+                    <InitialsAvatar name={p.name} role={p.role} ovr={p.ovr} size={40} />
+                    <YStack flex={1}>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" marginBottom={3}>
                         {p.name}
                       </Text>
-                      <View style={s.playerMeta}>
-                        <View
-                          style={[
-                            s.roleBadge,
-                            { backgroundColor: rs.lightBg },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              s.roleBadgeText,
-                              { color: rs.lightText },
-                            ]}
-                          >
-                            {p.role}
-                          </Text>
-                        </View>
-                        <Text
-                          style={[
-                            s.teamCode,
-                            { color: t.textTertiary },
-                          ]}
-                        >
-                          {p.team}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
-              );
-            })
+                      <XStack alignItems="center" gap="$2">
+                        <Badge variant="role" size="sm">{p.role}</Badge>
+                        <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{p.team}</Text>
+                      </XStack>
+                    </YStack>
+                  </XStack>
+                </Card>
+              </Animated.View>
+            ))
           ) : (
-            <View style={s.emptyState}>
-              <Text style={{ fontSize: 48, marginBottom: 16 }}>🥚</Text>
-              <Text
-                style={[
-                  s.emptyText,
-                  { color: t.textTertiary },
-                ]}
-              >
+            <YStack alignItems="center" paddingVertical="$8">
+              <Text fontSize={48} marginBottom="$4">🥚</Text>
+              <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center" lineHeight={20}>
                 draft cricketers to hatch your squad
               </Text>
-            </View>
+            </YStack>
           )}
-        </View>
-      </ScrollView>
-    </View>
+        </YStack>
+      </RNScrollView>
+    </YStack>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root: { flex: 1 },
-
-  // Header
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
-  },
-  headerLogoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  logoText: {
-    fontFamily: FontFamily.mono,
-    fontSize: 17,
-    fontWeight: "500",
-    letterSpacing: -0.5,
-  },
-  cricketBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  cricketBadgeText: {
-    fontFamily: FontFamily.mono,
-    fontSize: 9,
-    fontWeight: "600",
-  },
-  subtitle: {
-    fontFamily: FontFamily.mono,
-    fontSize: 10,
-    marginTop: 3,
-    marginLeft: 30,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-
-  // Mode toggle
-  modeToggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    position: "relative",
-  },
-  modeKnob: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    position: "absolute",
-    top: 3,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Clock
-  clockMeta: {
-    fontFamily: FontFamily.mono,
-    fontSize: 10,
-  },
-  clockTime: {
-    fontFamily: FontFamily.mono,
-    fontSize: 22,
-    fontWeight: "500",
-    letterSpacing: 1,
-    lineHeight: 28,
-  },
-
-  // Happiness
-  happinessCard: {
-    marginHorizontal: Spacing.lg,
-    borderRadius: 14,
-    padding: 12,
-    paddingHorizontal: 16,
-    marginBottom: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1,
-  },
-  happinessRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
-  },
-  happinessLabel: {
-    fontFamily: FontFamily.mono,
-    fontSize: 10,
-  },
-  progressTrack: {
-    width: "100%",
-    height: 6,
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-
-  // Tabs
-  tabContainer: {
-    flexDirection: "row",
-    gap: 4,
-    marginHorizontal: Spacing.lg,
-    marginBottom: 14,
-    borderRadius: 12,
-    padding: 4,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  tabBtnActive: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tabLabel: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: 13,
-  },
-  tabCount: {
-    fontFamily: FontFamily.mono,
-    fontSize: 11,
-  },
-
-  // Role filter
-  filterRow: {
-    paddingHorizontal: Spacing.lg,
-    gap: 6,
-    paddingBottom: 14,
-  },
-  filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  filterPillText: {
-    fontFamily: FontFamily.body,
-    fontSize: 12,
-    fontWeight: "500",
-  },
-
-  // Player list
-  playerList: {
-    paddingHorizontal: Spacing.lg,
-    gap: 8,
-  },
-  playerCard: {
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    borderWidth: 1,
-  },
-  playerName: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: 14,
-    marginBottom: 3,
-  },
-  playerMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  roleBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  roleBadgeText: {
-    fontFamily: FontFamily.mono,
-    fontWeight: "600",
-    fontSize: 10,
-  },
-  teamCode: {
-    fontFamily: FontFamily.mono,
-    fontSize: 11,
-  },
-  squadIndex: {
-    fontFamily: FontFamily.mono,
-    fontSize: 11,
-    width: 20,
-    textAlign: "center",
-  },
-
-  // Draft button
-  draftBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  draftBtnText: {
-    fontFamily: FontFamily.mono,
-    fontSize: 11,
-    fontWeight: "500",
-  },
-
-  // Empty
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 48,
-  },
-  emptyText: {
-    fontFamily: FontFamily.mono,
-    fontSize: 12,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-});

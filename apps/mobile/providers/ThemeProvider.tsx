@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { TamaguiProvider, Theme } from "tamagui";
+import { tamaguiConfig } from "../../../tamagui.config";
 import { Colors, ColorsLight, RoleColors, RoleColorsLight } from "../lib/design";
 
 type ThemeMode = "light" | "dark";
@@ -21,9 +23,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const roles = mode === "light" ? RoleColorsLight : RoleColors;
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, toggleMode, t, roles }}>
-      {children}
-    </ThemeContext.Provider>
+    <TamaguiProvider config={tamaguiConfig} defaultTheme={mode}>
+      <Theme name={mode}>
+        <ThemeContext.Provider value={{ mode, setMode, toggleMode, t, roles }}>
+          {children}
+        </ThemeContext.Provider>
+      </Theme>
+    </TamaguiProvider>
   );
 }
 
