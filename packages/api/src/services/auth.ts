@@ -1,41 +1,70 @@
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import type { App, ServiceAccount } from "firebase-admin/app";
+import type { Auth } from "firebase-admin/auth";
+
+let firebaseApp: App | null = null;
+let firebaseAuth: Auth | null = null;
 
 /**
- * Better Auth configuration.
- * Self-hosted on Cloud Run alongside the Hono API server.
+ * Firebase Admin SDK — lazy-initialized singleton.
+ * Used to verify Firebase Auth ID tokens on the API server.
  *
- * Supports: Email/password, Google, Apple, Phone OTP, Magic Link
+ * Required env vars:
+ *   FIREBASE_PROJECT_ID
+ *   FIREBASE_PRIVATE_KEY (JSON-escaped PEM)
+ *   FIREBASE_CLIENT_EMAIL
+ *
+ * Or: GOOGLE_APPLICATION_CREDENTIALS pointing to a service account JSON file.
  */
-export function createAuth(db: unknown) {
-  return betterAuth({
-    database: drizzleAdapter(db, {
-      provider: "pg",
-    }),
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: false, // Enable in production
-    },
-    socialProviders: {
-      google: {
-        clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-      },
-      apple: {
-        clientId: process.env.APPLE_CLIENT_ID ?? "",
-        clientSecret: process.env.APPLE_CLIENT_SECRET ?? "",
-      },
-    },
-    session: {
-      expiresIn: 60 * 60 * 24 * 30, // 30 days
-      updateAge: 60 * 60 * 24, // Refresh every day
-    },
-    trustedOrigins: [
-      "http://localhost:3000", // Next.js web dev
-      "http://localhost:8081", // Expo dev
-      "exp://localhost:8081",
-    ],
-  });
+export async function getFirebaseAuth(): Promise<Auth> {
+  if (firebaseAuth) return firebaseAuth;
+
+  // Lazy import to avoid bundling firebase-admin when not needed
+  const { initializeApp, cert, getApps } = await import("firebase-admin/app");
+  const { getAuth } = await import("firebase-admin/auth");
+
+  const existing = getApps();
+  if (existing.length > 0) {
+    firebaseApp = existing[0]!;
+  } else {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+
+    if (projectId && privateKey && clientEmail) {
+      firebaseApp = initializeApp({
+        credential: cert({ projectId, privateKey, clientEmail } as ServiceAccount),
+      });
+    } else {
+      // Falls back to GOOGLE_APPLICATION_CREDENTIALS or GCE metadata
+      firebaseApp = initializeApp();
+    }
+  }
+
+  firebaseAuth = getAuth(firebaseApp);
+  return firebaseAuth;
 }
 
-export type Auth = ReturnType<typeof createAuth>;
+/**
+ * Verify a Firebase ID token from Authorization: Bearer <token> header.
+ * Returns the decoded token (contains uid, email, etc.) or null.
+ */
+export async function verifyIdToken(token: string) {
+  try {
+    const auth = await getFirebaseAuth();
+    return await auth.verifyIdToken(token);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract Firebase ID token from request headers.
+ * Supports: Authorization: Bearer <token>
+ */
+export function extractBearerToken(headers: Headers): string | null {
+  const auth = headers.get("Authorization");
+  if (auth?.startsWith("Bearer ")) {
+    return auth.slice(7);
+  }
+  return null;
+}

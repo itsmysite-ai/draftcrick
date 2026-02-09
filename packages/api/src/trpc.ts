@@ -8,7 +8,7 @@ import type { Database } from "@draftcrick/db";
  */
 export interface TRPCContext {
   db: Database;
-  user: { id: string; role: string } | null;
+  user: { id: string; role: string; email: string | null } | null;
   req: HonoContext;
 }
 

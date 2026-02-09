@@ -2,7 +2,6 @@ import {
   pgTable,
   uuid,
   text,
-  boolean,
   timestamp,
   integer,
   decimal,
@@ -14,6 +13,7 @@ import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
+  firebaseUid: text("firebase_uid").unique().notNull(),
   email: text("email").unique(),
   phone: text("phone").unique(),
   username: text("username").unique().notNull(),
@@ -21,7 +21,6 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   role: text("role").notNull().default("user"), // user, admin, moderator
   kycStatus: text("kyc_status").notNull().default("pending"), // pending, verified, rejected
-  comfortMode: boolean("comfort_mode").notNull().default(false),
   preferredLang: text("preferred_lang").notNull().default("en"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

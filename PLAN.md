@@ -105,7 +105,7 @@ Every infrastructure component runs on Google Cloud Platform. Application-layer 
 | **Framework** | **Hono** | Ultra-fast, TypeScript-first, runs perfectly on Cloud Run containers |
 | **API Protocol** | **tRPC v11** | End-to-end type safety from backend to all frontends, zero codegen |
 | **ORM** | **Drizzle ORM** | Type-safe SQL, lightweight, excellent migrations, works great with Cloud SQL |
-| **Auth** | **Better Auth** | Self-hosted on Cloud Run; passkeys, Google, Apple, phone OTP, magic links, 2FA |
+| **Auth** | **Firebase Auth** | Google-managed; Google, Apple, phone OTP, email/password, anonymous auth; stateless JWTs verified via firebase-admin |
 | **Background Jobs** | **BullMQ** (Redis-backed) | Score calculations, contest settlements, notification dispatch |
 | **Email** | **React Email + Resend** | Beautiful transactional emails with React-based templates |
 
@@ -227,7 +227,7 @@ User picks player → Socket.io → Cloud Run (draft-engine)
 
 | Feature | CrickBattle | DraftCrick |
 |---------|------------|------------|
-| Sign up | Email/password only | **Passkeys, Google Sign-In, Apple Sign-In, Phone OTP (Firebase Auth), Magic Link** |
+| Sign up | Email/password only | **Google Sign-In, Apple Sign-In, Phone OTP, Email/Password — all via Firebase Auth** |
 | Onboarding | None — dropped into dashboard | **Voice-guided 3-tap wizard**: pick favorite team → choose format → join free contest |
 | KYC | Basic | **Aadhaar/PAN via DigiLocker** (India), ID verification via Jumio (US/EU) |
 | Profile | Minimal | **Rich profiles**: win rate, badges, favorite players, league history, head-to-head record |
@@ -770,6 +770,7 @@ draftcrick/
 
 CREATE TABLE users (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    firebase_uid    TEXT UNIQUE NOT NULL,  -- Firebase Auth UID
     email           TEXT UNIQUE,
     phone           TEXT UNIQUE,
     username        TEXT UNIQUE NOT NULL,
@@ -777,7 +778,6 @@ CREATE TABLE users (
     avatar_url      TEXT,
     role            TEXT NOT NULL DEFAULT 'user',  -- user, admin, moderator
     kyc_status      TEXT NOT NULL DEFAULT 'pending', -- pending, verified, rejected
-    comfort_mode    BOOLEAN NOT NULL DEFAULT false,
     preferred_lang  TEXT NOT NULL DEFAULT 'en',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -1066,7 +1066,7 @@ Firestore Collections:
 | Set up Drizzle + Cloud SQL | Schema design, initial migration, connection pooling | Backend |
 | Set up Firestore | Real-time collections for live scores, chat | Backend |
 | Set up Memorystore (Redis) | BullMQ connection, leaderboard cache, sessions | Backend |
-| Implement auth (Better Auth) | Email, Google, Apple, Phone OTP; deployed on Cloud Run | Backend |
+| Implement auth (Firebase Auth) | Email, Google, Apple, Phone OTP; firebase-admin on API server, Firebase JS SDK on clients | Backend |
 | Design system foundation | Tamagui tokens, themes (light, dark, comfort-light, comfort-dark), base components | Design/FE |
 | Set up Sentry + GCP Monitoring | Error tracking, performance monitoring, alerting | DevOps |
 
@@ -1186,7 +1186,7 @@ Firestore Collections:
 | Service | Provider | Purpose | GCP? |
 |---------|----------|---------|------|
 | **Cricket Data** | CricAPI / SportRadar | Live scores, player stats, fixtures, playing XI | External (via MCP) |
-| **Auth** | Better Auth (self-hosted on Cloud Run) | Passkeys, OAuth, OTP, magic links, 2FA | Runs on GCP |
+| **Auth** | Firebase Auth (Google-managed) | Google, Apple, Phone OTP, email/password; stateless JWTs | GCP |
 | **Payments (India)** | Razorpay | UPI, debit/credit cards, net banking | External |
 | **Payments (Global)** | Stripe | Cards, Apple Pay, Google Pay, ACH | External |
 | **KYC (India)** | Digio / HyperVerge | Aadhaar, PAN verification via DigiLocker | External |
@@ -1287,7 +1287,7 @@ pnpm add hono @hono/node-server
 pnpm add @trpc/server @trpc/client
 pnpm add drizzle-orm postgres
 pnpm add socket.io bullmq ioredis
-pnpm add better-auth
+pnpm add firebase-admin
 pnpm add @google-cloud/pubsub @google-cloud/speech @google-cloud/text-to-speech
 pnpm add -D tsx typescript @types/node
 
@@ -1363,7 +1363,7 @@ Build the simplest vertical slice to prove the architecture works:
 
 ### Week 2: Auth + Team Builder
 
-1. Integrate Better Auth (email + Google Sign-In)
+1. Integrate Firebase Auth (email + Google Sign-In)
 2. Build player list screen with search/filter
 3. Build team builder with salary cap + drag-to-swap
 4. First contest creation flow

@@ -1,33 +1,44 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
-import { registerSchema, loginSchema } from "@draftcrick/shared";
 
 export const authRouter = router({
   /**
-   * Get current session user
+   * Get current session user (from Firebase Auth token).
    */
   getSession: publicProcedure.query(({ ctx }) => {
     return ctx.user;
   }),
 
   /**
-   * Register a new user
+   * Sync Firebase Auth user to our PostgreSQL database.
+   * Called after first sign-in to create the local user profile.
    */
-  register: publicProcedure
-    .input(registerSchema)
+  syncUser: protectedProcedure
+    .input(
+      z.object({
+        username: z
+          .string()
+          .min(3)
+          .max(20)
+          .regex(/^[a-zA-Z0-9_]+$/),
+        displayName: z.string().min(1).max(50),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      // Auth registration is handled by Better Auth middleware.
-      // This endpoint provides additional profile setup.
-      // The actual user creation happens in the auth handler.
-      return { success: true };
+      // Creates or updates the local user record linked to Firebase UID
+      // Will be implemented with DB queries in Phase 1
+      return {
+        success: true,
+        userId: ctx.user.id,
+        username: input.username,
+      };
     }),
 
   /**
    * Get current user's profile
    */
   getProfile: protectedProcedure.query(async ({ ctx }) => {
-    // Will be implemented with DB queries
-    return { userId: ctx.user.id };
+    return { userId: ctx.user.id, email: ctx.user.email };
   }),
 
   /**
@@ -36,7 +47,6 @@ export const authRouter = router({
   updatePreferences: protectedProcedure
     .input(
       z.object({
-        comfortMode: z.boolean().optional(),
         preferredLang: z.string().optional(),
         displayName: z.string().min(1).max(50).optional(),
       })

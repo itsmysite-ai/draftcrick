@@ -1,15 +1,17 @@
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { useAuth } from "../../providers/AuthProvider";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [identifier, setIdentifier] = useState("");
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
-    // Will be wired to Better Auth
-    console.log("Login:", { identifier, password });
+    // Firebase Auth signInWithEmailAndPassword
+    await signIn(email, password);
   };
 
   return (
@@ -20,12 +22,13 @@ export default function LoginScreen() {
       <View style={styles.form}>
         <TextInput
           style={styles.input}
-          placeholder="Email, phone, or username"
+          placeholder="Email"
           placeholderTextColor="#6C757D"
-          value={identifier}
-          onChangeText={setIdentifier}
+          value={email}
+          onChangeText={setEmail}
           autoCapitalize="none"
           autoCorrect={false}
+          keyboardType="email-address"
         />
 
         <TextInput
@@ -41,7 +44,7 @@ export default function LoginScreen() {
           <Text style={styles.loginButtonText}>Sign In</Text>
         </TouchableOpacity>
 
-        {/* Social login buttons */}
+        {/* Social login buttons — Firebase Auth providers */}
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
           <Text style={styles.dividerText}>or continue with</Text>

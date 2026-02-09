@@ -1,16 +1,19 @@
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { useAuth } from "../../providers/AuthProvider";
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { signUp } = useAuth();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleRegister = async () => {
-    // Will be wired to Better Auth
-    console.log("Register:", { username, email, password });
+    // Firebase Auth createUserWithEmailAndPassword
+    // Then call tRPC syncUser to create PostgreSQL record with username
+    await signUp(email, password);
   };
 
   return (

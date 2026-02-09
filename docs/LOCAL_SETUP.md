@@ -45,9 +45,14 @@ DATABASE_URL=postgresql://postgres:password@localhost:5432/draftcrick
 # Redis
 REDIS_URL=redis://localhost:6379
 
-# Auth secret — generate one: openssl rand -hex 32
-BETTER_AUTH_SECRET=<your-random-secret>
-BETTER_AUTH_URL=http://localhost:3001
+# Firebase Auth (server-side — get from Firebase Console > Project Settings > Service Accounts)
+FIREBASE_PROJECT_ID=<your-firebase-project-id>
+FIREBASE_PRIVATE_KEY=<your-firebase-private-key>
+FIREBASE_CLIENT_EMAIL=<your-firebase-client-email>
+
+# Firebase Auth (client-side — get from Firebase Console > Project Settings > General > Web App)
+FIREBASE_API_KEY=<your-firebase-api-key>
+FIREBASE_AUTH_DOMAIN=<your-project>.firebaseapp.com
 
 # AI-powered sports data (get a key at https://aistudio.google.com/apikey)
 GEMINI_API_KEY=<your-gemini-api-key>
@@ -63,9 +68,8 @@ MOBILE_URL=exp://localhost:8081
 
 | Variable | What it enables |
 |----------|----------------|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth sign-in |
-| `APPLE_CLIENT_ID` / `APPLE_CLIENT_SECRET` | Apple sign-in |
-| `FIREBASE_PROJECT_ID` / `FIREBASE_PRIVATE_KEY` / `FIREBASE_CLIENT_EMAIL` | Real-time push notifications |
+| `FIREBASE_API_KEY` / `FIREBASE_AUTH_DOMAIN` | Firebase Auth client-side config |
+| `FIREBASE_STORAGE_BUCKET` / `FIREBASE_MESSAGING_SENDER_ID` / `FIREBASE_APP_ID` | Additional Firebase client config |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay payments (India) |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe payments (Global) |
 | `CRICAPI_KEY` / `SPORTRADAR_KEY` | Cricket data APIs |
@@ -157,7 +161,7 @@ pnpm --filter @draftcrick/mobile dev
 2. Scan the QR code with **Expo Go** (Android) or the Camera app (iOS)
 3. Or press `a` for Android emulator / `i` for iOS simulator
 
-> **Tip:** If the app can't connect to the API from your phone, make sure `BETTER_AUTH_URL` and the tRPC base URL use your machine's LAN IP (e.g., `http://192.168.1.100:3001`) instead of `localhost`.
+> **Tip:** If the app can't connect to the API from your phone, make sure the tRPC base URL uses your machine's LAN IP (e.g., `http://192.168.1.100:3001`) instead of `localhost`.
 
 ---
 
