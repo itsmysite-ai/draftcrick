@@ -1,7 +1,7 @@
 import type { SportPromptConfig } from "../types/sports";
 
 /**
- * Sport-specific configurations for AI prompts.
+ * Sport-specific configurations for Gemini AI prompts.
  * To add a new sport, just add an entry here — no other code changes needed.
  */
 export const SPORT_CONFIGS: Record<string, SportPromptConfig> = {

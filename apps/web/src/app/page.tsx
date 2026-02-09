@@ -22,9 +22,6 @@ export default function HomePage() {
           <Link href="/features" style={{ color: "#ADB5BD", fontSize: 14 }}>
             Features
           </Link>
-          <Link href="/comfort-mode" style={{ color: "#ADB5BD", fontSize: 14 }}>
-            Comfort Mode
-          </Link>
           <Link
             href="/login"
             style={{
@@ -92,8 +89,7 @@ export default function HomePage() {
           }}
         >
           The next-gen fantasy cricket platform with AI-powered Cricket Guru,
-          200+ customizable rules, live drafts, auctions, and Comfort Mode for
-          everyone in the family.
+          200+ customizable rules, live drafts, and real-time auctions.
         </p>
 
         <div style={{ display: "flex", gap: 16 }}>
@@ -151,8 +147,8 @@ export default function HomePage() {
               desc: "Real-time draft rooms with voice chat and animated pick reveals.",
             },
             {
-              title: "Comfort Mode",
-              desc: "Large text, voice guidance, plain English. Cricket made simple.",
+              title: "Multi-Sport Ready",
+              desc: "Cricket first, with football, kabaddi, and basketball coming soon.",
             },
           ].map((feature) => (
             <div

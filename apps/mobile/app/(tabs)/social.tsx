@@ -111,7 +111,7 @@ export default function SocialScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  header: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.lg },
+  header: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle },
   headerTitle: { fontFamily: FontFamily.headingBold, fontSize: Font["2xl"], color: Colors.text },
 
   ctaRow: { flexDirection: "row", gap: Spacing.md, marginBottom: Spacing["2xl"] },

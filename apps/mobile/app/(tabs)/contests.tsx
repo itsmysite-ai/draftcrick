@@ -10,15 +10,7 @@ import { trpc } from "../../lib/trpc";
 import { Colors, Radius, Spacing, Font, FontFamily, card } from "../../lib/design";
 
 // ─── Match-based contest browser card ──────────────────────────────────
-function MatchContestCard({
-  match,
-  index,
-  onPress,
-}: {
-  match: any;
-  index: number;
-  onPress: () => void;
-}) {
+function MatchContestCard({ match, index, onPress }: { match: any; index: number; onPress: () => void }) {
   const teamA = match.teamA || match.teamHome || "TBA";
   const teamB = match.teamB || match.teamAway || "TBA";
   const tournament = match.tournamentName || match.tournament || "Cricket";
@@ -27,7 +19,9 @@ function MatchContestCard({
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
       <Pressable onPress={onPress} style={({ pressed, hovered }) => [
-        s.matchContest, hovered && s.hover, pressed && s.press,
+        s.matchContest,
+        hovered && { backgroundColor: Colors.bgSurfaceHover },
+        pressed && { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
       ]}>
         <View style={s.mcHeader}>
           <View style={s.tournamentBadge}>
@@ -48,7 +42,7 @@ function MatchContestCard({
               <Text style={s.formatText}>{match.format}</Text>
             </View>
           )}
-          <Pressable onPress={onPress} style={({ hovered }) => [s.joinBtn, hovered && { backgroundColor: Colors.accentDark }]}>
+          <Pressable onPress={onPress} style={({ hovered }) => [s.joinBtn, hovered && { opacity: 0.85 }]}>
             <Text style={s.joinText}>Draft</Text>
             <Ionicons name="chevron-forward" size={12} color={Colors.textInverse} />
           </Pressable>
@@ -74,7 +68,9 @@ function UserContestCard({ item, index, onPress }: { item: any; index: number; o
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
       <Pressable onPress={onPress} style={({ pressed, hovered }) => [
-        s.contestCard, hovered && s.hover, pressed && s.press,
+        s.contestCard,
+        hovered && { backgroundColor: Colors.bgSurfaceHover },
+        pressed && { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
       ]}>
         <View style={s.contestTop}>
           <View style={{ flex: 1 }}>
@@ -116,7 +112,7 @@ export default function ContestsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"browse" | "my">("browse");
 
-  // AI-powered match data for browsing
+  // Gemini AI-powered match data for browsing
   const aiData = trpc.sports.dashboard.useQuery(
     { sport: "cricket" },
     { staleTime: 60 * 60 * 1000, retry: 1 }
@@ -164,7 +160,6 @@ export default function ContestsScreen() {
       </View>
 
       {tab === "browse" ? (
-        /* Browse available matches to create/join contests */
         <ScrollView
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
@@ -194,15 +189,6 @@ export default function ContestsScreen() {
               <Text style={s.emptyDesc}>Contests will appear when matches are scheduled</Text>
             </Animated.View>
           )}
-
-          {/* Last updated */}
-          {aiData.data?.lastFetched && (
-            <View style={s.updatedRow}>
-              <Text style={s.updatedText}>
-                Updated {new Date(aiData.data.lastFetched).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-              </Text>
-            </View>
-          )}
         </ScrollView>
       ) : (
         /* My Contests */
@@ -213,7 +199,7 @@ export default function ContestsScreen() {
             <Text style={s.emptyDesc}>Create and track your fantasy contests</Text>
             <Pressable
               onPress={() => router.push("/auth/login")}
-              style={({ hovered }) => [s.primaryBtn, hovered && { backgroundColor: Colors.accentDark }]}
+              style={({ hovered }) => [s.primaryBtn, hovered && { opacity: 0.85 }]}
             >
               <Text style={s.primaryBtnText}>Sign In</Text>
               <Ionicons name="arrow-forward" size={14} color={Colors.textInverse} />
@@ -228,7 +214,7 @@ export default function ContestsScreen() {
             <Ionicons name="trophy-outline" size={40} color={Colors.textTertiary} />
             <Text style={s.emptyTitle}>No contests yet</Text>
             <Text style={s.emptyDesc}>Browse matches and join your first contest</Text>
-            <Pressable onPress={() => setTab("browse")} style={({ hovered }) => [s.primaryBtn, hovered && { backgroundColor: Colors.accentDark }]}>
+            <Pressable onPress={() => setTab("browse")} style={({ hovered }) => [s.primaryBtn, hovered && { opacity: 0.85 }]}>
               <Text style={s.primaryBtnText}>Browse Matches</Text>
             </Pressable>
           </Animated.View>
@@ -253,24 +239,29 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  // Header
+  // Header — consistent with other tabs
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderSubtle,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  accentBar: { width: 4, height: 22, borderRadius: 2 },
+  accentBar: { width: 4, height: 20, borderRadius: 2 },
   headerTitle: { fontFamily: FontFamily.headingBold, fontSize: Font["2xl"], color: Colors.text },
 
   // Tabs
   tabs: {
     flexDirection: "row",
     marginHorizontal: Spacing.xl,
+    marginTop: Spacing.lg,
     marginBottom: Spacing.lg,
     backgroundColor: Colors.bgSurface,
     borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: 3,
   },
   tab: {
@@ -291,17 +282,15 @@ const s = StyleSheet.create({
     color: Colors.text,
   },
 
-  // Match-based contest card
-  matchContest: { ...card, marginBottom: Spacing.md, padding: Spacing.lg },
-  hover: { backgroundColor: Colors.bgSurfaceHover },
-  press: { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
+  // Match-based contest card — consistent card style
+  matchContest: { ...card, marginBottom: Spacing.md, padding: Spacing["2xl"] },
   mcHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.sm },
   tournamentBadge: { backgroundColor: Colors.accentMuted, paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.xl },
   tournamentText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.accent, textTransform: "uppercase", letterSpacing: 0.5 },
   statusDot: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.xl },
   statusDotText: { fontFamily: FontFamily.bodyBold, fontSize: 9, color: "#FFF", letterSpacing: 0.3 },
-  mcTeams: { fontFamily: FontFamily.headingBold, fontSize: Font.lg, color: Colors.text, marginBottom: Spacing.md },
-  mcFooter: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  mcTeams: { fontFamily: FontFamily.heading, fontSize: Font.xl, color: Colors.text, marginBottom: Spacing.lg },
+  mcFooter: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
   mcInfo: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
   mcTime: { fontFamily: FontFamily.body, fontSize: Font.sm, color: Colors.textTertiary },
   formatBadge: { backgroundColor: Colors.bgSurfacePress, paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.xl },
@@ -314,12 +303,12 @@ const s = StyleSheet.create({
 
   // User contest card
   contestCard: { ...card, marginBottom: Spacing.md, overflow: "hidden" },
-  contestTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", padding: Spacing.lg, paddingBottom: Spacing.md },
+  contestTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", padding: Spacing["2xl"], paddingBottom: Spacing.md },
   contestName: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.lg, color: Colors.text, marginBottom: 2 },
   contestMatch: { fontFamily: FontFamily.body, fontSize: Font.sm, color: Colors.textSecondary },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.xl },
   statusText: { fontFamily: FontFamily.bodyBold, fontSize: Font.xs, letterSpacing: 0.3 },
-  statsRow: { flexDirection: "row", borderTopWidth: 1, borderTopColor: Colors.border, paddingVertical: Spacing.md, marginHorizontal: Spacing.lg },
+  statsRow: { flexDirection: "row", borderTopWidth: 1, borderTopColor: Colors.border, paddingVertical: Spacing.md, marginHorizontal: Spacing["2xl"] },
   stat: { flex: 1, alignItems: "center" },
   statLabel: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 },
   statVal: { fontFamily: FontFamily.bodyBold, fontSize: Font.lg, color: Colors.text },
@@ -335,8 +324,4 @@ const s = StyleSheet.create({
     backgroundColor: Colors.accent, paddingHorizontal: Spacing["2xl"], paddingVertical: Spacing.md, borderRadius: Radius.sm, marginTop: Spacing.md,
   },
   primaryBtnText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.textInverse },
-
-  // Footer
-  updatedRow: { alignItems: "center", marginTop: Spacing["2xl"], ...card, paddingVertical: Spacing.sm },
-  updatedText: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
 });

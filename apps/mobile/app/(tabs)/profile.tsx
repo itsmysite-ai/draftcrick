@@ -110,7 +110,7 @@ const s = StyleSheet.create({
   hover: { backgroundColor: Colors.bgSurfaceHover },
   press: { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
 
-  profileHeader: { alignItems: "center", paddingVertical: Spacing["3xl"], marginBottom: Spacing.xl },
+  profileHeader: { alignItems: "center", paddingVertical: Spacing["3xl"], marginBottom: Spacing.xl, borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle },
   avatar: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: Colors.bgSurface, borderWidth: 2, borderColor: Colors.border,

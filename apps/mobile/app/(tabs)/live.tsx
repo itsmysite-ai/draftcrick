@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { useState, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   FadeInDown, FadeIn, useSharedValue, useAnimatedStyle,
   withRepeat, withTiming, Easing,
@@ -13,7 +12,7 @@ import Animated, {
 import { trpc } from "../../lib/trpc";
 import { Colors, Radius, Spacing, Font, FontFamily, card } from "../../lib/design";
 
-function PulsingDot({ size = 8, color = Colors.red }: { size?: number; color?: string }) {
+function PulsingDot({ size = 6, color = Colors.red }: { size?: number; color?: string }) {
   const pulse = useSharedValue(1);
   useEffect(() => {
     pulse.value = withRepeat(withTiming(1.8, { duration: 1000, easing: Easing.inOut(Easing.ease) }), -1, true);
@@ -32,25 +31,18 @@ function PulsingDot({ size = 8, color = Colors.red }: { size?: number; color?: s
 }
 
 function LiveMatchCard({ match, index, onPress }: { match: any; index: number; onPress: () => void }) {
-  const isAI = match.id?.startsWith("ai-");
   const isLive = match.status === "live";
   const teamA = match.teamA || match.teamHome || "TBA";
   const teamB = match.teamB || match.teamAway || "TBA";
   const tournament = match.tournamentName || match.tournament || "Cricket";
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 60).springify()}>
+    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
       <Pressable onPress={onPress} style={({ pressed, hovered }) => [
-        s.liveCard, hovered && s.hover, pressed && s.press,
+        s.liveCard,
+        hovered && { backgroundColor: Colors.bgSurfaceHover },
+        pressed && { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
       ]}>
-        {/* Top gradient bar for live matches */}
-        {isLive && (
-          <LinearGradient
-            colors={["rgba(255,77,79,0.2)", "transparent"]}
-            style={s.liveGlow}
-          />
-        )}
-
         <View style={s.liveHeader}>
           <View style={s.tournamentBadge}>
             <Text style={s.tournament}>{tournament}</Text>
@@ -97,7 +89,11 @@ function LiveMatchCard({ match, index, onPress }: { match: any; index: number; o
           </View>
           <Pressable
             onPress={onPress}
-            style={({ hovered }) => [s.watchBtn, isLive ? s.watchBtnLive : s.watchBtnUpcoming, hovered && { opacity: 0.8 }]}
+            style={({ hovered }) => [
+              s.watchBtn,
+              isLive ? { backgroundColor: Colors.red } : { backgroundColor: Colors.accentMuted },
+              hovered && { opacity: 0.85 },
+            ]}
           >
             <Text style={[s.watchText, isLive ? { color: "#FFF" } : { color: Colors.accent }]}>
               {isLive ? "Watch Live" : "Draft Now"}
@@ -114,7 +110,7 @@ export default function LiveScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch from sports API (cached 24hr)
+  // Fetch from Gemini sports API (cached 24hr)
   const aiData = trpc.sports.dashboard.useQuery(
     { sport: "cricket" },
     { staleTime: 60 * 60 * 1000, retry: 1 }
@@ -219,15 +215,6 @@ export default function LiveScreen() {
           )}
         />
       )}
-
-      {/* Last updated */}
-      {data.length > 0 && aiData.data?.lastFetched && (
-        <View style={s.updatedBar}>
-          <Text style={s.updatedText}>
-            Updated {new Date(aiData.data.lastFetched).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -243,9 +230,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderSubtle,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  accentBar: { width: 4, height: 22, borderRadius: 2 },
+  accentBar: { width: 4, height: 20, borderRadius: 2 },
   headerTitle: { fontFamily: FontFamily.headingBold, fontSize: Font["2xl"], color: Colors.text },
   headerRight: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   realTimeBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
@@ -253,62 +242,41 @@ const s = StyleSheet.create({
   countBadge: { backgroundColor: Colors.redMuted, paddingHorizontal: 10, paddingVertical: 3, borderRadius: Radius.xl },
   countText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm, color: Colors.red },
 
-  // Live card
-  liveCard: { ...card, borderColor: "rgba(255,77,79,0.15)", marginBottom: Spacing.md, overflow: "hidden" },
-  liveGlow: { position: "absolute", top: 0, left: 0, right: 0, height: 3 },
-  hover: { backgroundColor: Colors.bgSurfaceHover },
-  press: { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
+  // Live card — matches web card style
+  liveCard: { ...card, padding: Spacing["2xl"], marginBottom: Spacing.md },
 
-  liveHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.sm },
+  liveHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg },
   tournamentBadge: { backgroundColor: Colors.accentMuted, paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.xl },
   tournament: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.accent, textTransform: "uppercase", letterSpacing: 0.5 },
-  liveBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.xl },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
   liveLabel: { fontFamily: FontFamily.bodyBold, fontSize: Font.xs, color: Colors.red },
 
-  teams: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing.lg, paddingVertical: Spacing.lg },
-  teamSide: { flex: 1, alignItems: "center", gap: 5 },
+  teams: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: Spacing.lg },
+  teamSide: { flex: 1, alignItems: "center", gap: 6 },
   teamBadge: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.bgLight, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
   teamInit: { fontFamily: FontFamily.headingBold, fontSize: Font.md, color: Colors.text },
-  teamName: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.lg, color: Colors.text, textAlign: "center" },
+  teamName: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.text, textAlign: "center" },
   vsWrap: { alignItems: "center", gap: 2 },
   vs: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
   format: { fontFamily: FontFamily.body, fontSize: 9, color: Colors.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 },
 
-  scoreRow: { alignItems: "center", paddingBottom: Spacing.sm },
+  scoreRow: { alignItems: "center", marginBottom: Spacing.md },
   scoreText: { fontFamily: FontFamily.bodyBold, fontSize: Font.md, color: Colors.amber },
 
   liveFooter: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    marginHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.lg,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 4 },
   venue: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
   watchBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.sm },
-  watchBtnLive: { backgroundColor: Colors.red },
-  watchBtnUpcoming: { backgroundColor: Colors.accentMuted },
   watchText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm },
 
   // Empty
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: Spacing["3xl"], gap: Spacing.md },
   emptyTitle: { fontFamily: FontFamily.heading, fontSize: Font.xl, color: Colors.text },
   emptyDesc: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: Spacing.md },
-  features: { ...card, gap: Spacing.md, padding: Spacing.xl, alignSelf: "stretch" },
+  features: { ...card, gap: Spacing.md, padding: Spacing["2xl"], alignSelf: "stretch" },
   featureRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   featureText: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.textSecondary },
-
-  // Updated bar
-  updatedBar: {
-    position: "absolute",
-    bottom: 90,
-    left: Spacing.xl,
-    right: Spacing.xl,
-    backgroundColor: Colors.bgSurface,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: 6,
-    alignItems: "center",
-  },
-  updatedText: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
 });
