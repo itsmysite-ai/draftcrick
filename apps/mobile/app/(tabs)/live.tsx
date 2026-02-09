@@ -18,7 +18,7 @@ import {
   InitialsAvatar,
   StatLabel,
   ModeToggle,
-  HappinessMeter,
+  AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -296,9 +296,7 @@ export default function LiveScreen() {
         </XStack>
       </XStack>
 
-      <Card marginHorizontal="$4" marginBottom="$3" padding="$3" paddingHorizontal="$4">
-        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
-      </Card>
+      <AnnouncementBanner />
 
       {data.length === 0 ? (
         <Animated.View entering={FadeIn.delay(80)} style={{ flex: 1 }}>

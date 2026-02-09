@@ -11,3 +11,4 @@ export * from "./EggLoadingSpinner";
 export * from "./FilterPill";
 export * from "./SegmentTab";
 export * from "./ModeToggle";
+export * from "./AnnouncementBanner";

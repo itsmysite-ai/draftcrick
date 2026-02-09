@@ -9,7 +9,7 @@ import {
   Button,
   InitialsAvatar,
   FilterPill,
-  HappinessMeter,
+  AnnouncementBanner,
   ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
@@ -165,9 +165,7 @@ export default function TeamBuilderScreen() {
       </XStack>
 
       {/* Progress Bar */}
-      <Card marginHorizontal="$4" marginTop="$3" marginBottom="$1" padding="$3" paddingHorizontal="$4">
-        <HappinessMeter current={selectedPlayers.length} total={TEAM_SIZE} label="team progress" unit="selected" />
-      </Card>
+      <AnnouncementBanner />
 
       {/* Role Filter Tabs */}
       <XStack padding="$3" gap="$2">

@@ -5,8 +5,7 @@ import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Button,
   ModeToggle,
-  HappinessMeter,
-  Card,
+  AnnouncementBanner,
   DesignSystem,
   textStyles,
   formatUIText,
@@ -32,9 +31,7 @@ export default function JoinLeagueScreen() {
         <XStack justifyContent="flex-end">
           <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
-        <Card padding="$3" paddingHorizontal="$4">
-          <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
-        </Card>
+        <AnnouncementBanner marginHorizontal={0} />
       </YStack>
       <Text fontSize={DesignSystem.emptyState.iconSize} textAlign="center" marginBottom="$4">
         {DesignSystem.emptyState.icon}

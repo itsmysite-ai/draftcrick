@@ -10,7 +10,7 @@ import {
   InitialsAvatar,
   StatLabel,
   ModeToggle,
-  HappinessMeter,
+  AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -121,9 +121,7 @@ export default function AuctionRoomScreen() {
         )}
       </YStack>
 
-      <Card marginHorizontal="$4" marginTop="$3" marginBottom="$1" padding="$3" paddingHorizontal="$4">
-        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
-      </Card>
+      <AnnouncementBanner />
 
       {/* Current Player Being Auctioned */}
       {currentPlayer && (

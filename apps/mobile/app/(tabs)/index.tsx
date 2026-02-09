@@ -13,7 +13,7 @@ import {
   Badge,
   Button,
   InitialsAvatar,
-  HappinessMeter,
+  AnnouncementBanner,
   FilterPill,
   SegmentTab,
   ModeToggle,
@@ -108,9 +108,7 @@ export default function HomeScreen() {
 
         {/* ── Happiness Meter ── */}
         <Animated.View entering={FadeInDown.delay(30).springify()}>
-          <Card marginHorizontal="$4" marginBottom="$3" padding="$3" paddingHorizontal="$4">
-            <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
-          </Card>
+          <AnnouncementBanner />
         </Animated.View>
 
         {/* ── Segment Tabs ── */}

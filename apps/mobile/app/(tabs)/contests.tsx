@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Card, Badge, Button, SegmentTab, ModeToggle, HappinessMeter, formatUIText, formatBadgeText } from "@draftcrick/ui";
+import { Card, Badge, Button, SegmentTab, ModeToggle, AnnouncementBanner, formatUIText, formatBadgeText } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -319,9 +319,7 @@ export default function ContestsScreen() {
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
 
-      <Card marginHorizontal="$4" marginBottom="$3" padding="$3" paddingHorizontal="$4">
-        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
-      </Card>
+      <AnnouncementBanner />
 
       {/* Tab switcher */}
       <XStack
