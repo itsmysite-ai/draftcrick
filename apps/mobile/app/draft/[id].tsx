@@ -10,6 +10,7 @@ import {
   InitialsAvatar,
   FilterPill,
   HatchModal,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -18,6 +19,7 @@ import {
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
+import { useTheme } from "../../providers/ThemeProvider";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -34,6 +36,7 @@ export default function DraftRoomScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const { data: draftState, refetch: refetchState } = trpc.draft.getState.useQuery({ roomId: roomId! }, { refetchInterval: 3000 });
   const { data: picks, refetch: refetchPicks } = trpc.draft.getPicks.useQuery({ roomId: roomId! });
   const { data: room } = trpc.draft.getRoom.useQuery({ roomId: roomId! });
@@ -104,18 +107,21 @@ export default function DraftRoomScreen() {
                     : formatUIText("waiting for pick...")}
             </Text>
           </YStack>
-          {countdown !== null && draftState?.status === "in_progress" && (
-            <YStack
-              backgroundColor={countdown <= 10 ? "$error" : "$accentBackground"}
-              borderRadius={DesignSystem.radius.md}
-              paddingHorizontal="$4"
-              paddingVertical="$2"
-            >
-              <Text fontFamily="$mono" fontWeight="900" fontSize={DesignSystem.fontSize["4xl"]} color={countdown <= 10 ? "$color" : "$accentColor"}>
-                {countdown}s
-              </Text>
-            </YStack>
-          )}
+          <XStack alignItems="center" gap="$3">
+            {countdown !== null && draftState?.status === "in_progress" && (
+              <YStack
+                backgroundColor={countdown <= 10 ? "$error" : "$accentBackground"}
+                borderRadius={DesignSystem.radius.md}
+                paddingHorizontal="$4"
+                paddingVertical="$2"
+              >
+                <Text fontFamily="$mono" fontWeight="900" fontSize={DesignSystem.fontSize["4xl"]} color={countdown <= 10 ? "$color" : "$accentColor"}>
+                  {countdown}s
+                </Text>
+              </YStack>
+            )}
+            <ModeToggle mode={mode} onToggle={toggleMode} />
+          </XStack>
         </XStack>
         {draftState?.status === "in_progress" && (
           <Text fontFamily="$mono" fontSize={13} color="$accentBackground" marginTop="$1">

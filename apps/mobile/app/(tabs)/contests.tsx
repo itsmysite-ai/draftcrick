@@ -10,8 +10,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Card, Badge, Button, SegmentTab, formatUIText, formatBadgeText } from "@draftcrick/ui";
+import { Card, Badge, Button, SegmentTab, ModeToggle, formatUIText, formatBadgeText } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 // ─── Match-based contest browser card ──────────────────────────────────
 function MatchContestCard({
@@ -269,6 +270,7 @@ export default function ContestsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"browse" | "my">("browse");
 
@@ -300,6 +302,7 @@ export default function ContestsScreen() {
     <YStack flex={1} paddingTop={insets.top} backgroundColor="$background">
       {/* Header */}
       <XStack
+        justifyContent="space-between"
         alignItems="center"
         paddingHorizontal="$5"
         paddingVertical="$4"
@@ -315,6 +318,7 @@ export default function ContestsScreen() {
         >
           {formatUIText("contests")}
         </Text>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
 
       {/* Tab switcher */}

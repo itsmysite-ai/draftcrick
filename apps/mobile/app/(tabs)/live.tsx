@@ -17,6 +17,7 @@ import {
   Button,
   InitialsAvatar,
   StatLabel,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -193,7 +194,7 @@ function LiveMatchCard({
 export default function LiveScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mode } = useTheme();
+  const { mode, toggleMode } = useTheme();
   const theme = useTamaguiTheme();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -278,7 +279,7 @@ export default function LiveScreen() {
           </Text>
         </XStack>
 
-        <XStack alignItems="center" gap="$2">
+        <XStack alignItems="center" gap="$3">
           {liveMatches.length > 0 && (
             <XStack alignItems="center" gap={5}>
               <PulsingDot size={4} />
@@ -292,6 +293,7 @@ export default function LiveScreen() {
               {data.length}
             </Badge>
           )}
+          <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
       </XStack>
 

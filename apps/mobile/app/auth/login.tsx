@@ -4,15 +4,18 @@ import { useState } from "react";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Button,
+  ModeToggle,
   DesignSystem,
   formatUIText,
 } from "@draftcrick/ui";
 import { useAuth } from "../../providers/AuthProvider";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -22,6 +25,9 @@ export default function LoginScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" padding="$6" justifyContent="center">
+      <XStack position="absolute" top="$6" right="$6" zIndex={1}>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
       <Text fontSize={48} textAlign="center" marginBottom="$4">
         {DesignSystem.emptyState.icon}
       </Text>

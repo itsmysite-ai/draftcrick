@@ -9,6 +9,7 @@ import {
   Button,
   InitialsAvatar,
   StatLabel,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -16,11 +17,13 @@ import {
   formatBadgeText,
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function ContestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const contest = trpc.contest.getById.useQuery({ id: id! }, { enabled: !!id });
   const standings = trpc.contest.getStandings.useQuery({ contestId: id! }, { enabled: !!id });
@@ -51,9 +54,12 @@ export default function ContestDetailScreen() {
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} flex={1}>
             {c.name}
           </Text>
-          <Badge variant={isLive ? "live" : "role"} size="sm" marginLeft="$2">
-            {formatBadgeText(c.status ?? "open")}
-          </Badge>
+          <XStack alignItems="center" gap="$3">
+            <Badge variant={isLive ? "live" : "role"} size="sm">
+              {formatBadgeText(c.status ?? "open")}
+            </Badge>
+            <ModeToggle mode={mode} onToggle={toggleMode} />
+          </XStack>
         </XStack>
         {match && (
           <XStack justifyContent="space-between" alignItems="center">

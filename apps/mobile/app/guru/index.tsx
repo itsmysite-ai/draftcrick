@@ -6,11 +6,13 @@ import {
   Card,
   Badge,
   Button,
+  ModeToggle,
   DesignSystem,
   textStyles,
   formatUIText,
   formatBadgeText,
 } from "@draftcrick/ui";
+import { useTheme } from "../../providers/ThemeProvider";
 
 interface Message {
   id: string;
@@ -27,6 +29,7 @@ const SUGGESTIONS = [
 
 export default function GuruScreen() {
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -57,6 +60,9 @@ export default function GuruScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={100}
     >
+      <XStack justifyContent="flex-end" paddingHorizontal="$4" paddingTop="$3" paddingBottom="$1">
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}

@@ -8,6 +8,7 @@ import {
   Button,
   InitialsAvatar,
   StatLabel,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -15,6 +16,7 @@ import {
   formatBadgeText,
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -22,6 +24,7 @@ export default function MatchScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const match = trpc.match.getById.useQuery({ id: id! }, { enabled: !!id });
   const contests = trpc.contest.listByMatch.useQuery({ matchId: id! }, { enabled: !!id });
   const matchPlayers = trpc.player.getByMatch.useQuery({ matchId: id! }, { enabled: !!id });
@@ -49,11 +52,14 @@ export default function MatchScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }}>
       {/* Match Header */}
       <YStack padding="$5" alignItems="center" borderBottomWidth={1} borderBottomColor="$borderColor">
-        <XStack alignItems="center" gap="$2" marginBottom="$3">
-          <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$accentBackground">
-            {m.tournament ?? formatUIText("cricket")}
-          </Text>
-          {isLive && <Badge variant="live" size="sm">{formatBadgeText("live")}</Badge>}
+        <XStack justifyContent="space-between" alignItems="center" width="100%" marginBottom="$3">
+          <XStack alignItems="center" gap="$2">
+            <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$accentBackground">
+              {m.tournament ?? formatUIText("cricket")}
+            </Text>
+            {isLive && <Badge variant="live" size="sm">{formatBadgeText("live")}</Badge>}
+          </XStack>
+          <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
         <XStack alignItems="center" gap="$6">
           <YStack alignItems="center" flex={1}>

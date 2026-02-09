@@ -4,9 +4,11 @@ import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Button,
+  ModeToggle,
   DesignSystem,
   formatUIText,
 } from "@draftcrick/ui";
+import { useTheme } from "../../providers/ThemeProvider";
 
 const TEAMS = ["CSK", "MI", "RCB", "KKR", "DC", "SRH", "PBKS", "GT", "LSG", "RR"];
 const FORMATS = [
@@ -18,6 +20,7 @@ const FORMATS = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [step, setStep] = useState(0);
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
   const [preferredFormat, setPreferredFormat] = useState<string | null>(null);
@@ -28,10 +31,16 @@ export default function OnboardingScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" paddingHorizontal="$6" paddingTop={60}>
-      <XStack justifyContent="center" gap="$2" marginBottom={40}>
-        {[0, 1].map((i) => (
-          <YStack key={i} width={step >= i ? 24 : 8} height={8} borderRadius={4} backgroundColor={step >= i ? "$accentBackground" : "$borderColor"} />
-        ))}
+      <XStack justifyContent="space-between" alignItems="center" marginBottom={40}>
+        <XStack flex={1} />
+        <XStack justifyContent="center" gap="$2" flex={2}>
+          {[0, 1].map((i) => (
+            <YStack key={i} width={step >= i ? 24 : 8} height={8} borderRadius={4} backgroundColor={step >= i ? "$accentBackground" : "$borderColor"} />
+          ))}
+        </XStack>
+        <XStack flex={1} justifyContent="flex-end">
+          <ModeToggle mode={mode} onToggle={toggleMode} />
+        </XStack>
       </XStack>
 
       {step === 0 && (

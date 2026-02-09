@@ -9,6 +9,7 @@ import {
   Button,
   InitialsAvatar,
   StatLabel,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -17,6 +18,7 @@ import {
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
+import { useTheme } from "../../providers/ThemeProvider";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -24,6 +26,7 @@ export default function AuctionRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const { data: auctionState, refetch } = trpc.draft.getAuctionState.useQuery({ roomId: roomId! }, { refetchInterval: 2000 });
   const { data: players } = trpc.player.list.useQuery(undefined);
   const nominateMutation = trpc.draft.nominate.useMutation({ onSuccess: () => refetch() });
@@ -86,17 +89,20 @@ export default function AuctionRoomScreen() {
               {formatUIText("sold")}: {auctionState?.soldPlayers?.length ?? 0} {formatUIText("players")}
             </Text>
           </YStack>
-          <YStack alignItems="flex-end">
-            <Text {...textStyles.hint}>
-              {formatBadgeText("your budget")}
-            </Text>
-            <Text fontFamily="$mono" fontWeight="900" fontSize={DesignSystem.fontSize["4xl"]} color="$accentBackground">
-              {myBudget.toFixed(1)}
-            </Text>
-            <Text {...textStyles.hint}>
-              {formatUIText("team")}: {myTeamSize} {formatUIText("players")}
-            </Text>
-          </YStack>
+          <XStack alignItems="center" gap="$3">
+            <YStack alignItems="flex-end">
+              <Text {...textStyles.hint}>
+                {formatBadgeText("your budget")}
+              </Text>
+              <Text fontFamily="$mono" fontWeight="900" fontSize={DesignSystem.fontSize["4xl"]} color="$accentBackground">
+                {myBudget.toFixed(1)}
+              </Text>
+              <Text {...textStyles.hint}>
+                {formatUIText("team")}: {myTeamSize} {formatUIText("players")}
+              </Text>
+            </YStack>
+            <ModeToggle mode={mode} onToggle={toggleMode} />
+          </XStack>
         </XStack>
         {countdown !== null && (
           <YStack

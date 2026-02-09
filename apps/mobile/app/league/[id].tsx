@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   InitialsAvatar,
+  ModeToggle,
   DesignSystem,
   textStyles,
   formatUIText,
@@ -14,12 +15,14 @@ import {
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const { data: league, isLoading, refetch } = trpc.league.getById.useQuery({ id: id! });
   const startDraftMutation = trpc.league.startDraft.useMutation({ onSuccess: (room) => { const route = room!.type === "auction" ? `/auction/${room!.id}` as const : `/draft/${room!.id}` as const; router.push(route as any); } });
   const leaveMutation = trpc.league.leave.useMutation({ onSuccess: () => router.back() });
@@ -61,6 +64,9 @@ export default function LeagueDetailScreen() {
     <YStack flex={1} backgroundColor="$background">
       <FlatList data={league.members ?? []} keyExtractor={(item: any) => item.userId} contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={<>
+          <XStack justifyContent="flex-end" marginBottom="$3">
+            <ModeToggle mode={mode} onToggle={toggleMode} />
+          </XStack>
           <Card padding="$5" marginBottom="$4">
             <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
               {league.name}

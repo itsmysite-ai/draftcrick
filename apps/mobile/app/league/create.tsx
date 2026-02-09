@@ -5,12 +5,14 @@ import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Button,
+  ModeToggle,
   DesignSystem,
   textStyles,
   formatUIText,
   formatBadgeText,
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
 type Template = "casual" | "competitive" | "pro" | "custom";
@@ -31,6 +33,7 @@ const TEMPLATES: { value: Template; label: string; desc: string }[] = [
 export default function CreateLeagueScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [name, setName] = useState("");
   const [format, setFormat] = useState<LeagueFormat>("salary_cap");
   const [template, setTemplate] = useState<Template>("casual");
@@ -49,9 +52,12 @@ export default function CreateLeagueScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ padding: 16 }}>
-      <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} marginBottom="$6">
-        {formatUIText("create league")}
-      </Text>
+      <XStack justifyContent="space-between" alignItems="center" marginBottom="$6">
+        <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+          {formatUIText("create league")}
+        </Text>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
 
       <Text {...textStyles.sectionHeader} marginBottom="$1">
         {formatUIText("league name")}

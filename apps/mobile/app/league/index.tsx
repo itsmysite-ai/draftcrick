@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   InitialsAvatar,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -15,10 +16,12 @@ import {
   formatBadgeText,
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function LeaguesListScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const { data: memberships, isLoading, refetch } = trpc.league.myLeagues.useQuery();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -37,9 +40,12 @@ export default function LeaguesListScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}
         ListHeaderComponent={
           <YStack marginBottom="$4">
-            <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} marginBottom="$4">
-              {formatUIText("my leagues")}
-            </Text>
+            <XStack justifyContent="space-between" alignItems="center" marginBottom="$4">
+              <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+                {formatUIText("my leagues")}
+              </Text>
+              <ModeToggle mode={mode} onToggle={toggleMode} />
+            </XStack>
             <XStack gap="$3">
               <Button variant="primary" size="md" flex={1} onPress={() => router.push("/league/create" as any)}>
                 {formatUIText("create league")}

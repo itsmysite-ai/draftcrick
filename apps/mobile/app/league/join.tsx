@@ -1,18 +1,21 @@
 import { TextInput } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import { YStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Button,
+  ModeToggle,
   DesignSystem,
   textStyles,
   formatUIText,
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function JoinLeagueScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [inviteCode, setInviteCode] = useState("");
 
   const joinMutation = trpc.league.join.useMutation({
@@ -23,6 +26,9 @@ export default function JoinLeagueScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" padding="$4" justifyContent="center">
+      <XStack position="absolute" top="$4" right="$4" zIndex={1}>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
       <Text fontSize={DesignSystem.emptyState.iconSize} textAlign="center" marginBottom="$4">
         {DesignSystem.emptyState.icon}
       </Text>

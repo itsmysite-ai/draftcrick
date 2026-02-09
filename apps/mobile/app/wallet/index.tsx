@@ -6,6 +6,7 @@ import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Card,
   Button,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -13,10 +14,12 @@ import {
   formatBadgeText,
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 export default function WalletScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [showDeposit, setShowDeposit] = useState(false);
@@ -77,9 +80,13 @@ export default function WalletScreen() {
       style={{ flex: 1, backgroundColor: theme.background.val }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}
     >
+      <XStack justifyContent="flex-end" paddingHorizontal="$4" paddingTop="$4">
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
+
       {/* Balance Card */}
       {w && (
-        <Card margin="$4" padding="$5" borderColor="$colorAccentLight">
+        <Card margin="$4" marginTop="$2" padding="$5" borderColor="$colorAccentLight">
           <Text fontFamily="$mono" fontSize={12} color="$colorMuted" letterSpacing={0.5}>
             {formatBadgeText("total balance")}
           </Text>

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text } from "tamagui";
-import { Card, Badge, Button, formatUIText, formatBadgeText } from "@draftcrick/ui";
+import { Card, Badge, Button, ModeToggle, formatUIText, formatBadgeText } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -106,7 +106,7 @@ function LeagueCard({
 export default function SocialScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { t } = useTheme();
+  const { t, mode, toggleMode } = useTheme();
   const {
     data: memberships,
     isLoading,
@@ -122,7 +122,9 @@ export default function SocialScreen() {
 
   return (
     <YStack flex={1} paddingTop={insets.top} backgroundColor="$background">
-      <YStack
+      <XStack
+        justifyContent="space-between"
+        alignItems="center"
         paddingHorizontal="$5"
         paddingVertical="$4"
         borderBottomWidth={1}
@@ -131,7 +133,8 @@ export default function SocialScreen() {
         <Text fontFamily="$mono" fontSize={17} fontWeight="500" color="$color" letterSpacing={-0.5}>
           {formatUIText("my leagues")}
         </Text>
-      </YStack>
+        <ModeToggle mode={mode} onToggle={toggleMode} />
+      </XStack>
 
       <FlatList
         data={memberships ?? []}

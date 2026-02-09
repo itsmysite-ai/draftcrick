@@ -10,6 +10,7 @@ import {
   InitialsAvatar,
   FilterPill,
   HappinessMeter,
+  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -17,6 +18,7 @@ import {
   formatBadgeText,
 } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
+import { useTheme } from "../../providers/ThemeProvider";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -30,6 +32,7 @@ export default function TeamBuilderScreen() {
   const { matchId, contestId } = useLocalSearchParams<{ matchId: string; contestId?: string }>();
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
   const [selectedTab, setSelectedTab] = useState<string>("wicket_keeper");
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [captainId, setCaptainId] = useState<string | null>(null);
@@ -137,7 +140,7 @@ export default function TeamBuilderScreen() {
   return (
     <YStack flex={1} backgroundColor="$background">
       {/* Stats Header */}
-      <XStack backgroundColor="$backgroundSurface" padding="$4" justifyContent="space-between" borderBottomWidth={1} borderBottomColor="$borderColor">
+      <XStack backgroundColor="$backgroundSurface" padding="$4" justifyContent="space-between" alignItems="center" borderBottomWidth={1} borderBottomColor="$borderColor">
         <YStack>
           <Text {...textStyles.hint}>{formatBadgeText("credits remaining")}</Text>
           <Text fontFamily="$mono" fontWeight="800" fontSize={20} color={creditsRemaining < 10 ? "$error" : "$color"}>
@@ -150,12 +153,15 @@ export default function TeamBuilderScreen() {
             {selectedPlayers.length}/{TEAM_SIZE}
           </Text>
         </YStack>
-        <YStack alignItems="flex-end">
-          <Text {...textStyles.hint}>{formatBadgeText("credits used")}</Text>
-          <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$color">
-            {creditsUsed.toFixed(1)}
-          </Text>
-        </YStack>
+        <XStack alignItems="center" gap="$3">
+          <YStack alignItems="flex-end">
+            <Text {...textStyles.hint}>{formatBadgeText("credits used")}</Text>
+            <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$color">
+              {creditsUsed.toFixed(1)}
+            </Text>
+          </YStack>
+          <ModeToggle mode={mode} onToggle={toggleMode} />
+        </XStack>
       </XStack>
 
       {/* Progress Bar with HappinessMeter */}
