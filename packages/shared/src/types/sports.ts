@@ -21,7 +21,7 @@ export type TournamentCategory =
 export type AIMatchStatus = "upcoming" | "live" | "completed" | "delayed" | "abandoned";
 
 /**
- * A tournament fetched via Gemini AI + Google Search grounding.
+ * A tournament fetched via AI + search grounding.
  * Sport-agnostic — works for cricket, football, etc.
  */
 export interface AITournament {
@@ -39,7 +39,7 @@ export interface AITournament {
 }
 
 /**
- * A match fetched via Gemini AI + Google Search grounding.
+ * A match fetched via AI + search grounding.
  * Sport-agnostic — the "teams" field works for any 2-team sport.
  */
 export interface AIMatch {
@@ -71,9 +71,9 @@ export interface AIMatch {
 export interface SportsDashboardData {
   tournaments: AITournament[];
   matches: AIMatch[];
-  /** ISO timestamp when data was last fetched from Gemini */
+  /** ISO timestamp when data was last fetched */
   lastFetched: string;
-  /** Grounding source URLs from Gemini */
+  /** Grounding source URLs */
   sources: string[];
   /** Which sport this data is for */
   sport: Sport;
@@ -81,7 +81,7 @@ export interface SportsDashboardData {
 
 /**
  * Prompt configuration per sport — makes it trivial to add new sports.
- * Just add an entry here and the Gemini service handles the rest.
+ * Just add an entry here and the AI service handles the rest.
  */
 export interface SportPromptConfig {
   sport: Sport;

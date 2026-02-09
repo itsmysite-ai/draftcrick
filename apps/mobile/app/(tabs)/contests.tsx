@@ -195,10 +195,12 @@ export default function ContestsScreen() {
             </Animated.View>
           )}
 
-          {/* Gemini attribution */}
+          {/* Last updated */}
           {aiData.data?.lastFetched && (
-            <View style={s.geminiRow}>
-              <Text style={s.geminiText}>DATA SOURCES POWERED BY GEMINI</Text>
+            <View style={s.updatedRow}>
+              <Text style={s.updatedText}>
+                Updated {new Date(aiData.data.lastFetched).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+              </Text>
             </View>
           )}
         </ScrollView>
@@ -334,7 +336,7 @@ const s = StyleSheet.create({
   },
   primaryBtnText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.textInverse },
 
-  // Gemini
-  geminiRow: { alignItems: "center", marginTop: Spacing["2xl"], ...card, paddingVertical: Spacing.sm },
-  geminiText: { fontFamily: FontFamily.bodySemiBold, fontSize: 9, color: Colors.textTertiary, letterSpacing: 1.5 },
+  // Footer
+  updatedRow: { alignItems: "center", marginTop: Spacing["2xl"], ...card, paddingVertical: Spacing.sm },
+  updatedText: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
 });

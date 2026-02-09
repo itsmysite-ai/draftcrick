@@ -24,7 +24,7 @@ const SUGGESTIONS = [
 ];
 
 /**
- * Cricket Guru — AI-powered assistant (will connect to Gemini/Vertex AI)
+ * Cricket Guru — AI-powered assistant
  */
 export default function GuruScreen() {
   const [messages, setMessages] = useState<Message[]>([
@@ -50,7 +50,7 @@ export default function GuruScreen() {
       id: (Date.now() + 1).toString(),
       role: "guru",
       content:
-        "I'm not connected to the AI backend yet. Once Vertex AI / Gemini is integrated, I'll be able to answer your cricket questions with real-time data!",
+        "I'm not connected to the AI backend yet. Once the AI service is integrated, I'll be able to answer your cricket questions with real-time data!",
     };
 
     setMessages((prev) => [...prev, userMsg, guruMsg]);

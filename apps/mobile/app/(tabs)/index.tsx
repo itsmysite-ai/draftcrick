@@ -268,9 +268,9 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(40).springify()} style={s.heroCard}>
           <Text style={s.heroTitle}>Live Draft Central</Text>
           <Text style={s.heroSub}>
-            Gemini has found{" "}
+            We found{" "}
             <Text style={s.heroAccent}>{all.length}</Text>{" "}
-            live matches happening today. Pick your contest and start drafting.
+            matches happening today. Pick your contest and start drafting.
           </Text>
         </Animated.View>
 
@@ -344,15 +344,14 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* ─── Powered by Gemini ─── */}
-        <Animated.View entering={FadeInDown.delay(350)} style={s.geminiFooter}>
-          <Text style={s.geminiText}>DATA SOURCES POWERED BY GEMINI</Text>
-          {dashboard.data?.lastFetched && (
-            <Text style={s.geminiSub}>
+        {/* ─── Last Updated ─── */}
+        {dashboard.data?.lastFetched && (
+          <Animated.View entering={FadeInDown.delay(350)} style={s.updatedFooter}>
+            <Text style={s.updatedText}>
               Updated {new Date(dashboard.data.lastFetched).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
             </Text>
-          )}
-        </Animated.View>
+          </Animated.View>
+        )}
       </ScrollView>
     </View>
   );
@@ -423,10 +422,9 @@ const s = StyleSheet.create({
   viewScheduleRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
   viewScheduleText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm, color: Colors.accent },
 
-  // Gemini
-  geminiFooter: { marginTop: Spacing["3xl"], marginHorizontal: Spacing.xl, ...card, paddingVertical: Spacing.md, alignItems: "center" },
-  geminiText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.textTertiary, letterSpacing: 1.5 },
-  geminiSub: { fontFamily: FontFamily.body, fontSize: 10, color: Colors.textTertiary, marginTop: 2 },
+  // Footer
+  updatedFooter: { marginTop: Spacing["3xl"], marginHorizontal: Spacing.xl, ...card, paddingVertical: Spacing.md, alignItems: "center" },
+  updatedText: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
 
   // Empty
   emptyCard: { marginHorizontal: Spacing.xl, padding: Spacing["3xl"], ...card, alignItems: "center", gap: Spacing.sm },

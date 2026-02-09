@@ -114,7 +114,7 @@ export default function LiveScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch from Gemini sports API (cached 24hr)
+  // Fetch from sports API (cached 24hr)
   const aiData = trpc.sports.dashboard.useQuery(
     { sport: "cricket" },
     { staleTime: 60 * 60 * 1000, retry: 1 }
@@ -189,7 +189,7 @@ export default function LiveScreen() {
           <Text style={s.emptyDesc}>Live scoring and real-time updates appear here during matches</Text>
           <View style={s.features}>
             {([
-              ["flash-outline", "Real-time scores via Gemini AI"],
+              ["flash-outline", "Real-time scores & ball-by-ball"],
               ["stats-chart-outline", "Fantasy point tracking"],
               ["notifications-outline", "Wicket & milestone alerts"],
             ] as const).map(([icon, text], i) => (
@@ -220,10 +220,12 @@ export default function LiveScreen() {
         />
       )}
 
-      {/* Powered by Gemini */}
+      {/* Last updated */}
       {data.length > 0 && aiData.data?.lastFetched && (
-        <View style={s.geminiBar}>
-          <Text style={s.geminiText}>POWERED BY GEMINI AI</Text>
+        <View style={s.updatedBar}>
+          <Text style={s.updatedText}>
+            Updated {new Date(aiData.data.lastFetched).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+          </Text>
         </View>
       )}
     </View>
@@ -295,8 +297,8 @@ const s = StyleSheet.create({
   featureRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   featureText: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.textSecondary },
 
-  // Gemini bar
-  geminiBar: {
+  // Updated bar
+  updatedBar: {
     position: "absolute",
     bottom: 90,
     left: Spacing.xl,
@@ -308,5 +310,5 @@ const s = StyleSheet.create({
     paddingVertical: 6,
     alignItems: "center",
   },
-  geminiText: { fontFamily: FontFamily.bodySemiBold, fontSize: 9, color: Colors.textTertiary, letterSpacing: 1.5 },
+  updatedText: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
 });
