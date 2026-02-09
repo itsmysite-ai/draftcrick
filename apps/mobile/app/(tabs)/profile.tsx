@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { trpc } from "../../lib/trpc";
-import { useComfortMode } from "../../providers/ComfortModeProvider";
 import { Colors, Radius, Spacing, Font, FontFamily, card } from "../../lib/design";
 
 function SettingRow({ icon, label, value, accent, onPress, last }: {
@@ -32,13 +31,11 @@ function SettingRow({ icon, label, value, accent, onPress, last }: {
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { enable: enableComfort } = useComfortMode();
   const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false });
   const isLoggedIn = !wallet.error;
 
   return (
     <ScrollView style={[s.container, { paddingTop: insets.top }]} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-      {/* Header */}
       <Animated.View entering={FadeIn.delay(30)} style={s.profileHeader}>
         <View style={s.avatar}>
           <Ionicons name={isLoggedIn ? "person" : "person-outline"} size={24} color={isLoggedIn ? Colors.accent : Colors.textTertiary} />
@@ -53,7 +50,6 @@ export default function ProfileScreen() {
         )}
       </Animated.View>
 
-      {/* Wallet */}
       {isLoggedIn && wallet.data && (
         <Animated.View entering={FadeInDown.delay(80).springify()}>
           <Pressable onPress={() => router.push("/wallet" as never)} style={({ pressed, hovered }) => [s.walletCard, hovered && s.hover, pressed && s.press]}>
@@ -81,10 +77,8 @@ export default function ProfileScreen() {
         </Animated.View>
       )}
 
-      {/* Settings */}
       <Animated.View entering={FadeInDown.delay(160).springify()} style={s.settingsCard}>
         <Text style={s.settingsHeader}>Settings</Text>
-        <SettingRow icon="accessibility-outline" label="Comfort Mode" value="Switch" accent onPress={() => { enableComfort(); router.replace("/(comfort-tabs)" as any); }} />
         <SettingRow icon="language-outline" label="Language" value="English" />
         <SettingRow icon="wallet-outline" label="Wallet" onPress={() => router.push("/wallet" as never)} />
         <SettingRow icon="notifications-outline" label="Notifications" value="On" onPress={() => {}} />
@@ -92,7 +86,6 @@ export default function ProfileScreen() {
         <SettingRow icon="information-circle-outline" label="App Version" value="0.0.1" last />
       </Animated.View>
 
-      {/* Quick links */}
       <Animated.View entering={FadeInDown.delay(240).springify()} style={s.linksRow}>
         {([
           { i: "help-circle-outline" as const, l: "Help & FAQ" },

@@ -7,42 +7,53 @@ import {
   ActivityIndicator,
   RefreshControl,
   Dimensions,
+  Image,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   FadeInDown,
   FadeInRight,
+  FadeIn,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
+  withSpring,
   Easing,
+  interpolate,
 } from "react-native-reanimated";
 import { trpc } from "../../lib/trpc";
 import { Colors, Radius, Spacing, Font, FontFamily, card } from "../../lib/design";
 
-const { width: SCREEN_W } = Dimensions.get("window");
-const MATCH_CARD_W = SCREEN_W * 0.82;
+const { width: SW } = Dimensions.get("window");
+const MATCH_W = SW * 0.85;
+const TOURNAMENT_W = SW * 0.55;
 
-// ─── Pulsing Dot (for REAL-TIME indicator) ────────────────────────────
+// Cricket ball image — high quality, royalty-free
+const CRICKET_IMG = "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=600&q=80";
+const CRICKET_IMG_2 = "https://images.unsplash.com/photo-1624526267942-ab0ff8a3e972?w=600&q=80";
+const CRICKET_IMG_3 = "https://images.unsplash.com/photo-1580674285054-bed31e145f59?w=600&q=80";
+const MATCH_IMAGES = [CRICKET_IMG, CRICKET_IMG_2, CRICKET_IMG_3];
+
+// ─── Pulsing Dot ──────────────────────────────────────────────────────
 function PulsingDot({ color = Colors.red, size = 6 }: { color?: string; size?: number }) {
   const pulse = useSharedValue(1);
   useEffect(() => {
     pulse.value = withRepeat(
       withTiming(1.8, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
+      -1, true,
     );
   }, [pulse]);
   const ring = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
     opacity: 2 - pulse.value,
   }));
-
   return (
     <View style={{ width: size * 2, height: size * 2, alignItems: "center", justifyContent: "center" }}>
       <Animated.View style={[{ position: "absolute", width: size * 2, height: size * 2, borderRadius: size, backgroundColor: color }, ring]} />
@@ -51,21 +62,13 @@ function PulsingDot({ color = Colors.red, size = 6 }: { color?: string; size?: n
   );
 }
 
-// ─── Section Header with accent bar ───────────────────────────────────
-function SectionHeader({
-  title,
-  accentColor = Colors.accent,
-  right,
-  delay = 0,
-}: {
-  title: string;
-  accentColor?: string;
-  right?: React.ReactNode;
-  delay?: number;
+// ─── Section Header ───────────────────────────────────────────────────
+function SectionHeader({ title, accentColor = Colors.accent, right, delay = 0 }: {
+  title: string; accentColor?: string; right?: React.ReactNode; delay?: number;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={s.sectionHeader}>
-      <View style={s.sectionTitleRow}>
+    <Animated.View entering={FadeInDown.delay(delay).springify()} style={s.sectionRow}>
+      <View style={s.sectionLeft}>
         <View style={[s.accentBar, { backgroundColor: accentColor }]} />
         <Text style={s.sectionTitle}>{title}</Text>
       </View>
@@ -74,65 +77,65 @@ function SectionHeader({
   );
 }
 
-// ─── Match Card (horizontal scroll) ──────────────────────────────────
-function MatchCard({
-  match,
-  index,
-  onPress,
-}: {
-  match: any;
-  index: number;
-  onPress: () => void;
-}) {
+// ─── Scroll Progress Bar ──────────────────────────────────────────────
+function ProgressBar({ progress }: { progress: number }) {
+  return (
+    <View style={s.progressWrap}>
+      <LinearGradient
+        colors={[Colors.accent, Colors.cyan]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[s.progressFill, { width: `${Math.max(15, progress * 100)}%` }]}
+      />
+    </View>
+  );
+}
+
+// ─── Match Card ───────────────────────────────────────────────────────
+function MatchCard({ match, index, onPress }: { match: any; index: number; onPress: () => void }) {
   const isLive = match.status === "live";
   const statusColor = isLive ? Colors.red : Colors.blue;
-  const statusLabel = (match.status || "upcoming").toUpperCase();
+  const img = MATCH_IMAGES[index % MATCH_IMAGES.length];
 
   return (
-    <Animated.View entering={FadeInRight.delay(index * 100).springify()}>
+    <Animated.View entering={FadeInRight.delay(index * 120).springify()}>
       <Pressable
         onPress={onPress}
         style={({ pressed, hovered }) => [
           s.matchCard,
-          hovered && s.cardHover,
-          pressed && s.cardPress,
+          hovered && { borderColor: Colors.accent, transform: [{ translateY: -2 }] },
+          pressed && { transform: [{ scale: 0.97 }] },
         ]}
       >
-        {/* Background — gradient simulating a cricket field */}
-        <LinearGradient
-          colors={["#1B4D2E", "#0D2818", "#0A1628"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={s.matchCardImage}
-        >
-          <View style={s.cricketBallOverlay}>
-            <Ionicons name="baseball-outline" size={60} color="rgba(255,255,255,0.06)" />
-          </View>
+        {/* Image */}
+        <View style={s.matchImgWrap}>
+          <Image source={{ uri: img }} style={s.matchImg} resizeMode="cover" />
+          <LinearGradient
+            colors={["transparent", "rgba(10,22,40,0.6)"]}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={[s.statusBadge, { backgroundColor: statusColor }]}>
-            <Text style={s.statusBadgeText}>{statusLabel}</Text>
+            <Text style={s.statusText}>{(match.status || "upcoming").toUpperCase()}</Text>
           </View>
-        </LinearGradient>
+        </View>
 
-        <View style={s.matchCardContent}>
+        {/* Content */}
+        <View style={s.matchContent}>
           <Text style={s.matchTournament} numberOfLines={1}>
             {match.tournamentName || match.tournament || "Cricket"}
           </Text>
           <Text style={s.matchTeams} numberOfLines={1}>
             {match.teamA || match.teamHome} vs {match.teamB || match.teamAway}
           </Text>
-
-          {match.scoreSummary && (
-            <Text style={s.matchScore}>{match.scoreSummary}</Text>
-          )}
-
-          <View style={s.matchCardFooter}>
+          {match.scoreSummary && <Text style={s.matchScore}>{match.scoreSummary}</Text>}
+          <View style={s.matchFooter}>
             <View style={s.timeRow}>
-              <Ionicons name="time-outline" size={13} color={Colors.textTertiary} />
-              <Text style={s.matchTime}>{match.time || "TBD"}</Text>
+              <Ionicons name="time-outline" size={14} color={Colors.textTertiary} />
+              <Text style={s.matchTime}>{match.time || "TBD"} Local</Text>
             </View>
             <Pressable
               onPress={onPress}
-              style={({ hovered }) => [s.draftBtn, hovered && s.draftBtnHover]}
+              style={({ hovered }) => [s.draftBtn, hovered && { backgroundColor: "#D83030" }]}
             >
               <Text style={s.draftBtnText}>{isLive ? "Watch" : "Draft Now"}</Text>
             </Pressable>
@@ -144,56 +147,44 @@ function MatchCard({
 }
 
 // ─── Tournament Card ──────────────────────────────────────────────────
-function TournamentCard({
-  tournament,
-  index,
-  onPress,
-}: {
-  tournament: any;
-  index: number;
-  onPress: () => void;
-}) {
-  const categoryColors: Record<string, string> = {
+function TournamentCard({ tournament, index, onPress }: { tournament: any; index: number; onPress: () => void }) {
+  const catColors: Record<string, string> = {
     international: Colors.accent,
     domestic: Colors.amber,
     league: Colors.blue,
     bilateral: Colors.cyan,
     qualifier: Colors.purple,
-    friendly: Colors.textTertiary,
+    "domestic first-class": Colors.amber,
+    "t20 league": Colors.accent,
   };
-  const color = categoryColors[tournament.category] || Colors.accent;
+  const cat = (tournament.category || "league").toLowerCase();
+  const color = catColors[cat] || Colors.accent;
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(200 + index * 80).springify()}
-      style={s.tournamentCardWrap}
-    >
+    <Animated.View entering={FadeInDown.delay(200 + index * 100).springify()} style={{ width: TOURNAMENT_W }}>
       <Pressable
         onPress={onPress}
         style={({ pressed, hovered }) => [
-          s.tournamentCard,
-          hovered && s.cardHover,
-          pressed && s.cardPress,
+          s.tournCard,
+          hovered && { borderColor: Colors.accent, transform: [{ translateY: -2 }] },
+          pressed && { transform: [{ scale: 0.97 }] },
         ]}
       >
-        <LinearGradient
-          colors={["#1A2332", "#0E1D35"]}
-          style={s.tournamentImage}
-        >
-          <Ionicons name="trophy" size={36} color="rgba(255,255,255,0.08)" />
-        </LinearGradient>
-
-        <View style={[s.categoryBadge, { backgroundColor: color }]}>
-          <Text style={s.categoryText}>
-            {(tournament.category || "league").toUpperCase()}
-          </Text>
+        {/* Image placeholder */}
+        <View style={s.tournImgWrap}>
+          <LinearGradient colors={["#1E2D42", "#152238"]} style={StyleSheet.absoluteFill} />
+          <Ionicons name="trophy" size={40} color="rgba(255,255,255,0.06)" />
+          <Text style={s.tournImgLabel}>Tournament</Text>
         </View>
 
-        <Text style={s.tournamentName} numberOfLines={2}>
-          {tournament.name}
-        </Text>
+        {/* Category badge */}
+        <View style={[s.catBadge, { backgroundColor: color }]}>
+          <Text style={s.catText}>{(tournament.category || "league").toUpperCase()}</Text>
+        </View>
 
-        <Pressable onPress={onPress} style={s.viewSchedule}>
+        <Text style={s.tournName} numberOfLines={2}>{tournament.name}</Text>
+
+        <Pressable onPress={onPress} style={s.viewScheduleRow}>
           <Text style={s.viewScheduleText}>View Schedule</Text>
           <Ionicons name="arrow-forward" size={14} color={Colors.accent} />
         </Pressable>
@@ -202,150 +193,96 @@ function TournamentCard({
   );
 }
 
-// ─── Scroll Progress Bar ──────────────────────────────────────────────
-function ScrollProgressBar({
-  total,
-  scrollX,
-}: {
-  total: number;
-  scrollX: number;
-}) {
-  if (total <= 1) return null;
-  const maxScroll = (total - 1) * (MATCH_CARD_W + 12);
-  const progress = maxScroll > 0 ? Math.min(scrollX / maxScroll, 1) : 0;
-
-  return (
-    <View style={s.progressBarWrap}>
-      <View style={s.progressBarTrack}>
-        <View
-          style={[
-            s.progressBarFill,
-            { width: `${Math.max(20, progress * 100)}%` },
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
-
-// ─── Main Home Screen ─────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const [scrollX, setScrollX] = useState(0);
+  const [matchScroll, setMatchScroll] = useState(0);
+  const [tournScroll, setTournScroll] = useState(0);
 
-  // Fetch from Gemini-backed sports endpoint (cached 24hr server-side, 1hr client-side)
   const dashboard = trpc.sports.dashboard.useQuery(
     { sport: "cricket" },
-    { staleTime: 60 * 60 * 1000, retry: 1 }
+    { staleTime: 60 * 60 * 1000, retry: 1 },
   );
-
-  // Also fetch DB matches as fallback
   const dbLive = trpc.match.live.useQuery(undefined, { retry: false });
-  const dbUpcoming = trpc.match.list.useQuery(
-    { status: "upcoming", limit: 10 },
-    { retry: false }
-  );
+  const dbUp = trpc.match.list.useQuery({ status: "upcoming", limit: 10 }, { retry: false });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([dashboard.refetch(), dbLive.refetch(), dbUpcoming.refetch()]);
+    await Promise.all([dashboard.refetch(), dbLive.refetch(), dbUp.refetch()]);
     setRefreshing(false);
-  }, [dashboard, dbLive, dbUpcoming]);
+  }, [dashboard, dbLive, dbUp]);
 
-  // Merge AI matches with DB matches for display
-  const aiMatches = dashboard.data?.matches ?? [];
-  const aiTournaments = dashboard.data?.tournaments ?? [];
-  const dbLiveData = dbLive.data ?? [];
-  const dbUpcomingData = dbUpcoming.data?.matches ?? [];
+  const ai = dashboard.data?.matches ?? [];
+  const aiT = dashboard.data?.tournaments ?? [];
+  const dbLiveD = dbLive.data ?? [];
+  const dbUpD = dbUp.data?.matches ?? [];
 
-  // Prefer AI data; fall back to DB data if AI returns empty
-  const todayMatches = aiMatches.length > 0 ? aiMatches : [
-    ...dbLiveData.map((m: any) => ({
-      id: m.id,
-      teamA: m.teamHome,
-      teamB: m.teamAway,
-      tournamentName: m.tournament,
-      time: new Date(m.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-      date: new Date(m.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      status: m.status,
-      format: m.format?.toUpperCase() || "T20",
-      venue: m.venue,
-      sport: "cricket" as const,
-      scoreSummary: null,
-      sourceUrl: null,
-    })),
-    ...dbUpcomingData.map((m: any) => ({
-      id: m.id,
-      teamA: m.teamHome,
-      teamB: m.teamAway,
-      tournamentName: m.tournament,
-      time: new Date(m.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-      date: new Date(m.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      status: m.status,
-      format: m.format?.toUpperCase() || "T20",
-      venue: m.venue,
-      sport: "cricket" as const,
-      scoreSummary: null,
-      sourceUrl: null,
-    })),
-  ];
+  const toAI = (m: any) => ({
+    id: m.id, teamA: m.teamHome, teamB: m.teamAway, tournamentName: m.tournament,
+    time: new Date(m.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+    date: new Date(m.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    status: m.status, format: m.format?.toUpperCase() || "T20", venue: m.venue,
+    sport: "cricket" as const, scoreSummary: null, sourceUrl: null,
+  });
 
-  const liveMatches = todayMatches.filter((m) => m.status === "live");
-  const upcomingMatches = todayMatches.filter((m) => m.status === "upcoming");
-  const allDisplayMatches = [...liveMatches, ...upcomingMatches];
-  const hasLive = liveMatches.length > 0;
+  const matches = ai.length > 0 ? ai : [...dbLiveD.map(toAI), ...dbUpD.map(toAI)];
+  const live = matches.filter((m) => m.status === "live");
+  const upcoming = matches.filter((m) => m.status === "upcoming");
+  const all = [...live, ...upcoming];
 
   const isLoading = dashboard.isLoading && dbLive.isLoading;
+  const matchMax = all.length > 1 ? (all.length - 1) * (MATCH_W + 14) : 1;
+  const tournMax = aiT.length > 1 ? (aiT.length - 1) * (TOURNAMENT_W + 12) : 1;
 
   return (
-    <View style={s.container}>
+    <View style={s.root}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
       >
-        {/* Header */}
-        <Animated.View entering={FadeInDown.delay(0).springify()} style={[s.header, { paddingTop: insets.top + 12 }]}>
+        {/* ─── Header ─── */}
+        <Animated.View entering={FadeIn.delay(0)} style={[s.header, { paddingTop: insets.top + 8 }]}>
           <View style={s.headerLeft}>
             <View style={s.logoIcon}>
               <Ionicons name="trophy" size={16} color={Colors.accent} />
             </View>
-            <View>
-              <Text style={s.logoText}>
-                <Text style={s.logoBold}>DRAFT</Text>
-                <Text style={s.logoLight}>CRICK</Text>
-              </Text>
-            </View>
+            <Text style={s.logoText}>
+              <Text style={s.logoBold}>DRAFT</Text>
+              <Text style={s.logoLight}>CRICK</Text>
+            </Text>
           </View>
           <View style={s.headerRight}>
-            <Pressable
-              onPress={() => router.push("/guru" as never)}
-              style={({ hovered }) => [s.headerBtn, hovered && s.headerBtnHover]}
-            >
+            <Pressable onPress={() => router.push("/guru" as never)} style={({ hovered }) => [s.hdrBtn, hovered && s.hdrBtnHov]}>
               <Ionicons name="sparkles" size={18} color={Colors.accent} />
             </Pressable>
-            <Pressable
-              onPress={() => router.push("/(tabs)/profile")}
-              style={({ hovered }) => [s.avatarBtn, hovered && { borderColor: Colors.accent }]}
-            >
+            <Pressable onPress={() => router.push("/(tabs)/profile")} style={({ hovered }) => [s.avatarBtn, hovered && { borderColor: Colors.accent }]}>
               <Ionicons name="person" size={16} color={Colors.textSecondary} />
             </Pressable>
           </View>
         </Animated.View>
 
-        {/* Today's Live Matches */}
+        {/* ─── Live Draft Central Hero ─── */}
+        <Animated.View entering={FadeInDown.delay(40).springify()} style={s.heroCard}>
+          <Text style={s.heroTitle}>Live Draft Central</Text>
+          <Text style={s.heroSub}>
+            Gemini has found{" "}
+            <Text style={s.heroAccent}>{all.length}</Text>{" "}
+            live matches happening today. Pick your contest and start drafting.
+          </Text>
+        </Animated.View>
+
+        {/* ─── Today's Live Matches ─── */}
         <SectionHeader
           title="Today's Live Matches"
-          delay={60}
+          delay={80}
           right={
-            hasLive ? (
-              <View style={s.realTimeBadge}>
-                <PulsingDot color={Colors.red} size={4} />
-                <Text style={s.realTimeText}>REAL-TIME</Text>
+            live.length > 0 ? (
+              <View style={s.rtBadge}>
+                <PulsingDot color={Colors.red} size={5} />
+                <Text style={s.rtText}>REAL-TIME</Text>
               </View>
             ) : undefined
           }
@@ -353,55 +290,48 @@ export default function HomeScreen() {
 
         {isLoading ? (
           <ActivityIndicator color={Colors.accent} style={{ paddingVertical: 40 }} />
-        ) : allDisplayMatches.length > 0 ? (
+        ) : all.length > 0 ? (
           <>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 12 }}
+              contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 14 }}
               decelerationRate="fast"
-              snapToInterval={MATCH_CARD_W + 12}
-              onScroll={(e) => setScrollX(e.nativeEvent.contentOffset.x)}
+              snapToInterval={MATCH_W + 14}
+              onScroll={(e) => setMatchScroll(e.nativeEvent.contentOffset.x)}
               scrollEventThrottle={16}
             >
-              {allDisplayMatches.map((m, i) => (
+              {all.map((m, i) => (
                 <MatchCard
                   key={m.id}
                   match={m}
                   index={i}
-                  onPress={() => {
-                    if (m.id.startsWith("ai-")) {
-                      router.push("/(tabs)/contests");
-                    } else {
-                      router.push(`/match/${m.id}`);
-                    }
-                  }}
+                  onPress={() => m.id.startsWith("ai-") ? router.push("/(tabs)/contests") : router.push(`/match/${m.id}`)}
                 />
               ))}
             </ScrollView>
-            <ScrollProgressBar
-              total={allDisplayMatches.length}
-              scrollX={scrollX}
-            />
+            <ProgressBar progress={matchMax > 0 ? matchScroll / matchMax : 0} />
           </>
         ) : (
-          <Animated.View entering={FadeInDown.delay(100)} style={s.emptyMatches}>
-            <Ionicons name="calendar-outline" size={32} color={Colors.textTertiary} />
+          <Animated.View entering={FadeInDown.delay(100)} style={s.emptyCard}>
+            <Ionicons name="calendar-outline" size={28} color={Colors.textTertiary} />
             <Text style={s.emptyTitle}>No matches scheduled</Text>
             <Text style={s.emptyDesc}>Check back soon for upcoming fixtures</Text>
           </Animated.View>
         )}
 
-        {/* Current Tournaments */}
-        {aiTournaments.length > 0 && (
+        {/* ─── Current Tournaments ─── */}
+        {aiT.length > 0 && (
           <>
             <SectionHeader title="Current Tournaments" accentColor={Colors.amber} delay={200} />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 12 }}
+              onScroll={(e) => setTournScroll(e.nativeEvent.contentOffset.x)}
+              scrollEventThrottle={16}
             >
-              {aiTournaments.map((t, i) => (
+              {aiT.map((t, i) => (
                 <TournamentCard
                   key={t.id}
                   tournament={t}
@@ -410,42 +340,16 @@ export default function HomeScreen() {
                 />
               ))}
             </ScrollView>
+            <ProgressBar progress={tournMax > 0 ? tournScroll / tournMax : 0} />
           </>
         )}
 
-        {/* Quick Actions */}
-        <View style={{ marginTop: Spacing["2xl"] }}>
-          <SectionHeader title="Quick Actions" delay={300} />
-          <View style={s.quickGrid}>
-            {([
-              { icon: "trophy-outline" as const, label: "Contests", route: "/(tabs)/contests" },
-              { icon: "pulse-outline" as const, label: "Live", route: "/(tabs)/live" },
-              { icon: "people-outline" as const, label: "Leagues", route: "/(tabs)/social" },
-              { icon: "sparkles-outline" as const, label: "Guru", route: "/guru" },
-            ] as const).map((item, i) => (
-              <Animated.View key={item.label} entering={FadeInDown.delay(320 + i * 40).springify()} style={{ flex: 1 }}>
-                <Pressable
-                  onPress={() => router.push(item.route as never)}
-                  style={({ pressed, hovered }) => [
-                    s.quickAction,
-                    hovered && s.cardHover,
-                    pressed && s.cardPress,
-                  ]}
-                >
-                  <Ionicons name={item.icon} size={22} color={Colors.accent} />
-                  <Text style={s.quickLabel}>{item.label}</Text>
-                </Pressable>
-              </Animated.View>
-            ))}
-          </View>
-        </View>
-
-        {/* Powered by Gemini */}
-        <Animated.View entering={FadeInDown.delay(400)} style={s.geminiFooter}>
+        {/* ─── Powered by Gemini ─── */}
+        <Animated.View entering={FadeInDown.delay(350)} style={s.geminiFooter}>
           <Text style={s.geminiText}>DATA SOURCES POWERED BY GEMINI</Text>
           {dashboard.data?.lastFetched && (
-            <Text style={s.lastUpdated}>
-              Last updated: {new Date(dashboard.data.lastFetched).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+            <Text style={s.geminiSub}>
+              Updated {new Date(dashboard.data.lastFetched).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
             </Text>
           )}
         </Animated.View>
@@ -454,268 +358,78 @@ export default function HomeScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+  root: { flex: 1, backgroundColor: Colors.bg },
 
   // Header
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.xl,
-  },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  logoIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.accentMuted,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  logoIcon: { width: 32, height: 32, borderRadius: Radius.sm, backgroundColor: Colors.accentMuted, alignItems: "center", justifyContent: "center" },
   logoText: { fontSize: Font.lg, letterSpacing: 1 },
   logoBold: { fontFamily: FontFamily.headingBold, color: Colors.text },
   logoLight: { fontFamily: FontFamily.heading, color: Colors.accent },
   headerRight: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.bgSurface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerBtnHover: { backgroundColor: Colors.bgSurfaceHover },
-  avatarBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.bgSurface,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  hdrBtn: { width: 36, height: 36, borderRadius: Radius.sm, backgroundColor: Colors.bgSurface, borderWidth: 1, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
+  hdrBtnHov: { backgroundColor: Colors.bgSurfaceHover },
+  avatarBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bgSurface, borderWidth: 2, borderColor: Colors.border, alignItems: "center", justifyContent: "center" },
 
-  // Section headers
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.xl,
+  // Hero
+  heroCard: {
+    marginHorizontal: Spacing.xl,
     marginBottom: Spacing.lg,
-    marginTop: Spacing.lg,
-  },
-  sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  accentBar: { width: 4, height: 22, borderRadius: 2 },
-  sectionTitle: {
-    fontFamily: FontFamily.headingBold,
-    fontSize: Font.xl,
-    color: Colors.text,
-  },
-  realTimeBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
-  realTimeText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: Font.xs,
-    color: Colors.textSecondary,
-    letterSpacing: 1,
-  },
-
-  // Match cards
-  matchCard: {
-    width: MATCH_CARD_W,
     ...card,
-    overflow: "hidden",
+    padding: Spacing.xl,
   },
-  cardHover: { backgroundColor: Colors.bgSurfaceHover },
-  cardPress: { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
+  heroTitle: { fontFamily: FontFamily.headingBold, fontSize: Font["2xl"], color: Colors.text, marginBottom: Spacing.sm },
+  heroSub: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.textSecondary, lineHeight: 22 },
+  heroAccent: { fontFamily: FontFamily.bodyBold, color: Colors.accent },
 
-  matchCardImage: {
-    height: 140,
-    justifyContent: "flex-start",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-  },
-  cricketBallOverlay: {
-    position: "absolute",
-    right: 20,
-    top: 20,
-    opacity: 0.6,
-  },
-  statusBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.xs,
-  },
-  statusBadgeText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: Font.xs,
-    color: "#FFFFFF",
-    letterSpacing: 0.3,
-  },
+  // Section
+  sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: Spacing.xl, marginTop: Spacing["2xl"], marginBottom: Spacing.lg },
+  sectionLeft: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  accentBar: { width: 4, height: 24, borderRadius: 2 },
+  sectionTitle: { fontFamily: FontFamily.headingBold, fontSize: Font.xl, color: Colors.text },
+  rtBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
+  rtText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.textSecondary, letterSpacing: 1 },
 
-  matchCardContent: { padding: Spacing.lg },
-  matchTournament: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: Font.xs,
-    color: Colors.blue,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  matchTeams: {
-    fontFamily: FontFamily.headingBold,
-    fontSize: Font.xl,
-    color: Colors.text,
-    marginBottom: Spacing.md,
-  },
-  matchScore: {
-    fontFamily: FontFamily.bodyBold,
-    fontSize: Font.md,
-    color: Colors.amber,
-    marginBottom: Spacing.sm,
-  },
-  matchCardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  timeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  matchTime: {
-    fontFamily: FontFamily.body,
-    fontSize: Font.sm,
-    color: Colors.textTertiary,
-  },
-  draftBtn: {
-    backgroundColor: Colors.red,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-  },
-  draftBtnHover: { backgroundColor: "#E04040" },
-  draftBtnText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: Font.sm,
-    color: "#FFFFFF",
-  },
+  // Progress bar
+  progressWrap: { height: 4, marginHorizontal: Spacing.xl, marginTop: Spacing.md, borderRadius: 2, backgroundColor: Colors.bgSurface, overflow: "hidden" },
+  progressFill: { height: 4, borderRadius: 2 },
 
-  // Scroll progress
-  progressBarWrap: {
-    paddingHorizontal: Spacing.xl,
-    marginTop: Spacing.md,
-  },
-  progressBarTrack: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: Colors.bgSurface,
-  },
-  progressBarFill: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: Colors.accent,
-  },
+  // Match card
+  matchCard: { width: MATCH_W, ...card, overflow: "hidden" },
+  matchImgWrap: { height: 160, backgroundColor: Colors.bgSurface },
+  matchImg: { width: "100%", height: "100%" },
+  statusBadge: { position: "absolute", top: Spacing.md, left: Spacing.md, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.xs },
+  statusText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: "#FFF", letterSpacing: 0.3 },
+  matchContent: { padding: Spacing.lg },
+  matchTournament: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.blue, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
+  matchTeams: { fontFamily: FontFamily.headingBold, fontSize: Font.xl, color: Colors.text, marginBottom: Spacing.md },
+  matchScore: { fontFamily: FontFamily.bodyBold, fontSize: Font.md, color: Colors.amber, marginBottom: Spacing.sm },
+  matchFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  timeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  matchTime: { fontFamily: FontFamily.body, fontSize: Font.sm, color: Colors.textTertiary },
+  draftBtn: { backgroundColor: Colors.red, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm, borderRadius: Radius.sm },
+  draftBtnText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm, color: "#FFF" },
 
-  // Tournament cards
-  tournamentCardWrap: { width: SCREEN_W * 0.6 },
-  tournamentCard: {
-    ...card,
-    overflow: "hidden",
-  },
-  tournamentImage: {
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  categoryBadge: {
-    alignSelf: "flex-start",
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: Radius.xs,
-  },
-  categoryText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: 10,
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  tournamentName: {
-    fontFamily: FontFamily.headingBold,
-    fontSize: Font.lg,
-    color: Colors.text,
-    paddingHorizontal: Spacing.lg,
-    marginTop: Spacing.sm,
-  },
-  viewSchedule: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  viewScheduleText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: Font.sm,
-    color: Colors.accent,
-  },
+  // Tournament card
+  tournCard: { ...card, overflow: "hidden" },
+  tournImgWrap: { height: 140, backgroundColor: Colors.bgSurface, alignItems: "center", justifyContent: "center" },
+  tournImgLabel: { fontFamily: FontFamily.body, fontSize: Font.xs, color: "rgba(255,255,255,0.15)", marginTop: 4 },
+  catBadge: { alignSelf: "flex-start", marginHorizontal: Spacing.lg, marginTop: Spacing.md, paddingHorizontal: 10, paddingVertical: 3, borderRadius: Radius.xs },
+  catText: { fontFamily: FontFamily.bodySemiBold, fontSize: 9, color: "#FFF", letterSpacing: 0.5 },
+  tournName: { fontFamily: FontFamily.headingBold, fontSize: Font.lg, color: Colors.text, paddingHorizontal: Spacing.lg, marginTop: Spacing.sm },
+  viewScheduleRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  viewScheduleText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm, color: Colors.accent },
 
-  // Quick actions
-  quickGrid: { flexDirection: "row", paddingHorizontal: Spacing.xl, gap: Spacing.md },
-  quickAction: {
-    alignItems: "center",
-    gap: Spacing.sm,
-    padding: Spacing.lg,
-    ...card,
-  },
-  quickLabel: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: Font.sm,
-    color: Colors.textSecondary,
-  },
+  // Gemini
+  geminiFooter: { marginTop: Spacing["3xl"], marginHorizontal: Spacing.xl, ...card, paddingVertical: Spacing.md, alignItems: "center" },
+  geminiText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.textTertiary, letterSpacing: 1.5 },
+  geminiSub: { fontFamily: FontFamily.body, fontSize: 10, color: Colors.textTertiary, marginTop: 2 },
 
-  // Gemini footer
-  geminiFooter: {
-    marginTop: Spacing["3xl"],
-    marginHorizontal: Spacing.xl,
-    ...card,
-    padding: Spacing.lg,
-    alignItems: "center",
-  },
-  geminiText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: Font.xs,
-    color: Colors.textTertiary,
-    letterSpacing: 1.5,
-  },
-  lastUpdated: {
-    fontFamily: FontFamily.body,
-    fontSize: Font.xs,
-    color: Colors.textTertiary,
-    marginTop: 4,
-  },
-
-  // Empty states
-  emptyMatches: {
-    marginHorizontal: Spacing.xl,
-    padding: Spacing["3xl"],
-    ...card,
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  emptyTitle: {
-    fontFamily: FontFamily.heading,
-    fontSize: Font.lg,
-    color: Colors.text,
-  },
-  emptyDesc: {
-    fontFamily: FontFamily.body,
-    fontSize: Font.md,
-    color: Colors.textTertiary,
-    textAlign: "center",
-  },
+  // Empty
+  emptyCard: { marginHorizontal: Spacing.xl, padding: Spacing["3xl"], ...card, alignItems: "center", gap: Spacing.sm },
+  emptyTitle: { fontFamily: FontFamily.heading, fontSize: Font.lg, color: Colors.text },
+  emptyDesc: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.textTertiary, textAlign: "center" },
 });
