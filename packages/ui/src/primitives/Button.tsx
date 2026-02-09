@@ -2,6 +2,7 @@ import { styled, Button as TamaguiButton } from "tamagui";
 
 export const Button = styled(TamaguiButton, {
   borderRadius: "$3", // 12px
+  fontFamily: "$body",
   fontWeight: "600",
   pressStyle: {
     scale: 0.97,
@@ -21,7 +22,7 @@ export const Button = styled(TamaguiButton, {
         borderColor: "$borderColor",
       },
       danger: {
-        backgroundColor: "$red",
+        backgroundColor: "$error",
         color: "$white",
       },
       ghost: {

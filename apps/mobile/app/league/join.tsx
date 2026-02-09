@@ -3,11 +3,11 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { trpc } from "../../lib/trpc";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
 
 export default function JoinLeagueScreen() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function JoinLeagueScreen() {
         style={{
           backgroundColor: CARD, color: TEXT, borderRadius: 14, padding: 18, fontSize: 20,
           textAlign: "center", letterSpacing: 3, fontWeight: "700",
-          borderWidth: 1, borderColor: "#2A3442", marginBottom: 20,
+          borderWidth: 1, borderColor: "#333432", marginBottom: 20,
         }}
       />
 
@@ -56,7 +56,7 @@ export default function JoinLeagueScreen() {
       </Pressable>
 
       {joinMutation.error && (
-        <Text style={{ color: "#FF4C4C", textAlign: "center", marginTop: 16, fontSize: 14 }}>
+        <Text style={{ color: "#E5484D", textAlign: "center", marginTop: 16, fontSize: 14 }}>
           {joinMutation.error.message}
         </Text>
       )}

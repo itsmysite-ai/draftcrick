@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const GOLD = "#FFD600";
-const RED = "#FF4C4C";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const GOLD = "#D4A43D";
+const RED = "#E5484D";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
 
 export default function AuctionRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
@@ -90,7 +90,7 @@ export default function AuctionRoomScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Auction Status Header */}
-      <View style={{ backgroundColor: CARD, padding: 16, borderBottomWidth: 1, borderBottomColor: "#2A3442" }}>
+      <View style={{ backgroundColor: CARD, padding: 16, borderBottomWidth: 1, borderBottomColor: "#333432" }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View>
             <Text style={{ color: phaseColor(auctionState?.phase ?? ""), fontSize: 14, fontWeight: "800", letterSpacing: 1 }}>
@@ -124,7 +124,7 @@ export default function AuctionRoomScreen() {
       {/* Current Player Being Auctioned */}
       {currentPlayer && (
         <View style={{
-          backgroundColor: "#00F5A010", margin: 16, borderRadius: 16, padding: 20,
+          backgroundColor: "rgba(93, 184, 130, 0.06)", margin: 16, borderRadius: 16, padding: 20,
           borderWidth: 2, borderColor: ACCENT,
         }}>
           <Text style={{ color: MUTED, fontSize: 11, fontWeight: "600", letterSpacing: 1 }}>NOW AUCTIONING</Text>
@@ -182,7 +182,7 @@ export default function AuctionRoomScreen() {
       {/* Available Players / Sold Players */}
       <View style={{ flex: 1, flexDirection: "row" }}>
         {/* Available */}
-        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: "#2A3442" }}>
+        <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: "#333432" }}>
           <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
             AVAILABLE ({availablePlayers.length})
           </Text>
@@ -234,5 +234,5 @@ export default function AuctionRoomScreen() {
   );
 }
 
-const MY_PICK = "#00F5A020";
-const OTHER_PICK = "#FFD60020";
+const MY_PICK = "rgba(93, 184, 130, 0.12)";
+const OTHER_PICK = "rgba(212, 164, 61, 0.12)";

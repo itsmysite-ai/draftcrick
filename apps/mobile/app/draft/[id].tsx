@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
-const MY_PICK = "#00F5A020";
-const OTHER_PICK = "#FFD60020";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
+const MY_PICK = "rgba(93, 184, 130, 0.12)";
+const OTHER_PICK = "rgba(212, 164, 61, 0.12)";
 
 export default function DraftRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
@@ -65,7 +65,7 @@ export default function DraftRoomScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Status Bar */}
-      <View style={{ backgroundColor: CARD, padding: 16, borderBottomWidth: 1, borderBottomColor: "#2A3442" }}>
+      <View style={{ backgroundColor: CARD, padding: 16, borderBottomWidth: 1, borderBottomColor: "#333432" }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View>
             <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600" }}>
@@ -83,7 +83,7 @@ export default function DraftRoomScreen() {
           </View>
           {countdown !== null && draftState?.status === "in_progress" && (
             <View style={{
-              backgroundColor: countdown <= 10 ? "#FF4C4C" : ACCENT,
+              backgroundColor: countdown <= 10 ? "#E5484D" : ACCENT,
               borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8,
             }}>
               <Text style={{ color: countdown <= 10 ? TEXT : BG, fontSize: 24, fontWeight: "900" }}>
@@ -117,7 +117,7 @@ export default function DraftRoomScreen() {
       {/* Two-column layout: picks log + available players */}
       <View style={{ flex: 1, flexDirection: "row" }}>
         {/* Picks Log (left column) */}
-        <View style={{ width: "35%", borderRightWidth: 1, borderRightColor: "#2A3442" }}>
+        <View style={{ width: "35%", borderRightWidth: 1, borderRightColor: "#333432" }}>
           <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", padding: 12, paddingBottom: 8 }}>
             PICK LOG
           </Text>

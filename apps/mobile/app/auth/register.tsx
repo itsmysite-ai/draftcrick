@@ -27,7 +27,7 @@ export default function RegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="Username"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor="#5E5D5A"
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
@@ -36,7 +36,7 @@ export default function RegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor="#5E5D5A"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -46,7 +46,7 @@ export default function RegisterScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password (8+ characters)"
-          placeholderTextColor="#6C757D"
+          placeholderTextColor="#5E5D5A"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -70,52 +70,52 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
     padding: 24,
     justifyContent: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 15,
-    color: "#6C757D",
+    color: "#5E5D5A",
     marginBottom: 32,
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 12,
     padding: 16,
-    color: "#FFFFFF",
+    color: "#EDECEA",
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   registerButton: {
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
   },
   registerButtonText: {
-    color: "#0A1628",
+    color: "#111210",
     fontSize: 16,
     fontWeight: "700",
   },
   loginLink: {
-    color: "#6C757D",
+    color: "#5E5D5A",
     fontSize: 14,
     textAlign: "center",
     marginTop: 8,
   },
   loginLinkHighlight: {
-    color: "#00F5A0",
+    color: "#5DB882",
     fontWeight: "600",
   },
 });

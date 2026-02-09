@@ -68,7 +68,7 @@ export default function WalletScreen() {
   if (wallet.isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator color="#00F5A0" size="large" />
+        <ActivityIndicator color="#5DB882" size="large" />
       </View>
     );
   }
@@ -82,7 +82,7 @@ export default function WalletScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#00F5A0"
+          tintColor="#5DB882"
         />
       }
     >
@@ -110,7 +110,7 @@ export default function WalletScreen() {
             <View style={styles.breakdownDivider} />
             <View style={styles.breakdownItem}>
               <Text style={styles.breakdownLabel}>Winnings</Text>
-              <Text style={[styles.breakdownValue, { color: "#00F5A0" }]}>
+              <Text style={[styles.breakdownValue, { color: "#5DB882" }]}>
                 ₹{w.totalWinnings.toFixed(2)}
               </Text>
             </View>
@@ -140,7 +140,7 @@ export default function WalletScreen() {
           <TextInput
             style={styles.amountInput}
             placeholder="Enter amount"
-            placeholderTextColor="#6C757D"
+            placeholderTextColor="#5E5D5A"
             keyboardType="numeric"
             value={depositAmount}
             onChangeText={setDepositAmount}
@@ -196,7 +196,7 @@ export default function WalletScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
         {transactions.isLoading ? (
-          <ActivityIndicator color="#00F5A0" style={{ padding: 20 }} />
+          <ActivityIndicator color="#5DB882" style={{ padding: 20 }} />
         ) : transactions.data && transactions.data.length > 0 ? (
           transactions.data.map((txn) => {
             const isCredit =
@@ -222,7 +222,7 @@ export default function WalletScreen() {
                 <Text
                   style={[
                     styles.txnAmount,
-                    { color: isCredit ? "#00F5A0" : "#FF4D4F" },
+                    { color: isCredit ? "#5DB882" : "#E5484D" },
                   ]}
                 >
                   {isCredit ? "+" : "-"}₹{txn.amount.toFixed(2)}
@@ -243,11 +243,11 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
   },
   centerContainer: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -255,43 +255,43 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginBottom: 8,
   },
   errorSubtitle: {
     fontSize: 14,
-    color: "#6C757D",
+    color: "#5E5D5A",
     marginBottom: 20,
   },
   signInButton: {
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 10,
   },
   signInText: {
-    color: "#0A1628",
+    color: "#111210",
     fontSize: 15,
     fontWeight: "700",
   },
   balanceCard: {
     margin: 16,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#00F5A030",
+    borderColor: "rgba(93, 184, 130, 0.19)",
   },
   balanceLabel: {
     fontSize: 12,
-    color: "#6C757D",
+    color: "#5E5D5A",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   balanceAmount: {
     fontSize: 36,
     fontWeight: "800",
-    color: "#00F5A0",
+    color: "#5DB882",
     marginTop: 4,
     marginBottom: 16,
   },
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     borderTopWidth: 1,
-    borderTopColor: "#243044",
+    borderTopColor: "#333432",
     paddingTop: 16,
   },
   breakdownItem: {
@@ -308,16 +308,16 @@ const styles = StyleSheet.create({
   },
   breakdownDivider: {
     width: 1,
-    backgroundColor: "#243044",
+    backgroundColor: "#333432",
   },
   breakdownLabel: {
     fontSize: 11,
-    color: "#6C757D",
+    color: "#5E5D5A",
   },
   breakdownValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginTop: 4,
   },
   actionRow: {
@@ -328,55 +328,55 @@ const styles = StyleSheet.create({
   },
   depositButton: {
     flex: 1,
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
   },
   depositButtonText: {
-    color: "#0A1628",
+    color: "#111210",
     fontSize: 15,
     fontWeight: "700",
   },
   withdrawButton: {
     flex: 1,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   withdrawButtonText: {
-    color: "#FFFFFF",
+    color: "#EDECEA",
     fontSize: 15,
     fontWeight: "600",
   },
   depositForm: {
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   depositTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginBottom: 12,
   },
   amountInput: {
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 18,
-    color: "#FFFFFF",
+    color: "#EDECEA",
     fontWeight: "700",
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
     marginBottom: 12,
   },
   quickAmounts: {
@@ -386,24 +386,24 @@ const styles = StyleSheet.create({
   },
   quickAmountButton: {
     flex: 1,
-    backgroundColor: "#243044",
+    backgroundColor: "#333432",
     borderRadius: 8,
     paddingVertical: 8,
     alignItems: "center",
   },
   quickAmountText: {
-    color: "#FFFFFF",
+    color: "#EDECEA",
     fontSize: 13,
     fontWeight: "600",
   },
   confirmDeposit: {
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",
   },
   confirmDepositText: {
-    color: "#0A1628",
+    color: "#111210",
     fontSize: 15,
     fontWeight: "700",
   },
@@ -415,20 +415,20 @@ const styles = StyleSheet.create({
   },
   statItem: {
     flex: 1,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   statLabel: {
     fontSize: 11,
-    color: "#6C757D",
+    color: "#5E5D5A",
   },
   statValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginTop: 4,
   },
   section: {
@@ -438,19 +438,19 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginBottom: 12,
   },
   txnRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 10,
     padding: 14,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   txnInfo: {
     flex: 1,
@@ -458,12 +458,12 @@ const styles = StyleSheet.create({
   txnType: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     textTransform: "capitalize",
   },
   txnDate: {
     fontSize: 11,
-    color: "#6C757D",
+    color: "#5E5D5A",
     marginTop: 2,
   },
   txnAmount: {
@@ -472,15 +472,15 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   emptyTxn: {
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 12,
     padding: 24,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   emptyTxnText: {
-    color: "#6C757D",
+    color: "#5E5D5A",
     fontSize: 14,
   },
 });

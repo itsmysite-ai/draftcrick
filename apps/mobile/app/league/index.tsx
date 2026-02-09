@@ -3,12 +3,12 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { trpc } from "../../lib/trpc";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const GOLD = "#FFD600";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const GOLD = "#D4A43D";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
 
 export default function LeaguesListScreen() {
   const router = useRouter();
@@ -25,8 +25,8 @@ export default function LeaguesListScreen() {
     switch (format) {
       case "draft": return ACCENT;
       case "auction": return GOLD;
-      case "salary_cap": return "#00B4D8";
-      case "prediction": return "#E040FB";
+      case "salary_cap": return "#5DA8B8";
+      case "prediction": return "#A088CC";
       default: return MUTED;
     }
   };

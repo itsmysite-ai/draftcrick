@@ -3,13 +3,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc } from "../../../lib/trpc";
 import { useAuth } from "../../../providers/AuthProvider";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const GOLD = "#FFD600";
-const RED = "#FF4C4C";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const GOLD = "#D4A43D";
+const RED = "#E5484D";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
 
 export default function LeagueTradesScreen() {
   const { id: leagueId } = useLocalSearchParams<{ id: string }>();
@@ -98,7 +98,7 @@ export default function LeagueTradesScreen() {
                     {isSender ? "YOU OFFER" : "THEY OFFER"}
                   </Text>
                   {(item.playersOffered ?? []).map((pid: string, idx: number) => (
-                    <View key={idx} style={{ backgroundColor: "#00F5A010", borderRadius: 6, padding: 6, marginBottom: 2 }}>
+                    <View key={idx} style={{ backgroundColor: "#5DB88210", borderRadius: 6, padding: 6, marginBottom: 2 }}>
                       <Text style={{ color: ACCENT, fontSize: 12 }}>{pid.substring(0, 8)}...</Text>
                     </View>
                   ))}
@@ -115,7 +115,7 @@ export default function LeagueTradesScreen() {
                     {isSender ? "YOU WANT" : "THEY WANT"}
                   </Text>
                   {(item.playersRequested ?? []).map((pid: string, idx: number) => (
-                    <View key={idx} style={{ backgroundColor: "#FFD60010", borderRadius: 6, padding: 6, marginBottom: 2 }}>
+                    <View key={idx} style={{ backgroundColor: "#D4A43D10", borderRadius: 6, padding: 6, marginBottom: 2 }}>
                       <Text style={{ color: GOLD, fontSize: 12 }}>{pid.substring(0, 8)}...</Text>
                     </View>
                   ))}

@@ -224,7 +224,7 @@ export default function TeamBuilderScreen() {
   if (matchPlayers.isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#00F5A0" size="large" />
+        <ActivityIndicator color="#5DB882" size="large" />
         <Text style={styles.loadingText}>Loading players...</Text>
       </View>
     );
@@ -334,7 +334,7 @@ export default function TeamBuilderScreen() {
           <Text
             style={[
               styles.budgetValue,
-              creditsRemaining < 10 && { color: "#FF4D4F" },
+              creditsRemaining < 10 && { color: "#E5484D" },
             ]}
           >
             {creditsRemaining.toFixed(1)}
@@ -427,7 +427,7 @@ export default function TeamBuilderScreen() {
                   <Text
                     style={[
                       styles.creditsValue,
-                      isSelected && { color: "#00F5A0" },
+                      isSelected && { color: "#5DB882" },
                     ]}
                   >
                     {player.credits.toFixed(1)}
@@ -477,50 +477,50 @@ export default function TeamBuilderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
     justifyContent: "center",
     alignItems: "center",
     gap: 12,
   },
   loadingText: {
-    color: "#6C757D",
+    color: "#5E5D5A",
     fontSize: 14,
   },
   budgetBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     padding: 16,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderBottomWidth: 1,
-    borderBottomColor: "#243044",
+    borderBottomColor: "#333432",
   },
   budgetLabel: {
     fontSize: 11,
-    color: "#6C757D",
+    color: "#5E5D5A",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   budgetSubtext: {
     fontSize: 12,
-    color: "#FFB800",
+    color: "#D4A43D",
     marginTop: 4,
   },
   budgetValue: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#EDECEA",
   },
   progressBar: {
     height: 4,
-    backgroundColor: "#243044",
+    backgroundColor: "#333432",
   },
   progressFill: {
     height: 4,
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     borderRadius: 2,
   },
   tabs: {
@@ -533,30 +533,30 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: "center",
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
   },
   tabActive: {
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
   },
   tabText: {
-    color: "#ADB5BD",
+    color: "#9A9894",
     fontSize: 13,
     fontWeight: "700",
   },
   tabTextActive: {
-    color: "#0A1628",
+    color: "#111210",
   },
   tabCount: {
-    color: "#6C757D",
+    color: "#5E5D5A",
     fontSize: 10,
     marginTop: 2,
   },
   tabCountActive: {
-    color: "#0A1628",
+    color: "#111210",
   },
   roleHint: {
     fontSize: 12,
-    color: "#6C757D",
+    color: "#5E5D5A",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -567,16 +567,16 @@ const styles = StyleSheet.create({
   playerRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 10,
     padding: 12,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   playerRowSelected: {
-    borderColor: "#00F5A0",
-    backgroundColor: "#00F5A008",
+    borderColor: "#5DB882",
+    backgroundColor: "rgba(93, 184, 130, 0.03)",
   },
   playerRowDisabled: {
     opacity: 0.4,
@@ -587,11 +587,11 @@ const styles = StyleSheet.create({
   playerName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#EDECEA",
   },
   playerMeta: {
     fontSize: 12,
-    color: "#6C757D",
+    color: "#5E5D5A",
     marginTop: 2,
     textTransform: "capitalize",
   },
@@ -602,47 +602,47 @@ const styles = StyleSheet.create({
   creditsValue: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
   },
   creditsLabel: {
     fontSize: 10,
-    color: "#6C757D",
+    color: "#5E5D5A",
   },
   selectCircle: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#243044",
+    borderColor: "#333432",
     alignItems: "center",
     justifyContent: "center",
   },
   selectCircleActive: {
-    backgroundColor: "#00F5A0",
-    borderColor: "#00F5A0",
+    backgroundColor: "#5DB882",
+    borderColor: "#5DB882",
   },
   checkmark: {
-    color: "#0A1628",
+    color: "#111210",
     fontSize: 14,
     fontWeight: "700",
   },
   emptyState: {
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 12,
     padding: 32,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   emptyTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: "#6C757D",
+    color: "#5E5D5A",
     textAlign: "center",
     lineHeight: 20,
   },
@@ -650,12 +650,12 @@ const styles = StyleSheet.create({
   captainRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 10,
     padding: 12,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
     marginHorizontal: 12,
   },
   captainButtons: {
@@ -667,28 +667,28 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: "#243044",
+    borderColor: "#333432",
     alignItems: "center",
     justifyContent: "center",
   },
   captainBadgeActive: {
-    backgroundColor: "#00F5A0",
-    borderColor: "#00F5A0",
+    backgroundColor: "#5DB882",
+    borderColor: "#5DB882",
   },
   captainBadgeText: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#6C757D",
+    color: "#5E5D5A",
   },
   captainBadgeTextActive: {
-    color: "#0A1628",
+    color: "#111210",
   },
   vcBadgeActive: {
-    backgroundColor: "#FFB800",
-    borderColor: "#FFB800",
+    backgroundColor: "#D4A43D",
+    borderColor: "#D4A43D",
   },
   vcBadgeTextActive: {
-    color: "#0A1628",
+    color: "#111210",
   },
   // Bottom actions
   bottomActions: {
@@ -698,28 +698,28 @@ const styles = StyleSheet.create({
   },
   backButton: {
     flex: 1,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   backButtonText: {
-    color: "#FFFFFF",
+    color: "#EDECEA",
     fontSize: 16,
     fontWeight: "600",
   },
   submitButton: {
     flex: 2,
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     margin: 16,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
   },
   submitText: {
-    color: "#0A1628",
+    color: "#111210",
     fontSize: 16,
     fontWeight: "700",
   },

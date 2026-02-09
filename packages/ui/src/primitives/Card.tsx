@@ -28,7 +28,7 @@ export const Card = styled(YStack, {
     },
     live: {
       true: {
-        borderColor: "$red",
+        borderColor: "$error",
         borderWidth: 2,
       },
     },

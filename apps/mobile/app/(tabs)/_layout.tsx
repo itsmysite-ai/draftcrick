@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Colors } from "../../lib/design";
+import { Colors, FontFamily } from "../../lib/design";
 import { CustomTabBar } from "../../components/TabBar";
 
 export default function TabLayout() {
@@ -14,7 +14,7 @@ export default function TabLayout() {
           borderBottomWidth: 0,
         },
         headerTintColor: Colors.text,
-        headerTitleStyle: { fontWeight: "700", fontSize: 17 },
+        headerTitleStyle: { fontWeight: "700", fontSize: 17, fontFamily: FontFamily.heading },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: Colors.bg },
       }}

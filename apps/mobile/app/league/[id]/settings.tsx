@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { trpc } from "../../../lib/trpc";
 import { RULE_CATEGORY_LABELS, getRulesByCategory, type RuleCategory } from "@draftcrick/shared";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const GOLD = "#FFD600";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
-const INPUT_BG = "#0D1B2A";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const GOLD = "#D4A43D";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
+const INPUT_BG = "#111210";
 
 const CATEGORIES: RuleCategory[] = [
   "teamComposition", "scoring", "boosters", "transfers",
@@ -76,7 +76,7 @@ export default function LeagueSettingsScreen() {
           onChangeText={setName}
           style={{
             backgroundColor: INPUT_BG, color: TEXT, borderRadius: 10, padding: 12,
-            borderWidth: 1, borderColor: "#2A3442", marginBottom: 12,
+            borderWidth: 1, borderColor: "#333432", marginBottom: 12,
           }}
         />
 
@@ -87,7 +87,7 @@ export default function LeagueSettingsScreen() {
           keyboardType="numeric"
           style={{
             backgroundColor: INPUT_BG, color: TEXT, borderRadius: 10, padding: 12,
-            borderWidth: 1, borderColor: "#2A3442", marginBottom: 12,
+            borderWidth: 1, borderColor: "#333432", marginBottom: 12,
           }}
         />
 
@@ -107,9 +107,9 @@ export default function LeagueSettingsScreen() {
           {league?.inviteCode ?? "---"}
         </Text>
         <Pressable onPress={handleRegenCode}
-          style={{ backgroundColor: "#FF4C4C20", borderRadius: 10, padding: 10, alignItems: "center" }}
+          style={{ backgroundColor: "#E5484D20", borderRadius: 10, padding: 10, alignItems: "center" }}
         >
-          <Text style={{ color: "#FF4C4C", fontWeight: "600" }}>Regenerate Code</Text>
+          <Text style={{ color: "#E5484D", fontWeight: "600" }}>Regenerate Code</Text>
         </Pressable>
       </View>
 
@@ -151,7 +151,7 @@ export default function LeagueSettingsScreen() {
               {isExpanded && (
                 <View style={{
                   backgroundColor: CARD, borderBottomLeftRadius: 12, borderBottomRightRadius: 12,
-                  padding: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: "#2A3442",
+                  padding: 14, paddingTop: 4, borderTopWidth: 1, borderTopColor: "#333432",
                 }}>
                   {displayRules.map((rule) => {
                     const keyParts = rule.key.split(".");
@@ -163,7 +163,7 @@ export default function LeagueSettingsScreen() {
                     return (
                       <View key={rule.key} style={{
                         flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-                        paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1A233280",
+                        paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1C1D1B80",
                       }}>
                         <View style={{ flex: 1, marginRight: 12 }}>
                           <Text style={{ color: TEXT, fontSize: 13, fontWeight: "600" }}>{rule.label}</Text>

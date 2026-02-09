@@ -104,7 +104,7 @@ export default function GuruScreen() {
         <TextInput
           style={styles.input}
           placeholder="Ask Cricket Guru..."
-          placeholderTextColor="#6C757D"
+          placeholderTextColor="#5E5D5A"
           value={input}
           onChangeText={setInput}
           onSubmitEditing={sendMessage}
@@ -121,7 +121,7 @@ export default function GuruScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
   },
   messageList: {
     padding: 16,
@@ -133,27 +133,27 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   userBubble: {
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     alignSelf: "flex-end",
     borderBottomRightRadius: 4,
   },
   guruBubble: {
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     alignSelf: "flex-start",
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   guruLabel: {
     fontSize: 11,
-    color: "#00F5A0",
+    color: "#5DB882",
     fontWeight: "700",
     marginBottom: 4,
   },
   messageText: {
     fontSize: 15,
     lineHeight: 22,
-    color: "#FFFFFF",
+    color: "#EDECEA",
   },
   suggestions: {
     flexDirection: "row",
@@ -163,15 +163,15 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   suggestionChip: {
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   suggestionText: {
-    color: "#ADB5BD",
+    color: "#9A9894",
     fontSize: 13,
   },
   inputRow: {
@@ -180,25 +180,25 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 8,
     borderTopWidth: 1,
-    borderTopColor: "#1A2332",
+    borderTopColor: "#1C1D1B",
   },
   input: {
     flex: 1,
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    color: "#FFFFFF",
+    color: "#EDECEA",
     fontSize: 15,
   },
   sendButton: {
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     borderRadius: 24,
     paddingHorizontal: 20,
     justifyContent: "center",
   },
   sendButtonText: {
-    color: "#0A1628",
+    color: "#111210",
     fontWeight: "700",
     fontSize: 14,
   },

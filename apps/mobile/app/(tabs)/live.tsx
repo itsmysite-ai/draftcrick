@@ -95,7 +95,7 @@ function LiveMatchCard({ match, index, onPress }: { match: any; index: number; o
               hovered && { opacity: 0.85 },
             ]}
           >
-            <Text style={[s.watchText, isLive ? { color: "#FFF" } : { color: Colors.accent }]}>
+            <Text style={[s.watchText, isLive ? { color: Colors.text } : { color: Colors.accent }]}>
               {isLive ? "Watch Live" : "Draft Now"}
             </Text>
           </Pressable>

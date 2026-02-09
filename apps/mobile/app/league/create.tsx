@@ -3,12 +3,12 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import { trpc } from "../../lib/trpc";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
-const INPUT_BG = "#0D1B2A";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
+const INPUT_BG = "#111210";
 
 type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
 type Template = "casual" | "competitive" | "pro" | "custom";
@@ -21,9 +21,9 @@ const FORMATS: { value: LeagueFormat; label: string; desc: string }[] = [
 ];
 
 const TEMPLATES: { value: Template; label: string; desc: string; color: string }[] = [
-  { value: "casual", label: "Casual", desc: "Relaxed rules, generous transfers", color: "#00F5A0" },
-  { value: "competitive", label: "Competitive", desc: "Trading, playoffs, waiver wire", color: "#FFD600" },
-  { value: "pro", label: "Pro", desc: "Strict rules, trade vetoes, advanced scoring", color: "#FF4C4C" },
+  { value: "casual", label: "Casual", desc: "Relaxed rules, generous transfers", color: "#5DB882" },
+  { value: "competitive", label: "Competitive", desc: "Trading, playoffs, waiver wire", color: "#D4A43D" },
+  { value: "pro", label: "Pro", desc: "Strict rules, trade vetoes, advanced scoring", color: "#E5484D" },
 ];
 
 export default function CreateLeagueScreen() {
@@ -66,7 +66,7 @@ export default function CreateLeagueScreen() {
         placeholderTextColor={MUTED}
         style={{
           backgroundColor: INPUT_BG, color: TEXT, borderRadius: 12, padding: 14, fontSize: 16,
-          borderWidth: 1, borderColor: "#2A3442", marginBottom: 20,
+          borderWidth: 1, borderColor: "#333432", marginBottom: 20,
         }}
       />
 
@@ -79,7 +79,7 @@ export default function CreateLeagueScreen() {
         placeholderTextColor={MUTED}
         style={{
           backgroundColor: INPUT_BG, color: TEXT, borderRadius: 12, padding: 14, fontSize: 16,
-          borderWidth: 1, borderColor: "#2A3442", marginBottom: 20,
+          borderWidth: 1, borderColor: "#333432", marginBottom: 20,
         }}
       />
 
@@ -91,9 +91,9 @@ export default function CreateLeagueScreen() {
             key={f.value}
             onPress={() => setFormat(f.value)}
             style={{
-              backgroundColor: format === f.value ? "#00F5A015" : CARD,
+              backgroundColor: format === f.value ? "rgba(93, 184, 130, 0.08)" : CARD,
               borderRadius: 12, padding: 14, marginBottom: 8,
-              borderWidth: 1, borderColor: format === f.value ? ACCENT : "#2A3442",
+              borderWidth: 1, borderColor: format === f.value ? ACCENT : "#333432",
             }}
           >
             <Text style={{ color: format === f.value ? ACCENT : TEXT, fontWeight: "700", fontSize: 15 }}>{f.label}</Text>
@@ -112,7 +112,7 @@ export default function CreateLeagueScreen() {
             style={{
               flex: 1, backgroundColor: template === t.value ? `${t.color}15` : CARD,
               borderRadius: 12, padding: 14, alignItems: "center",
-              borderWidth: 1, borderColor: template === t.value ? t.color : "#2A3442",
+              borderWidth: 1, borderColor: template === t.value ? t.color : "#333432",
             }}
           >
             <Text style={{ color: template === t.value ? t.color : TEXT, fontWeight: "700", fontSize: 15 }}>
@@ -133,7 +133,7 @@ export default function CreateLeagueScreen() {
             keyboardType="numeric"
             style={{
               backgroundColor: INPUT_BG, color: TEXT, borderRadius: 12, padding: 14, fontSize: 16,
-              borderWidth: 1, borderColor: "#2A3442",
+              borderWidth: 1, borderColor: "#333432",
             }}
           />
         </View>
@@ -143,10 +143,10 @@ export default function CreateLeagueScreen() {
             onPress={() => setIsPrivate(!isPrivate)}
             style={{
               backgroundColor: INPUT_BG, borderRadius: 12, padding: 14,
-              borderWidth: 1, borderColor: "#2A3442", alignItems: "center",
+              borderWidth: 1, borderColor: "#333432", alignItems: "center",
             }}
           >
-            <Text style={{ color: isPrivate ? ACCENT : "#FFD600", fontWeight: "700", fontSize: 16 }}>
+            <Text style={{ color: isPrivate ? ACCENT : "#D4A43D", fontWeight: "700", fontSize: 16 }}>
               {isPrivate ? "Private" : "Public"}
             </Text>
           </Pressable>
@@ -168,7 +168,7 @@ export default function CreateLeagueScreen() {
       </Pressable>
 
       {createMutation.error && (
-        <Text style={{ color: "#FF4C4C", textAlign: "center", marginTop: 12 }}>
+        <Text style={{ color: "#E5484D", textAlign: "center", marginTop: 12 }}>
           {createMutation.error.message}
         </Text>
       )}

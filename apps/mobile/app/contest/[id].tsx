@@ -36,7 +36,7 @@ export default function ContestDetailScreen() {
   if (contest.isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator color="#00F5A0" size="large" />
+        <ActivityIndicator color="#5DB882" size="large" />
       </View>
     );
   }
@@ -54,7 +54,7 @@ export default function ContestDetailScreen() {
   const isOpen = c.status === "open";
   const isLive = c.status === "live";
   const statusColor =
-    isLive ? "#FF4D4F" : c.status === "settled" ? "#00F5A0" : "#FFB800";
+    isLive ? "#E5484D" : c.status === "settled" ? "#5DB882" : "#D4A43D";
 
   return (
     <ScrollView
@@ -63,7 +63,7 @@ export default function ContestDetailScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor="#00F5A0"
+          tintColor="#5DB882"
         />
       }
     >
@@ -174,7 +174,7 @@ export default function ContestDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Leaderboard</Text>
         {standings.isLoading ? (
-          <ActivityIndicator color="#00F5A0" style={{ padding: 20 }} />
+          <ActivityIndicator color="#5DB882" style={{ padding: 20 }} />
         ) : standings.data && standings.data.length > 0 ? (
           standings.data.map((entry: { rank: number; userId: string; totalPoints: number }, i: number) => (
             <View
@@ -188,7 +188,7 @@ export default function ContestDetailScreen() {
                 <Text
                   style={[
                     styles.rankText,
-                    i === 0 && { color: "#FFB800" },
+                    i === 0 && { color: "#D4A43D" },
                     i === 1 && { color: "#C0C0C0" },
                     i === 2 && { color: "#CD7F32" },
                   ]}
@@ -223,22 +223,22 @@ export default function ContestDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
   },
   centerContainer: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: "#111210",
     justifyContent: "center",
     alignItems: "center",
   },
   errorText: {
-    color: "#FF4D4F",
+    color: "#E5484D",
     fontSize: 16,
   },
   header: {
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1A2332",
+    borderBottomColor: "#1C1D1B",
   },
   headerTop: {
     flexDirection: "row",
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   contestName: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     flex: 1,
   },
   statusBadge: {
@@ -269,12 +269,12 @@ const styles = StyleSheet.create({
   },
   matchTeams: {
     fontSize: 14,
-    color: "#FFFFFF",
+    color: "#EDECEA",
     fontWeight: "600",
   },
   matchTournament: {
     fontSize: 12,
-    color: "#00F5A0",
+    color: "#5DB882",
     fontWeight: "600",
   },
   infoGrid: {
@@ -286,22 +286,22 @@ const styles = StyleSheet.create({
   infoItem: {
     flex: 1,
     minWidth: "45%",
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   infoLabel: {
     fontSize: 11,
-    color: "#6C757D",
+    color: "#5E5D5A",
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
   infoValue: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginTop: 4,
   },
   fillBarContainer: {
@@ -310,17 +310,17 @@ const styles = StyleSheet.create({
   },
   fillBar: {
     height: 6,
-    backgroundColor: "#243044",
+    backgroundColor: "#333432",
     borderRadius: 3,
   },
   fillBarProgress: {
     height: 6,
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     borderRadius: 3,
   },
   fillBarText: {
     fontSize: 12,
-    color: "#6C757D",
+    color: "#5E5D5A",
     marginTop: 6,
     textAlign: "center",
   },
@@ -329,13 +329,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   joinButton: {
-    backgroundColor: "#00F5A0",
+    backgroundColor: "#5DB882",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
   },
   joinButtonText: {
-    color: "#0A1628",
+    color: "#111210",
     fontSize: 16,
     fontWeight: "700",
   },
@@ -346,42 +346,42 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
     marginBottom: 12,
   },
   prizeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 8,
     padding: 12,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   prizeRank: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#FFB800",
+    color: "#D4A43D",
   },
   prizeAmount: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#EDECEA",
   },
   leaderboardRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 10,
     padding: 12,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   leaderboardRowTop: {
-    borderColor: "#FFB80040",
+    borderColor: "rgba(212, 164, 61, 0.25)",
   },
   rankBadge: {
     width: 36,
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   rankText: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#FFFFFF",
+    color: "#EDECEA",
   },
   leaderboardInfo: {
     flex: 1,
@@ -399,23 +399,23 @@ const styles = StyleSheet.create({
   leaderboardName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#EDECEA",
   },
   leaderboardPoints: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#FFB800",
+    color: "#D4A43D",
   },
   emptyLeaderboard: {
-    backgroundColor: "#1A2332",
+    backgroundColor: "#1C1D1B",
     borderRadius: 12,
     padding: 24,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: "#333432",
   },
   emptyText: {
-    color: "#6C757D",
+    color: "#5E5D5A",
     fontSize: 14,
     textAlign: "center",
   },

@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ActivityIndicator, View, Platform } from "react-native";
 import { AuthProvider } from "../providers/AuthProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
-import { Colors } from "../lib/design";
+import { Colors, FontFamily } from "../lib/design";
 
 export default function RootLayout() {
   const [queryClient] = useState(
@@ -28,12 +28,12 @@ export default function RootLayout() {
       try {
         const Font = require("expo-font");
         await Font.loadAsync({
-          Inter_400Regular: require("@expo-google-fonts/inter/Inter_400Regular.ttf"),
-          Inter_500Medium: require("@expo-google-fonts/inter/Inter_500Medium.ttf"),
-          Inter_600SemiBold: require("@expo-google-fonts/inter/Inter_600SemiBold.ttf"),
-          Inter_700Bold: require("@expo-google-fonts/inter/Inter_700Bold.ttf"),
-          SpaceGrotesk_700Bold: require("@expo-google-fonts/space-grotesk/SpaceGrotesk_700Bold.ttf"),
-          SpaceGrotesk_800ExtraBold: require("@expo-google-fonts/space-grotesk/SpaceGrotesk_800ExtraBold.ttf"),
+          DMSans_400Regular: require("@expo-google-fonts/dm-sans/DMSans_400Regular.ttf"),
+          DMSans_500Medium: require("@expo-google-fonts/dm-sans/DMSans_500Medium.ttf"),
+          DMSans_600SemiBold: require("@expo-google-fonts/dm-sans/DMSans_600SemiBold.ttf"),
+          DMSans_700Bold: require("@expo-google-fonts/dm-sans/DMSans_700Bold.ttf"),
+          DMMono_400Regular: require("@expo-google-fonts/dm-mono/DMMono_400Regular.ttf"),
+          DMMono_500Medium: require("@expo-google-fonts/dm-mono/DMMono_500Medium.ttf"),
         });
       } catch (e) {
         console.warn("Font loading failed, using system fonts:", e);
@@ -61,7 +61,7 @@ export default function RootLayout() {
             screenOptions={{
               headerStyle: { backgroundColor: Colors.bg },
               headerTintColor: Colors.text,
-              headerTitleStyle: { fontWeight: "700", fontFamily: "SpaceGrotesk_700Bold" },
+              headerTitleStyle: { fontWeight: "700", fontFamily: FontFamily.heading },
               contentStyle: { backgroundColor: Colors.bg },
               animation: "slide_from_right",
               animationDuration: 220,

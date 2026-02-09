@@ -61,7 +61,7 @@ function UserContestCard({ item, index, onPress }: { item: any; index: number; o
     live: { color: Colors.red, bg: Colors.redMuted },
     settled: { color: Colors.accent, bg: Colors.accentMuted },
     open: { color: Colors.amber, bg: Colors.amberMuted },
-    upcoming: { color: Colors.cyan, bg: "rgba(0, 217, 245, 0.1)" },
+    upcoming: { color: Colors.cyan, bg: "rgba(93, 168, 184, 0.1)" },
   };
   const cfg = sc[status] ?? sc.open;
 
@@ -288,7 +288,7 @@ const s = StyleSheet.create({
   tournamentBadge: { backgroundColor: Colors.accentMuted, paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.xl },
   tournamentText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.accent, textTransform: "uppercase", letterSpacing: 0.5 },
   statusDot: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.xl },
-  statusDotText: { fontFamily: FontFamily.bodyBold, fontSize: 9, color: "#FFF", letterSpacing: 0.3 },
+  statusDotText: { fontFamily: FontFamily.bodyBold, fontSize: 9, color: Colors.text, letterSpacing: 0.3 },
   mcTeams: { fontFamily: FontFamily.heading, fontSize: Font.xl, color: Colors.text, marginBottom: Spacing.lg },
   mcFooter: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
   mcInfo: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },

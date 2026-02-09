@@ -2,96 +2,100 @@ import { createTheme } from "tamagui";
 import { tokens } from "./tokens";
 
 /**
- * Dark theme — default (better for sports viewing at night)
- */
-export const dark = createTheme({
-  background: tokens.color.navy,
-  backgroundHover: tokens.color.navyLight,
-  backgroundPress: tokens.color.navyLighter,
-  backgroundFocus: tokens.color.navyLight,
-
-  color: tokens.color.white,
-  colorHover: tokens.color.warmWhite,
-  colorPress: tokens.color.gray200,
-  colorFocus: tokens.color.white,
-
-  // Surface colors (cards, sheets)
-  backgroundSurface: tokens.color.charcoal,
-  backgroundSurfaceHover: tokens.color.charcoalLight,
-
-  // Accent
-  accentBackground: tokens.color.green,
-  accentColor: tokens.color.navy,
-
-  // Borders
-  borderColor: tokens.color.charcoalLight,
-  borderColorHover: tokens.color.gray600,
-  borderColorFocus: tokens.color.green,
-
-  // Shadows
-  shadowColor: "rgba(0, 0, 0, 0.4)",
-
-  // Placeholders
-  placeholderColor: tokens.color.gray500,
-});
-
-/**
- * Light theme
+ * tami·draft — Light theme
+ * Warm off-white backgrounds, earthy green accents.
  */
 export const light = createTheme({
   background: tokens.color.warmWhite,
-  backgroundHover: tokens.color.gray50,
-  backgroundPress: tokens.color.gray100,
-  backgroundFocus: tokens.color.gray50,
+  backgroundHover: tokens.color.cream,
+  backgroundPress: tokens.color.sand,
+  backgroundFocus: tokens.color.cream,
 
-  color: tokens.color.navy,
-  colorHover: tokens.color.navyLight,
-  colorPress: tokens.color.gray800,
-  colorFocus: tokens.color.navy,
+  color: "#1A1A1A",
+  colorHover: "#000000",
+  colorPress: "#333333",
+  colorFocus: "#1A1A1A",
 
+  // Surface colors (cards, sheets)
   backgroundSurface: tokens.color.white,
-  backgroundSurfaceHover: tokens.color.gray50,
+  backgroundSurfaceHover: tokens.color.cream,
 
-  accentBackground: tokens.color.green,
-  accentColor: tokens.color.navy,
+  // Surface alt (tab containers, input bg)
+  backgroundSurfaceAlt: "#EFECEA",
 
-  borderColor: tokens.color.gray200,
-  borderColorHover: tokens.color.gray300,
-  borderColorFocus: tokens.color.green,
+  // Accent
+  accentBackground: tokens.color.accent,
+  accentColor: tokens.color.white,
 
-  shadowColor: "rgba(0, 0, 0, 0.08)",
+  // Borders
+  borderColor: tokens.color.sand,
+  borderColorHover: tokens.color.sandDark,
+  borderColorFocus: tokens.color.accent,
 
-  placeholderColor: tokens.color.gray400,
+  // Shadows
+  shadowColor: "rgba(0,0,0,0.06)",
+
+  // Placeholders
+  placeholderColor: "#B5B0A8",
+
+  // Text variants
+  colorSecondary: "#8A8580",
+  colorMuted: "#B5B0A8",
+
+  // Semantic accents
+  colorAccent: tokens.color.accent,
+  colorAccentHover: tokens.color.accentHover,
+  colorAccentLight: tokens.color.accentLight,
+  colorCricket: tokens.color.cricket,
+  colorCricketLight: tokens.color.cricketLight,
+  colorHatch: tokens.color.hatch,
+  colorOverlay: "rgba(0,0,0,0.35)",
 });
 
 /**
- * Comfort Dark — enhanced contrast (WCAG AAA)
+ * tami·draft — Dark theme
+ * Deep charcoal-green backgrounds, lighter green accents.
  */
-export const comfortDark = createTheme({
-  ...dark,
-  // Higher contrast text
-  color: tokens.color.white,
-  // Larger, bolder accent
-  accentBackground: tokens.color.greenLight,
-  // More visible borders
-  borderColor: tokens.color.gray500,
-  borderColorFocus: tokens.color.greenLight,
-});
+export const dark = createTheme({
+  background: tokens.color.charcoalDeep,
+  backgroundHover: tokens.color.charcoal,
+  backgroundPress: tokens.color.charcoalLight,
+  backgroundFocus: tokens.color.charcoal,
 
-/**
- * Comfort Light — enhanced contrast (WCAG AAA)
- */
-export const comfortLight = createTheme({
-  ...light,
-  color: tokens.color.black,
-  accentBackground: tokens.color.greenDark,
-  borderColor: tokens.color.gray400,
-  borderColorFocus: tokens.color.greenDark,
+  color: "#EDECEA",
+  colorHover: "#FFFFFF",
+  colorPress: "#CCCCCC",
+  colorFocus: "#EDECEA",
+
+  backgroundSurface: tokens.color.charcoal,
+  backgroundSurfaceHover: tokens.color.charcoalLight,
+
+  backgroundSurfaceAlt: tokens.color.charcoalLight,
+
+  accentBackground: tokens.color.accentHover,
+  accentColor: tokens.color.charcoalDeep,
+
+  borderColor: tokens.color.charcoalBorder,
+  borderColorHover: "#444543",
+  borderColorFocus: tokens.color.accentHover,
+
+  shadowColor: "rgba(0,0,0,0.3)",
+
+  placeholderColor: "#5E5D5A",
+
+  colorSecondary: "#9A9894",
+  colorMuted: "#5E5D5A",
+
+  colorAccent: tokens.color.accentHover,
+  colorAccentHover: "#7BCFA0",
+  colorAccentLight: tokens.color.accentLightDark,
+  colorCricket: tokens.color.cricketDark,
+  colorCricketLight: tokens.color.cricketLightDark,
+  colorHatch: tokens.color.hatchDark,
+  colorOverlay: "rgba(0,0,0,0.55)",
 });
 
 export const allThemes = {
   dark,
   light,
-  comfortDark,
-  comfortLight,
 };

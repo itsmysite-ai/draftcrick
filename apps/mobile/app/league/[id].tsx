@@ -3,11 +3,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
+const BG = "#111210";
+const CARD = "#1C1D1B";
+const ACCENT = "#5DB882";
+const TEXT = "#EDECEA";
+const MUTED = "#5E5D5A";
 
 export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -90,11 +90,11 @@ export default function LeagueDetailScreen() {
             <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 20, marginBottom: 16 }}>
               <Text style={{ color: TEXT, fontSize: 24, fontWeight: "800" }}>{league.name}</Text>
               <View style={{ flexDirection: "row", marginTop: 8, gap: 12 }}>
-                <View style={{ backgroundColor: "#00F5A020", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                <View style={{ backgroundColor: "#5DB88220", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
                   <Text style={{ color: ACCENT, fontSize: 12, fontWeight: "600" }}>{league.format.toUpperCase()}</Text>
                 </View>
-                <View style={{ backgroundColor: "#FFD60020", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
-                  <Text style={{ color: "#FFD600", fontSize: 12, fontWeight: "600" }}>{league.template.toUpperCase()}</Text>
+                <View style={{ backgroundColor: "#D4A43D20", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                  <Text style={{ color: "#D4A43D", fontSize: 12, fontWeight: "600" }}>{league.template.toUpperCase()}</Text>
                 </View>
                 <Text style={{ color: MUTED, fontSize: 12, alignSelf: "center" }}>
                   {league.members?.length ?? 0}/{league.maxMembers} members
@@ -133,14 +133,14 @@ export default function LeagueDetailScreen() {
                 {(league.format === "auction") && (
                   <Pressable
                     onPress={() => handleStartDraft("auction")}
-                    style={{ flex: 1, backgroundColor: "#FFD600", borderRadius: 12, padding: 14, alignItems: "center" }}
+                    style={{ flex: 1, backgroundColor: "#D4A43D", borderRadius: 12, padding: 14, alignItems: "center" }}
                   >
                     <Text style={{ color: BG, fontWeight: "700", fontSize: 15 }}>Start Auction</Text>
                   </Pressable>
                 )}
                 <Pressable
                   onPress={() => router.push(`/league/${id}/settings` as any)}
-                  style={{ flex: 1, backgroundColor: CARD, borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#2A3442" }}
+                  style={{ flex: 1, backgroundColor: CARD, borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#333432" }}
                 >
                   <Text style={{ color: TEXT, fontWeight: "700", fontSize: 15 }}>Settings</Text>
                 </Pressable>
@@ -150,7 +150,7 @@ export default function LeagueDetailScreen() {
             {/* Trade button for leagues with trading enabled */}
             <Pressable
               onPress={() => router.push(`/league/${id}/trades` as any)}
-              style={{ backgroundColor: CARD, borderRadius: 12, padding: 14, marginBottom: 16, alignItems: "center", borderWidth: 1, borderColor: "#2A3442" }}
+              style={{ backgroundColor: CARD, borderRadius: 12, padding: 14, marginBottom: 16, alignItems: "center", borderWidth: 1, borderColor: "#333432" }}
             >
               <Text style={{ color: TEXT, fontWeight: "700", fontSize: 15 }}>View Trades</Text>
             </Pressable>
@@ -167,7 +167,7 @@ export default function LeagueDetailScreen() {
               <Text style={{ color: TEXT, fontSize: 15, fontWeight: "600" }}>
                 {item.user?.displayName ?? item.user?.username ?? "Unknown"}
               </Text>
-              <Text style={{ color: item.role === "owner" ? ACCENT : item.role === "admin" ? "#FFD600" : MUTED, fontSize: 12, fontWeight: "600", marginTop: 2 }}>
+              <Text style={{ color: item.role === "owner" ? ACCENT : item.role === "admin" ? "#D4A43D" : MUTED, fontSize: 12, fontWeight: "600", marginTop: 2 }}>
                 {item.role.toUpperCase()}
               </Text>
             </View>
@@ -181,17 +181,17 @@ export default function LeagueDetailScreen() {
                       role: item.role === "admin" ? "member" : "admin",
                     })
                   }
-                  style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#2A3442", borderRadius: 8 }}
+                  style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#333432", borderRadius: 8 }}
                 >
-                  <Text style={{ color: "#FFD600", fontSize: 12 }}>
+                  <Text style={{ color: "#D4A43D", fontSize: 12 }}>
                     {item.role === "admin" ? "Demote" : "Promote"}
                   </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => handleKick(item.userId, item.user?.username ?? "member")}
-                  style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#FF4C4C20", borderRadius: 8 }}
+                  style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#E5484D20", borderRadius: 8 }}
                 >
-                  <Text style={{ color: "#FF4C4C", fontSize: 12 }}>Kick</Text>
+                  <Text style={{ color: "#E5484D", fontSize: 12 }}>Kick</Text>
                 </Pressable>
               </View>
             )}
@@ -206,9 +206,9 @@ export default function LeagueDetailScreen() {
                   { text: "Leave", style: "destructive", onPress: () => leaveMutation.mutate({ leagueId: id! }) },
                 ])
               }
-              style={{ marginTop: 16, padding: 14, borderRadius: 12, backgroundColor: "#FF4C4C20", alignItems: "center" }}
+              style={{ marginTop: 16, padding: 14, borderRadius: 12, backgroundColor: "#E5484D20", alignItems: "center" }}
             >
-              <Text style={{ color: "#FF4C4C", fontWeight: "700", fontSize: 15 }}>Leave League</Text>
+              <Text style={{ color: "#E5484D", fontWeight: "700", fontSize: 15 }}>Leave League</Text>
             </Pressable>
           ) : null
         }

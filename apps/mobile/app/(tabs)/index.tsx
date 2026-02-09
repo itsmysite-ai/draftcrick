@@ -115,7 +115,7 @@ function MatchCard({ match, index, onPress }: { match: any; index: number; onPre
               hovered && { opacity: 0.85 },
             ]}
           >
-            <Text style={[s.draftBtnText, isLive ? { color: "#FFF" } : { color: Colors.textInverse }]}>
+            <Text style={[s.draftBtnText, isLive ? { color: Colors.text } : { color: Colors.textInverse }]}>
               {isLive ? "Watch" : "Draft"}
             </Text>
           </Pressable>
@@ -415,7 +415,7 @@ const s = StyleSheet.create({
   // Card list
   cardList: { paddingHorizontal: Spacing.xl, gap: Spacing.md },
 
-  // Match card — matches web feature card style: charcoal bg, #243044 border, 12px radius, 24px padding
+  // Match card — matches web feature card style: charcoal bg, #333432 border, 14px radius, 24px padding
   matchCard: {
     ...card,
     padding: Spacing["2xl"],

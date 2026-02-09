@@ -10,23 +10,23 @@ export default function HomePage() {
           justifyContent: "space-between",
           alignItems: "center",
           padding: "16px 32px",
-          borderBottom: "1px solid #1A2332",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 24, fontWeight: 800, fontFamily: "var(--font-heading)" }}>
-            DraftCrick
+            tami&#xB7;draft
           </span>
         </div>
         <nav style={{ display: "flex", gap: 24, alignItems: "center" }}>
-          <Link href="/features" style={{ color: "#ADB5BD", fontSize: 14 }}>
+          <Link href="/features" style={{ color: "var(--text-muted)", fontSize: 14 }}>
             Features
           </Link>
           <Link
             href="/login"
             style={{
-              backgroundColor: "#00F5A0",
-              color: "#0A1628",
+              backgroundColor: "var(--accent)",
+              color: "#FFFFFF",
               padding: "8px 20px",
               borderRadius: 8,
               fontWeight: 600,
@@ -53,16 +53,17 @@ export default function HomePage() {
         <div
           style={{
             display: "inline-block",
-            backgroundColor: "rgba(0, 245, 160, 0.1)",
-            color: "#00F5A0",
+            backgroundColor: "rgba(93, 184, 130, 0.1)",
+            color: "var(--accent)",
             padding: "4px 12px",
             borderRadius: 24,
             fontSize: 13,
             fontWeight: 600,
+            fontFamily: "var(--font-data)",
             marginBottom: 24,
           }}
         >
-          Fantasy Cricket, Reimagined
+          Cricket Fantasy Drafting
         </div>
 
         <h1
@@ -75,20 +76,20 @@ export default function HomePage() {
             marginBottom: 24,
           }}
         >
-          Powerful for experts.{" "}
-          <span style={{ color: "#00F5A0" }}>Effortless</span> for everyone.
+          Your draft room.{" "}
+          <span style={{ color: "var(--accent)" }}>Your rules.</span> Your season.
         </h1>
 
         <p
           style={{
             fontSize: 18,
-            color: "#ADB5BD",
+            color: "var(--text-secondary)",
             maxWidth: 600,
             lineHeight: 1.6,
             marginBottom: 40,
           }}
         >
-          The next-gen fantasy cricket platform with AI-powered Cricket Guru,
+          The cricket fantasy platform with AI-powered Cricket Guru,
           200+ customizable rules, live drafts, and real-time auctions.
         </p>
 
@@ -96,8 +97,8 @@ export default function HomePage() {
           <Link
             href="/register"
             style={{
-              backgroundColor: "#00F5A0",
-              color: "#0A1628",
+              backgroundColor: "var(--accent)",
+              color: "#FFFFFF",
               padding: "14px 32px",
               borderRadius: 12,
               fontWeight: 700,
@@ -110,12 +111,12 @@ export default function HomePage() {
             href="/features"
             style={{
               backgroundColor: "transparent",
-              color: "white",
+              color: "var(--text-primary)",
               padding: "14px 32px",
               borderRadius: 12,
               fontWeight: 600,
               fontSize: 16,
-              border: "1px solid #243044",
+              border: "1px solid var(--border)",
             }}
           >
             Explore Features
@@ -154,16 +155,16 @@ export default function HomePage() {
             <div
               key={feature.title}
               style={{
-                backgroundColor: "#1A2332",
+                backgroundColor: "var(--bg-surface)",
                 padding: 24,
                 borderRadius: 12,
-                border: "1px solid #243044",
+                border: "1px solid var(--border)",
                 textAlign: "left",
               }}
             >
               <h3
                 style={{
-                  fontFamily: "var(--font-heading)",
+                  fontFamily: "var(--font-data)",
                   fontSize: 18,
                   fontWeight: 700,
                   marginBottom: 8,
@@ -171,7 +172,7 @@ export default function HomePage() {
               >
                 {feature.title}
               </h3>
-              <p style={{ color: "#ADB5BD", fontSize: 14, lineHeight: 1.5 }}>
+              <p style={{ color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.5 }}>
                 {feature.desc}
               </p>
             </div>
@@ -183,13 +184,13 @@ export default function HomePage() {
       <footer
         style={{
           padding: "24px 32px",
-          borderTop: "1px solid #1A2332",
+          borderTop: "1px solid var(--border)",
           textAlign: "center",
-          color: "#6C757D",
+          color: "var(--text-muted)",
           fontSize: 13,
         }}
       >
-        &copy; {new Date().getFullYear()} DraftCrick. All rights reserved.
+        &copy; {new Date().getFullYear()} tami&#xB7;draft. All rights reserved.
       </footer>
     </div>
   );
