@@ -1,0 +1,22 @@
+{
+  "name": "@draftcrick/ui",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "tamagui": "^1.114.0",
+    "@tamagui/config": "^1.114.0",
+    "@tamagui/core": "^1.114.0",
+    "@tamagui/themes": "^1.114.0",
+    "react": "^18.3.0"
+  },
+  "devDependencies": {
+    "@draftcrick/tsconfig": "workspace:*",
+    "typescript": "^5.7.0",
+    "@types/react": "^18.3.0"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@draftcrick/api",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@draftcrick/db": "workspace:*",
+    "@draftcrick/shared": "workspace:*",
+    "@google/genai": "^1.40.0",
+    "@hono/node-server": "^1.13.0",
+    "@trpc/client": "^11.0.0-rc.0",
+    "@trpc/server": "^11.0.0-rc.0",
+    "firebase-admin": "^13.0.0",
+    "bullmq": "^5.30.0",
+    "hono": "^4.6.0",
+    "ioredis": "^5.4.0",
+    "socket.io": "^4.8.0",
+    "superjson": "^2.2.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@draftcrick/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
