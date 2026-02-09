@@ -10,6 +10,7 @@ import {
   InitialsAvatar,
   StatLabel,
   ModeToggle,
+  HappinessMeter,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -79,7 +80,7 @@ export default function AuctionRoomScreen() {
   return (
     <YStack flex={1} backgroundColor="$background">
       {/* Header */}
-      <YStack backgroundColor="$backgroundSurface" padding="$4" borderBottomWidth={1} borderBottomColor="$borderColor">
+      <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
           <YStack>
             <Text fontFamily="$mono" fontSize={14} fontWeight="800" letterSpacing={1} color="$accentBackground">
@@ -119,6 +120,10 @@ export default function AuctionRoomScreen() {
           </YStack>
         )}
       </YStack>
+
+      <Card marginHorizontal="$4" marginTop="$3" marginBottom="$1" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       {/* Current Player Being Auctioned */}
       {currentPlayer && (

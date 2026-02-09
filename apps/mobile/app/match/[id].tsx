@@ -9,6 +9,7 @@ import {
   InitialsAvatar,
   StatLabel,
   ModeToggle,
+  HappinessMeter,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -51,7 +52,7 @@ export default function MatchScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }}>
       {/* Match Header */}
-      <YStack padding="$5" alignItems="center" borderBottomWidth={1} borderBottomColor="$borderColor">
+      <YStack padding="$5" alignItems="center">
         <XStack justifyContent="space-between" alignItems="center" width="100%" marginBottom="$3">
           <XStack alignItems="center" gap="$2">
             <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$accentBackground">
@@ -81,6 +82,10 @@ export default function MatchScreen() {
           {isLive ? formatUIText("in progress") : `${dateStr} ${formatUIText("at")} ${timeStr}`}
         </Text>
       </YStack>
+
+      <Card marginHorizontal="$4" marginTop="$3" marginBottom="$1" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       {/* Build Team CTA */}
       {isUpcoming && (

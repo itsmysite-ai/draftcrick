@@ -10,6 +10,7 @@ import {
   InitialsAvatar,
   StatLabel,
   ModeToggle,
+  HappinessMeter,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -49,7 +50,7 @@ export default function ContestDetailScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}>
       {/* Contest Header */}
-      <YStack padding="$5" borderBottomWidth={1} borderBottomColor="$borderColor">
+      <YStack padding="$5">
         <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} flex={1}>
             {c.name}
@@ -72,6 +73,10 @@ export default function ContestDetailScreen() {
           </XStack>
         )}
       </YStack>
+
+      <Card marginHorizontal="$4" marginBottom="$3" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       {/* Stats Grid */}
       <XStack flexWrap="wrap" padding="$4" gap="$3">

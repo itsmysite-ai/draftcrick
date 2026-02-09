@@ -6,6 +6,7 @@ import {
   Card,
   Button,
   ModeToggle,
+  HappinessMeter,
   DesignSystem,
   textStyles,
   formatUIText,
@@ -58,6 +59,10 @@ export default function CreateLeagueScreen() {
         </Text>
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
+
+      <Card marginBottom="$4" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       <Text {...textStyles.sectionHeader} marginBottom="$1">
         {formatUIText("league name")}

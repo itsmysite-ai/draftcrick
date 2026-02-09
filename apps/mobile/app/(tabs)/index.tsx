@@ -1,13 +1,12 @@
 import { ScrollView as RNScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import {
   XStack,
   YStack,
   Text,
-  View,
 } from "tamagui";
 import {
   Card,
@@ -19,6 +18,7 @@ import {
   SegmentTab,
   ModeToggle,
   StatLabel,
+  formatUIText,
 } from "@draftcrick/ui";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -62,27 +62,16 @@ export default function HomeScreen() {
   const [pick, setPick] = useState(1);
   const [tab, setTab] = useState<"draft" | "team">("draft");
   const [roleFilter, setRoleFilter] = useState<"all" | RoleKey>("all");
-  const [clock, setClock] = useState(90);
-
-  useEffect(() => {
-    const iv = setInterval(() => setClock((c) => (c <= 0 ? 90 : c - 1)), 1000);
-    return () => clearInterval(iv);
-  }, []);
 
   const handleDraft = (player: Player) => {
     setMyTeam((prev) => [...prev, player]);
     setAllDrafted((prev) => [...prev, player.id]);
     setPick((p) => p + 1);
     if (pick % 4 === 0) setRound((r) => r + 1);
-    setClock(90);
   };
 
   const available = PLAYERS.filter((p) => !allDrafted.includes(p.id));
   const filtered = roleFilter === "all" ? available : available.filter((p) => p.role === roleFilter);
-  const happiness = Math.min(100, Math.round((myTeam.length / 6) * 100));
-  const happinessEmoji = happiness >= 80 ? "😄" : happiness >= 50 ? "🙂" : happiness >= 20 ? "😐" : "🥺";
-  const happinessColor = happiness >= 60 ? "$colorAccent" : happiness >= 30 ? "$colorCricket" : "$colorHatch";
-
   return (
     <YStack flex={1} backgroundColor="$background">
       <RNScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
@@ -113,34 +102,14 @@ export default function HomeScreen() {
               </Text>
             </YStack>
 
-            <XStack alignItems="center" gap="$3">
-              {/* Mode Toggle */}
-              <ModeToggle mode={mode} onToggle={toggleMode} />
-
-              {/* Clock */}
-              <YStack alignItems="flex-end">
-                <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                  rd {round} · pick {pick}
-                </Text>
-                <Text
-                  fontFamily="$mono"
-                  fontSize={22}
-                  fontWeight="500"
-                  letterSpacing={1}
-                  lineHeight={28}
-                  color={clock < 15 ? "$colorHatch" : "$color"}
-                >
-                  {String(Math.floor(clock / 60))}:{String(clock % 60).padStart(2, "0")}
-                </Text>
-              </YStack>
-            </XStack>
+            <ModeToggle mode={mode} onToggle={toggleMode} />
           </XStack>
         </Animated.View>
 
         {/* ── Happiness Meter ── */}
         <Animated.View entering={FadeInDown.delay(30).springify()}>
           <Card marginHorizontal="$4" marginBottom="$3" padding="$3" paddingHorizontal="$4">
-            <HappinessMeter current={myTeam.length} total={6} />
+            <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
           </Card>
         </Animated.View>
 
@@ -154,8 +123,8 @@ export default function HomeScreen() {
           gap="$1"
         >
           {([
-            { key: "draft" as const, label: "Available", count: available.length },
-            { key: "team" as const, label: "My Squad", count: myTeam.length },
+            { key: "draft" as const, label: formatUIText("available"), count: available.length },
+            { key: "team" as const, label: formatUIText("my squad"), count: myTeam.length },
           ]).map((tb) => (
             <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
               <Text

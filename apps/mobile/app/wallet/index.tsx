@@ -7,6 +7,7 @@ import {
   Card,
   Button,
   ModeToggle,
+  HappinessMeter,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -83,6 +84,10 @@ export default function WalletScreen() {
       <XStack justifyContent="flex-end" paddingHorizontal="$4" paddingTop="$4">
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
+
+      <Card marginHorizontal="$4" marginTop="$3" marginBottom="$1" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       {/* Balance Card */}
       {w && (

@@ -8,6 +8,7 @@ import {
   Button,
   InitialsAvatar,
   ModeToggle,
+  HappinessMeter,
   DesignSystem,
   textStyles,
   formatUIText,
@@ -67,6 +68,9 @@ export default function LeagueDetailScreen() {
           <XStack justifyContent="flex-end" marginBottom="$3">
             <ModeToggle mode={mode} onToggle={toggleMode} />
           </XStack>
+          <Card marginBottom="$3" padding="$3" paddingHorizontal="$4">
+            <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+          </Card>
           <Card padding="$5" marginBottom="$4">
             <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
               {league.name}

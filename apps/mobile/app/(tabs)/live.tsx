@@ -18,6 +18,7 @@ import {
   InitialsAvatar,
   StatLabel,
   ModeToggle,
+  HappinessMeter,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -269,8 +270,6 @@ export default function LiveScreen() {
         alignItems="center"
         paddingHorizontal="$5"
         paddingVertical="$4"
-        borderBottomWidth={1}
-        borderBottomColor="$borderColor"
       >
         <XStack alignItems="center" gap="$2">
           <YStack width={4} height={20} borderRadius={2} backgroundColor="$error" />
@@ -296,6 +295,10 @@ export default function LiveScreen() {
           <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
       </XStack>
+
+      <Card marginHorizontal="$4" marginBottom="$3" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       {data.length === 0 ? (
         <Animated.View entering={FadeIn.delay(80)} style={{ flex: 1 }}>

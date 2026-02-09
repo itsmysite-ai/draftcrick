@@ -79,7 +79,7 @@ export default function TeamBuilderScreen() {
   if (step === "captain") {
     return (
       <YStack flex={1} backgroundColor="$background">
-        <YStack backgroundColor="$backgroundSurface" padding="$4" borderBottomWidth={1} borderBottomColor="$borderColor">
+        <YStack backgroundColor="$backgroundSurface" padding="$4">
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
             {formatUIText("select captain & vice-captain")}
           </Text>
@@ -140,7 +140,7 @@ export default function TeamBuilderScreen() {
   return (
     <YStack flex={1} backgroundColor="$background">
       {/* Stats Header */}
-      <XStack backgroundColor="$backgroundSurface" padding="$4" justifyContent="space-between" alignItems="center" borderBottomWidth={1} borderBottomColor="$borderColor">
+      <XStack backgroundColor="$backgroundSurface" padding="$4" justifyContent="space-between" alignItems="center">
         <YStack>
           <Text {...textStyles.hint}>{formatBadgeText("credits remaining")}</Text>
           <Text fontFamily="$mono" fontWeight="800" fontSize={20} color={creditsRemaining < 10 ? "$error" : "$color"}>
@@ -164,10 +164,10 @@ export default function TeamBuilderScreen() {
         </XStack>
       </XStack>
 
-      {/* Progress Bar with HappinessMeter */}
-      <YStack paddingHorizontal="$4" paddingVertical="$2">
-        <HappinessMeter current={selectedPlayers.length} total={TEAM_SIZE} />
-      </YStack>
+      {/* Progress Bar */}
+      <Card marginHorizontal="$4" marginTop="$3" marginBottom="$1" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={selectedPlayers.length} total={TEAM_SIZE} label="team progress" unit="selected" />
+      </Card>
 
       {/* Role Filter Tabs */}
       <XStack padding="$3" gap="$2">

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Card, Button, ModeToggle, formatUIText } from "@draftcrick/ui";
+import { Card, Button, ModeToggle, HappinessMeter, formatUIText } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -93,9 +93,7 @@ export default function ProfileScreen() {
           <YStack
             alignItems="center"
             paddingVertical="$8"
-            marginBottom="$5"
-            borderBottomWidth={1}
-            borderBottomColor="$borderColor"
+            marginBottom="$3"
           >
             <YStack
               width={72}
@@ -140,6 +138,10 @@ export default function ProfileScreen() {
             )}
           </YStack>
         </Animated.View>
+
+        <Card marginBottom="$4" padding="$3" paddingHorizontal="$4">
+          <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+        </Card>
 
         {isLoggedIn && wallet.data && (
           <Animated.View entering={FadeInDown.delay(80).springify()}>

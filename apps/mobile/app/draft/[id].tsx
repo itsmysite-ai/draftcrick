@@ -11,6 +11,7 @@ import {
   FilterPill,
   HatchModal,
   ModeToggle,
+  HappinessMeter,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -91,7 +92,7 @@ export default function DraftRoomScreen() {
   return (
     <YStack flex={1} backgroundColor="$background">
       {/* Header */}
-      <YStack backgroundColor="$backgroundSurface" padding="$4" borderBottomWidth={1} borderBottomColor="$borderColor">
+      <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
           <YStack>
             <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
@@ -129,6 +130,10 @@ export default function DraftRoomScreen() {
           </Text>
         )}
       </YStack>
+
+      <Card marginHorizontal="$4" marginTop="$3" marginBottom="$1" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       {/* Start button */}
       {draftState?.status === "waiting" && (

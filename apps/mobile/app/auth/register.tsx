@@ -5,6 +5,8 @@ import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Button,
   ModeToggle,
+  HappinessMeter,
+  Card,
   DesignSystem,
   formatUIText,
 } from "@draftcrick/ui";
@@ -26,9 +28,14 @@ export default function RegisterScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" padding="$6" justifyContent="center">
-      <XStack position="absolute" top="$6" right="$6" zIndex={1}>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
-      </XStack>
+      <YStack position="absolute" top="$6" left="$6" right="$6" zIndex={1} gap="$3">
+        <XStack justifyContent="flex-end">
+          <ModeToggle mode={mode} onToggle={toggleMode} />
+        </XStack>
+        <Card padding="$3" paddingHorizontal="$4">
+          <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+        </Card>
+      </YStack>
       <Text fontSize={48} textAlign="center" marginBottom="$4">
         {DesignSystem.emptyState.icon}
       </Text>

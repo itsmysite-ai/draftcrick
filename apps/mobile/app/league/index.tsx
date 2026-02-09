@@ -9,6 +9,7 @@ import {
   Button,
   InitialsAvatar,
   ModeToggle,
+  HappinessMeter,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -46,6 +47,9 @@ export default function LeaguesListScreen() {
               </Text>
               <ModeToggle mode={mode} onToggle={toggleMode} />
             </XStack>
+            <Card marginBottom="$4" padding="$3" paddingHorizontal="$4">
+              <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+            </Card>
             <XStack gap="$3">
               <Button variant="primary" size="md" flex={1} onPress={() => router.push("/league/create" as any)}>
                 {formatUIText("create league")}

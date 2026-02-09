@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   ModeToggle,
+  HappinessMeter,
   DesignSystem,
   textStyles,
   formatUIText,
@@ -63,6 +64,9 @@ export default function GuruScreen() {
       <XStack justifyContent="flex-end" paddingHorizontal="$4" paddingTop="$3" paddingBottom="$1">
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
+      <Card marginHorizontal="$4" marginBottom="$2" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}

@@ -4,6 +4,7 @@ interface HappinessMeterProps extends Omit<GetProps<typeof XStack>, "children"> 
   current: number;
   total: number;
   label?: string;
+  unit?: string;
 }
 
 /**
@@ -16,6 +17,7 @@ export function HappinessMeter({
   current,
   total,
   label = "team happiness",
+  unit = "drafted",
   ...props
 }: HappinessMeterProps) {
   const percentage = Math.min(100, Math.round((current / total) * 100));
@@ -39,7 +41,7 @@ export function HappinessMeter({
             {label}
           </Text>
           <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-            {current}/{total} drafted
+            {current}/{total} {unit}
           </Text>
         </XStack>
         <YStack

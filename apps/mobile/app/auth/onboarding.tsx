@@ -5,6 +5,7 @@ import {
   Card,
   Button,
   ModeToggle,
+  HappinessMeter,
   DesignSystem,
   formatUIText,
 } from "@draftcrick/ui";
@@ -42,6 +43,10 @@ export default function OnboardingScreen() {
           <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
       </XStack>
+
+      <Card marginBottom="$4" padding="$3" paddingHorizontal="$4">
+        <HappinessMeter current={3} total={10} label="season progress" unit="xp earned" />
+      </Card>
 
       {step === 0 && (
         <YStack flex={1}>
