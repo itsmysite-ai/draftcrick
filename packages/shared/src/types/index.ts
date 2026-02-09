@@ -4,3 +4,4 @@ export * from "./contest";
 export * from "./draft";
 export * from "./prediction";
 export * from "./social";
+export * from "./sports";
