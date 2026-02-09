@@ -1,12 +1,13 @@
-import { View, Text, FlatList, Pressable, RefreshControl } from "react-native";
+import { FlatList, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Card, Badge, Button } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
 
 export default function LeaguesListScreen() {
   const router = useRouter();
-  const { t } = useTheme();
+  const theme = useTamaguiTheme();
   const { data: memberships, isLoading, refetch } = trpc.league.myLeagues.useQuery();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -16,84 +17,51 @@ export default function LeaguesListScreen() {
     setRefreshing(false);
   };
 
-  const formatColor = (format: string) => {
-    switch (format) {
-      case "draft": return t.accent;
-      case "auction": return t.gold;
-      case "salary_cap": return t.cyan;
-      case "prediction": return t.purple;
-      default: return t.textTertiary;
-    }
-  };
-
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <YStack flex={1} backgroundColor="$background">
       <FlatList
         data={memberships ?? []}
         keyExtractor={(item: any) => item.leagueId ?? item.league?.id}
         contentContainerStyle={{ padding: 16 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}
         ListHeaderComponent={
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: t.text, fontSize: 24, fontWeight: "800", marginBottom: 16 }}>My Leagues</Text>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable
-                onPress={() => router.push("/league/create" as any)}
-                style={{ flex: 1, backgroundColor: t.accent, borderRadius: 14, padding: 14, alignItems: "center" }}
-              >
-                <Text style={{ color: t.textInverse, fontWeight: "800", fontSize: 15 }}>Create League</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => router.push("/league/join" as any)}
-                style={{ flex: 1, backgroundColor: t.bgSurface, borderRadius: 14, padding: 14, alignItems: "center", borderWidth: 1, borderColor: t.accent }}
-              >
-                <Text style={{ color: t.accent, fontWeight: "800", fontSize: 15 }}>Join League</Text>
-              </Pressable>
-            </View>
-          </View>
+          <YStack marginBottom="$4">
+            <Text fontFamily="$heading" fontWeight="800" fontSize={24} color="$color" marginBottom="$4">My Leagues</Text>
+            <XStack gap="$3">
+              <Button variant="primary" size="md" flex={1} onPress={() => router.push("/league/create" as any)}>Create League</Button>
+              <Button variant="secondary" size="md" flex={1} onPress={() => router.push("/league/join" as any)}>Join League</Button>
+            </XStack>
+          </YStack>
         }
         renderItem={({ item }: { item: any }) => {
           const league = item.league;
           if (!league) return null;
-
           return (
-            <Pressable
-              onPress={() => router.push(`/league/${league.id}` as any)}
-              style={{ backgroundColor: t.bgSurface, borderRadius: 14, padding: 16, marginBottom: 10 }}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: t.text, fontSize: 17, fontWeight: "700" }}>{league.name}</Text>
-                  <Text style={{ color: t.textTertiary, fontSize: 13, marginTop: 2 }}>{league.tournament}</Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <View style={{
-                    backgroundColor: formatColor(league.format) + "20",
-                    paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
-                  }}>
-                    <Text style={{ color: formatColor(league.format), fontSize: 11, fontWeight: "700" }}>
-                      {league.format.replace("_", " ").toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={{ color: t.textTertiary, fontSize: 11, marginTop: 4 }}>
-                    {item.role === "owner" ? "Owner" : item.role === "admin" ? "Admin" : "Member"}
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
+            <Card pressable onPress={() => router.push(`/league/${league.id}` as any)} marginBottom="$3" padding="$4">
+              <XStack justifyContent="space-between" alignItems="flex-start">
+                <YStack flex={1}>
+                  <Text fontFamily="$body" fontWeight="700" fontSize={17} color="$color">{league.name}</Text>
+                  <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginTop={2}>{league.tournament}</Text>
+                </YStack>
+                <YStack alignItems="flex-end">
+                  <Badge backgroundColor="$colorAccentLight" color="$colorAccent" size="sm" fontWeight="700">{league.format.replace("_", " ").toUpperCase()}</Badge>
+                  <Text fontFamily="$body" fontSize={11} color="$colorMuted" marginTop="$1">{item.role === "owner" ? "Owner" : item.role === "admin" ? "Admin" : "Member"}</Text>
+                </YStack>
+              </XStack>
+            </Card>
           );
         }}
         ListEmptyComponent={
           isLoading ? (
-            <Text style={{ color: t.textTertiary, textAlign: "center", marginTop: 32 }}>Loading...</Text>
+            <Text fontFamily="$body" color="$colorMuted" textAlign="center" marginTop="$8">Loading...</Text>
           ) : (
-            <View style={{ alignItems: "center", marginTop: 32 }}>
-              <Text style={{ color: t.textTertiary, fontSize: 16 }}>No leagues yet</Text>
-              <Text style={{ color: t.textTertiary, fontSize: 13, marginTop: 4 }}>Create or join a league to get started</Text>
-            </View>
+            <YStack alignItems="center" marginTop="$8">
+              <Text fontFamily="$body" color="$colorMuted" fontSize={16}>No leagues yet</Text>
+              <Text fontFamily="$body" color="$colorMuted" fontSize={13} marginTop="$1">Create or join a league to get started</Text>
+            </YStack>
           )
         }
       />
-    </View>
+    </YStack>
   );
 }

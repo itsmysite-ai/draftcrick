@@ -1,9 +1,9 @@
-import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
+import { TextInput, ScrollView } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
+import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { Button } from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
-import { FontFamily } from "../../lib/design";
 
 type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
 type Template = "casual" | "competitive" | "pro" | "custom";
@@ -15,9 +15,15 @@ const FORMATS: { value: LeagueFormat; label: string; desc: string }[] = [
   { value: "prediction", label: "Prediction", desc: "Predict match outcomes" },
 ];
 
+const TEMPLATES: { value: Template; label: string; desc: string }[] = [
+  { value: "casual", label: "Casual", desc: "Relaxed rules, generous transfers" },
+  { value: "competitive", label: "Competitive", desc: "Trading, playoffs, waiver wire" },
+  { value: "pro", label: "Pro", desc: "Strict rules, trade vetoes, advanced scoring" },
+];
+
 export default function CreateLeagueScreen() {
   const router = useRouter();
-  const { t } = useTheme();
+  const theme = useTamaguiTheme();
   const [name, setName] = useState("");
   const [format, setFormat] = useState<LeagueFormat>("salary_cap");
   const [template, setTemplate] = useState<Template>("casual");
@@ -25,151 +31,75 @@ export default function CreateLeagueScreen() {
   const [maxMembers, setMaxMembers] = useState("10");
   const [isPrivate, setIsPrivate] = useState(true);
 
-  const TEMPLATES: { value: Template; label: string; desc: string; color: string }[] = [
-    { value: "casual", label: "Casual", desc: "Relaxed rules, generous transfers", color: t.accent },
-    { value: "competitive", label: "Competitive", desc: "Trading, playoffs, waiver wire", color: t.amber },
-    { value: "pro", label: "Pro", desc: "Strict rules, trade vetoes, advanced scoring", color: t.red },
-  ];
-
   const createMutation = trpc.league.create.useMutation({
-    onSuccess: (league) => {
-      router.replace(`/league/${league!.id}` as any);
-    },
+    onSuccess: (league) => { router.replace(`/league/${league!.id}` as any); },
   });
 
   const handleCreate = () => {
     if (!name.trim()) return;
-    createMutation.mutate({
-      name: name.trim(),
-      format,
-      template,
-      tournament,
-      maxMembers: parseInt(maxMembers) || 10,
-      isPrivate,
-    });
+    createMutation.mutate({ name: name.trim(), format, template, tournament, maxMembers: parseInt(maxMembers) || 10, isPrivate });
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: 16 }}>
-      <Text style={{ color: t.text, fontSize: 24, fontWeight: "800", marginBottom: 24 }}>Create League</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ padding: 16 }}>
+      <Text fontFamily="$heading" fontWeight="800" fontSize={24} color="$color" marginBottom="$6">Create League</Text>
 
-      {/* Name */}
-      <Text style={{ color: t.textTertiary, fontSize: 13, marginBottom: 6, fontWeight: "600" }}>LEAGUE NAME</Text>
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder="e.g. The Willow Warriors"
-        placeholderTextColor={t.textTertiary}
-        style={{
-          backgroundColor: t.bg, color: t.text, borderRadius: 12, padding: 14, fontSize: 16,
-          borderWidth: 1, borderColor: t.border, marginBottom: 20,
-        }}
-      />
+      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">LEAGUE NAME</Text>
+      <TextInput value={name} onChangeText={setName} placeholder="e.g. The Willow Warriors" placeholderTextColor={theme.placeholderColor.val}
+        style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
 
-      {/* Tournament */}
-      <Text style={{ color: t.textTertiary, fontSize: 13, marginBottom: 6, fontWeight: "600" }}>TOURNAMENT</Text>
-      <TextInput
-        value={tournament}
-        onChangeText={setTournament}
-        placeholder="e.g. IPL 2026"
-        placeholderTextColor={t.textTertiary}
-        style={{
-          backgroundColor: t.bg, color: t.text, borderRadius: 12, padding: 14, fontSize: 16,
-          borderWidth: 1, borderColor: t.border, marginBottom: 20,
-        }}
-      />
+      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">TOURNAMENT</Text>
+      <TextInput value={tournament} onChangeText={setTournament} placeholder="e.g. IPL 2026" placeholderTextColor={theme.placeholderColor.val}
+        style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
 
-      {/* Format */}
-      <Text style={{ color: t.textTertiary, fontSize: 13, marginBottom: 8, fontWeight: "600" }}>FORMAT</Text>
-      <View style={{ marginBottom: 20 }}>
+      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$2" fontWeight="600">FORMAT</Text>
+      <YStack marginBottom="$5">
         {FORMATS.map((f) => (
-          <Pressable
-            key={f.value}
-            onPress={() => setFormat(f.value)}
-            style={{
-              backgroundColor: format === f.value ? t.accentMuted : t.bgSurface,
-              borderRadius: 12, padding: 14, marginBottom: 8,
-              borderWidth: 1, borderColor: format === f.value ? t.accent : t.border,
-            }}
-          >
-            <Text style={{ color: format === f.value ? t.accent : t.text, fontWeight: "700", fontSize: 15 }}>{f.label}</Text>
-            <Text style={{ color: t.textTertiary, fontSize: 12, marginTop: 2 }}>{f.desc}</Text>
-          </Pressable>
+          <XStack key={f.value} backgroundColor={format === f.value ? "$colorAccentLight" : "$backgroundSurface"} borderColor={format === f.value ? "$accentBackground" : "$borderColor"}
+            borderWidth={1} borderRadius="$3" padding="$4" marginBottom="$2" onPress={() => setFormat(f.value)} cursor="pointer" pressStyle={{ scale: 0.98, opacity: 0.9 }}>
+            <YStack>
+              <Text fontFamily="$body" fontWeight="700" fontSize={15} color={format === f.value ? "$accentBackground" : "$color"}>{f.label}</Text>
+              <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>{f.desc}</Text>
+            </YStack>
+          </XStack>
         ))}
-      </View>
+      </YStack>
 
-      {/* Template */}
-      <Text style={{ color: t.textTertiary, fontSize: 13, marginBottom: 8, fontWeight: "600" }}>TEMPLATE</Text>
-      <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
+      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$2" fontWeight="600">TEMPLATE</Text>
+      <XStack gap="$3" marginBottom="$5">
         {TEMPLATES.map((tmpl) => (
-          <Pressable
-            key={tmpl.value}
-            onPress={() => setTemplate(tmpl.value)}
-            style={{
-              flex: 1, backgroundColor: template === tmpl.value ? `${tmpl.color}15` : t.bgSurface,
-              borderRadius: 12, padding: 14, alignItems: "center",
-              borderWidth: 1, borderColor: template === tmpl.value ? tmpl.color : t.border,
-            }}
-          >
-            <Text style={{ color: template === tmpl.value ? tmpl.color : t.text, fontWeight: "700", fontSize: 15 }}>
-              {tmpl.label}
-            </Text>
-            <Text style={{ color: t.textTertiary, fontSize: 10, marginTop: 4, textAlign: "center" }}>{tmpl.desc}</Text>
-          </Pressable>
+          <YStack key={tmpl.value} flex={1} backgroundColor={template === tmpl.value ? "$colorAccentLight" : "$backgroundSurface"}
+            borderColor={template === tmpl.value ? "$accentBackground" : "$borderColor"} borderWidth={1} borderRadius="$3" padding="$4" alignItems="center"
+            onPress={() => setTemplate(tmpl.value)} cursor="pointer" pressStyle={{ scale: 0.97, opacity: 0.9 }}>
+            <Text fontFamily="$body" fontWeight="700" fontSize={15} color={template === tmpl.value ? "$accentBackground" : "$color"}>{tmpl.label}</Text>
+            <Text fontFamily="$body" fontSize={10} color="$colorMuted" marginTop="$1" textAlign="center">{tmpl.desc}</Text>
+          </YStack>
         ))}
-      </View>
+      </XStack>
 
-      {/* Max Members */}
-      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20 }}>
-        <View style={{ flex: 1, marginRight: 10 }}>
-          <Text style={{ color: t.textTertiary, fontSize: 13, marginBottom: 6, fontWeight: "600" }}>MAX MEMBERS</Text>
-          <TextInput
-            value={maxMembers}
-            onChangeText={setMaxMembers}
-            keyboardType="numeric"
-            style={{
-              backgroundColor: t.bg, color: t.text, borderRadius: 12, padding: 14, fontSize: 16,
-              borderWidth: 1, borderColor: t.border,
-            }}
-          />
-        </View>
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={{ color: t.textTertiary, fontSize: 13, marginBottom: 6, fontWeight: "600" }}>VISIBILITY</Text>
-          <Pressable
-            onPress={() => setIsPrivate(!isPrivate)}
-            style={{
-              backgroundColor: t.bg, borderRadius: 12, padding: 14,
-              borderWidth: 1, borderColor: t.border, alignItems: "center",
-            }}
-          >
-            <Text style={{ color: isPrivate ? t.accent : t.amber, fontWeight: "700", fontSize: 16 }}>
-              {isPrivate ? "Private" : "Public"}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+      <XStack gap="$3" marginBottom="$5">
+        <YStack flex={1}>
+          <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">MAX MEMBERS</Text>
+          <TextInput value={maxMembers} onChangeText={setMaxMembers} keyboardType="numeric"
+            style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, borderColor: theme.borderColor.val }} />
+        </YStack>
+        <YStack flex={1}>
+          <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">VISIBILITY</Text>
+          <YStack backgroundColor="$background" borderRadius="$3" padding="$4" borderWidth={1} borderColor="$borderColor" alignItems="center"
+            onPress={() => setIsPrivate(!isPrivate)} cursor="pointer" pressStyle={{ opacity: 0.8 }}>
+            <Text fontFamily="$body" fontWeight="700" fontSize={16} color={isPrivate ? "$accentBackground" : "$colorCricket"}>{isPrivate ? "Private" : "Public"}</Text>
+          </YStack>
+        </YStack>
+      </XStack>
 
-      {/* Create Button */}
-      <Pressable
-        onPress={handleCreate}
-        disabled={createMutation.isPending || !name.trim()}
-        style={{
-          backgroundColor: !name.trim() ? t.textTertiary : t.accent,
-          borderRadius: 14, padding: 16, alignItems: "center", marginTop: 8,
-        }}
-      >
-        <Text style={{ color: t.bg, fontSize: 18, fontWeight: "800" }}>
-          {createMutation.isPending ? "Creating..." : "Create League"}
-        </Text>
-      </Pressable>
+      <Button variant="primary" size="lg" onPress={handleCreate} disabled={createMutation.isPending || !name.trim()} opacity={!name.trim() ? 0.4 : 1} marginTop="$2">
+        {createMutation.isPending ? "Creating..." : "Create League"}
+      </Button>
 
       {createMutation.error && (
-        <Text style={{ color: t.red, textAlign: "center", marginTop: 12 }}>
-          {createMutation.error.message}
-        </Text>
+        <Text fontFamily="$body" color="$error" textAlign="center" marginTop="$3">{createMutation.error.message}</Text>
       )}
-
-      <View style={{ height: 40 }} />
+      <YStack height={40} />
     </ScrollView>
   );
 }
