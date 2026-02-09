@@ -18,11 +18,11 @@ const TABS: Record<string, {
   inactive: keyof typeof Ionicons.glyphMap;
   label: string;
 }> = {
-  index: { active: "home", inactive: "home-outline", label: "Home" },
-  contests: { active: "trophy", inactive: "trophy-outline", label: "Contests" },
-  live: { active: "pulse", inactive: "pulse-outline", label: "Live" },
-  social: { active: "people", inactive: "people-outline", label: "Leagues" },
-  profile: { active: "person", inactive: "person-outline", label: "Profile" },
+  index: { active: "home", inactive: "home-outline", label: "home" },
+  contests: { active: "trophy", inactive: "trophy-outline", label: "contests" },
+  live: { active: "pulse", inactive: "pulse-outline", label: "live" },
+  social: { active: "people", inactive: "people-outline", label: "leagues" },
+  profile: { active: "person", inactive: "person-outline", label: "profile" },
 };
 
 function TabItem({

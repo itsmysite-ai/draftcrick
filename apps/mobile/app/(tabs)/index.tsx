@@ -148,11 +148,11 @@ export default function HomeScreen() {
             contentContainerStyle={{ paddingHorizontal: 16, gap: 6, paddingBottom: 14 }}
           >
             {([
-              { key: "all" as const, label: "All" },
-              { key: "BAT" as const, label: "🏏 Batsmen" },
-              { key: "BOWL" as const, label: "🎯 Bowlers" },
-              { key: "AR" as const, label: "⚡ All-Round" },
-              { key: "WK" as const, label: "🧤 Keepers" },
+              { key: "all" as const, label: "all" },
+              { key: "BAT" as const, label: "🏏 batsmen" },
+              { key: "BOWL" as const, label: "🎯 bowlers" },
+              { key: "AR" as const, label: "⚡ all-round" },
+              { key: "WK" as const, label: "🧤 keepers" },
             ]).map((f) => (
               <FilterPill key={f.key} active={roleFilter === f.key} onPress={() => setRoleFilter(f.key)}>
                 <Text
