@@ -1,26 +1,12 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
-import { ActivityIndicator, View } from "react-native";
-import { useFonts } from "expo-font";
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from "@expo-google-fonts/inter";
-import {
-  SpaceGrotesk_700Bold,
-  SpaceGrotesk_800ExtraBold,
-} from "@expo-google-fonts/space-grotesk";
-import * as SplashScreen from "expo-splash-screen";
+import { useState, useEffect, useCallback } from "react";
+import { ActivityIndicator, View, Platform } from "react-native";
 import { AuthProvider } from "../providers/AuthProvider";
 import { ComfortModeProvider } from "../providers/ComfortModeProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
 import { Colors } from "../lib/design";
-
-SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [queryClient] = useState(
@@ -36,21 +22,30 @@ export default function RootLayout() {
       })
   );
   const [trpcClient] = useState(() => getTRPCClient());
+  const [fontsReady, setFontsReady] = useState(false);
 
-  const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    SpaceGrotesk_700Bold,
-    SpaceGrotesk_800ExtraBold,
-  });
+  useEffect(() => {
+    async function loadFonts() {
+      try {
+        const Font = require("expo-font");
+        await Font.loadAsync({
+          Inter_400Regular: require("@expo-google-fonts/inter/Inter_400Regular.ttf"),
+          Inter_500Medium: require("@expo-google-fonts/inter/Inter_500Medium.ttf"),
+          Inter_600SemiBold: require("@expo-google-fonts/inter/Inter_600SemiBold.ttf"),
+          Inter_700Bold: require("@expo-google-fonts/inter/Inter_700Bold.ttf"),
+          SpaceGrotesk_700Bold: require("@expo-google-fonts/space-grotesk/SpaceGrotesk_700Bold.ttf"),
+          SpaceGrotesk_800ExtraBold: require("@expo-google-fonts/space-grotesk/SpaceGrotesk_800ExtraBold.ttf"),
+        });
+      } catch (e) {
+        console.warn("Font loading failed, using system fonts:", e);
+      } finally {
+        setFontsReady(true);
+      }
+    }
+    loadFonts();
+  }, []);
 
-  if (fontsLoaded) {
-    SplashScreen.hideAsync();
-  }
-
-  if (!fontsLoaded) {
+  if (!fontsReady) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.bg, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator color={Colors.accent} size="large" />
