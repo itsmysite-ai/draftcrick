@@ -89,6 +89,7 @@ export const tokens = createTokens({
   },
 
   space: {
+    true: 16,
     0: 0,
     1: 4,
     2: 8,
@@ -106,6 +107,7 @@ export const tokens = createTokens({
   },
 
   size: {
+    true: 16,
     0: 0,
     1: 4,
     2: 8,
@@ -123,6 +125,7 @@ export const tokens = createTokens({
   },
 
   radius: {
+    true: 8,
     0: 0,
     1: 4,
     2: 8,
@@ -134,6 +137,7 @@ export const tokens = createTokens({
   },
 
   zIndex: {
+    true: 100,
     0: 0,
     1: 100,
     2: 200,
