@@ -2,23 +2,30 @@ import { TextInput, ScrollView } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Button } from "@draftcrick/ui";
+import {
+  Card,
+  Button,
+  DesignSystem,
+  textStyles,
+  formatUIText,
+  formatBadgeText,
+} from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 
 type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
 type Template = "casual" | "competitive" | "pro" | "custom";
 
 const FORMATS: { value: LeagueFormat; label: string; desc: string }[] = [
-  { value: "salary_cap", label: "Salary Cap", desc: "Classic fantasy with budget constraints" },
-  { value: "draft", label: "Snake Draft", desc: "Take turns picking players" },
-  { value: "auction", label: "Auction", desc: "Bid on players with limited budget" },
-  { value: "prediction", label: "Prediction", desc: "Predict match outcomes" },
+  { value: "salary_cap", label: "salary cap", desc: "classic fantasy with budget constraints" },
+  { value: "draft", label: "snake draft", desc: "take turns picking players" },
+  { value: "auction", label: "auction", desc: "bid on players with limited budget" },
+  { value: "prediction", label: "prediction", desc: "predict match outcomes" },
 ];
 
 const TEMPLATES: { value: Template; label: string; desc: string }[] = [
-  { value: "casual", label: "Casual", desc: "Relaxed rules, generous transfers" },
-  { value: "competitive", label: "Competitive", desc: "Trading, playoffs, waiver wire" },
-  { value: "pro", label: "Pro", desc: "Strict rules, trade vetoes, advanced scoring" },
+  { value: "casual", label: "casual", desc: "relaxed rules, generous transfers" },
+  { value: "competitive", label: "competitive", desc: "trading, playoffs, waiver wire" },
+  { value: "pro", label: "pro", desc: "strict rules, trade vetoes, advanced scoring" },
 ];
 
 export default function CreateLeagueScreen() {
@@ -42,58 +49,96 @@ export default function CreateLeagueScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ padding: 16 }}>
-      <Text fontFamily="$heading" fontWeight="800" fontSize={24} color="$color" marginBottom="$6">Create League</Text>
+      <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} marginBottom="$6">
+        {formatUIText("create league")}
+      </Text>
 
-      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">LEAGUE NAME</Text>
-      <TextInput value={name} onChangeText={setName} placeholder="e.g. The Willow Warriors" placeholderTextColor={theme.placeholderColor.val}
-        style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
+      <Text {...textStyles.sectionHeader} marginBottom="$1">
+        {formatUIText("league name")}
+      </Text>
+      <TextInput value={name} onChangeText={setName} placeholder="e.g. the willow warriors" placeholderTextColor={theme.placeholderColor.val}
+        style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: DesignSystem.radius.lg, padding: 14, fontSize: 16, fontFamily: "DM Sans", borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
 
-      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">TOURNAMENT</Text>
+      <Text {...textStyles.sectionHeader} marginBottom="$1">
+        {formatUIText("tournament")}
+      </Text>
       <TextInput value={tournament} onChangeText={setTournament} placeholder="e.g. IPL 2026" placeholderTextColor={theme.placeholderColor.val}
-        style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
+        style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: DesignSystem.radius.lg, padding: 14, fontSize: 16, fontFamily: "DM Sans", borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
 
-      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$2" fontWeight="600">FORMAT</Text>
+      <Text {...textStyles.sectionHeader} marginBottom="$2">
+        {formatUIText("format")}
+      </Text>
       <YStack marginBottom="$5">
         {FORMATS.map((f) => (
-          <XStack key={f.value} backgroundColor={format === f.value ? "$colorAccentLight" : "$backgroundSurface"} borderColor={format === f.value ? "$accentBackground" : "$borderColor"}
-            borderWidth={1} borderRadius="$3" padding="$4" marginBottom="$2" onPress={() => setFormat(f.value)} cursor="pointer" pressStyle={{ scale: 0.98, opacity: 0.9 }}>
-            <YStack>
-              <Text fontFamily="$body" fontWeight="700" fontSize={15} color={format === f.value ? "$accentBackground" : "$color"}>{f.label}</Text>
-              <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>{f.desc}</Text>
-            </YStack>
-          </XStack>
+          <Card
+            key={f.value}
+            pressable
+            marginBottom="$2"
+            padding="$4"
+            borderColor={format === f.value ? "$accentBackground" : "$borderColor"}
+            onPress={() => setFormat(f.value)}
+          >
+            <Text fontFamily="$body" fontWeight="700" fontSize={15} color={format === f.value ? "$accentBackground" : "$color"}>
+              {f.label}
+            </Text>
+            <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
+              {f.desc}
+            </Text>
+          </Card>
         ))}
       </YStack>
 
-      <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$2" fontWeight="600">TEMPLATE</Text>
+      <Text {...textStyles.sectionHeader} marginBottom="$2">
+        {formatUIText("template")}
+      </Text>
       <XStack gap="$3" marginBottom="$5">
         {TEMPLATES.map((tmpl) => (
-          <YStack key={tmpl.value} flex={1} backgroundColor={template === tmpl.value ? "$colorAccentLight" : "$backgroundSurface"}
-            borderColor={template === tmpl.value ? "$accentBackground" : "$borderColor"} borderWidth={1} borderRadius="$3" padding="$4" alignItems="center"
-            onPress={() => setTemplate(tmpl.value)} cursor="pointer" pressStyle={{ scale: 0.97, opacity: 0.9 }}>
-            <Text fontFamily="$body" fontWeight="700" fontSize={15} color={template === tmpl.value ? "$accentBackground" : "$color"}>{tmpl.label}</Text>
-            <Text fontFamily="$body" fontSize={10} color="$colorMuted" marginTop="$1" textAlign="center">{tmpl.desc}</Text>
-          </YStack>
+          <Card
+            key={tmpl.value}
+            pressable
+            flex={1}
+            padding="$4"
+            alignItems="center"
+            borderColor={template === tmpl.value ? "$accentBackground" : "$borderColor"}
+            onPress={() => setTemplate(tmpl.value)}
+          >
+            <Text fontFamily="$body" fontWeight="700" fontSize={15} color={template === tmpl.value ? "$accentBackground" : "$color"}>
+              {tmpl.label}
+            </Text>
+            <Text fontFamily="$body" fontSize={10} color="$colorMuted" marginTop="$1" textAlign="center">
+              {tmpl.desc}
+            </Text>
+          </Card>
         ))}
       </XStack>
 
       <XStack gap="$3" marginBottom="$5">
         <YStack flex={1}>
-          <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">MAX MEMBERS</Text>
+          <Text {...textStyles.sectionHeader} marginBottom="$1">
+            {formatUIText("max members")}
+          </Text>
           <TextInput value={maxMembers} onChangeText={setMaxMembers} keyboardType="numeric"
-            style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: 12, padding: 14, fontSize: 16, borderWidth: 1, borderColor: theme.borderColor.val }} />
+            style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: DesignSystem.radius.lg, padding: 14, fontSize: 16, fontFamily: "DM Mono", borderWidth: 1, borderColor: theme.borderColor.val }} />
         </YStack>
         <YStack flex={1}>
-          <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginBottom="$1" fontWeight="600">VISIBILITY</Text>
-          <YStack backgroundColor="$background" borderRadius="$3" padding="$4" borderWidth={1} borderColor="$borderColor" alignItems="center"
-            onPress={() => setIsPrivate(!isPrivate)} cursor="pointer" pressStyle={{ opacity: 0.8 }}>
-            <Text fontFamily="$body" fontWeight="700" fontSize={16} color={isPrivate ? "$accentBackground" : "$colorCricket"}>{isPrivate ? "Private" : "Public"}</Text>
-          </YStack>
+          <Text {...textStyles.sectionHeader} marginBottom="$1">
+            {formatUIText("visibility")}
+          </Text>
+          <Card
+            pressable
+            padding="$4"
+            alignItems="center"
+            onPress={() => setIsPrivate(!isPrivate)}
+          >
+            <Text fontFamily="$mono" fontWeight="700" fontSize={16} color={isPrivate ? "$accentBackground" : "$colorCricket"}>
+              {formatUIText(isPrivate ? "private" : "public")}
+            </Text>
+          </Card>
         </YStack>
       </XStack>
 
       <Button variant="primary" size="lg" onPress={handleCreate} disabled={createMutation.isPending || !name.trim()} opacity={!name.trim() ? 0.4 : 1} marginTop="$2">
-        {createMutation.isPending ? "Creating..." : "Create League"}
+        {createMutation.isPending ? formatUIText("creating...") : formatUIText("create league")}
       </Button>
 
       {createMutation.error && (

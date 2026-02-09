@@ -2,7 +2,11 @@ import { TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Button } from "@draftcrick/ui";
+import {
+  Button,
+  DesignSystem,
+  formatUIText,
+} from "@draftcrick/ui";
 import { useAuth } from "../../providers/AuthProvider";
 
 export default function RegisterScreen() {
@@ -19,23 +23,26 @@ export default function RegisterScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" padding="$6" justifyContent="center">
-      <Text fontFamily="$heading" fontWeight="800" fontSize={28} color="$color" marginBottom="$2">
-        Create Account
+      <Text fontSize={48} textAlign="center" marginBottom="$4">
+        {DesignSystem.emptyState.icon}
+      </Text>
+      <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
+        {formatUIText("create account")}
       </Text>
       <Text fontFamily="$body" fontSize={15} color="$colorMuted" marginBottom="$8">
-        Join thousands of fantasy cricket players
+        {formatUIText("join thousands of fantasy cricket players")}
       </Text>
 
       <YStack gap="$4">
         <TextInput
-          placeholder="Username"
+          placeholder={formatUIText("username")}
           placeholderTextColor={theme.placeholderColor.val}
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
           style={{
             backgroundColor: theme.backgroundSurface.val,
-            borderRadius: 12,
+            borderRadius: DesignSystem.radius.lg,
             padding: 16,
             color: theme.color.val,
             fontSize: 16,
@@ -44,7 +51,7 @@ export default function RegisterScreen() {
           }}
         />
         <TextInput
-          placeholder="Email"
+          placeholder={formatUIText("email")}
           placeholderTextColor={theme.placeholderColor.val}
           value={email}
           onChangeText={setEmail}
@@ -52,7 +59,7 @@ export default function RegisterScreen() {
           keyboardType="email-address"
           style={{
             backgroundColor: theme.backgroundSurface.val,
-            borderRadius: 12,
+            borderRadius: DesignSystem.radius.lg,
             padding: 16,
             color: theme.color.val,
             fontSize: 16,
@@ -61,14 +68,14 @@ export default function RegisterScreen() {
           }}
         />
         <TextInput
-          placeholder="Password (8+ characters)"
+          placeholder={formatUIText("password (8+ characters)")}
           placeholderTextColor={theme.placeholderColor.val}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
           style={{
             backgroundColor: theme.backgroundSurface.val,
-            borderRadius: 12,
+            borderRadius: DesignSystem.radius.lg,
             padding: 16,
             color: theme.color.val,
             fontSize: 16,
@@ -77,14 +84,14 @@ export default function RegisterScreen() {
           }}
         />
         <Button variant="primary" size="lg" onPress={handleRegister}>
-          Create Account
+          {formatUIText("create account")}
         </Button>
         <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/login")} cursor="pointer">
           <Text fontFamily="$body" fontSize={14} color="$colorMuted">
-            Already have an account?{" "}
+            {formatUIText("already have an account?")}{" "}
           </Text>
           <Text fontFamily="$body" fontSize={14} color="$accentBackground" fontWeight="600">
-            Sign in
+            {formatUIText("sign in")}
           </Text>
         </XStack>
       </YStack>

@@ -2,7 +2,11 @@ import { TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Button } from "@draftcrick/ui";
+import {
+  Button,
+  DesignSystem,
+  formatUIText,
+} from "@draftcrick/ui";
 import { useAuth } from "../../providers/AuthProvider";
 
 export default function LoginScreen() {
@@ -18,16 +22,19 @@ export default function LoginScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" padding="$6" justifyContent="center">
-      <Text fontFamily="$heading" fontWeight="800" fontSize={28} color="$color" marginBottom="$2">
-        Welcome Back
+      <Text fontSize={48} textAlign="center" marginBottom="$4">
+        {DesignSystem.emptyState.icon}
+      </Text>
+      <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
+        {formatUIText("welcome back")}
       </Text>
       <Text fontFamily="$body" fontSize={15} color="$colorMuted" marginBottom="$8">
-        Sign in to your DraftCrick account
+        {formatUIText("sign in to your draftcrick account")}
       </Text>
 
       <YStack gap="$4">
         <TextInput
-          placeholder="Email"
+          placeholder={formatUIText("email")}
           placeholderTextColor={theme.placeholderColor.val}
           value={email}
           onChangeText={setEmail}
@@ -36,7 +43,7 @@ export default function LoginScreen() {
           keyboardType="email-address"
           style={{
             backgroundColor: theme.backgroundSurface.val,
-            borderRadius: 12,
+            borderRadius: DesignSystem.radius.lg,
             padding: 16,
             color: theme.color.val,
             fontSize: 16,
@@ -46,14 +53,14 @@ export default function LoginScreen() {
         />
 
         <TextInput
-          placeholder="Password"
+          placeholder={formatUIText("password")}
           placeholderTextColor={theme.placeholderColor.val}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
           style={{
             backgroundColor: theme.backgroundSurface.val,
-            borderRadius: 12,
+            borderRadius: DesignSystem.radius.lg,
             padding: 16,
             color: theme.color.val,
             fontSize: 16,
@@ -63,32 +70,32 @@ export default function LoginScreen() {
         />
 
         <Button variant="primary" size="lg" onPress={handleLogin}>
-          Sign In
+          {formatUIText("sign in")}
         </Button>
 
         <XStack alignItems="center" marginVertical="$2">
           <YStack flex={1} height={1} backgroundColor="$borderColor" />
           <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
-            or continue with
+            {formatUIText("or continue with")}
           </Text>
           <YStack flex={1} height={1} backgroundColor="$borderColor" />
         </XStack>
 
         <XStack gap="$3">
           <Button variant="secondary" size="md" flex={1}>
-            Google
+            {formatUIText("google")}
           </Button>
           <Button variant="secondary" size="md" flex={1}>
-            Apple
+            {formatUIText("apple")}
           </Button>
         </XStack>
 
         <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/register")} cursor="pointer">
           <Text fontFamily="$body" fontSize={14} color="$colorMuted">
-            Don't have an account?{" "}
+            {formatUIText("don't have an account?")}{" "}
           </Text>
           <Text fontFamily="$body" fontSize={14} color="$accentBackground" fontWeight="600">
-            Sign up
+            {formatUIText("sign up")}
           </Text>
         </XStack>
       </YStack>

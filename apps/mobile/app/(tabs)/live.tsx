@@ -1,10 +1,9 @@
 import {
-  FlatList, ActivityIndicator, RefreshControl,
+  FlatList, RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeInDown, FadeIn, useSharedValue, useAnimatedStyle,
   withRepeat, withTiming, Easing,
@@ -12,7 +11,19 @@ import Animated, {
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
-import { Card, Badge, Button, tokens } from "@draftcrick/ui";
+import {
+  Card,
+  Badge,
+  Button,
+  InitialsAvatar,
+  StatLabel,
+  EggLoadingSpinner,
+  DesignSystem,
+  textStyles,
+  formatUIText,
+  formatBadgeText,
+  tokens,
+} from "@draftcrick/ui";
 
 // ---------------------------------------------------------------------------
 // PulsingDot — animated live indicator (reanimated, needs raw color values)
@@ -70,39 +81,25 @@ function LiveMatchCard({
   index: number;
   onPress: () => void;
 }) {
-  const theme = useTamaguiTheme();
   const isLive = match.status === "live";
   const teamA = match.teamA || match.teamHome || "TBA";
   const teamB = match.teamB || match.teamAway || "TBA";
-  const tournament = match.tournamentName || match.tournament || "Cricket";
+  const tournament = match.tournamentName || match.tournament || "cricket";
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
       <Card pressable live={isLive} onPress={onPress} padding="$6" marginBottom="$3">
         {/* Header: tournament badge + live/upcoming status */}
         <XStack justifyContent="space-between" alignItems="center" marginBottom="$4">
-          <Badge
-            backgroundColor="$colorAccentLight"
-            color="$accentBackground"
-            fontFamily="$body"
-            textTransform="uppercase"
-            letterSpacing={0.5}
-            size="sm"
-            paddingHorizontal="$2"
-          >
-            {tournament}
+          <Badge variant="role" size="sm">
+            {formatBadgeText(tournament)}
           </Badge>
 
           <XStack alignItems="center" gap={5}>
             {isLive && <PulsingDot size={4} />}
-            <Text
-              fontFamily="$body"
-              fontWeight="700"
-              fontSize={10}
-              color={isLive ? "$error" : "#4A5DB5"}
-            >
-              {(match.status || "upcoming").toUpperCase()}
-            </Text>
+            <Badge variant={isLive ? "live" : "default"} size="sm">
+              {formatBadgeText(match.status || "upcoming")}
+            </Badge>
           </XStack>
         </XStack>
 
@@ -110,25 +107,14 @@ function LiveMatchCard({
         <XStack alignItems="center" justifyContent="center" marginBottom="$4">
           {/* Team A */}
           <YStack flex={1} alignItems="center" gap={6}>
-            <YStack
-              width={48}
-              height={48}
-              borderRadius={24}
-              borderWidth={1}
-              alignItems="center"
-              justifyContent="center"
-              backgroundColor="$backgroundHover"
-              borderColor="$borderColor"
-            >
-              <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color">
-                {teamA.substring(0, 3).toUpperCase()}
-              </Text>
-            </YStack>
+            <InitialsAvatar
+              name={teamA}
+              playerRole="BAT"
+              ovr={0}
+              size={48}
+            />
             <Text
-              fontFamily="$body"
-              fontWeight="600"
-              fontSize={14}
-              color="$color"
+              {...textStyles.playerName}
               numberOfLines={1}
               textAlign="center"
             >
@@ -138,43 +124,26 @@ function LiveMatchCard({
 
           {/* VS divider */}
           <YStack alignItems="center" gap={2}>
-            <Text fontFamily="$body" fontSize={10} color="$colorMuted">
-              VS
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+              {formatUIText("vs")}
             </Text>
             {match.format && (
-              <Text
-                fontFamily="$body"
-                fontSize={9}
-                color="$colorMuted"
-                textTransform="uppercase"
-                letterSpacing={0.5}
-              >
-                {match.format}
+              <Text fontFamily="$mono" fontSize={9} color="$colorMuted" letterSpacing={0.5}>
+                {formatBadgeText(match.format)}
               </Text>
             )}
           </YStack>
 
           {/* Team B */}
           <YStack flex={1} alignItems="center" gap={6}>
-            <YStack
-              width={48}
-              height={48}
-              borderRadius={24}
-              borderWidth={1}
-              alignItems="center"
-              justifyContent="center"
-              backgroundColor="$backgroundHover"
-              borderColor="$borderColor"
-            >
-              <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color">
-                {teamB.substring(0, 3).toUpperCase()}
-              </Text>
-            </YStack>
+            <InitialsAvatar
+              name={teamB}
+              playerRole="BOWL"
+              ovr={0}
+              size={48}
+            />
             <Text
-              fontFamily="$body"
-              fontWeight="600"
-              fontSize={14}
-              color="$color"
+              {...textStyles.playerName}
               numberOfLines={1}
               textAlign="center"
             >
@@ -186,7 +155,7 @@ function LiveMatchCard({
         {/* Score summary */}
         {match.scoreSummary && (
           <YStack alignItems="center" marginBottom="$3">
-            <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$colorCricket">
+            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorCricket">
               {match.scoreSummary}
             </Text>
           </YStack>
@@ -200,20 +169,17 @@ function LiveMatchCard({
           borderTopWidth={1}
           borderTopColor="$borderColor"
         >
-          <XStack alignItems="center" gap="$1">
-            <Ionicons name="time-outline" size={12} color={theme.colorMuted.val} />
-            <Text fontFamily="$body" fontSize={10} color="$colorMuted">
-              {match.time || match.venue || ""}
-            </Text>
-          </XStack>
+          <Text {...textStyles.hint}>
+            {match.time || match.venue || ""}
+          </Text>
 
           <Button
             onPress={onPress}
             size="sm"
-            backgroundColor={isLive ? "$error" : "$colorAccentLight"}
-            color={isLive ? "$color" : "$accentBackground"}
+            variant={isLive ? "primary" : "secondary"}
+            fontFamily="$mono"
           >
-            {isLive ? "Watch Live" : "Draft Now"}
+            {isLive ? formatUIText("watch live") : formatUIText("draft now")}
           </Button>
         </XStack>
       </Card>
@@ -289,7 +255,7 @@ export default function LiveScreen() {
         paddingTop={insets.top}
         backgroundColor="$background"
       >
-        <ActivityIndicator color={theme.accentBackground.val} size="large" />
+        <EggLoadingSpinner size={48} message={formatUIText("loading matches")} />
       </YStack>
     );
   }
@@ -307,8 +273,8 @@ export default function LiveScreen() {
       >
         <XStack alignItems="center" gap="$2">
           <YStack width={4} height={20} borderRadius={2} backgroundColor="$error" />
-          <Text fontFamily="$body" fontWeight="700" fontSize={22} color="$color">
-            Live & Upcoming
+          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            {formatUIText("live & upcoming")}
           </Text>
         </XStack>
 
@@ -316,25 +282,13 @@ export default function LiveScreen() {
           {liveMatches.length > 0 && (
             <XStack alignItems="center" gap={5}>
               <PulsingDot size={4} />
-              <Text
-                fontFamily="$body"
-                fontWeight="600"
-                fontSize={10}
-                letterSpacing={1}
-                color="$colorSecondary"
-              >
-                REAL-TIME
+              <Text fontFamily="$mono" fontSize={10} letterSpacing={1} color="$colorSecondary">
+                {formatBadgeText("real-time")}
               </Text>
             </XStack>
           )}
           {data.length > 0 && (
-            <Badge
-              backgroundColor="$errorLight"
-              color="$error"
-              fontFamily="$body"
-              fontWeight="600"
-              fontSize={12}
-            >
+            <Badge variant="live" size="sm">
               {data.length}
             </Badge>
           )}
@@ -350,31 +304,33 @@ export default function LiveScreen() {
             paddingHorizontal="$8"
             gap="$3"
           >
-            <Ionicons name="pulse-outline" size={40} color={theme.colorMuted.val} />
-            <Text fontFamily="$body" fontWeight="700" fontSize={18} color="$color">
-              No matches right now
+            <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$3">
+              {DesignSystem.emptyState.icon}
+            </Text>
+            <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$color">
+              {formatUIText("no matches right now")}
             </Text>
             <Text
-              fontFamily="$body"
-              fontSize={14}
-              color="$colorSecondary"
+              {...textStyles.hint}
               textAlign="center"
-              lineHeight={22}
+              lineHeight={20}
               marginBottom="$3"
             >
-              Live scoring and real-time updates appear here during matches
+              {formatUIText("live scoring and real-time updates appear here during matches")}
             </Text>
 
             <Card alignSelf="stretch" gap="$3" padding="$6">
               {([
-                ["flash-outline", "Real-time scores & ball-by-ball"],
-                ["stats-chart-outline", "Fantasy point tracking"],
-                ["notifications-outline", "Wicket & milestone alerts"],
-              ] as const).map(([icon, text], i) => (
+                "real-time scores & ball-by-ball",
+                "fantasy point tracking",
+                "wicket & milestone alerts",
+              ]).map((text, i) => (
                 <XStack key={i} alignItems="center" gap="$3">
-                  <Ionicons name={icon} size={15} color={theme.accentBackground.val} />
+                  <Text fontFamily="$mono" fontSize={11} color="$colorAccent">
+                    &gt;
+                  </Text>
                   <Text fontFamily="$body" fontSize={14} color="$colorSecondary">
-                    {text}
+                    {formatUIText(text)}
                   </Text>
                 </XStack>
               ))}

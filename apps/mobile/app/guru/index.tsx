@@ -1,7 +1,16 @@
 import { TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
 import { useState } from "react";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Button, Card } from "@draftcrick/ui";
+import {
+  Card,
+  Badge,
+  Button,
+  DesignSystem,
+  textStyles,
+  formatUIText,
+  formatBadgeText,
+} from "@draftcrick/ui";
 
 interface Message {
   id: string;
@@ -10,10 +19,10 @@ interface Message {
 }
 
 const SUGGESTIONS = [
-  "Who should I captain for IND vs AUS?",
-  "Build me a team under 100 credits",
-  "What does waiver wire mean?",
-  "Preview of CSK vs MI",
+  "who should i captain for IND vs AUS?",
+  "build me a team under 100 credits",
+  "what does waiver wire mean?",
+  "preview of CSK vs MI",
 ];
 
 export default function GuruScreen() {
@@ -23,7 +32,7 @@ export default function GuruScreen() {
     {
       id: "welcome",
       role: "guru",
-      content: "Hi! I'm your Cricket Guru. Ask me anything about fantasy cricket — team picks, rule explanations, match previews, or player comparisons.",
+      content: "hi! i'm your cricket guru. ask me anything about fantasy cricket — team picks, rule explanations, match previews, or player comparisons.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -35,7 +44,7 @@ export default function GuruScreen() {
     const guruMsg: Message = {
       id: (Date.now() + 1).toString(),
       role: "guru",
-      content: "I'm not connected to the AI backend yet. Once the AI service is integrated, I'll be able to answer your cricket questions with real-time data!",
+      content: "i'm not connected to the AI backend yet. once the AI service is integrated, i'll be able to answer your cricket questions with real-time data!",
     };
 
     setMessages((prev) => [...prev, userMsg, guruMsg]);
@@ -51,32 +60,37 @@ export default function GuruScreen() {
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <YStack
-            maxWidth="85%"
-            padding="$4"
-            borderRadius="$4"
-            alignSelf={item.role === "user" ? "flex-end" : "flex-start"}
-            backgroundColor={item.role === "user" ? "$accentBackground" : "$backgroundSurface"}
-            borderBottomRightRadius={item.role === "user" ? 4 : "$4"}
-            borderBottomLeftRadius={item.role === "guru" ? 4 : "$4"}
-            borderWidth={item.role === "guru" ? 1 : 0}
-            borderColor={item.role === "guru" ? "$borderColor" : "transparent"}
-          >
-            {item.role === "guru" && (
-              <Text fontFamily="$mono" fontSize={11} color="$accentBackground" fontWeight="700" marginBottom="$1">
-                Cricket Guru
-              </Text>
-            )}
-            <Text
-              fontFamily="$body"
-              fontSize={15}
-              lineHeight={22}
-              color={item.role === "user" ? "$accentColor" : "$color"}
+        renderItem={({ item, index }) => (
+          <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
+            <YStack
+              maxWidth="85%"
+              padding="$4"
+              borderRadius="$4"
+              alignSelf={item.role === "user" ? "flex-end" : "flex-start"}
+              backgroundColor={item.role === "user" ? "$accentBackground" : "$backgroundSurface"}
+              borderBottomRightRadius={item.role === "user" ? 4 : "$4"}
+              borderBottomLeftRadius={item.role === "guru" ? 4 : "$4"}
+              borderWidth={item.role === "guru" ? 1 : 0}
+              borderColor={item.role === "guru" ? "$borderColor" : "transparent"}
             >
-              {item.content}
-            </Text>
-          </YStack>
+              {item.role === "guru" && (
+                <XStack alignItems="center" gap="$2" marginBottom="$1">
+                  <Text fontSize={14}>{DesignSystem.emptyState.icon}</Text>
+                  <Badge variant="role" size="sm">
+                    {formatBadgeText("cricket guru")}
+                  </Badge>
+                </XStack>
+              )}
+              <Text
+                fontFamily="$body"
+                fontSize={15}
+                lineHeight={22}
+                color={item.role === "user" ? "$accentColor" : "$color"}
+              >
+                {item.content}
+              </Text>
+            </YStack>
+          </Animated.View>
         )}
         contentContainerStyle={{ padding: 16, gap: 12 }}
       />
@@ -121,7 +135,7 @@ export default function GuruScreen() {
             color: theme.color.val,
             fontSize: 15,
           }}
-          placeholder="Ask Cricket Guru..."
+          placeholder={formatUIText("ask cricket guru...")}
           placeholderTextColor={theme.placeholderColor.val}
           value={input}
           onChangeText={setInput}
@@ -135,7 +149,7 @@ export default function GuruScreen() {
           paddingHorizontal="$5"
           onPress={sendMessage}
         >
-          Send
+          {formatUIText("send")}
         </Button>
       </XStack>
     </KeyboardAvoidingView>

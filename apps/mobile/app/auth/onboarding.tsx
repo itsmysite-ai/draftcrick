@@ -1,14 +1,18 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Button } from "@draftcrick/ui";
+import {
+  Card,
+  Button,
+  DesignSystem,
+  formatUIText,
+} from "@draftcrick/ui";
 
 const TEAMS = ["CSK", "MI", "RCB", "KKR", "DC", "SRH", "PBKS", "GT", "LSG", "RR"];
 const FORMATS = [
-  { key: "salary_cap", label: "Salary Cap", icon: "cash-outline" as const, desc: "Build teams within a budget" },
-  { key: "draft", label: "Draft", icon: "swap-horizontal-outline" as const, desc: "Take turns picking players" },
-  { key: "prediction", label: "Prediction", icon: "analytics-outline" as const, desc: "Predict match outcomes" },
+  { key: "salary_cap", label: "salary cap", desc: "build teams within a budget" },
+  { key: "draft", label: "draft", desc: "take turns picking players" },
+  { key: "prediction", label: "prediction", desc: "predict match outcomes" },
 ];
 
 export default function OnboardingScreen() {
@@ -32,8 +36,15 @@ export default function OnboardingScreen() {
 
       {step === 0 && (
         <YStack flex={1}>
-          <Text fontFamily="$heading" fontWeight="700" fontSize={28} color="$color" marginBottom="$2">Pick Your Team</Text>
-          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">Who do you support?</Text>
+          <Text fontSize={48} marginBottom="$3">
+            {DesignSystem.emptyState.icon}
+          </Text>
+          <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
+            {formatUIText("pick your team")}
+          </Text>
+          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">
+            {formatUIText("who do you support?")}
+          </Text>
           <XStack flexWrap="wrap" gap="$3">
             {TEAMS.map((team) => (
               <XStack
@@ -49,45 +60,50 @@ export default function OnboardingScreen() {
                 pressStyle={{ scale: 0.96, opacity: 0.9 }}
                 hoverStyle={{ backgroundColor: "$backgroundSurfaceHover" }}
               >
-                <Text fontFamily="$body" fontWeight="600" fontSize={15} color={favoriteTeam === team ? "$accentBackground" : "$color"}>{team}</Text>
+                <Text fontFamily="$mono" fontWeight="600" fontSize={15} color={favoriteTeam === team ? "$accentBackground" : "$color"}>
+                  {team}
+                </Text>
               </XStack>
             ))}
           </XStack>
           <YStack marginTop="auto" marginBottom={32}>
-            <Button variant="primary" size="lg" disabled={!favoriteTeam} opacity={!favoriteTeam ? 0.4 : 1} onPress={() => setStep(1)}>Next</Button>
+            <Button variant="primary" size="lg" disabled={!favoriteTeam} opacity={!favoriteTeam ? 0.4 : 1} onPress={() => setStep(1)}>
+              {formatUIText("next")}
+            </Button>
           </YStack>
         </YStack>
       )}
 
       {step === 1 && (
         <YStack flex={1}>
-          <Text fontFamily="$heading" fontWeight="700" fontSize={28} color="$color" marginBottom="$2">Choose Your Style</Text>
-          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">How do you want to play?</Text>
+          <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
+            {formatUIText("choose your style")}
+          </Text>
+          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">
+            {formatUIText("how do you want to play?")}
+          </Text>
           <YStack gap="$3">
             {FORMATS.map((f) => (
-              <XStack
+              <Card
                 key={f.key}
-                backgroundColor={preferredFormat === f.key ? "$colorAccentLight" : "$backgroundSurface"}
-                borderColor={preferredFormat === f.key ? "$accentBackground" : "$borderColor"}
-                borderWidth={2}
-                borderRadius="$3"
+                pressable
                 padding="$5"
-                alignItems="center"
-                gap="$4"
+                borderColor={preferredFormat === f.key ? "$accentBackground" : "$borderColor"}
                 onPress={() => setPreferredFormat(f.key)}
-                cursor="pointer"
-                pressStyle={{ scale: 0.98, backgroundColor: "$backgroundSurfaceHover" }}
               >
-                <Ionicons name={f.icon} size={20} color={preferredFormat === f.key ? theme.accentBackground.val : theme.colorMuted.val} />
-                <YStack flex={1}>
-                  <Text fontFamily="$heading" fontWeight="700" fontSize={17} color={preferredFormat === f.key ? "$accentBackground" : "$color"}>{f.label}</Text>
-                  <Text fontFamily="$body" fontSize={13} color="$colorSecondary" marginTop={2}>{f.desc}</Text>
-                </YStack>
-              </XStack>
+                <Text fontFamily="$mono" fontWeight="500" fontSize={17} color={preferredFormat === f.key ? "$accentBackground" : "$color"} letterSpacing={-0.5}>
+                  {f.label}
+                </Text>
+                <Text fontFamily="$body" fontSize={13} color="$colorSecondary" marginTop={2}>
+                  {f.desc}
+                </Text>
+              </Card>
             ))}
           </YStack>
           <YStack marginTop="auto" marginBottom={32}>
-            <Button variant="primary" size="lg" disabled={!preferredFormat} opacity={!preferredFormat ? 0.4 : 1} onPress={handleComplete}>Let's Go</Button>
+            <Button variant="primary" size="lg" disabled={!preferredFormat} opacity={!preferredFormat ? 0.4 : 1} onPress={handleComplete}>
+              {formatUIText("let's go")}
+            </Button>
           </YStack>
         </YStack>
       )}

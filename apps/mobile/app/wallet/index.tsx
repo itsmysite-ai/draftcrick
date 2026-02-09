@@ -1,8 +1,17 @@
-import { ScrollView, ActivityIndicator, RefreshControl, TextInput, Alert } from "react-native";
+import { ScrollView, RefreshControl, TextInput, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback } from "react";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Card, Button } from "@draftcrick/ui";
+import {
+  Card,
+  Button,
+  EggLoadingSpinner,
+  DesignSystem,
+  textStyles,
+  formatUIText,
+  formatBadgeText,
+} from "@draftcrick/ui";
 import { trpc } from "../../lib/trpc";
 
 export default function WalletScreen() {
@@ -21,10 +30,10 @@ export default function WalletScreen() {
       transactions.refetch();
       setDepositAmount("");
       setShowDeposit(false);
-      Alert.alert("Deposit Successful", "Funds have been added to your wallet");
+      Alert.alert(formatUIText("deposit successful"), formatUIText("funds have been added to your wallet"));
     },
     onError: (error) => {
-      Alert.alert("Deposit Failed", error.message);
+      Alert.alert(formatUIText("deposit failed"), error.message);
     },
   });
 
@@ -34,18 +43,20 @@ export default function WalletScreen() {
     setRefreshing(false);
   }, [wallet, transactions]);
 
-  // Not authenticated
   if (wallet.error?.data?.code === "UNAUTHORIZED") {
     return (
       <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center" padding="$5">
-        <Text fontFamily="$heading" fontWeight="700" fontSize={20} color="$color" marginBottom="$2">
-          Sign In Required
+        <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$4">
+          {DesignSystem.emptyState.icon}
+        </Text>
+        <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} marginBottom="$2">
+          {formatUIText("sign in required")}
         </Text>
         <Text fontFamily="$body" fontSize={14} color="$colorMuted" marginBottom="$5">
-          Sign in to access your wallet
+          {formatUIText("sign in to access your wallet")}
         </Text>
         <Button variant="primary" size="md" onPress={() => router.push("/auth/login")}>
-          Sign In
+          {formatUIText("sign in")}
         </Button>
       </YStack>
     );
@@ -54,7 +65,7 @@ export default function WalletScreen() {
   if (wallet.isLoading) {
     return (
       <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center">
-        <ActivityIndicator color={theme.accentBackground.val} size="large" />
+        <EggLoadingSpinner size={48} message={formatUIText("loading wallet")} />
       </YStack>
     );
   }
@@ -64,37 +75,35 @@ export default function WalletScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background.val }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}
     >
       {/* Balance Card */}
       {w && (
         <Card margin="$4" padding="$5" borderColor="$colorAccentLight">
-          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textTransform="uppercase" letterSpacing={0.5}>
-            Total Balance
+          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" letterSpacing={0.5}>
+            {formatBadgeText("total balance")}
           </Text>
-          <Text fontFamily="$heading" fontWeight="800" fontSize={36} color="$accentBackground" marginTop="$1" marginBottom="$4">
+          <Text fontFamily="$mono" fontWeight="800" fontSize={36} color="$accentBackground" marginTop="$1" marginBottom="$4">
             {"\u20B9"}{w.totalBalance.toFixed(2)}
           </Text>
           <XStack borderTopWidth={1} borderTopColor="$borderColor" paddingTop="$4">
             <YStack flex={1} alignItems="center">
-              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Cash</Text>
-              <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("cash")}</Text>
+              <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
                 {"\u20B9"}{w.cashBalance.toFixed(2)}
               </Text>
             </YStack>
             <YStack width={1} backgroundColor="$borderColor" />
             <YStack flex={1} alignItems="center">
-              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Bonus</Text>
-              <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("bonus")}</Text>
+              <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
                 {"\u20B9"}{w.bonusBalance.toFixed(2)}
               </Text>
             </YStack>
             <YStack width={1} backgroundColor="$borderColor" />
             <YStack flex={1} alignItems="center">
-              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Winnings</Text>
-              <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$accentBackground" marginTop="$1">
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("winnings")}</Text>
+              <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$accentBackground" marginTop="$1">
                 {"\u20B9"}{w.totalWinnings.toFixed(2)}
               </Text>
             </YStack>
@@ -105,33 +114,34 @@ export default function WalletScreen() {
       {/* Action Buttons */}
       <XStack paddingHorizontal="$4" gap="$3" marginBottom="$4">
         <Button variant="primary" size="md" flex={1} onPress={() => setShowDeposit(!showDeposit)}>
-          {showDeposit ? "Cancel" : "Add Cash"}
+          {showDeposit ? formatUIText("cancel") : formatUIText("add cash")}
         </Button>
         <Button variant="secondary" size="md" flex={1}>
-          Withdraw
+          {formatUIText("withdraw")}
         </Button>
       </XStack>
 
       {/* Deposit Form */}
       {showDeposit && (
         <Card marginHorizontal="$4" marginBottom="$4" padding="$4">
-          <Text fontFamily="$heading" fontWeight="700" fontSize={16} color="$color" marginBottom="$3">
-            Add Cash
+          <Text fontFamily="$mono" fontWeight="500" fontSize={16} color="$color" letterSpacing={-0.5} marginBottom="$3">
+            {formatUIText("add cash")}
           </Text>
           <TextInput
-            placeholder="Enter amount"
+            placeholder={formatUIText("enter amount")}
             placeholderTextColor={theme.placeholderColor.val}
             keyboardType="numeric"
             value={depositAmount}
             onChangeText={setDepositAmount}
             style={{
               backgroundColor: theme.background.val,
-              borderRadius: 10,
+              borderRadius: DesignSystem.radius.lg,
               paddingHorizontal: 16,
               paddingVertical: 14,
               fontSize: 18,
               color: theme.color.val,
               fontWeight: "700",
+              fontFamily: "DM Mono",
               borderWidth: 1,
               borderColor: theme.borderColor.val,
               marginBottom: 12,
@@ -165,13 +175,13 @@ export default function WalletScreen() {
             onPress={() => {
               const amount = Number(depositAmount);
               if (isNaN(amount) || amount < 1) {
-                Alert.alert("Invalid Amount", "Enter a valid amount");
+                Alert.alert(formatUIText("invalid amount"), formatUIText("enter a valid amount"));
                 return;
               }
               deposit.mutate({ amount });
             }}
           >
-            {deposit.isPending ? "Processing..." : `Add \u20B9${depositAmount || "0"}`}
+            {deposit.isPending ? formatUIText("processing...") : `${formatUIText("add")} \u20B9${depositAmount || "0"}`}
           </Button>
         </Card>
       )}
@@ -180,14 +190,14 @@ export default function WalletScreen() {
       {w && (
         <XStack paddingHorizontal="$4" gap="$3" marginBottom="$4">
           <Card flex={1} padding="$3">
-            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Total Deposited</Text>
-            <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("total deposited")}</Text>
+            <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
               {"\u20B9"}{w.totalDeposited.toFixed(0)}
             </Text>
           </Card>
           <Card flex={1} padding="$3">
-            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">Total Withdrawn</Text>
-            <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
+            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("total withdrawn")}</Text>
+            <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color" marginTop="$1">
               {"\u20B9"}{w.totalWithdrawn.toFixed(0)}
             </Text>
           </Card>
@@ -196,41 +206,46 @@ export default function WalletScreen() {
 
       {/* Transaction History */}
       <YStack paddingHorizontal="$4" marginBottom="$8">
-        <Text fontFamily="$heading" fontWeight="700" fontSize={18} color="$color" marginBottom="$3">
-          Recent Transactions
+        <Text {...textStyles.sectionHeader} marginBottom="$3">
+          {formatUIText("recent transactions")}
         </Text>
         {transactions.isLoading ? (
-          <ActivityIndicator color={theme.accentBackground.val} style={{ padding: 20 }} />
+          <EggLoadingSpinner size={32} message={formatUIText("loading transactions")} />
         ) : transactions.data && transactions.data.length > 0 ? (
-          transactions.data.map((txn) => {
+          transactions.data.map((txn, i) => {
             const isCredit = txn.type === "deposit" || txn.type === "winnings" || txn.type === "bonus" || txn.type === "refund";
             return (
-              <Card key={txn.id} marginBottom="$1" padding="$4">
-                <XStack justifyContent="space-between" alignItems="center">
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" textTransform="capitalize">
-                      {txn.type.replace("_", " ").toUpperCase()}
+              <Animated.View key={txn.id} entering={FadeInDown.delay(i * 25).springify()}>
+                <Card marginBottom="$1" padding="$4">
+                  <XStack justifyContent="space-between" alignItems="center">
+                    <YStack flex={1}>
+                      <Text fontFamily="$mono" fontWeight="600" fontSize={13} color="$color">
+                        {formatBadgeText(txn.type.replace("_", " "))}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={11} color="$colorMuted" marginTop={2}>
+                        {new Date(txn.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </Text>
+                    </YStack>
+                    <Text
+                      fontFamily="$mono"
+                      fontWeight="700"
+                      fontSize={16}
+                      marginLeft="$3"
+                      color={isCredit ? "$accentBackground" : "$error"}
+                    >
+                      {isCredit ? "+" : "-"}{"\u20B9"}{txn.amount.toFixed(2)}
                     </Text>
-                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" marginTop={2}>
-                      {new Date(txn.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                    </Text>
-                  </YStack>
-                  <Text
-                    fontFamily="$mono"
-                    fontWeight="700"
-                    fontSize={16}
-                    marginLeft="$3"
-                    color={isCredit ? "$accentBackground" : "$error"}
-                  >
-                    {isCredit ? "+" : "-"}{"\u20B9"}{txn.amount.toFixed(2)}
-                  </Text>
-                </XStack>
-              </Card>
+                  </XStack>
+                </Card>
+              </Animated.View>
             );
           })
         ) : (
           <Card padding="$6" alignItems="center">
-            <Text fontFamily="$body" color="$colorMuted" fontSize={14}>No transactions yet</Text>
+            <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$3">
+              {DesignSystem.emptyState.icon}
+            </Text>
+            <Text {...textStyles.hint}>{formatUIText("no transactions yet")}</Text>
           </Card>
         )}
       </YStack>
