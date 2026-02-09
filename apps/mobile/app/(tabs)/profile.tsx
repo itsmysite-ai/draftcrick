@@ -1,215 +1,108 @@
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
+  View, Text, StyleSheet, Pressable, ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { trpc } from "../../lib/trpc";
 import { useComfortMode } from "../../providers/ComfortModeProvider";
-import { Colors, Gradients, Radius, Shadow, Spacing, Font } from "../../lib/design";
+import { Colors, Radius, Spacing, Font, FontFamily, card } from "../../lib/design";
 
-function SettingRow({
-  icon,
-  label,
-  value,
-  accent,
-  onPress,
-  isLast,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value?: string;
-  accent?: boolean;
-  onPress?: () => void;
-  isLast?: boolean;
+function SettingRow({ icon, label, value, accent, onPress, last }: {
+  icon: keyof typeof Ionicons.glyphMap; label: string; value?: string;
+  accent?: boolean; onPress?: () => void; last?: boolean;
 }) {
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-      style={[styles.settingRow, !isLast && styles.settingBorder]}
-    >
-      <View style={styles.settingLeft}>
-        <View style={[styles.settingIconWrap, accent && { backgroundColor: Colors.accentMuted }]}>
-          <Ionicons name={icon} size={16} color={accent ? Colors.accent : Colors.textSecondary} />
+    <Pressable onPress={onPress} style={({ hovered }) => [s.settingRow, !last && s.settingBorder, hovered && onPress && { backgroundColor: Colors.bgSurfaceHover }]}>
+      <View style={s.settingLeft}>
+        <View style={[s.settingIcon, accent && { backgroundColor: Colors.accentMuted }]}>
+          <Ionicons name={icon} size={15} color={accent ? Colors.accent : Colors.textTertiary} />
         </View>
-        <Text style={styles.settingLabel}>{label}</Text>
+        <Text style={s.settingLabel}>{label}</Text>
       </View>
-      <View style={styles.settingRight}>
-        {value && (
-          <Text style={[styles.settingValue, accent && { color: Colors.accent }]}>{value}</Text>
-        )}
-        {onPress && (
-          <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
-        )}
+      <View style={s.settingRight}>
+        {value && <Text style={[s.settingVal, accent && { color: Colors.accent }]}>{value}</Text>}
+        {onPress && <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} />}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { enabled: comfortMode, enable: enableComfort } = useComfortMode();
-
+  const { enable: enableComfort } = useComfortMode();
   const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false });
   const isLoggedIn = !wallet.error;
 
-  const handleComfortToggle = () => {
-    enableComfort();
-    router.replace("/(comfort-tabs)" as any);
-  };
-
   return (
-    <ScrollView
-      style={[styles.container, { paddingTop: insets.top }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Profile Header */}
-      <Animated.View entering={FadeIn.delay(50)} style={styles.profileHeader}>
-        <LinearGradient
-          colors={Gradients.hero as any}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.avatarContainer}>
-          <LinearGradient
-            colors={isLoggedIn ? (Gradients.primary as any) : (["rgba(255,255,255,0.1)", "rgba(255,255,255,0.05)"] as any)}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.avatarGradient}
-          >
-            <View style={styles.avatarInner}>
-              <Ionicons
-                name={isLoggedIn ? "person" : "person-outline"}
-                size={28}
-                color={isLoggedIn ? Colors.accent : Colors.textTertiary}
-              />
-            </View>
-          </LinearGradient>
+    <ScrollView style={[s.container, { paddingTop: insets.top }]} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      {/* Header */}
+      <Animated.View entering={FadeIn.delay(30)} style={s.profileHeader}>
+        <View style={s.avatar}>
+          <Ionicons name={isLoggedIn ? "person" : "person-outline"} size={24} color={isLoggedIn ? Colors.accent : Colors.textTertiary} />
         </View>
-
-        <Text style={styles.profileName}>{isLoggedIn ? "Player" : "Guest User"}</Text>
-        <Text style={styles.profileSub}>
-          {isLoggedIn ? "Fantasy cricket champion in the making" : "Sign in to track your journey"}
-        </Text>
-
+        <Text style={s.name}>{isLoggedIn ? "Player" : "Guest User"}</Text>
+        <Text style={s.sub}>{isLoggedIn ? "Fantasy cricket champion in the making" : "Sign in to track your journey"}</Text>
         {!isLoggedIn && (
-          <TouchableOpacity
-            style={styles.signInBtn}
-            onPress={() => router.push("/auth/login")}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={Gradients.primary as any}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.signInGrad}
-            >
-              <Text style={styles.signInText}>Sign In</Text>
-              <Ionicons name="arrow-forward" size={16} color={Colors.textInverse} />
-            </LinearGradient>
-          </TouchableOpacity>
+          <Pressable onPress={() => router.push("/auth/login")} style={({ hovered }) => [s.signInBtn, hovered && { backgroundColor: Colors.accentDark }]}>
+            <Text style={s.signInText}>Sign In</Text>
+            <Ionicons name="arrow-forward" size={14} color={Colors.textInverse} />
+          </Pressable>
         )}
       </Animated.View>
 
-      {/* Wallet Card */}
+      {/* Wallet */}
       {isLoggedIn && wallet.data && (
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <TouchableOpacity
-            onPress={() => router.push("/wallet" as never)}
-            activeOpacity={0.85}
-            style={styles.walletCard}
-          >
-            <View style={styles.walletHeader}>
+        <Animated.View entering={FadeInDown.delay(80).springify()}>
+          <Pressable onPress={() => router.push("/wallet" as never)} style={({ pressed, hovered }) => [s.walletCard, hovered && s.hover, pressed && s.press]}>
+            <View style={s.walletTop}>
               <View>
-                <Text style={styles.walletLabel}>Total Balance</Text>
-                <Text style={styles.walletBalance}>
-                  ₹{wallet.data.totalBalance.toFixed(2)}
-                </Text>
+                <Text style={s.walletLabel}>Total Balance</Text>
+                <Text style={s.walletBal}>₹{wallet.data.totalBalance.toFixed(2)}</Text>
               </View>
-              <View style={styles.walletIconWrap}>
-                <Ionicons name="wallet-outline" size={20} color={Colors.accent} />
-              </View>
+              <View style={s.walletIcon}><Ionicons name="wallet-outline" size={18} color={Colors.accent} /></View>
             </View>
-            <View style={styles.walletBreakdown}>
+            <View style={s.walletBreakdown}>
               {[
-                { label: "Cash", value: wallet.data.cashBalance, icon: "cash-outline" as const },
-                { label: "Bonus", value: wallet.data.bonusBalance, icon: "gift-outline" as const },
-                { label: "Winnings", value: wallet.data.totalWinnings, icon: "trending-up" as const },
-              ].map((item, i) => (
-                <View key={i} style={styles.walletItem}>
-                  <Ionicons name={item.icon} size={14} color={Colors.textTertiary} />
-                  <Text style={styles.walletItemLabel}>{item.label}</Text>
-                  <Text style={styles.walletItemValue}>₹{item.value.toFixed(0)}</Text>
+                { l: "Cash", v: wallet.data.cashBalance, i: "cash-outline" as const },
+                { l: "Bonus", v: wallet.data.bonusBalance, i: "gift-outline" as const },
+                { l: "Winnings", v: wallet.data.totalWinnings, i: "trending-up" as const },
+              ].map((x, i) => (
+                <View key={i} style={s.walletItem}>
+                  <Ionicons name={x.i} size={13} color={Colors.textTertiary} />
+                  <Text style={s.walletItemLabel}>{x.l}</Text>
+                  <Text style={s.walletItemVal}>₹{x.v.toFixed(0)}</Text>
                 </View>
               ))}
             </View>
-          </TouchableOpacity>
+          </Pressable>
         </Animated.View>
       )}
 
       {/* Settings */}
-      <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.settingsCard}>
-        <Text style={styles.settingsTitle}>Settings</Text>
-        <SettingRow
-          icon="accessibility-outline"
-          label="Comfort Mode"
-          value="Switch"
-          accent
-          onPress={handleComfortToggle}
-        />
-        <SettingRow
-          icon="language-outline"
-          label="Language"
-          value="English"
-        />
-        <SettingRow
-          icon="wallet-outline"
-          label="Wallet"
-          onPress={() => router.push("/wallet" as never)}
-        />
-        <SettingRow
-          icon="notifications-outline"
-          label="Notifications"
-          value="On"
-          onPress={() => {}}
-        />
-        <SettingRow
-          icon="moon-outline"
-          label="Theme"
-          value="Dark"
-        />
-        <SettingRow
-          icon="information-circle-outline"
-          label="App Version"
-          value="0.0.1"
-          isLast
-        />
+      <Animated.View entering={FadeInDown.delay(160).springify()} style={s.settingsCard}>
+        <Text style={s.settingsHeader}>Settings</Text>
+        <SettingRow icon="accessibility-outline" label="Comfort Mode" value="Switch" accent onPress={() => { enableComfort(); router.replace("/(comfort-tabs)" as any); }} />
+        <SettingRow icon="language-outline" label="Language" value="English" />
+        <SettingRow icon="wallet-outline" label="Wallet" onPress={() => router.push("/wallet" as never)} />
+        <SettingRow icon="notifications-outline" label="Notifications" value="On" onPress={() => {}} />
+        <SettingRow icon="moon-outline" label="Theme" value="Dark" />
+        <SettingRow icon="information-circle-outline" label="App Version" value="0.0.1" last />
       </Animated.View>
 
-      {/* Quick Links */}
-      <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.quickLinks}>
-        {[
-          { icon: "help-circle-outline" as const, label: "Help & FAQ", gradient: Gradients.blue },
-          { icon: "document-text-outline" as const, label: "Terms", gradient: Gradients.purple },
-          { icon: "shield-checkmark-outline" as const, label: "Privacy", gradient: Gradients.primary },
-        ].map((link, i) => (
-          <TouchableOpacity key={i} style={styles.quickLink} activeOpacity={0.8}>
-            <LinearGradient
-              colors={link.gradient as any}
-              style={styles.quickLinkIcon}
-            >
-              <Ionicons name={link.icon} size={16} color="#fff" />
-            </LinearGradient>
-            <Text style={styles.quickLinkText}>{link.label}</Text>
-          </TouchableOpacity>
+      {/* Quick links */}
+      <Animated.View entering={FadeInDown.delay(240).springify()} style={s.linksRow}>
+        {([
+          { i: "help-circle-outline" as const, l: "Help & FAQ" },
+          { i: "document-text-outline" as const, l: "Terms" },
+          { i: "shield-checkmark-outline" as const, l: "Privacy" },
+        ]).map((link, idx) => (
+          <Pressable key={idx} style={({ hovered }) => [s.linkCard, hovered && s.hover]}>
+            <Ionicons name={link.i} size={18} color={Colors.textTertiary} />
+            <Text style={s.linkText}>{link.l}</Text>
+          </Pressable>
         ))}
       </Animated.View>
 
@@ -218,207 +111,47 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-  },
-  content: {
-    paddingHorizontal: Spacing.xl,
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content: { paddingHorizontal: Spacing.xl },
+  hover: { backgroundColor: Colors.bgSurfaceHover },
+  press: { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
 
-  // Profile Header
-  profileHeader: {
-    alignItems: "center",
-    paddingVertical: Spacing["3xl"],
-    borderRadius: Radius.xl,
-    marginBottom: Spacing.xl,
-    overflow: "hidden",
+  profileHeader: { alignItems: "center", paddingVertical: Spacing["3xl"], marginBottom: Spacing.xl },
+  avatar: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: Colors.bgSurface, borderWidth: 2, borderColor: Colors.border,
+    alignItems: "center", justifyContent: "center", marginBottom: Spacing.lg,
   },
-  avatarContainer: {
-    marginBottom: Spacing.lg,
-  },
-  avatarGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    padding: 3,
-  },
-  avatarInner: {
-    flex: 1,
-    borderRadius: 37,
-    backgroundColor: Colors.bgSurface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  profileName: {
-    fontSize: Font["2xl"],
-    fontWeight: "800",
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  profileSub: {
-    fontSize: Font.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
-  },
+  name: { fontFamily: FontFamily.headingBold, fontSize: Font["2xl"], color: Colors.text, marginBottom: 4 },
+  sub: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.textSecondary, marginBottom: Spacing.xl },
   signInBtn: {
-    borderRadius: Radius.full,
-    overflow: "hidden",
+    flexDirection: "row", alignItems: "center", gap: Spacing.sm,
+    backgroundColor: Colors.accent, paddingHorizontal: Spacing["2xl"], paddingVertical: Spacing.md, borderRadius: Radius.sm,
   },
-  signInGrad: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing["2xl"],
-    paddingVertical: Spacing.md,
-  },
-  signInText: {
-    fontSize: Font.md,
-    fontWeight: "700",
-    color: Colors.textInverse,
-  },
+  signInText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.textInverse },
 
-  // Wallet
-  walletCard: {
-    backgroundColor: Colors.bgSurface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderAccent,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
-    ...Shadow.md,
-  },
-  walletHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: Spacing.lg,
-  },
-  walletLabel: {
-    fontSize: Font.xs,
-    color: Colors.textTertiary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  walletBalance: {
-    fontSize: Font["3xl"],
-    fontWeight: "900",
-    color: Colors.accent,
-  },
-  walletIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accentMuted,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  walletBreakdown: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: Spacing.md,
-    gap: Spacing.md,
-  },
-  walletItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 4,
-  },
-  walletItemLabel: {
-    fontSize: Font.xs,
-    color: Colors.textTertiary,
-  },
-  walletItemValue: {
-    fontSize: Font.md,
-    fontWeight: "700",
-    color: Colors.text,
-  },
+  walletCard: { ...card, padding: Spacing.lg, marginBottom: Spacing.xl },
+  walletTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: Spacing.lg },
+  walletLabel: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
+  walletBal: { fontFamily: FontFamily.headingBold, fontSize: Font["3xl"], color: Colors.accent },
+  walletIcon: { width: 36, height: 36, borderRadius: Radius.sm, backgroundColor: Colors.accentMuted, alignItems: "center", justifyContent: "center" },
+  walletBreakdown: { flexDirection: "row", borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.md, gap: Spacing.md },
+  walletItem: { flex: 1, alignItems: "center", gap: 3 },
+  walletItemLabel: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
+  walletItemVal: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.text },
 
-  // Settings
-  settingsCard: {
-    backgroundColor: Colors.bgSurface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.xl,
-    overflow: "hidden",
-  },
-  settingsTitle: {
-    fontSize: Font.sm,
-    fontWeight: "700",
-    color: Colors.textTertiary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
-  },
-  settingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  settingBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  settingLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  settingIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.bgCard,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  settingLabel: {
-    fontSize: Font.md,
-    color: Colors.text,
-  },
-  settingRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  settingValue: {
-    fontSize: Font.sm,
-    color: Colors.textSecondary,
-  },
+  settingsCard: { ...card, marginBottom: Spacing.xl, overflow: "hidden" },
+  settingsHeader: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.sm },
+  settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  settingBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  settingLeft: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+  settingIcon: { width: 30, height: 30, borderRadius: Radius.xs, backgroundColor: Colors.bgLight, alignItems: "center", justifyContent: "center" },
+  settingLabel: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.text },
+  settingRight: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  settingVal: { fontFamily: FontFamily.body, fontSize: Font.sm, color: Colors.textTertiary },
 
-  // Quick Links
-  quickLinks: {
-    flexDirection: "row",
-    gap: Spacing.md,
-  },
-  quickLink: {
-    flex: 1,
-    backgroundColor: Colors.bgSurface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  quickLinkIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickLinkText: {
-    fontSize: Font.sm,
-    fontWeight: "600",
-    color: Colors.textSecondary,
-  },
+  linksRow: { flexDirection: "row", gap: Spacing.md },
+  linkCard: { flex: 1, ...card, padding: Spacing.lg, alignItems: "center", gap: Spacing.sm },
+  linkText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm, color: Colors.textTertiary },
 });

@@ -3,7 +3,7 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   RefreshControl,
   Dimensions,
@@ -15,240 +15,153 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown, FadeInRight } from "react-native-reanimated";
 import { trpc } from "../../lib/trpc";
-import { Colors, Gradients, Radius, Shadow, Spacing, Font } from "../../lib/design";
+import { Colors, Gradients, Radius, Spacing, Font, FontFamily, card } from "../../lib/design";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 function HeroHeader() {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.hero, { paddingTop: insets.top + 12 }]}>
-      <LinearGradient
-        colors={Gradients.hero as any}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.heroTop}>
+    <View style={[s.hero, { paddingTop: insets.top + 12 }]}>
+      <LinearGradient colors={Gradients.heroWash as any} style={StyleSheet.absoluteFill} />
+      <View style={s.heroRow}>
         <View>
-          <Text style={styles.logoText}>
-            Draft<Text style={styles.logoAccent}>Crick</Text>
+          <Text style={s.logo}>
+            DraftCrick
           </Text>
-          <Text style={styles.heroTagline}>Compete. Draft. Win.</Text>
+          <Text style={s.tagline}>Fantasy Cricket, Reimagined</Text>
         </View>
-        <View style={styles.heroActions}>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Ionicons name="search-outline" size={22} color={Colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Ionicons name="notifications-outline" size={22} color={Colors.text} />
-          </TouchableOpacity>
+        <View style={s.heroIcons}>
+          <Pressable style={({ hovered }) => [s.iconBtn, hovered && s.iconBtnHover]}>
+            <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
+          </Pressable>
+          <Pressable style={({ hovered }) => [s.iconBtn, hovered && s.iconBtnHover]}>
+            <Ionicons name="notifications-outline" size={20} color={Colors.textSecondary} />
+          </Pressable>
         </View>
       </View>
     </View>
   );
 }
 
-function FeaturedMatchCard({
-  match,
-  index,
-  onPress,
-}: {
-  match: any;
-  index: number;
-  onPress: () => void;
-}) {
+function FeaturedCard({ match, index, onPress }: { match: any; index: number; onPress: () => void }) {
   const startTime = new Date(match.startTime);
   const isLive = match.status === "live";
-  const timeStr = startTime.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-  const dateStr = startTime.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-
-  const gradientColors = isLive ? Gradients.live : index === 0 ? Gradients.primary : Gradients.purple;
+  const timeStr = startTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  const dateStr = startTime.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <Animated.View entering={FadeInRight.delay(index * 100).springify()}>
-      <TouchableOpacity
+    <Animated.View entering={FadeInRight.delay(index * 80).springify()}>
+      <Pressable
         onPress={onPress}
-        activeOpacity={0.85}
-        style={styles.featuredCard}
+        style={({ pressed, hovered }) => [
+          s.featuredCard,
+          isLive && s.featuredLive,
+          hovered && s.cardHover,
+          pressed && s.cardPress,
+        ]}
       >
-        <LinearGradient
-          colors={gradientColors as any}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.featuredGradient}
-        />
-        <View style={styles.featuredContent}>
-          <View style={styles.featuredBadge}>
-            <Text style={styles.featuredBadgeText}>
-              {isLive ? "LIVE" : match.tournament ?? "CRICKET"}
-            </Text>
-            {isLive && <View style={styles.pulseDot} />}
+        <View style={s.featuredHeader}>
+          <View style={s.tournamentBadge}>
+            <Text style={s.tournamentText}>{match.tournament ?? "Cricket"}</Text>
           </View>
-
-          <View style={styles.featuredTeams}>
-            <View style={styles.featuredTeamBlock}>
-              <View style={styles.teamLogo}>
-                <Text style={styles.teamLogoText}>
-                  {match.teamHome.substring(0, 2).toUpperCase()}
-                </Text>
-              </View>
-              <Text style={styles.featuredTeamName} numberOfLines={1}>
-                {match.teamHome}
-              </Text>
+          {isLive && (
+            <View style={s.liveBadge}>
+              <View style={s.liveDot} />
+              <Text style={s.liveText}>LIVE</Text>
             </View>
+          )}
+        </View>
 
-            <View style={styles.vsContainer}>
-              <Text style={styles.vsText}>VS</Text>
+        <View style={s.teamsRow}>
+          <View style={s.teamCol}>
+            <View style={s.teamBadge}>
+              <Text style={s.teamInitials}>{match.teamHome.substring(0, 3).toUpperCase()}</Text>
             </View>
-
-            <View style={styles.featuredTeamBlock}>
-              <View style={styles.teamLogo}>
-                <Text style={styles.teamLogoText}>
-                  {match.teamAway.substring(0, 2).toUpperCase()}
-                </Text>
-              </View>
-              <Text style={styles.featuredTeamName} numberOfLines={1}>
-                {match.teamAway}
-              </Text>
-            </View>
+            <Text style={s.teamName} numberOfLines={1}>{match.teamHome}</Text>
           </View>
-
-          <View style={styles.featuredFooter}>
-            <View style={styles.timeChip}>
-              <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.timeChipText}>
-                {isLive ? "In Progress" : `${dateStr} ${timeStr}`}
-              </Text>
+          <Text style={s.vsLabel}>VS</Text>
+          <View style={s.teamCol}>
+            <View style={s.teamBadge}>
+              <Text style={s.teamInitials}>{match.teamAway.substring(0, 3).toUpperCase()}</Text>
             </View>
-            <View style={styles.ctaBtn}>
-              <Text style={styles.ctaBtnText}>{isLive ? "Watch" : "Play"}</Text>
-              <Ionicons name="arrow-forward" size={14} color={Colors.textInverse} />
-            </View>
+            <Text style={s.teamName} numberOfLines={1}>{match.teamAway}</Text>
           </View>
         </View>
-      </TouchableOpacity>
+
+        <View style={s.featuredFooter}>
+          <View style={s.infoRow}>
+            <Ionicons name="time-outline" size={12} color={Colors.textTertiary} />
+            <Text style={s.infoText}>{isLive ? "In Progress" : `${dateStr} ${timeStr}`}</Text>
+          </View>
+          <View style={s.ctaChip}>
+            <Text style={s.ctaText}>{isLive ? "Watch" : "Play"}</Text>
+            <Ionicons name="chevron-forward" size={12} color={Colors.textInverse} />
+          </View>
+        </View>
+      </Pressable>
     </Animated.View>
   );
 }
 
-function QuickAction({
-  icon,
-  label,
-  gradient,
-  onPress,
-  delay,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  gradient: readonly string[];
-  onPress: () => void;
-  delay: number;
+function QuickAction({ icon, label, onPress, delay }: {
+  icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; delay: number;
 }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.quickActionWrap}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.quickAction}>
-        <LinearGradient
-          colors={gradient as any}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.quickActionIcon}
-        >
-          <Ionicons name={icon} size={22} color="#fff" />
-        </LinearGradient>
-        <Text style={styles.quickActionLabel}>{label}</Text>
-      </TouchableOpacity>
+    <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed, hovered }) => [s.quickAction, hovered && s.cardHover, pressed && s.cardPress]}
+      >
+        <Ionicons name={icon} size={22} color={Colors.accent} />
+        <Text style={s.quickLabel}>{label}</Text>
+      </Pressable>
     </Animated.View>
   );
 }
 
-function UpcomingMatchCard({
-  match,
-  index,
-  onPress,
-}: {
-  match: any;
-  index: number;
-  onPress: () => void;
-}) {
-  const startTime = new Date(match.startTime);
-  const timeStr = startTime.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-  const dateStr = startTime.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+function MatchCard({ match, index, onPress }: { match: any; index: number; onPress: () => void }) {
+  const t = new Date(match.startTime);
+  const time = t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  const date = t.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <Animated.View entering={FadeInDown.delay(200 + index * 80).springify()}>
-      <TouchableOpacity
+    <Animated.View entering={FadeInDown.delay(150 + index * 60).springify()}>
+      <Pressable
         onPress={onPress}
-        activeOpacity={0.85}
-        style={styles.matchCard}
+        style={({ pressed, hovered }) => [s.matchCard, hovered && s.cardHover, pressed && s.cardPress]}
       >
-        <View style={styles.matchCardInner}>
-          <View style={styles.matchMeta}>
-            <View style={styles.tournamentChip}>
-              <Text style={styles.tournamentText}>
-                {match.tournament ?? "Cricket"}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.matchTeamsRow}>
-            <View style={styles.matchTeam}>
-              <View style={styles.matchTeamLogo}>
-                <Text style={styles.matchTeamLogoText}>
-                  {match.teamHome.substring(0, 2).toUpperCase()}
-                </Text>
-              </View>
-              <Text style={styles.matchTeamName} numberOfLines={1}>
-                {match.teamHome}
-              </Text>
-            </View>
-
-            <View style={styles.matchVsWrap}>
-              <View style={styles.matchVsDivider} />
-              <Text style={styles.matchVs}>VS</Text>
-              <View style={styles.matchVsDivider} />
-            </View>
-
-            <View style={styles.matchTeam}>
-              <View style={styles.matchTeamLogo}>
-                <Text style={styles.matchTeamLogoText}>
-                  {match.teamAway.substring(0, 2).toUpperCase()}
-                </Text>
-              </View>
-              <Text style={styles.matchTeamName} numberOfLines={1}>
-                {match.teamAway}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.matchBottom}>
-            <View style={styles.matchInfoRow}>
-              <Ionicons name="location-outline" size={12} color={Colors.textTertiary} />
-              <Text style={styles.matchVenue} numberOfLines={1}>
-                {match.venue ?? "TBD"}
-              </Text>
-            </View>
-            <View style={styles.matchInfoRow}>
-              <Ionicons name="calendar-outline" size={12} color={Colors.amber} />
-              <Text style={styles.matchDate}>{`${dateStr} ${timeStr}`}</Text>
-            </View>
+        <View style={s.matchMeta}>
+          <View style={s.tournamentBadge}>
+            <Text style={s.tournamentText}>{match.tournament ?? "Cricket"}</Text>
           </View>
         </View>
-      </TouchableOpacity>
+        <View style={s.teamsRow}>
+          <View style={s.teamCol}>
+            <View style={s.teamBadgeSmall}>
+              <Text style={s.teamInitialsSmall}>{match.teamHome.substring(0, 3).toUpperCase()}</Text>
+            </View>
+            <Text style={s.teamNameSmall} numberOfLines={1}>{match.teamHome}</Text>
+          </View>
+          <Text style={s.vsLabelSmall}>VS</Text>
+          <View style={s.teamCol}>
+            <View style={s.teamBadgeSmall}>
+              <Text style={s.teamInitialsSmall}>{match.teamAway.substring(0, 3).toUpperCase()}</Text>
+            </View>
+            <Text style={s.teamNameSmall} numberOfLines={1}>{match.teamAway}</Text>
+          </View>
+        </View>
+        <View style={s.matchBottom}>
+          <View style={s.infoRow}>
+            <Ionicons name="location-outline" size={11} color={Colors.textTertiary} />
+            <Text style={s.infoText} numberOfLines={1}>{match.venue ?? "TBD"}</Text>
+          </View>
+          <View style={s.infoRow}>
+            <Ionicons name="calendar-outline" size={11} color={Colors.amber} />
+            <Text style={[s.infoText, { color: Colors.amber }]}>{date} {time}</Text>
+          </View>
+        </View>
+      </Pressable>
     </Animated.View>
   );
 }
@@ -256,493 +169,173 @@ function UpcomingMatchCard({
 export default function HomeScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-
-  const liveMatches = trpc.match.live.useQuery();
-  const upcomingMatches = trpc.match.list.useQuery({
-    status: "upcoming",
-    limit: 10,
-  });
+  const live = trpc.match.live.useQuery();
+  const upcoming = trpc.match.list.useQuery({ status: "upcoming", limit: 10 });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([liveMatches.refetch(), upcomingMatches.refetch()]);
+    await Promise.all([live.refetch(), upcoming.refetch()]);
     setRefreshing(false);
-  }, [liveMatches, upcomingMatches]);
+  }, [live, upcoming]);
 
-  const allFeatured = [
-    ...(liveMatches.data ?? []),
-    ...(upcomingMatches.data?.matches?.slice(0, 2) ?? []),
-  ];
+  const featured = [...(live.data ?? []), ...(upcoming.data?.matches?.slice(0, 2) ?? [])];
 
   return (
-    <View style={styles.container}>
+    <View style={s.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.accent}
-            progressBackgroundColor={Colors.bg}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
       >
         <HeroHeader />
 
-        {/* Featured Matches */}
-        {allFeatured.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Featured</Text>
-              <Ionicons name="flame" size={18} color={Colors.amber} />
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.featuredScroll}
-              decelerationRate="fast"
-              snapToInterval={SCREEN_WIDTH * 0.78 + 12}
+        {/* Featured */}
+        {featured.length > 0 ? (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Featured</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: Spacing.xl, gap: 12 }}
+              decelerationRate="fast" snapToInterval={SCREEN_WIDTH * 0.8 + 12}
             >
-              {allFeatured.map((match, i) => (
-                <FeaturedMatchCard
-                  key={match.id}
-                  match={match}
-                  index={i}
-                  onPress={() => router.push(`/match/${match.id}`)}
-                />
+              {featured.map((m, i) => (
+                <FeaturedCard key={m.id} match={m} index={i} onPress={() => router.push(`/match/${m.id}`)} />
               ))}
             </ScrollView>
           </View>
         ) : (
-          <Animated.View entering={FadeInDown.delay(100)} style={styles.section}>
-            <View style={styles.emptyHero}>
-              <LinearGradient
-                colors={Gradients.primary as any}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.emptyHeroGradient}
-              >
-                <Ionicons name="baseball-outline" size={40} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.emptyHeroTitle}>Season Starting Soon</Text>
-                <Text style={styles.emptyHeroSub}>
-                  Featured matches will appear here when available
-                </Text>
-              </LinearGradient>
-            </View>
+          <Animated.View entering={FadeInDown.delay(80)} style={s.section}>
+            <Pressable style={({ hovered }) => [s.emptyHero, hovered && s.cardHover]}>
+              <Ionicons name="baseball-outline" size={32} color={Colors.accent} />
+              <Text style={s.emptyTitle}>Season Starting Soon</Text>
+              <Text style={s.emptyDesc}>Featured matches will appear here</Text>
+            </Pressable>
           </Animated.View>
         )}
 
         {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { paddingHorizontal: Spacing.xl, marginBottom: Spacing.md }]}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            <QuickAction
-              icon="trophy-outline"
-              label="Contests"
-              gradient={Gradients.primary}
-              onPress={() => router.push("/(tabs)/contests")}
-              delay={100}
-            />
-            <QuickAction
-              icon="pulse-outline"
-              label="Live"
-              gradient={Gradients.hot}
-              onPress={() => router.push("/(tabs)/live")}
-              delay={150}
-            />
-            <QuickAction
-              icon="people-outline"
-              label="Leagues"
-              gradient={Gradients.purple}
-              onPress={() => router.push("/(tabs)/social")}
-              delay={200}
-            />
-            <QuickAction
-              icon="sparkles-outline"
-              label="Guru"
-              gradient={Gradients.gold}
-              onPress={() => router.push("/guru" as never)}
-              delay={250}
-            />
+        <View style={s.section}>
+          <Text style={[s.sectionTitle, { marginHorizontal: Spacing.xl }]}>Quick Actions</Text>
+          <View style={s.quickGrid}>
+            <QuickAction icon="trophy-outline" label="Contests" onPress={() => router.push("/(tabs)/contests")} delay={80} />
+            <QuickAction icon="pulse-outline" label="Live" onPress={() => router.push("/(tabs)/live")} delay={120} />
+            <QuickAction icon="people-outline" label="Leagues" onPress={() => router.push("/(tabs)/social")} delay={160} />
+            <QuickAction icon="sparkles-outline" label="Guru" onPress={() => router.push("/guru" as never)} delay={200} />
           </View>
         </View>
 
-        {/* Upcoming Matches */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming</Text>
-            <Ionicons name="calendar-outline" size={16} color={Colors.textTertiary} />
-          </View>
-          {upcomingMatches.isLoading ? (
+        {/* Upcoming */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Upcoming</Text>
+          {upcoming.isLoading ? (
             <ActivityIndicator color={Colors.accent} style={{ padding: 32 }} />
-          ) : upcomingMatches.data?.matches && upcomingMatches.data.matches.length > 0 ? (
-            upcomingMatches.data.matches.map((match, i) => (
-              <UpcomingMatchCard
-                key={match.id}
-                match={match}
-                index={i}
-                onPress={() => router.push(`/match/${match.id}`)}
-              />
+          ) : upcoming.data?.matches?.length ? (
+            upcoming.data.matches.map((m, i) => (
+              <MatchCard key={m.id} match={m} index={i} onPress={() => router.push(`/match/${m.id}`)} />
             ))
           ) : (
-            <Animated.View entering={FadeInDown.delay(300)} style={styles.emptyCard}>
-              <Ionicons name="calendar-outline" size={32} color={Colors.textTertiary} />
-              <Text style={styles.emptyTitle}>No upcoming matches</Text>
-              <Text style={styles.emptySub}>
-                New matches will appear here when scheduled
-              </Text>
-            </Animated.View>
+            <View style={s.emptyCard}>
+              <Ionicons name="calendar-outline" size={28} color={Colors.textTertiary} />
+              <Text style={s.emptyTitle}>No upcoming matches</Text>
+              <Text style={s.emptyDesc}>New matches will appear when scheduled</Text>
+            </View>
           )}
         </View>
-
-        <View style={{ height: 100 }} />
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  hero: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing["2xl"],
-  },
-  heroTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  logoText: {
-    fontSize: Font["3xl"],
-    fontWeight: "900",
-    color: Colors.text,
-    letterSpacing: -1,
-  },
-  logoAccent: {
-    color: Colors.accent,
-  },
-  heroTagline: {
-    fontSize: Font.sm,
-    color: Colors.textSecondary,
-    marginTop: 2,
-    letterSpacing: 0.5,
-  },
-  heroActions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.bg },
+
+  // Hero
+  hero: { paddingHorizontal: Spacing.xl, paddingBottom: Spacing["2xl"] },
+  heroRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  logo: { fontFamily: FontFamily.headingBold, fontSize: Font["2xl"], color: Colors.text, letterSpacing: -0.5 },
+  tagline: { fontFamily: FontFamily.body, fontSize: Font.sm, color: Colors.textSecondary, marginTop: 2 },
+  heroIcons: { flexDirection: "row", gap: Spacing.sm },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 38, height: 38, borderRadius: Radius.sm,
+    backgroundColor: Colors.bgSurface, borderWidth: 1, borderColor: Colors.border,
+    alignItems: "center", justifyContent: "center",
   },
-  section: {
-    marginBottom: Spacing["2xl"],
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.md,
-  },
+  iconBtnHover: { backgroundColor: Colors.bgSurfaceHover },
+
+  // Sections
+  section: { marginBottom: Spacing["2xl"] },
   sectionTitle: {
-    fontSize: Font.xl,
-    fontWeight: "800",
-    color: Colors.text,
-    letterSpacing: -0.3,
+    fontFamily: FontFamily.heading, fontSize: Font.xl, color: Colors.text,
+    paddingHorizontal: Spacing.xl, marginBottom: Spacing.md,
   },
-  featuredScroll: {
-    paddingHorizontal: Spacing.xl,
-    gap: 12,
-  },
+
+  // Featured cards
   featuredCard: {
-    width: SCREEN_WIDTH * 0.78,
-    borderRadius: Radius.xl,
-    overflow: "hidden",
-    ...Shadow.lg,
+    width: SCREEN_WIDTH * 0.8, ...card, padding: Spacing.lg,
   },
-  featuredGradient: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.9,
+  featuredLive: { borderColor: "rgba(255, 77, 79, 0.25)" },
+  cardHover: { backgroundColor: Colors.bgSurfaceHover },
+  cardPress: { backgroundColor: Colors.bgSurfacePress, transform: [{ scale: 0.98 }] },
+
+  featuredHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.lg },
+  tournamentBadge: { backgroundColor: Colors.accentMuted, paddingHorizontal: 10, paddingVertical: 3, borderRadius: Radius.xl },
+  tournamentText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.accent, textTransform: "uppercase", letterSpacing: 0.5 },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: Colors.redMuted, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.xl },
+  liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.red },
+  liveText: { fontFamily: FontFamily.bodyBold, fontSize: Font.xs, color: Colors.red },
+
+  teamsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: Spacing.lg },
+  teamCol: { flex: 1, alignItems: "center", gap: 6 },
+  teamBadge: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: Colors.bgLight, borderWidth: 1, borderColor: Colors.border,
+    alignItems: "center", justifyContent: "center",
   },
-  featuredContent: {
-    padding: Spacing.xl,
+  teamInitials: { fontFamily: FontFamily.headingBold, fontSize: Font.md, color: Colors.textSecondary },
+  teamName: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.text, textAlign: "center" },
+  vsLabel: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.xs, color: Colors.textTertiary, marginHorizontal: 8 },
+
+  featuredFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  infoRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  infoText: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
+  ctaChip: {
+    flexDirection: "row", alignItems: "center", gap: 2,
+    backgroundColor: Colors.accent, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.sm,
   },
-  featuredBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(0,0,0,0.25)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    marginBottom: Spacing.lg,
-  },
-  featuredBadgeText: {
-    fontSize: Font.xs,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 1,
-  },
-  pulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#fff",
-  },
-  featuredTeams: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.xl,
-  },
-  featuredTeamBlock: {
-    flex: 1,
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  teamLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.full,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  teamLogoText: {
-    fontSize: Font.md,
-    fontWeight: "900",
-    color: "#fff",
-  },
-  featuredTeamName: {
-    fontSize: Font.md,
-    fontWeight: "700",
-    color: "#fff",
-    textAlign: "center",
-  },
-  vsContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  vsText: {
-    fontSize: Font.xs,
-    fontWeight: "800",
-    color: "rgba(255,255,255,0.7)",
-  },
-  featuredFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  timeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  timeChipText: {
-    fontSize: Font.sm,
-    color: "rgba(255,255,255,0.8)",
-    fontWeight: "500",
-  },
-  ctaBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
-  },
-  ctaBtnText: {
-    fontSize: Font.sm,
-    fontWeight: "700",
-    color: Colors.textInverse,
-  },
-  quickActionsGrid: {
-    flexDirection: "row",
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.md,
-  },
-  quickActionWrap: {
-    flex: 1,
-  },
+  ctaText: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm, color: Colors.textInverse },
+
+  // Quick actions
+  quickGrid: { flexDirection: "row", paddingHorizontal: Spacing.xl, gap: Spacing.md },
   quickAction: {
-    alignItems: "center",
-    gap: Spacing.sm,
-    padding: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.lg,
+    alignItems: "center", gap: Spacing.sm, padding: Spacing.lg,
+    ...card,
   },
-  quickActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
+  quickLabel: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.sm, color: Colors.textSecondary },
+
+  // Upcoming match cards
+  matchCard: { marginHorizontal: Spacing.xl, marginBottom: Spacing.md, padding: Spacing.lg, ...card },
+  matchMeta: { marginBottom: Spacing.md },
+  teamBadgeSmall: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: Colors.bgLight, borderWidth: 1, borderColor: Colors.border,
+    alignItems: "center", justifyContent: "center",
   },
-  quickActionLabel: {
-    fontSize: Font.sm,
-    fontWeight: "600",
-    color: Colors.text,
-  },
-  matchCard: {
-    marginHorizontal: Spacing.xl,
-    marginBottom: Spacing.md,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.bgSurface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.sm,
-  },
-  matchCardInner: {
-    padding: Spacing.lg,
-  },
-  matchMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: Spacing.md,
-  },
-  tournamentChip: {
-    backgroundColor: Colors.accentMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  tournamentText: {
-    fontSize: Font.xs,
-    fontWeight: "700",
-    color: Colors.accent,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  matchTeamsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.lg,
-  },
-  matchTeam: {
-    flex: 1,
-    alignItems: "center",
-    gap: 6,
-  },
-  matchTeamLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  matchTeamLogoText: {
-    fontSize: Font.sm,
-    fontWeight: "800",
-    color: Colors.textSecondary,
-  },
-  matchTeamName: {
-    fontSize: Font.md,
-    fontWeight: "700",
-    color: Colors.text,
-    textAlign: "center",
-  },
-  matchVsWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 8,
-  },
-  matchVsDivider: {
-    width: 16,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  matchVs: {
-    fontSize: Font.xs,
-    fontWeight: "700",
-    color: Colors.textTertiary,
-  },
+  teamInitialsSmall: { fontFamily: FontFamily.heading, fontSize: Font.xs, color: Colors.textTertiary },
+  teamNameSmall: { fontFamily: FontFamily.bodySemiBold, fontSize: Font.md, color: Colors.text, textAlign: "center" },
+  vsLabelSmall: { fontFamily: FontFamily.body, fontSize: Font.xs, color: Colors.textTertiary },
   matchBottom: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    flexDirection: "row", justifyContent: "space-between",
+    paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  matchInfoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  matchVenue: {
-    fontSize: Font.xs,
-    color: Colors.textTertiary,
-    maxWidth: 140,
-  },
-  matchDate: {
-    fontSize: Font.xs,
-    color: Colors.amber,
-    fontWeight: "600",
-  },
+
+  // Empty states
   emptyHero: {
-    marginHorizontal: Spacing.xl,
-    borderRadius: Radius.xl,
-    overflow: "hidden",
-  },
-  emptyHeroGradient: {
-    padding: Spacing["3xl"],
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  emptyHeroTitle: {
-    fontSize: Font.xl,
-    fontWeight: "800",
-    color: "#fff",
-  },
-  emptyHeroSub: {
-    fontSize: Font.sm,
-    color: "rgba(255,255,255,0.7)",
-    textAlign: "center",
+    marginHorizontal: Spacing.xl, padding: Spacing["3xl"],
+    ...card, alignItems: "center", gap: Spacing.md,
   },
   emptyCard: {
-    marginHorizontal: Spacing.xl,
-    padding: Spacing["3xl"],
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.bgSurface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-    gap: Spacing.sm,
+    marginHorizontal: Spacing.xl, padding: Spacing["3xl"],
+    ...card, alignItems: "center", gap: Spacing.sm,
   },
-  emptyTitle: {
-    fontSize: Font.md,
-    fontWeight: "700",
-    color: Colors.text,
-  },
-  emptySub: {
-    fontSize: Font.sm,
-    color: Colors.textTertiary,
-    textAlign: "center",
-  },
+  emptyTitle: { fontFamily: FontFamily.heading, fontSize: Font.lg, color: Colors.text },
+  emptyDesc: { fontFamily: FontFamily.body, fontSize: Font.md, color: Colors.textTertiary, textAlign: "center" },
 });
