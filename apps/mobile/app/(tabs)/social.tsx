@@ -1,20 +1,83 @@
-import { View, Text, Pressable, FlatList, RefreshControl } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { trpc } from "../../lib/trpc";
+import { Colors, Gradients, Radius, Shadow, Spacing, Font } from "../../lib/design";
 
-const BG = "#0A1628";
-const CARD = "#1A2332";
-const ACCENT = "#00F5A0";
-const GOLD = "#FFD600";
-const TEXT = "#FFFFFF";
-const MUTED = "#6C757D";
+const FORMAT_CONFIG: Record<string, { gradient: readonly string[]; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
+  draft: { gradient: Gradients.primary, icon: "swap-horizontal", label: "DRAFT" },
+  auction: { gradient: Gradients.gold, icon: "cash-outline", label: "AUCTION" },
+  salary_cap: { gradient: Gradients.blue, icon: "card-outline", label: "SALARY CAP" },
+};
+
+function LeagueCard({ item, index, onPress }: { item: any; index: number; onPress: () => void }) {
+  const league = item.league;
+  if (!league) return null;
+
+  const fc = FORMAT_CONFIG[league.format] ?? FORMAT_CONFIG.draft;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(100 + index * 60).springify()}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={styles.leagueCard}
+      >
+        <View style={styles.leagueCardInner}>
+          <View style={styles.leagueTop}>
+            <View style={styles.leagueInfo}>
+              <Text style={styles.leagueName} numberOfLines={1}>{league.name}</Text>
+              <Text style={styles.leagueTournament}>{league.tournament}</Text>
+            </View>
+            <View style={styles.formatBadge}>
+              <LinearGradient
+                colors={fc.gradient as any}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Ionicons name={fc.icon} size={10} color="#fff" />
+              <Text style={styles.formatText}>{fc.label}</Text>
+            </View>
+          </View>
+
+          <View style={styles.leagueBottom}>
+            <View style={styles.leagueMeta}>
+              <Ionicons
+                name={item.role === "owner" ? "shield" : item.role === "admin" ? "shield-half" : "person"}
+                size={12}
+                color={item.role === "owner" ? Colors.amber : Colors.textSecondary}
+              />
+              <Text style={[
+                styles.leagueMetaText,
+                item.role === "owner" && { color: Colors.amber },
+              ]}>
+                {item.role === "owner" ? "Owner" : item.role === "admin" ? "Admin" : "Member"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function SocialScreen() {
   const router = useRouter();
-  const { data: memberships, isLoading, refetch } = trpc.league.myLeagues.useQuery(undefined, {
-    retry: false,
-  });
+  const insets = useSafeAreaInsets();
+  const { data: memberships, isLoading, refetch } = trpc.league.myLeagues.useQuery(undefined, { retry: false });
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -23,103 +86,266 @@ export default function SocialScreen() {
     setRefreshing(false);
   };
 
-  const formatColor = (format: string) => {
-    switch (format) {
-      case "draft": return ACCENT;
-      case "auction": return GOLD;
-      case "salary_cap": return "#00B4D8";
-      default: return MUTED;
-    }
-  };
-
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Leagues</Text>
+      </View>
+
       <FlatList
         data={memberships ?? []}
         keyExtractor={(item: any) => item.leagueId ?? item.league?.id ?? Math.random().toString()}
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            <Text style={{ color: TEXT, fontSize: 22, fontWeight: "800", marginBottom: 16 }}>Social & Leagues</Text>
-
-            {/* Quick Actions */}
-            <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-              <Pressable
+            {/* CTA Buttons */}
+            <Animated.View entering={FadeInDown.delay(50).springify()} style={styles.ctaRow}>
+              <TouchableOpacity
                 onPress={() => router.push("/league/create" as any)}
-                style={{ flex: 1, backgroundColor: ACCENT, borderRadius: 14, padding: 16, alignItems: "center" }}
+                activeOpacity={0.85}
+                style={styles.ctaCardCreate}
               >
-                <Text style={{ color: BG, fontWeight: "800", fontSize: 15 }}>Create League</Text>
-              </Pressable>
-              <Pressable
+                <LinearGradient
+                  colors={Gradients.primary as any}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Ionicons name="add-circle-outline" size={24} color={Colors.textInverse} />
+                <Text style={styles.ctaCreateText}>Create League</Text>
+                <Text style={styles.ctaCreateSub}>Start your own</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 onPress={() => router.push("/league/join" as any)}
-                style={{
-                  flex: 1, backgroundColor: CARD, borderRadius: 14, padding: 16, alignItems: "center",
-                  borderWidth: 1, borderColor: ACCENT,
-                }}
+                activeOpacity={0.85}
+                style={styles.ctaCardJoin}
               >
-                <Text style={{ color: ACCENT, fontWeight: "800", fontSize: 15 }}>Join League</Text>
-              </Pressable>
-            </View>
+                <Ionicons name="enter-outline" size={24} color={Colors.accent} />
+                <Text style={styles.ctaJoinText}>Join League</Text>
+                <Text style={styles.ctaJoinSub}>Use invite code</Text>
+              </TouchableOpacity>
+            </Animated.View>
 
             {/* Section Header */}
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <Text style={{ color: TEXT, fontSize: 18, fontWeight: "700" }}>My Leagues</Text>
-              {(memberships?.length ?? 0) > 0 && (
-                <Pressable onPress={() => router.push("/league" as any)}>
-                  <Text style={{ color: ACCENT, fontSize: 13, fontWeight: "600" }}>View All</Text>
-                </Pressable>
-              )}
-            </View>
+            {(memberships?.length ?? 0) > 0 && (
+              <Animated.View entering={FadeIn.delay(100)} style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>My Leagues</Text>
+                <TouchableOpacity onPress={() => router.push("/league" as any)}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
           </>
         }
-        renderItem={({ item }: { item: any }) => {
-          const league = item.league;
-          if (!league) return null;
-
-          return (
-            <Pressable
-              onPress={() => router.push(`/league/${league.id}` as any)}
-              style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, marginBottom: 10 }}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: TEXT, fontSize: 16, fontWeight: "700" }}>{league.name}</Text>
-                  <Text style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{league.tournament}</Text>
-                </View>
-                <View style={{
-                  backgroundColor: formatColor(league.format) + "20",
-                  paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
-                }}>
-                  <Text style={{ color: formatColor(league.format), fontSize: 11, fontWeight: "700" }}>
-                    {league.format.replace("_", " ").toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-                <Text style={{ color: MUTED, fontSize: 11 }}>
-                  Role: {item.role === "owner" ? "Owner" : item.role === "admin" ? "Admin" : "Member"}
-                </Text>
-                <Text style={{ color: MUTED, fontSize: 11 }}>
-                  Template: {league.template}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <LeagueCard
+            item={item}
+            index={index}
+            onPress={() => item.league ? router.push(`/league/${item.league.id}` as any) : undefined}
+          />
+        )}
         ListEmptyComponent={
           isLoading ? (
-            <Text style={{ color: MUTED, textAlign: "center", marginTop: 24 }}>Loading your leagues...</Text>
-          ) : (
-            <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 24, alignItems: "center" }}>
-              <Text style={{ color: TEXT, fontSize: 18, fontWeight: "700", marginBottom: 8 }}>No leagues yet</Text>
-              <Text style={{ color: MUTED, fontSize: 14, textAlign: "center" }}>
-                Create a league to play with friends, or join an existing one with an invite code
-              </Text>
+            <View style={styles.loadingWrap}>
+              <Text style={styles.loadingText}>Loading leagues...</Text>
             </View>
+          ) : (
+            <Animated.View entering={FadeIn.delay(200)} style={styles.emptyCard}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="people-outline" size={40} color={Colors.textTertiary} />
+              </View>
+              <Text style={styles.emptyTitle}>No leagues yet</Text>
+              <Text style={styles.emptySub}>
+                Create a league to play with friends, or join one with an invite code
+              </Text>
+            </Animated.View>
           )
         }
+        ListFooterComponent={<View style={{ height: 100 }} />}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.bg,
+  },
+  header: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+  },
+  headerTitle: {
+    fontSize: Font["2xl"],
+    fontWeight: "800",
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  listContent: {
+    paddingHorizontal: Spacing.xl,
+  },
+  ctaRow: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginBottom: Spacing["2xl"],
+  },
+  ctaCardCreate: {
+    flex: 1,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    gap: Spacing.xs,
+    overflow: "hidden",
+    ...Shadow.md,
+  },
+  ctaCreateText: {
+    fontSize: Font.md,
+    fontWeight: "800",
+    color: Colors.textInverse,
+  },
+  ctaCreateSub: {
+    fontSize: Font.xs,
+    color: "rgba(0,0,0,0.5)",
+  },
+  ctaCardJoin: {
+    flex: 1,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    gap: Spacing.xs,
+    backgroundColor: Colors.bgSurface,
+    borderWidth: 1,
+    borderColor: Colors.borderAccent,
+  },
+  ctaJoinText: {
+    fontSize: Font.md,
+    fontWeight: "800",
+    color: Colors.accent,
+  },
+  ctaJoinSub: {
+    fontSize: Font.xs,
+    color: Colors.textTertiary,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: Font.lg,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  viewAllText: {
+    fontSize: Font.sm,
+    fontWeight: "600",
+    color: Colors.accent,
+  },
+  leagueCard: {
+    backgroundColor: Colors.bgSurface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    overflow: "hidden",
+    ...Shadow.sm,
+  },
+  leagueCardInner: {
+    padding: Spacing.lg,
+  },
+  leagueTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: Spacing.md,
+  },
+  leagueInfo: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  leagueName: {
+    fontSize: Font.lg,
+    fontWeight: "700",
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  leagueTournament: {
+    fontSize: Font.sm,
+    color: Colors.textSecondary,
+  },
+  formatBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    overflow: "hidden",
+  },
+  formatText: {
+    fontSize: Font.xs,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  leagueBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  leagueMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  leagueMetaText: {
+    fontSize: Font.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  loadingWrap: {
+    padding: Spacing["3xl"],
+    alignItems: "center",
+  },
+  loadingText: {
+    color: Colors.textTertiary,
+    fontSize: Font.md,
+  },
+  emptyCard: {
+    backgroundColor: Colors.bgSurface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing["3xl"],
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.bgCard,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: {
+    fontSize: Font.lg,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  emptySub: {
+    fontSize: Font.md,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+});

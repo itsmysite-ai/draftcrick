@@ -9,14 +9,93 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { trpc } from "../../lib/trpc";
+import { Colors, Gradients, Radius, Shadow, Spacing, Font } from "../../lib/design";
+
+function ContestCard({ item, index, onPress }: { item: any; index: number; onPress: () => void }) {
+  const contest = item.contest;
+  const match = contest?.match;
+  const status = contest?.status ?? "open";
+
+  const statusConfig: Record<string, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap }> = {
+    live: { color: Colors.red, bg: Colors.redMuted, icon: "pulse" },
+    settled: { color: Colors.accent, bg: Colors.accentMuted, icon: "checkmark-circle" },
+    open: { color: Colors.amber, bg: "rgba(255, 184, 0, 0.15)", icon: "time-outline" },
+    upcoming: { color: Colors.cyan, bg: "rgba(0, 217, 245, 0.15)", icon: "calendar-outline" },
+  };
+  const sc = statusConfig[status] ?? statusConfig.open;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(index * 60).springify()}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={styles.contestCard}
+      >
+        {status === "live" && (
+          <View style={styles.liveStrip}>
+            <LinearGradient
+              colors={Gradients.live as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </View>
+        )}
+
+        <View style={styles.contestHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.contestName} numberOfLines={1}>
+              {contest?.name ?? "Contest"}
+            </Text>
+            {match && (
+              <Text style={styles.contestMatch}>
+                {match.teamHome} vs {match.teamAway}
+              </Text>
+            )}
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
+            <Ionicons name={sc.icon} size={10} color={sc.color} />
+            <Text style={[styles.statusText, { color: sc.color }]}>
+              {status.toUpperCase()}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.contestStats}>
+          <View style={styles.statBlock}>
+            <Text style={styles.statLabel}>Points</Text>
+            <Text style={styles.statValue}>{item.totalPoints.toFixed(1)}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBlock}>
+            <Text style={styles.statLabel}>Prize Pool</Text>
+            <Text style={[styles.statValue, { color: Colors.accent }]}>
+              {contest ? (contest.prizePool > 0 ? `₹${contest.prizePool.toLocaleString()}` : "FREE") : "-"}
+            </Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBlock}>
+            <Text style={styles.statLabel}>Entry</Text>
+            <Text style={styles.statValue}>
+              {contest ? (contest.entryFee === 0 ? "FREE" : `₹${contest.entryFee}`) : "-"}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function ContestsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const myContests = trpc.contest.myContests.useQuery(undefined, {
-    retry: false,
-  });
+  const myContests = trpc.contest.myContests.useQuery(undefined, { retry: false });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -24,132 +103,98 @@ export default function ContestsScreen() {
     setRefreshing(false);
   }, [myContests]);
 
-  // Not authenticated — show sign-in prompt
   if (myContests.error?.data?.code === "UNAUTHORIZED") {
     return (
-      <View style={styles.container}>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>My Contests</Text>
-          <Text style={styles.emptySubtitle}>
-            Sign in to view your contests
-          </Text>
-          <TouchableOpacity
-            style={styles.signInButton}
-            onPress={() => router.push("/auth/login")}
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Animated.View entering={FadeIn.delay(100)} style={styles.emptyCenter}>
+          <LinearGradient
+            colors={Gradients.primary as any}
+            style={styles.emptyIcon}
           >
-            <Text style={styles.signInText}>Sign In</Text>
+            <Ionicons name="trophy-outline" size={36} color="#fff" />
+          </LinearGradient>
+          <Text style={styles.emptyTitle}>My Contests</Text>
+          <Text style={styles.emptySub}>Sign in to view and manage your contests</Text>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => router.push("/auth/login")}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={Gradients.primary as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryBtnGrad}
+            >
+              <Text style={styles.primaryBtnText}>Sign In</Text>
+              <Ionicons name="arrow-forward" size={16} color={Colors.textInverse} />
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     );
   }
 
   if (myContests.isLoading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator color="#00F5A0" size="large" />
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
+        <ActivityIndicator color={Colors.accent} size="large" />
       </View>
     );
   }
 
   const data = myContests.data ?? [];
 
-  if (data.length === 0) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>My Contests</Text>
-          <Text style={styles.emptySubtitle}>
-            You haven't joined any contests yet
-          </Text>
-          <Text style={styles.emptyAction}>
-            Browse upcoming matches to find contests to join
-          </Text>
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>My Contests</Text>
+        <View style={styles.headerBadge}>
+          <Text style={styles.headerBadgeText}>{data.length}</Text>
         </View>
       </View>
-    );
-  }
 
-  return (
-    <View style={[styles.container, { justifyContent: "flex-start" }]}>
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#00F5A0"
-          />
-        }
-        contentContainerStyle={{ padding: 16 }}
-        renderItem={({ item }) => {
-          const contest = item.contest;
-          const match = contest?.match;
-          const statusColor =
-            contest?.status === "live"
-              ? "#FF4D4F"
-              : contest?.status === "settled"
-                ? "#00F5A0"
-                : "#FFB800";
-
-          return (
-            <TouchableOpacity
-              style={styles.contestCard}
-              onPress={() =>
-                contest ? router.push(`/contest/${contest.id}`) : undefined
-              }
-            >
-              <View style={styles.contestHeader}>
-                <Text style={styles.contestName}>
-                  {contest?.name ?? "Contest"}
-                </Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: `${statusColor}20` },
-                  ]}
-                >
-                  <Text style={[styles.statusText, { color: statusColor }]}>
-                    {contest?.status?.toUpperCase() ?? "OPEN"}
-                  </Text>
-                </View>
-              </View>
-
-              {match && (
-                <Text style={styles.matchInfo}>
-                  {match.teamHome} vs {match.teamAway}
-                </Text>
-              )}
-
-              <View style={styles.contestFooter}>
-                <View>
-                  <Text style={styles.footerLabel}>Your Points</Text>
-                  <Text style={styles.footerValue}>
-                    {item.totalPoints.toFixed(1)}
-                  </Text>
-                </View>
-                <View>
-                  <Text style={styles.footerLabel}>Prize Pool</Text>
-                  <Text style={styles.footerValue}>
-                    {contest ? `₹${contest.prizePool}` : "-"}
-                  </Text>
-                </View>
-                <View>
-                  <Text style={styles.footerLabel}>Entry</Text>
-                  <Text style={styles.footerValue}>
-                    {contest
-                      ? contest.entryFee === 0
-                        ? "FREE"
-                        : `₹${contest.entryFee}`
-                      : "-"}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-      />
+      {data.length === 0 ? (
+        <Animated.View entering={FadeIn.delay(100)} style={styles.emptyCenter}>
+          <View style={styles.emptyIconPlain}>
+            <Ionicons name="trophy-outline" size={48} color={Colors.textTertiary} />
+          </View>
+          <Text style={styles.emptyTitle}>No contests yet</Text>
+          <Text style={styles.emptySub}>
+            Browse upcoming matches to find contests to join
+          </Text>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => router.push("/(tabs)")}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.secondaryBtnText}>Browse Matches</Text>
+            <Ionicons name="arrow-forward" size={14} color={Colors.accent} />
+          </TouchableOpacity>
+        </Animated.View>
+      ) : (
+        <FlatList
+          data={data}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.accent}
+            />
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item, index }) => (
+            <ContestCard
+              item={item}
+              index={index}
+              onPress={() => item.contest ? router.push(`/contest/${item.contest.id}`) : undefined}
+            />
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -157,92 +202,177 @@ export default function ContestsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: Colors.bg,
+  },
+  centered: {
     justifyContent: "center",
     alignItems: "center",
   },
-  emptyState: {
+  header: {
+    flexDirection: "row",
     alignItems: "center",
-    padding: 20,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
   },
-  emptyTitle: {
-    fontSize: 24,
+  headerTitle: {
+    fontSize: Font["2xl"],
+    fontWeight: "800",
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  headerBadge: {
+    backgroundColor: Colors.accentMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  headerBadgeText: {
+    fontSize: Font.sm,
     fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 8,
+    color: Colors.accent,
   },
-  emptySubtitle: {
-    fontSize: 15,
-    color: "#6C757D",
-    marginBottom: 4,
-  },
-  emptyAction: {
-    fontSize: 13,
-    color: "#00F5A0",
-  },
-  signInButton: {
-    backgroundColor: "#00F5A0",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 16,
-  },
-  signInText: {
-    color: "#0A1628",
-    fontSize: 15,
-    fontWeight: "700",
+  listContent: {
+    padding: Spacing.xl,
+    paddingBottom: 120,
   },
   contestCard: {
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: Colors.bgSurface,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    overflow: "hidden",
+    ...Shadow.sm,
+  },
+  liveStrip: {
+    height: 3,
+    overflow: "hidden",
   },
   contestHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
+    alignItems: "flex-start",
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   contestName: {
-    fontSize: 16,
+    fontSize: Font.lg,
     fontWeight: "700",
-    color: "#FFFFFF",
-    flex: 1,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  contestMatch: {
+    fontSize: Font.sm,
+    color: Colors.textSecondary,
   },
   statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: Radius.full,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: Font.xs,
     fontWeight: "800",
-  },
-  matchInfo: {
-    fontSize: 13,
-    color: "#6C757D",
-    marginBottom: 12,
-  },
-  contestFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "#243044",
-    paddingTop: 12,
-  },
-  footerLabel: {
-    fontSize: 11,
-    color: "#6C757D",
-    textTransform: "uppercase",
     letterSpacing: 0.3,
   },
-  footerValue: {
-    fontSize: 16,
+  contestStats: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: Spacing.md,
+    marginHorizontal: Spacing.lg,
+  },
+  statBlock: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statLabel: {
+    fontSize: Font.xs,
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: Font.lg,
     fontWeight: "700",
-    color: "#FFFFFF",
-    marginTop: 2,
+    color: Colors.text,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: Colors.border,
+  },
+  emptyCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing["3xl"],
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.xl,
+  },
+  emptyIconPlain: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.bgCard,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.xl,
+  },
+  emptyTitle: {
+    fontSize: Font.xl,
+    fontWeight: "700",
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  emptySub: {
+    fontSize: Font.md,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: Spacing.xl,
+  },
+  primaryBtn: {
+    borderRadius: Radius.full,
+    overflow: "hidden",
+  },
+  primaryBtnGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing["2xl"],
+    paddingVertical: Spacing.md,
+  },
+  primaryBtnText: {
+    fontSize: Font.md,
+    fontWeight: "700",
+    color: Colors.textInverse,
+  },
+  secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.accentMuted,
+  },
+  secondaryBtnText: {
+    fontSize: Font.md,
+    fontWeight: "600",
+    color: Colors.accent,
   },
 });

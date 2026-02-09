@@ -1,64 +1,29 @@
 import { Tabs } from "expo-router";
+import { Colors } from "../../lib/design";
+import { CustomTabBar } from "../../components/TabBar";
 
-/**
- * Standard mode: 5-tab bottom navigation
- * Home | Contests | Live | Social | Profile
- */
 export default function TabLayout() {
   return (
     <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: "#00F5A0",
-        tabBarInactiveTintColor: "#6C757D",
-        tabBarStyle: {
-          backgroundColor: "#0A1628",
-          borderTopColor: "#1A2332",
-          height: 60,
-          paddingBottom: 8,
+        headerStyle: {
+          backgroundColor: Colors.bg,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
         },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
-        },
-        headerStyle: { backgroundColor: "#0A1628" },
-        headerTintColor: "#FFFFFF",
+        headerTintColor: Colors.text,
+        headerTitleStyle: { fontWeight: "700", fontSize: 17 },
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: Colors.bg },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarLabel: "Home",
-        }}
-      />
-      <Tabs.Screen
-        name="contests"
-        options={{
-          title: "Contests",
-          tabBarLabel: "Contests",
-        }}
-      />
-      <Tabs.Screen
-        name="live"
-        options={{
-          title: "Live",
-          tabBarLabel: "Live",
-        }}
-      />
-      <Tabs.Screen
-        name="social"
-        options={{
-          title: "Social",
-          tabBarLabel: "Social",
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarLabel: "Profile",
-        }}
-      />
+      <Tabs.Screen name="index" options={{ headerShown: false }} />
+      <Tabs.Screen name="contests" options={{ headerShown: false }} />
+      <Tabs.Screen name="live" options={{ headerShown: false }} />
+      <Tabs.Screen name="social" options={{ headerShown: false }} />
+      <Tabs.Screen name="profile" options={{ headerShown: false }} />
     </Tabs>
   );
 }

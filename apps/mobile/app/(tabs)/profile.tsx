@@ -6,17 +6,59 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { trpc } from "../../lib/trpc";
 import { useComfortMode } from "../../providers/ComfortModeProvider";
+import { Colors, Gradients, Radius, Shadow, Spacing, Font } from "../../lib/design";
+
+function SettingRow({
+  icon,
+  label,
+  value,
+  accent,
+  onPress,
+  isLast,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value?: string;
+  accent?: boolean;
+  onPress?: () => void;
+  isLast?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      style={[styles.settingRow, !isLast && styles.settingBorder]}
+    >
+      <View style={styles.settingLeft}>
+        <View style={[styles.settingIconWrap, accent && { backgroundColor: Colors.accentMuted }]}>
+          <Ionicons name={icon} size={16} color={accent ? Colors.accent : Colors.textSecondary} />
+        </View>
+        <Text style={styles.settingLabel}>{label}</Text>
+      </View>
+      <View style={styles.settingRight}>
+        {value && (
+          <Text style={[styles.settingValue, accent && { color: Colors.accent }]}>{value}</Text>
+        )}
+        {onPress && (
+          <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { enabled: comfortMode, enable: enableComfort } = useComfortMode();
 
-  const wallet = trpc.wallet.getBalance.useQuery(undefined, {
-    retry: false,
-  });
-
+  const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false });
   const isLoggedIn = !wallet.error;
 
   const handleComfortToggle = () => {
@@ -25,89 +67,153 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Avatar */}
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{isLoggedIn ? "U" : "?"}</Text>
-      </View>
+    <ScrollView
+      style={[styles.container, { paddingTop: insets.top }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Profile Header */}
+      <Animated.View entering={FadeIn.delay(50)} style={styles.profileHeader}>
+        <LinearGradient
+          colors={Gradients.hero as any}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.avatarContainer}>
+          <LinearGradient
+            colors={isLoggedIn ? (Gradients.primary as any) : (["rgba(255,255,255,0.1)", "rgba(255,255,255,0.05)"] as any)}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.avatarGradient}
+          >
+            <View style={styles.avatarInner}>
+              <Ionicons
+                name={isLoggedIn ? "person" : "person-outline"}
+                size={28}
+                color={isLoggedIn ? Colors.accent : Colors.textTertiary}
+              />
+            </View>
+          </LinearGradient>
+        </View>
 
-      <Text style={styles.name}>{isLoggedIn ? "Player" : "Guest User"}</Text>
-      <Text style={styles.subtitle}>
-        {isLoggedIn
-          ? "Your fantasy cricket journey"
-          : "Sign in to track your fantasy journey"}
-      </Text>
+        <Text style={styles.profileName}>{isLoggedIn ? "Player" : "Guest User"}</Text>
+        <Text style={styles.profileSub}>
+          {isLoggedIn ? "Fantasy cricket champion in the making" : "Sign in to track your journey"}
+        </Text>
 
-      {!isLoggedIn && (
-        <TouchableOpacity
-          style={styles.signInButton}
-          onPress={() => router.push("/auth/login")}
-        >
-          <Text style={styles.signInText}>Sign In</Text>
-        </TouchableOpacity>
-      )}
+        {!isLoggedIn && (
+          <TouchableOpacity
+            style={styles.signInBtn}
+            onPress={() => router.push("/auth/login")}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={Gradients.primary as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.signInGrad}
+            >
+              <Text style={styles.signInText}>Sign In</Text>
+              <Ionicons name="arrow-forward" size={16} color={Colors.textInverse} />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
 
-      {/* Wallet Balance */}
+      {/* Wallet Card */}
       {isLoggedIn && wallet.data && (
-        <TouchableOpacity
-          style={styles.walletCard}
-          onPress={() => router.push("/wallet" as never)}
-        >
-          <Text style={styles.walletLabel}>Wallet Balance</Text>
-          <Text style={styles.walletBalance}>
-            ₹{wallet.data.totalBalance.toFixed(2)}
-          </Text>
-          <View style={styles.walletBreakdown}>
-            <View>
-              <Text style={styles.breakdownLabel}>Cash</Text>
-              <Text style={styles.breakdownValue}>
-                ₹{wallet.data.cashBalance.toFixed(2)}
-              </Text>
+        <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <TouchableOpacity
+            onPress={() => router.push("/wallet" as never)}
+            activeOpacity={0.85}
+            style={styles.walletCard}
+          >
+            <View style={styles.walletHeader}>
+              <View>
+                <Text style={styles.walletLabel}>Total Balance</Text>
+                <Text style={styles.walletBalance}>
+                  ₹{wallet.data.totalBalance.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.walletIconWrap}>
+                <Ionicons name="wallet-outline" size={20} color={Colors.accent} />
+              </View>
             </View>
-            <View>
-              <Text style={styles.breakdownLabel}>Bonus</Text>
-              <Text style={styles.breakdownValue}>
-                ₹{wallet.data.bonusBalance.toFixed(2)}
-              </Text>
+            <View style={styles.walletBreakdown}>
+              {[
+                { label: "Cash", value: wallet.data.cashBalance, icon: "cash-outline" as const },
+                { label: "Bonus", value: wallet.data.bonusBalance, icon: "gift-outline" as const },
+                { label: "Winnings", value: wallet.data.totalWinnings, icon: "trending-up" as const },
+              ].map((item, i) => (
+                <View key={i} style={styles.walletItem}>
+                  <Ionicons name={item.icon} size={14} color={Colors.textTertiary} />
+                  <Text style={styles.walletItemLabel}>{item.label}</Text>
+                  <Text style={styles.walletItemValue}>₹{item.value.toFixed(0)}</Text>
+                </View>
+              ))}
             </View>
-            <View>
-              <Text style={styles.breakdownLabel}>Winnings</Text>
-              <Text style={styles.breakdownValue}>
-                ₹{wallet.data.totalWinnings.toFixed(2)}
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </Animated.View>
       )}
 
       {/* Settings */}
-      <View style={styles.settingsSection}>
-        <TouchableOpacity style={styles.settingRow} onPress={handleComfortToggle}>
-          <Text style={styles.settingLabel}>Comfort Mode</Text>
-          <Text style={[styles.settingValue, { color: "#00F5A0" }]}>
-            Switch →
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingRow}>
-          <Text style={styles.settingLabel}>Language</Text>
-          <Text style={styles.settingValue}>English</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.settingRow}
+      <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.settingsCard}>
+        <Text style={styles.settingsTitle}>Settings</Text>
+        <SettingRow
+          icon="accessibility-outline"
+          label="Comfort Mode"
+          value="Switch"
+          accent
+          onPress={handleComfortToggle}
+        />
+        <SettingRow
+          icon="language-outline"
+          label="Language"
+          value="English"
+        />
+        <SettingRow
+          icon="wallet-outline"
+          label="Wallet"
           onPress={() => router.push("/wallet" as never)}
-        >
-          <Text style={styles.settingLabel}>Wallet</Text>
-          <Text style={styles.settingValue}>→</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.settingRow}>
-          <Text style={styles.settingLabel}>Notifications</Text>
-          <Text style={styles.settingValue}>On</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.settingRow, { borderBottomWidth: 0 }]}>
-          <Text style={styles.settingLabel}>App Version</Text>
-          <Text style={styles.settingValue}>0.0.1</Text>
-        </TouchableOpacity>
-      </View>
+        />
+        <SettingRow
+          icon="notifications-outline"
+          label="Notifications"
+          value="On"
+          onPress={() => {}}
+        />
+        <SettingRow
+          icon="moon-outline"
+          label="Theme"
+          value="Dark"
+        />
+        <SettingRow
+          icon="information-circle-outline"
+          label="App Version"
+          value="0.0.1"
+          isLast
+        />
+      </Animated.View>
+
+      {/* Quick Links */}
+      <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.quickLinks}>
+        {[
+          { icon: "help-circle-outline" as const, label: "Help & FAQ", gradient: Gradients.blue },
+          { icon: "document-text-outline" as const, label: "Terms", gradient: Gradients.purple },
+          { icon: "shield-checkmark-outline" as const, label: "Privacy", gradient: Gradients.primary },
+        ].map((link, i) => (
+          <TouchableOpacity key={i} style={styles.quickLink} activeOpacity={0.8}>
+            <LinearGradient
+              colors={link.gradient as any}
+              style={styles.quickLinkIcon}
+            >
+              <Ionicons name={link.icon} size={16} color="#fff" />
+            </LinearGradient>
+            <Text style={styles.quickLinkText}>{link.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </Animated.View>
+
+      <View style={{ height: 120 }} />
     </ScrollView>
   );
 }
@@ -115,115 +221,204 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1628",
+    backgroundColor: Colors.bg,
   },
   content: {
-    alignItems: "center",
-    paddingTop: 40,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: Spacing.xl,
   },
-  avatar: {
+
+  // Profile Header
+  profileHeader: {
+    alignItems: "center",
+    paddingVertical: Spacing["3xl"],
+    borderRadius: Radius.xl,
+    marginBottom: Spacing.xl,
+    overflow: "hidden",
+  },
+  avatarContainer: {
+    marginBottom: Spacing.lg,
+  },
+  avatarGradient: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#1A2332",
+    padding: 3,
+  },
+  avatarInner: {
+    flex: 1,
+    borderRadius: 37,
+    backgroundColor: Colors.bgSurface,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#00F5A0",
-    marginBottom: 16,
   },
-  avatarText: {
-    fontSize: 32,
-    color: "#00F5A0",
-    fontWeight: "700",
-  },
-  name: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#FFFFFF",
+  profileName: {
+    fontSize: Font["2xl"],
+    fontWeight: "800",
+    color: Colors.text,
     marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "#6C757D",
-    marginBottom: 24,
+  profileSub: {
+    fontSize: Font.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xl,
   },
-  signInButton: {
-    backgroundColor: "#00F5A0",
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 32,
+  signInBtn: {
+    borderRadius: Radius.full,
+    overflow: "hidden",
+  },
+  signInGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing["2xl"],
+    paddingVertical: Spacing.md,
   },
   signInText: {
-    color: "#0A1628",
-    fontSize: 16,
+    fontSize: Font.md,
     fontWeight: "700",
+    color: Colors.textInverse,
   },
+
+  // Wallet
   walletCard: {
-    width: "100%",
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    backgroundColor: Colors.bgSurface,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: "#00F5A030",
+    borderColor: Colors.borderAccent,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    ...Shadow.md,
+  },
+  walletHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: Spacing.lg,
   },
   walletLabel: {
-    fontSize: 12,
-    color: "#6C757D",
+    fontSize: Font.xs,
+    color: Colors.textTertiary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    marginBottom: 4,
   },
   walletBalance: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#00F5A0",
-    marginTop: 4,
-    marginBottom: 12,
+    fontSize: Font["3xl"],
+    fontWeight: "900",
+    color: Colors.accent,
+  },
+  walletIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.accentMuted,
+    alignItems: "center",
+    justifyContent: "center",
   },
   walletBreakdown: {
     flexDirection: "row",
-    justifyContent: "space-between",
     borderTopWidth: 1,
-    borderTopColor: "#243044",
-    paddingTop: 12,
+    borderTopColor: Colors.border,
+    paddingTop: Spacing.md,
+    gap: Spacing.md,
   },
-  breakdownLabel: {
-    fontSize: 11,
-    color: "#6C757D",
+  walletItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
   },
-  breakdownValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    marginTop: 2,
+  walletItemLabel: {
+    fontSize: Font.xs,
+    color: Colors.textTertiary,
   },
-  settingsSection: {
-    width: "100%",
-    backgroundColor: "#1A2332",
-    borderRadius: 12,
+  walletItemValue: {
+    fontSize: Font.md,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+
+  // Settings
+  settingsCard: {
+    backgroundColor: Colors.bgSurface,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: "#243044",
+    borderColor: Colors.border,
+    marginBottom: Spacing.xl,
     overflow: "hidden",
+  },
+  settingsTitle: {
+    fontSize: Font.sm,
+    fontWeight: "700",
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   settingRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  settingBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "#243044",
+    borderBottomColor: Colors.border,
+  },
+  settingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  settingIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.bgCard,
+    alignItems: "center",
+    justifyContent: "center",
   },
   settingLabel: {
-    fontSize: 15,
-    color: "#FFFFFF",
+    fontSize: Font.md,
+    color: Colors.text,
+  },
+  settingRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   settingValue: {
-    fontSize: 15,
-    color: "#6C757D",
+    fontSize: Font.sm,
+    color: Colors.textSecondary,
+  },
+
+  // Quick Links
+  quickLinks: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  quickLink: {
+    flex: 1,
+    backgroundColor: Colors.bgSurface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  quickLinkIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickLinkText: {
+    fontSize: Font.sm,
+    fontWeight: "600",
+    color: Colors.textSecondary,
   },
 });
