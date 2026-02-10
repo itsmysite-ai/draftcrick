@@ -10,6 +10,10 @@ import { walletRouter } from "./wallet";
 import { draftRouter } from "./draft";
 import { tradeRouter } from "./trade";
 import { sportsRouter } from "./sports";
+import { tournamentRouter } from "./tournament";
+import { commissionerRouter } from "./commissioner";
+import { analyticsRouter } from "./analytics";
+import { guruRouter } from "./guru";
 import { seedCricketData } from "../services/cricket-data";
 
 export const appRouter = router({
@@ -24,6 +28,10 @@ export const appRouter = router({
   draft: draftRouter,
   trade: tradeRouter,
   sports: sportsRouter,
+  tournament: tournamentRouter,
+  commissioner: commissionerRouter,
+  analytics: analyticsRouter,
+  guru: guruRouter,
 
   seed: publicProcedure.mutation(async ({ ctx }) => {
     return seedCricketData(ctx.db);

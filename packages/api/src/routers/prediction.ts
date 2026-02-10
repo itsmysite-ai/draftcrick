@@ -1,8 +1,16 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { createPredictionSchema } from "@draftcrick/shared";
 import { eq, and } from "drizzle-orm";
 import { predictions } from "@draftcrick/db";
+
+const NOT_IMPLEMENTED = () => {
+  throw new TRPCError({
+    code: "METHOD_NOT_SUPPORTED",
+    message: "NOT_IMPLEMENTED — wired in Phase 5",
+  });
+};
 
 export const predictionRouter = router({
   /**
@@ -47,4 +55,48 @@ export const predictionRouter = router({
       });
       return result;
     }),
+
+  // --- Phase 5 stubs: Question/Answer system ---
+
+  getQuestions: protectedProcedure
+    .input(
+      z.object({
+        matchId: z.string(),
+        tournamentId: z.string().optional(),
+      })
+    )
+    .query(async () => NOT_IMPLEMENTED()),
+
+  submitAnswer: protectedProcedure
+    .input(
+      z.object({
+        questionId: z.string().uuid(),
+        leagueId: z.string().uuid(),
+        answer: z.string(),
+      })
+    )
+    .mutation(async () => NOT_IMPLEMENTED()),
+
+  getStandings: protectedProcedure
+    .input(
+      z.object({
+        leagueId: z.string().uuid(),
+        tournamentId: z.string(),
+      })
+    )
+    .query(async () => NOT_IMPLEMENTED()),
+
+  createQuestion: protectedProcedure
+    .input(
+      z.object({
+        matchId: z.string(),
+        tournamentId: z.string(),
+        questionText: z.string(),
+        questionType: z.string(),
+        options: z.array(z.any()),
+        difficulty: z.enum(["easy", "medium", "hard"]).optional(),
+        pointsValue: z.number().int().optional(),
+      })
+    )
+    .mutation(async () => NOT_IMPLEMENTED()),
 });

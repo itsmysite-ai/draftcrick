@@ -2,6 +2,7 @@ import {
   pgTable,
   uuid,
   text,
+  boolean,
   timestamp,
   jsonb,
   index,
@@ -27,6 +28,8 @@ export const matches = pgTable(
     playingXiHome: jsonb("playing_xi_home"),
     playingXiAway: jsonb("playing_xi_away"),
     result: text("result"),
+    draftEnabled: boolean("draft_enabled").default(false),
+    tournamentId: text("tournament_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
