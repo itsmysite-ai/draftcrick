@@ -81,7 +81,7 @@ export const sportsRouter = router({
   /**
    * Get cache status for monitoring.
    */
-  cacheStatus: publicProcedure.query(() => {
+  cacheStatus: publicProcedure.query(async () => {
     return getCacheStatus();
   }),
 });

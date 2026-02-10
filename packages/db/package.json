@@ -12,9 +12,10 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@draftcrick/shared": "workspace:*",
+    "dotenv": "^17.2.4",
     "drizzle-orm": "^0.38.0",
-    "postgres": "^3.4.0",
-    "@draftcrick/shared": "workspace:*"
+    "postgres": "^3.4.0"
   },
   "devDependencies": {
     "@draftcrick/tsconfig": "workspace:*",

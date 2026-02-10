@@ -217,6 +217,9 @@ importers:
       bullmq:
         specifier: ^5.30.0
         version: 5.67.3
+      dotenv:
+        specifier: ^17.2.4
+        version: 17.2.4
       firebase-admin:
         specifier: ^13.0.0
         version: 13.6.1
@@ -258,6 +261,9 @@ importers:
       '@draftcrick/shared':
         specifier: workspace:*
         version: link:../shared
+      dotenv:
+        specifier: ^17.2.4
+        version: 17.2.4
       drizzle-orm:
         specifier: ^0.38.0
         version: 0.38.4(@opentelemetry/api@1.9.0)(@types/react@18.3.28)(kysely@0.28.11)(postgres@3.4.8)(react@18.3.1)
@@ -4122,6 +4128,10 @@ packages:
 
   dotenv@16.4.7:
     resolution: {integrity: sha512-47qPchRCykZC03FhkYAhrvwU4xDBFIj1QPqaarj6mdM/hgUzfPHcpkHJOn3mJAufFeeAxAzeGsr5X0M4k6fLZQ==}
+    engines: {node: '>=12'}
+
+  dotenv@17.2.4:
+    resolution: {integrity: sha512-mudtfb4zRB4bVvdj0xRo+e6duH1csJRM8IukBqfTRvHotn9+LBXB8ynAidP9zHqoRC/fsllXgk4kCKlR21fIhw==}
     engines: {node: '>=12'}
 
   drizzle-kit@0.30.6:
@@ -11956,6 +11966,8 @@ snapshots:
       dotenv: 16.4.7
 
   dotenv@16.4.7: {}
+
+  dotenv@17.2.4: {}
 
   drizzle-kit@0.30.6:
     dependencies:
