@@ -6,7 +6,6 @@
 export * from "./InitialsAvatar";
 export * from "./HatchModal";
 export * from "./StatLabel";
-export * from "./HappinessMeter";
 export * from "./EggLoadingSpinner";
 export * from "./FilterPill";
 export * from "./SegmentTab";

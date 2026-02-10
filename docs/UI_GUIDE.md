@@ -27,8 +27,8 @@ import {
   Badge,
   
   // tami·draft Components
+  AnnouncementBanner,
   InitialsAvatar,
-  HappinessMeter,
   StatLabel,
   HatchModal,
   FilterPill,
@@ -40,7 +40,44 @@ import {
 
 ---
 
-## 1. InitialsAvatar
+## 1. AnnouncementBanner
+
+Railway-station-style announcement strip that cycles through multiple messages with typing and flip animations.
+
+```typescript
+<AnnouncementBanner />
+```
+
+**Features:**
+- Typing effect: text appears character by character (38ms per character)
+- Multiple announcements cycle automatically
+- Railway-station flip transition (280ms duration)
+- Pause between messages: 3200ms
+
+**Content Management:**
+Announcements are configured in the component itself:
+
+```typescript
+// Edit ANNOUNCEMENTS array in AnnouncementBanner.tsx
+const ANNOUNCEMENTS = [
+  "ipl 2026 fantasy leagues are open — create or join now",
+  "new feature: auction draft mode is live",
+  "weekend challenge: build your dream xi and win rewards",
+  "pro tip: diversify picks across roles for higher points",
+  "coming soon: head-to-head contests with friends",
+];
+```
+
+**Appearance:**
+- Height: 18px text height within container
+- Background: `$backgroundSurface`
+- Padding: Vertical `$2`, Horizontal `$4`
+- Font: DM Mono, 11px, `$colorSecondary`
+- Left indicator: 3x14px accent-colored vertical bar
+
+---
+
+## 2. InitialsAvatar
 
 Player avatar with role-colored background showing initials + OVR badge.
 
@@ -58,31 +95,6 @@ Player avatar with role-colored background showing initials + OVR badge.
 - `BOWL` - Cricket green (#3D9968)
 - `AR` - Blue (#4A5DB5)
 - `WK` - Purple (#7B5EA7)
-
----
-
-## 2. HappinessMeter
-
-Progress bar with emoji face showing team completion.
-
-```typescript
-<HappinessMeter 
-  current={3}        // Current number drafted
-  total={6}          // Total target
-  label="team happiness"  // Optional
-/>
-```
-
-**Emoji Thresholds:**
-- 🥺 < 20%
-- 😐 20-50%
-- 🙂 50-80%
-- 😄 ≥ 80%
-
-**Color Gradients:**
-- < 30%: Hatch (coral)
-- 30-60%: Cricket (amber)
-- ≥ 60%: Accent (green)
 
 ---
 
@@ -460,6 +472,7 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 
 When implementing a new screen, ensure:
 
+- [ ] Shows `AnnouncementBanner` at the top of the screen
 - [ ] Uses `InitialsAvatar` for player representation
 - [ ] All stats use `StatLabel` component
 - [ ] Buttons use DM Mono font (`fontFamily="$mono"`)
