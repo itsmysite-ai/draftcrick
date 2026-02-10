@@ -1,0 +1,64 @@
+/* tami·draft Design Tokens — Light */
+:root {
+  --bg: #F7F5F0;
+  --bg-surface: #FFFFFF;
+  --accent: #3D9968;
+  --accent-hover: #347F58;
+  --border: #E5E1DA;
+  --amber: #D4A43D;
+  --red: #E5484D;
+  --text-primary: #1C1D1B;
+  --text-secondary: #5E5D5A;
+  --text-muted: #9A9894;
+
+  --font-body: var(--font-dm-sans), system-ui, sans-serif;
+  --font-heading: var(--font-dm-sans), system-ui, sans-serif;
+  --font-data: var(--font-dm-mono), ui-monospace, monospace;
+}
+
+/* tami·draft Design Tokens — Dark */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111210;
+    --bg-surface: #1C1D1B;
+    --accent: #5DB882;
+    --accent-hover: #4FA872;
+    --border: #333432;
+    --amber: #D4A43D;
+    --red: #E5484D;
+    --text-primary: #F7F5F0;
+    --text-secondary: #9A9894;
+    --text-muted: #5E5D5A;
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
