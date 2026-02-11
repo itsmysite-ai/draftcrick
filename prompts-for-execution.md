@@ -10,11 +10,12 @@
 
 **You do NOT need to run the explore command again** — you already ran it. But you DO need:
 
-1. ✅ `CLAUDE.md` created in repo root (copy from the workflow doc)
-2. ✅ `/docs/` folder with your plan docs (already done — visible in your screenshot)
-3. ⬜ `/screenshots/` folder created: `mkdir screenshots`
-4. ⬜ `.claude/commands/` folder created (optional but recommended)
-5. ⬜ Playwright installed: `npx playwright install`
+1. ✅ `CLAUDE.md` created in repo root (already done — includes logging guide reference)
+2. ✅ `/docs/` folder with plan docs + `LOGGING_GUIDE.md` (already done)
+3. ✅ GitHub issues #1-21 created for Phase 2.75 (already done — skip Prompt 0B and Prompt 1)
+4. ⬜ `/screenshots/` folder created: `mkdir screenshots`
+5. ⬜ `.claude/commands/` folder created (optional but recommended)
+6. ⬜ Playwright installed: `npx playwright install`
 
 ---
 
@@ -25,7 +26,40 @@
 - **Review each PR** before moving to the next prompt
 - **After merging**, start the next prompt
 - **If a prompt fails**, tell Claude Code what went wrong and it'll fix it (Ralph Loop)
-- You also uploaded a Telescribe logging doc — that's your reference architecture for structured logging. When you get to Phases 6-7, use it as a model for DraftCrick's own logging/tracing system.
+- **Structured logging is already set up** — see `/docs/LOGGING_GUIDE.md`. All prompts reference it. Use `getLogger("module")` on backend, `createLogger("Component")` on frontend. Never use raw `console.log`.
+
+---
+
+## Your GitHub Issues → Prompt Mapping
+
+You already created issues #1-21. Here's which prompt implements which issue:
+
+| Issue # | Title | Prompt # | Status |
+|---------|-------|----------|--------|
+| #1 | Home Screen — Real Data Integration | PROMPT 4 | ⬜ |
+| #2 | Tournament Display & Filtering | PROMPT 5 | ⬜ |
+| #3 | Tournament Mode Database Schema (19 tables) | PROMPT 2 | ⬜ |
+| #4 | Geo-Location & Regional Compliance Foundation | PROMPTS 6-9 | ⬜ |
+| #5 | Authentication Testing (7 test cases) | PROMPT 10 | ⬜ |
+| #6 | Team Builder Testing (8 test cases) | PROMPT 11 | ⬜ |
+| #7 | Contest System Testing (7 test cases) | PROMPT 12 | ⬜ |
+| #8 | Draft Room Testing (7 test cases) | PROMPT 13 | ⬜ |
+| #9 | Auction Room Testing (6 test cases) | PROMPT 13 | ⬜ |
+| #10 | Wallet Testing (5 test cases) | PROMPT 14 | ⬜ |
+| #11 | Live Scoring Testing (5 test cases) | PROMPT 14 | ⬜ |
+| #12 | Caching & Performance Testing (5 test cases) | PROMPT 15 | ⬜ |
+| #13 | Geo-Location Testing (14 test cases) | PROMPT 16 | ⬜ |
+| #14 | Fix all P0 bugs from testing | PROMPT 18 | ⬜ |
+| #15 | Fix all P1 bugs from testing | PROMPT 19 | ⬜ |
+| #16 | Tournament Details Screen UI | PROMPT 5 (included) | ⬜ |
+| #17 | Draft Eligibility Checks in UI | PROMPT 20 | ⬜ |
+| #18 | Admin endpoint — toggleDraft | PROMPT 20 | ⬜ |
+| #19 | Final verification — all features | PROMPT 23 | ⬜ |
+| #20 | Migrate Match Center to tami·draft | PROMPT 21 | ⬜ |
+| #21 | Migrate Team Builder to tami·draft | PROMPT 22 | ⬜ |
+
+**Skip Prompt 0B** (labels — already created) and **Prompt 1** (issues — already created).
+**Start with Prompt 0A** (Playwright setup), then **Prompt 2** (schema).
 
 ---
 
@@ -102,7 +136,7 @@ List all created issue numbers when done.
 ### Step 2: Database Schema (Do This First — Everything Depends on It)
 
 ```
-PROMPT 2: Tournament Mode Schema — 19 Drizzle Tables
+PROMPT 2: Tournament Mode Schema — 19 Drizzle Tables  [→ closes #3]
 ────────────────────────────────────────────────────
 Read /docs/NEW_PLAN.md section 1C "Tournament Mode Database Schema" 
 which has full SQL CREATE TABLE statements for 19 tables.
@@ -177,7 +211,7 @@ Commit: feat(phase-2.75): seed tournament data + create tRPC router stubs
 ### Step 3: Home Screen Real Data (🔀 PARALLEL — Can Run Alongside Step 4)
 
 ```
-PROMPT 4: Home Screen — Connect Real Data
+PROMPT 4: Home Screen — Connect Real Data  [→ closes #1]
 ─────────────────────────────────────────
 Read /docs/NEW_PLAN.md section 1A "Home Screen — Real Data Integration".
 
@@ -186,7 +220,8 @@ Implement all 5 tasks:
 2. Add EggLoadingSpinner component while data is fetching
 3. Add empty state message when no matches are available
 4. Add user-friendly error handling when API fails (retry button)
-5. Verify Redis cache hit/miss — add console.debug logs showing cache status
+5. Verify Redis cache hit/miss — the logger should already show cache 
+   status via the structured logger (see /docs/LOGGING_GUIDE.md, module: sports-cache)
 
 Use tami·draft design system components (see /docs/UI_GUIDE.md).
 
@@ -204,7 +239,7 @@ Commit: feat(phase-2.75): connect home screen to real sports data API
 ### Step 4: Tournament Display (🔀 PARALLEL — Can Run Alongside Step 3)
 
 ```
-PROMPT 5: Tournament Display & Filtering
+PROMPT 5: Tournament Display & Filtering  [→ closes #2, #16]
 ────────────────────────────────────────
 Read /docs/NEW_PLAN.md section 1B "Tournament Display & Filtering".
 
@@ -231,10 +266,11 @@ Commit: feat(phase-2.75): tournament display, filtering, and details screen
 ### Step 5: Geo-Location Foundation (Run After Schema is Merged)
 
 ```
-PROMPT 6: Geo-Location — Server-Side (IP + Middleware)
+PROMPT 6: Geo-Location — Server-Side (IP + Middleware)  [→ partially closes #4]
 ─────────────────────────────────────────────────────
 Read /docs/GEO_IMPLEMENTATION_GUIDE.md sections 3.1 (Layer 1: IP) 
-and the middleware section.
+and the middleware section. Also read /docs/LOGGING_GUIDE.md for 
+how to add structured logging to new backend modules.
 
 Implement:
 1. MaxMind GeoLite2 integration:
@@ -264,7 +300,7 @@ Commit: feat(phase-2.75): MaxMind GeoIP integration + Hono geo middleware
 ```
 
 ```
-PROMPT 7: Geo-Location — Client-Side (GPS + Declaration)
+PROMPT 7: Geo-Location — Client-Side (GPS + Declaration)  [→ partially closes #4]
 ────────────────────────────────────────────────────────
 Read /docs/GEO_IMPLEMENTATION_GUIDE.md sections 3.1 (Layer 2: GPS, 
 Layer 3: Declaration).
@@ -294,10 +330,11 @@ Commit: feat(phase-2.75): Expo Location service + user declaration onboarding
 ```
 
 ```
-PROMPT 8: Geo Resolution Engine + Feature Gates
+PROMPT 8: Geo Resolution Engine + Feature Gates  [→ partially closes #4]
 ───────────────────────────────────────────────
 Read /docs/GEO_IMPLEMENTATION_GUIDE.md sections 3.2 (Resolution Engine) 
-and 3.3 (Feature Gates).
+and 3.3 (Feature Gates). Use structured logging per /docs/LOGGING_GUIDE.md
+(module: "geo" for all geo services).
 
 Implement:
 1. resolveUserZone(ipGeo, deviceGeo, declaration) function:
@@ -348,7 +385,7 @@ Commit: feat(phase-2.75): geo resolution engine + feature gates + PROGA flag
 ```
 
 ```
-PROMPT 9: Gemini API Region Routing
+PROMPT 9: Gemini API Region Routing  [→ closes #4]
 ───────────────────────────────────
 Read /docs/GEO_IMPLEMENTATION_GUIDE.md section 4 (Gemini API Regional Routing).
 
@@ -384,7 +421,7 @@ Commit: feat(phase-2.75): Gemini API region-routing per user country
 ### Step 6: Generate All Test Cases from Plan
 
 ```
-PROMPT 10: Generate Auth Tests (7 test cases)
+PROMPT 10: Generate Auth Tests (7 test cases)  [→ closes #5]
 ────────────────────────────────────────────
 Read /docs/NEW_PLAN.md Phase 2.75 Week 2, section A "Authentication".
 
@@ -407,7 +444,7 @@ Commit: test(phase-2.75): auth E2E tests (7 cases)
 ```
 
 ```
-PROMPT 11: Generate Team Builder Tests (9 test cases)
+PROMPT 11: Generate Team Builder Tests (9 test cases)  [→ closes #6]
 ────────────────────────────────────────────────────
 Read /docs/NEW_PLAN.md Phase 2.75 Week 2, section B "Team Builder".
 
@@ -429,7 +466,7 @@ Commit: test(phase-2.75): team builder E2E tests (9 cases)
 ```
 
 ```
-PROMPT 12: Generate Contest + Draft + Auction Tests (20 test cases)
+PROMPT 12: Generate Contest + Draft + Auction Tests (20 test cases)  [→ closes #7, #8, #9]
 ─────────────────────────────────────────────────────────────────
 Read /docs/NEW_PLAN.md Phase 2.75 Week 2, sections C, D, E.
 
@@ -469,7 +506,7 @@ Commit: test(phase-2.75): contest, draft, and auction E2E tests (20 cases)
 ```
 
 ```
-PROMPT 13: Generate Wallet + Live Scoring + Cache Tests (15 test cases)
+PROMPT 13: Generate Wallet + Live Scoring + Cache Tests (15 test cases)  [→ closes #10, #11, #12]
 ─────────────────────────────────────────────────────────────────────
 Read /docs/NEW_PLAN.md Phase 2.75 Week 2, sections F, G, H.
 
@@ -503,7 +540,7 @@ Commit: test(phase-2.75): wallet, live scoring, and cache E2E tests (15 cases)
 ```
 
 ```
-PROMPT 14: Generate Geo-Location Tests (14 test cases)
+PROMPT 14: Generate Geo-Location Tests (14 test cases)  [→ closes #13]
 ────────────────────────────────────────────────────
 Read /docs/NEW_PLAN.md Phase 2.75 Week 2, section I "Geo-Location & 
 Feature Gates Testing" and /docs/GEO_IMPLEMENTATION_GUIDE.md.
@@ -560,7 +597,7 @@ Commit: test(phase-2.75): scoring engine tests (8 cases)
 ### Step 7: Full Suite Verification
 
 ```
-PROMPT 16: Run Full Test Suite + Report
+PROMPT 16: Run Full Test Suite + Report  [→ updates #5-#13]
 ──────────────────────────────────────
 Run the complete Playwright test suite:
 
@@ -584,7 +621,7 @@ Create a summary markdown file at /screenshots/phase-2.75-test-report.md
 ## PHASE 2.75 — WEEK 3: Bug Fixes + Polish
 
 ```
-PROMPT 17: Fix P0 Bugs
+PROMPT 17: Fix P0 Bugs  [→ closes #14]
 ─────────────────────
 Review all failing tests from the test report.
 
@@ -603,7 +640,7 @@ Branch: fix/phase-2.75-p0-bugs
 ```
 
 ```
-PROMPT 18: Tournament Details Screen UI
+PROMPT 18: Tournament Details Screen UI  [→ closes #15, #16]
 ──────────────────────────────────────
 Read /docs/NEW_PLAN.md Week 3 task: "Create tournament details screen UI"
 and /docs/UI_GUIDE.md for design system.
@@ -628,7 +665,7 @@ Commit: feat(phase-2.75): tournament details screen with tabs
 ```
 
 ```
-PROMPT 19: Admin Toggle + Draft Eligibility
+PROMPT 19: Admin Toggle + Draft Eligibility  [→ closes #17, #18]
 ──────────────────────────────────────────
 Read /docs/NEW_PLAN.md Week 3 tasks for admin and draft eligibility.
 
@@ -652,7 +689,7 @@ Commit: feat(phase-2.75): admin draft toggle + draft eligibility UI
 ```
 
 ```
-PROMPT 20: Screen Migrations (Match Center + Team Builder)
+PROMPT 20: Screen Migrations (Match Center + Team Builder)  [→ closes #20, #21]
 ─────────────────────────────────────────────────────────
 Read /docs/UI_GUIDE.md for design system patterns.
 
@@ -679,7 +716,7 @@ Commit: feat(phase-2.75): migrate Match Center + Team Builder to tami·draft
 ### Step 8: Phase 2.75 Sign-Off
 
 ```
-PROMPT 21: Phase 2.75 Verification
+PROMPT 21: Phase 2.75 Verification  [→ closes #19]
 ──────────────────────────────────
 Read /docs/NEW_PLAN.md Phase 2.75 Success Criteria section.
 
