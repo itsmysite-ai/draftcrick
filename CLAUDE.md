@@ -9,6 +9,7 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 - `/docs/GEO_IMPLEMENTATION_GUIDE.md` — Geo-location & regional compliance spec
 - `/docs/UI_GUIDE.md` — tami·draft design system guide
 - `/docs/REDIS_CACHE_ARCHITECTURE.md` — Cache architecture
+- `/docs/LOGGING_GUIDE.md` — Structured logging & distributed tracing guide
 - `/docs/LOCAL_SETUP.md` — Local dev environment setup
 
 ## Project Structure
@@ -28,6 +29,10 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 - Use Drizzle ORM for all database queries
 - Use Tamagui + tami·draft design system for UI (see /docs/UI_GUIDE.md)
 - Use Redis for caching (24hr TTL default, see /docs/REDIS_CACHE_ARCHITECTURE.md)
+- Use structured logging with Pino (backend) and the shared logger service (frontend) — see `/docs/LOGGING_GUIDE.md`
+- All new backend modules must use `getLogger("module-name")`, never raw `console.log`
+- All new frontend components must use `createLogger("ComponentName")`, never raw `console.log`
+- All tRPC clients must use the tracing batch link to propagate correlation IDs
 - All new features need Playwright E2E tests
 - Branch naming: `feature/phase-X.Y-description`
 - Commit messages: `feat(phase-2.75): description`
@@ -108,3 +113,6 @@ All phase details in /docs/NEW_PLAN.md. Geo-compliance in /docs/GEO_IMPLEMENTATI
 - Do NOT hardcode Indian states or country lists — use the regulation engine from /docs/GEO_IMPLEMENTATION_GUIDE.md
 - Do NOT call Gemini API without going through the region-routing client
 - Do NOT skip the Ralph Loop self-verification steps
+- Do NOT use `console.log` in production code — use the structured logger (see /docs/LOGGING_GUIDE.md)
+- Do NOT log PII, payment credentials, exact geo-coordinates, or raw AI responses
+- Do NOT add `logging.basicConfig()` or create new Pino root instances — use `getLogger()` / `createLogger()`
