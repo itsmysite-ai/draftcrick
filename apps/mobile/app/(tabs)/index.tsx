@@ -360,7 +360,7 @@ export default function HomeScreen() {
                   fontWeight="500"
                   color={selectedTournament === null ? "$background" : "$colorSecondary"}
                 >
-                  {formatUIText("all")}
+                  {formatUIText("🏏 all")}
                 </Text>
               </FilterPill>
               {tournaments.map((t: any) => (
@@ -380,7 +380,7 @@ export default function HomeScreen() {
                     color={selectedTournament === t.name ? "$background" : "$colorSecondary"}
                     numberOfLines={1}
                   >
-                    {formatUIText(t.name)}
+                    {formatUIText(`🏆 ${t.name}`)}
                   </Text>
                 </FilterPill>
               ))}

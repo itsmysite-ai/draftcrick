@@ -134,7 +134,7 @@ test.describe("Tournament Display & Filtering", () => {
     await page.waitForTimeout(3000);
 
     // Click on the ICC Champions Trophy filter pill (first match is the pill text)
-    const pill = page.getByText("icc champions trophy 2025", { exact: true }).first();
+    const pill = page.getByText("🏆 icc champions trophy 2025", { exact: true }).first();
     if (await pill.isVisible()) {
       await pill.click();
       await page.waitForTimeout(1000);
