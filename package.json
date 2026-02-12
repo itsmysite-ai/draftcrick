@@ -10,9 +10,14 @@
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate",
     "db:push": "turbo db:push",
-    "db:studio": "pnpm --filter @draftcrick/db db:studio"
+    "db:studio": "pnpm --filter @draftcrick/db db:studio",
+    "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --project=mobile",
+    "test:e2e:web": "playwright test --project=web",
+    "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0"
   },
