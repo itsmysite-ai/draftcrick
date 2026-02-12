@@ -6,8 +6,9 @@ config({ path: resolve(__dirname, "../../../.env") });
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { serve } from "@hono/node-server";
+import { correlationMiddleware } from "./middleware/correlation";
+import { getLogger } from "./lib/logger";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./routers";
 import type { TRPCContext } from "./trpc";
@@ -19,7 +20,7 @@ export type { AppRouter } from "./routers";
 const app = new Hono();
 
 // Global middleware
-app.use("*", logger());
+app.use("*", correlationMiddleware);
 app.use(
   "*",
   cors({
@@ -80,11 +81,11 @@ app.use("/trpc/*", async (c) => {
 // Start server
 const port = parseInt(process.env.PORT ?? "3001", 10);
 
+const log = getLogger("server");
+
 if (process.env.NODE_ENV !== "test") {
   serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`DraftCrick API running on http://localhost:${info.port}`);
-    console.log(`  tRPC:   http://localhost:${info.port}/trpc`);
-    console.log(`  Health: http://localhost:${info.port}/health`);
+    log.info({ port: info.port }, "DraftCrick API running");
   });
 }
 
