@@ -353,6 +353,7 @@ export default function HomeScreen() {
               <FilterPill
                 active={selectedTournament === null}
                 onPress={() => setSelectedTournament(null)}
+                paddingVertical="$3"
               >
                 <Text
                   fontFamily="$body"
@@ -372,6 +373,7 @@ export default function HomeScreen() {
                       selectedTournament === t.name ? null : t.name,
                     )
                   }
+                  paddingVertical="$3"
                 >
                   <Text
                     fontFamily="$body"
