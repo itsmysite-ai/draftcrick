@@ -347,14 +347,10 @@ export default function HomeScreen() {
             <RNScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={{ flexGrow: 0 }}
+              style={{ flexGrow: 0, flexShrink: 0 }}
               contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 14 }}
             >
-              <FilterPill
-                active={selectedTournament === null}
-                onPress={() => setSelectedTournament(null)}
-                paddingVertical="$3"
-              >
+              <FilterPill active={selectedTournament === null} onPress={() => setSelectedTournament(null)}>
                 <Text
                   fontFamily="$body"
                   fontSize={12}
@@ -373,7 +369,6 @@ export default function HomeScreen() {
                       selectedTournament === t.name ? null : t.name,
                     )
                   }
-                  paddingVertical="$3"
                 >
                   <Text
                     fontFamily="$body"
