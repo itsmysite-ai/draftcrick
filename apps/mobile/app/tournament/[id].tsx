@@ -314,11 +314,9 @@ export default function TournamentScreen() {
             >
               {formatUIText(tb.label)}
             </Text>
-            {tb.count > 0 && (
-              <Text fontFamily="$mono" fontSize={11} color={detailTab === tb.key ? "$colorSecondary" : "$colorMuted"}>
-                {tb.count}
-              </Text>
-            )}
+            <Text fontFamily="$mono" fontSize={11} color={detailTab === tb.key ? "$colorSecondary" : "$colorMuted"}>
+              {tb.count}
+            </Text>
           </SegmentTab>
         ))}
       </XStack>
