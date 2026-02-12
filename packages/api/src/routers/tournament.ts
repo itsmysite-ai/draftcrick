@@ -10,6 +10,17 @@ const NOT_IMPLEMENTED = () => {
 };
 
 export const tournamentRouter = router({
+  list: protectedProcedure
+    .input(
+      z.object({
+        tournamentId: z.string().optional(),
+        status: z
+          .enum(["setup", "active", "playoffs", "completed"])
+          .optional(),
+      })
+    )
+    .query(async () => NOT_IMPLEMENTED()),
+
   create: protectedProcedure
     .input(
       z.object({
