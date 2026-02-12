@@ -348,7 +348,7 @@ export default function HomeScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               style={{ flexGrow: 0 }}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 10 }}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 14 }}
             >
               <FilterPill
                 active={selectedTournament === null}
