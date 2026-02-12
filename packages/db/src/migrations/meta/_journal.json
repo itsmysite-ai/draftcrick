@@ -8,6 +8,13 @@
       "when": 1770860944807,
       "tag": "0000_rainy_warbound",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1770907149569,
+      "tag": "0001_rainy_gateway",
+      "breakpoints": true
     }
   ]
 }

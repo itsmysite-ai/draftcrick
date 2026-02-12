@@ -6,8 +6,10 @@ import {
   timestamp,
   jsonb,
   index,
+  integer,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { tournaments } from "./tournaments";
 
 export const matches = pgTable(
   "matches",
@@ -29,7 +31,14 @@ export const matches = pgTable(
     playingXiAway: jsonb("playing_xi_away"),
     result: text("result"),
     draftEnabled: boolean("draft_enabled").default(false),
-    tournamentId: text("tournament_id"),
+
+    // Smart refresh columns
+    tournamentId: uuid("tournament_id").references(() => tournaments.id),
+    matchPhase: text("match_phase").notNull().default("idle"), // idle, pre_match, live, post_match, completed
+    lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
+    nextRefreshAfter: timestamp("next_refresh_after", { withTimezone: true }),
+    refreshCount: integer("refresh_count").notNull().default(0),
+
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -37,10 +46,17 @@ export const matches = pgTable(
   (table) => [
     index("idx_matches_status").on(table.status),
     index("idx_matches_start_time").on(table.startTime),
+    index("idx_matches_tournament").on(table.tournamentId),
+    index("idx_matches_phase").on(table.matchPhase),
+    index("idx_matches_next_refresh").on(table.nextRefreshAfter),
   ]
 );
 
-export const matchesRelations = relations(matches, ({ many }) => ({
+export const matchesRelations = relations(matches, ({ one, many }) => ({
+  tournamentRef: one(tournaments, {
+    fields: [matches.tournamentId],
+    references: [tournaments.id],
+  }),
   playerScores: many(playerMatchScores),
   contests: many(contests),
 }));
