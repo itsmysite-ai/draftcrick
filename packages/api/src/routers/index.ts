@@ -14,6 +14,7 @@ import { tournamentRouter } from "./tournament";
 import { commissionerRouter } from "./commissioner";
 import { analyticsRouter } from "./analytics";
 import { guruRouter } from "./guru";
+import { h2hRouter } from "./h2h";
 import { seedCricketData } from "../services/cricket-data";
 
 export const appRouter = router({
@@ -32,6 +33,7 @@ export const appRouter = router({
   commissioner: commissionerRouter,
   analytics: analyticsRouter,
   guru: guruRouter,
+  h2h: h2hRouter,
 
   seed: publicProcedure.mutation(async ({ ctx }) => {
     return seedCricketData(ctx.db);

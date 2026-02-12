@@ -151,7 +151,7 @@ CREATE TABLE "league_members" (
 	"user_id" uuid NOT NULL,
 	"role" text DEFAULT 'member' NOT NULL,
 	"joined_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "pk_league_member" UNIQUE("league_id","user_id")
+	CONSTRAINT "league_members_league_id_user_id_pk" PRIMARY KEY("league_id","user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "leagues" (

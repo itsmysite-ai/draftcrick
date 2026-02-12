@@ -1,5 +1,5 @@
 {
-  "id": "ce7604a6-3861-4d97-a07e-11bb23228e2a",
+  "id": "a7797f18-6a7e-4924-a94a-9385412d2ea1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1220,17 +1220,16 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pk_league_member": {
-          "name": "pk_league_member",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "league_members_league_id_user_id_pk": {
+          "name": "league_members_league_id_user_id_pk",
           "columns": [
             "league_id",
             "user_id"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
