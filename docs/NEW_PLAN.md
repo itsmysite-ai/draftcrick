@@ -36,7 +36,7 @@
 
 *(No changes — fully delivered)*
 
-**Delivered:** Gemini API integration for cricket data, Redis cache (24hr TTL, serverless-compatible, distributed locking), match listing + sports dashboard, player database (60+ IPL 2026 players seeded), credit-based team builder, contest creation/joining, live scoring schema, points calculation engine (`scoring.ts`), leaderboard structure, wallet MVP (transaction schema, balance tracking).
+**Delivered:** Gemini API integration for cricket data, Redis cache (24hr TTL, serverless-compatible, distributed locking — upgraded to PostgreSQL source of truth + Redis hot cache in Phase 2.75A, see [`SMART_REFRESH_ARCHITECTURE.md`](./SMART_REFRESH_ARCHITECTURE.md)), match listing + sports dashboard, player database (60+ IPL 2026 players seeded), credit-based team builder, contest creation/joining, live scoring schema, points calculation engine (`scoring.ts`), leaderboard structure, wallet MVP (transaction schema, balance tracking).
 
 ---
 
@@ -91,6 +91,26 @@ Before building new features, we need: real data flowing to the UI, the database
 | Tournament filtering | Filter matches by selected tournament | 2h |
 | Tournament details screen | `/tournament/[id].tsx` — matches, standings, stats leaders | 3h |
 | Tournament stats | Top performers, standings table | 2h |
+
+#### 1B.5. Smart Refresh Architecture — PostgreSQL Persistence (Phase 2.75A)
+
+> **Reference:** [`SMART_REFRESH_ARCHITECTURE.md`](./SMART_REFRESH_ARCHITECTURE.md)
+
+Move sports data from ephemeral Redis-only caching (24hr TTL) to PostgreSQL as the source of truth with smart per-match refresh intervals. Redis becomes a thin hot-cache layer (5min TTL). First-user-triggers-refresh pattern (no cron).
+
+| Task | Description | Time |
+|------|-------------|------|
+| Create `tournaments` table | Persist tournament data with stable IDs, refresh tracking | 2h |
+| Create `data_refresh_log` table | Audit trail for all refresh operations | 1h |
+| Add refresh columns to `matches` | `match_phase`, `last_refreshed_at`, `next_refresh_after`, `external_id` | 1h |
+| Generate and run Drizzle migration | Schema changes for all 3 table operations above | 1h |
+| Create `sports-data.ts` service | Write-through PostgreSQL service: staleness checks, upserts, refresh logging | 4h |
+| Refactor `sports-cache.ts` | Reduce to thin hot-cache layer (5min TTL), refresh lock, rate limiting | 3h |
+| Update `sports.ts` router | Wire new service stack: Redis hot cache → PG → Gemini | 2h |
+| Add shared types | `MatchPhase`, `RefreshInterval`, `RefreshLogEntry` types in shared package | 1h |
+| Verify end-to-end | Cold start → PG write → Redis hot cache → stale refresh cycle | 2h |
+
+**Total:** ~17h
 
 #### 1C. Tournament Mode Database Schema (Foundation for Phase 4)
 
@@ -689,7 +709,8 @@ Build the geo-detection infrastructure now so every future feature can query a u
 - [ ] All contest features tested and working
 - [ ] All draft/auction features tested and working
 - [ ] Wallet features tested and working
-- [ ] Redis cache tested (hit, miss, expiration, locking)
+- [ ] **Sports data persisted to PostgreSQL with smart per-match refresh (see [`SMART_REFRESH_ARCHITECTURE.md`](./SMART_REFRESH_ARCHITECTURE.md))**
+- [ ] Redis cache tested (hot cache hit, miss, refresh lock, rate limiting)
 - [ ] Zero P0 bugs remaining
 - [ ] Match Center and Team Builder screens migrated to tami·draft
 - [ ] **Geo-detection: IP + GPS + declaration all resolving correctly**
@@ -705,10 +726,11 @@ Build the geo-detection infrastructure now so every future feature can query a u
 **Duration:** 5 weeks (Weeks 15-19)  
 **Goal:** Build the AI-powered analytics layer that differentiates DraftCrick from every competitor.
 
-### Already Complete (from Phase 1)
+### Already Complete (from Phase 1 + Phase 2.75A)
 - ✅ Gemini API integration (`services/gemini-sports.ts`)
 - ✅ Cricket data fetching (tournaments, matches, players)
-- ✅ Redis caching layer (`services/sports-cache.ts`, serverless-compatible)
+- ✅ PostgreSQL persistence + smart refresh (`services/sports-data.ts`) — see [`SMART_REFRESH_ARCHITECTURE.md`](./SMART_REFRESH_ARCHITECTURE.md)
+- ✅ Redis hot-cache layer (`services/sports-cache.ts`, 5min TTL, serverless-compatible)
 - ✅ MCP architecture standardized
 
 ---

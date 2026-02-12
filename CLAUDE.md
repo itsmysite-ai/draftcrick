@@ -9,6 +9,7 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 - `/docs/GEO_IMPLEMENTATION_GUIDE.md` — Geo-location & regional compliance spec
 - `/docs/UI_GUIDE.md` — tami·draft design system guide
 - `/docs/REDIS_CACHE_ARCHITECTURE.md` — Cache architecture
+- `/docs/SMART_REFRESH_ARCHITECTURE.md` — Sports data persistence & smart refresh architecture
 - `/docs/LOGGING_GUIDE.md` — Structured logging & distributed tracing guide
 - `/docs/LOCAL_SETUP.md` — Local dev environment setup
 
@@ -28,7 +29,7 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 - Use tRPC for all API endpoints
 - Use Drizzle ORM for all database queries
 - Use Tamagui + tami·draft design system for UI (see /docs/UI_GUIDE.md)
-- Use Redis for caching (24hr TTL default, see /docs/REDIS_CACHE_ARCHITECTURE.md)
+- Use PostgreSQL as source of truth for sports data + Redis hot cache (5min TTL). See /docs/SMART_REFRESH_ARCHITECTURE.md and /docs/REDIS_CACHE_ARCHITECTURE.md
 - Use structured logging with Pino (backend) and the shared logger service (frontend) — see `/docs/LOGGING_GUIDE.md`
 - All new backend modules must use `getLogger("module-name")`, never raw `console.log`
 - All new frontend components must use `createLogger("ComponentName")`, never raw `console.log`
@@ -105,7 +106,8 @@ All phase details in /docs/NEW_PLAN.md. Geo-compliance in /docs/GEO_IMPLEMENTATI
 - **Database:** Single Cloud SQL instance in asia-south1 (Mumbai). Cross-region replica only when US users > 10%.
 - **Redis:** Single Memorystore in asia-south1. No geo-distribution needed.
 - **UI:** Tamagui + tami·draft design system. All new screens must use design system components.
-- **Caching:** Redis with 24hr default TTL. Graceful fallback to direct Gemini API on cache miss.
+- **Sports Data:** PostgreSQL source of truth + Redis hot cache (5min TTL). Smart per-match refresh intervals (idle=12h, pre_match=2h, live=5min). First-user-triggers-refresh (no cron). See `/docs/SMART_REFRESH_ARCHITECTURE.md`.
+- **Caching:** Redis hot cache with 5min TTL (upgraded from 24hr primary store). Graceful fallback to PostgreSQL on cache miss.
 
 ## What NOT to Do
 - Do NOT create separate CSS/JS files — keep everything in single files for components

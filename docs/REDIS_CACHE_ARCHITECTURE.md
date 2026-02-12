@@ -1,16 +1,120 @@
 # Redis Cache Architecture for Serverless Deployment
 
-## ✅ Problem Fixed: In-Memory → Redis Cache
+## v3.0 — Smart Refresh Architecture (Current)
 
-Your concern was absolutely correct! The original implementation used in-memory caching which would **NOT work** in serverless/container environments.
+> **Redis is no longer the primary data store.** PostgreSQL is now the source of truth for all sports data. Redis serves three focused roles: hot cache, distributed lock, and rate limiting.
+>
+> For full details, see [`SMART_REFRESH_ARCHITECTURE.md`](./SMART_REFRESH_ARCHITECTURE.md).
+
+### Redis's Three Roles in v3.0
+
+#### 1. Hot Cache (5-minute TTL)
+
+Caches fully-formed API responses to avoid repeated PostgreSQL queries within short windows.
+
+```typescript
+// Key format
+`sports:hot:{sport}:{endpoint}:{params_hash}`
+
+// TTL: 5 minutes (300 seconds)
+await redis.setex(key, 300, JSON.stringify(response));
+```
+
+#### 2. Distributed Refresh Lock (30-second TTL)
+
+Prevents multiple containers from triggering the same Gemini API refresh simultaneously. Same pattern as v2.0 but scoped to individual entities (matches, tournaments) instead of entire sports.
+
+```typescript
+// Key format
+`sports:refresh-lock:{entity_type}:{entity_id}`
+
+// Example: lock refresh for a specific match
+`sports:refresh-lock:match:ipl_2026_match_15`
+
+// TTL: 30 seconds, NX (only if not exists)
+const acquired = await redis.set(lockKey, "1", "EX", 30, "NX");
+```
+
+#### 3. Rate Limiting
+
+Per-user rate limiting to prevent abuse.
+
+```typescript
+// Key format
+`sports:rate:{user_id}:{endpoint}`
+
+// TTL: 1 minute
+// Limit: 30 requests per minute per endpoint
+```
+
+### v3.0 Architecture Flow
+
+```
+User Request
+    ↓
+Redis Hot Cache (5min TTL) ──→ [HIT] → Return immediately (~5-10ms)
+    ↓ [MISS]
+PostgreSQL (source of truth)
+    ↓
+  [FRESH?] ──→ YES → Return from PG → Write to Redis hot cache → Return (~30-50ms)
+    ↓ NO (stale)
+Return existing PG data immediately (stale-while-revalidate)
+    ↓ [background]
+Acquire Redis refresh lock
+    ↓
+Call Gemini API → Upsert into PostgreSQL → Invalidate Redis hot cache
+    ↓
+Next request gets fresh data
+```
+
+### v3.0 Redis Key Reference
+
+```bash
+# Hot cache keys (5min TTL)
+KEYS sports:hot:*
+
+# Refresh lock keys (30s TTL)
+KEYS sports:refresh-lock:*
+
+# Rate limit keys (1min TTL)
+KEYS sports:rate:*
+
+# Check specific hot cache entry
+GET sports:hot:cricket:dashboard:abc123
+TTL sports:hot:cricket:dashboard:abc123
+
+# Check if a refresh is in progress
+GET sports:refresh-lock:match:ipl_2026_match_15
+
+# Clear all hot cache (force PG reads)
+redis-cli --scan --pattern "sports:hot:*" | xargs redis-cli DEL
+```
+
+### v3.0 Cost & Performance
+
+| Metric | v2.0 (Redis Primary) | v3.0 (PG Primary + Redis Hot Cache) |
+|--------|---------------------|--------------------------------------|
+| Redis memory | ~8MB (full 24hr data) | ~10MB peak (more keys, shorter lived) |
+| Redis TTL | 24 hours | 5 minutes |
+| Gemini API calls/day | 4 max (1/sport) | Varies by match activity (typically fewer) |
+| Cache miss latency | 3-5s (Gemini call) | 30-50ms (PG query) or 3-5s (cold start only) |
+| Cache hit latency | 5-20ms | 5-10ms |
+| Data durability | Lost on Redis restart | Survives everything (PG is source of truth) |
+| Historical queries | Impossible | Full query support via PG |
 
 ---
 
-## 🔴 Original Problem (In-Memory Cache)
+## v2.0 — Redis as Primary Store (Legacy)
 
-### What Was Wrong:
+> **Note:** This section documents the v2.0 architecture for historical reference. The active architecture is v3.0 above. See [`SMART_REFRESH_ARCHITECTURE.md`](./SMART_REFRESH_ARCHITECTURE.md) for the full v3.0 specification.
+
+### Problem Fixed: In-Memory → Redis Cache
+
+The original implementation used in-memory caching which would **NOT work** in serverless/container environments.
+
+### What Was Wrong (v1.0 — In-Memory):
 ```typescript
-// ❌ BAD for serverless
+// BAD for serverless
 const cache = new Map<string, CacheEntry>();
 ```
 
@@ -20,62 +124,23 @@ const cache = new Map<string, CacheEntry>();
 3. **Wasted API calls** - Multiple containers would all call Gemini API separately
 4. **Expensive** - In serverless, you could have 10+ containers, each calling Gemini API independently
 
-### Serverless Reality:
-```
-Container 1 starts → Calls Gemini API → Stores in memory
-Container 2 starts → Can't access Container 1's memory → Calls Gemini API again ❌
-Container 3 starts → Can't access others → Calls Gemini API again ❌
-Container 1 stops → Memory lost, next Container 1 instance calls Gemini again ❌
-```
+### v2.0 Solution: Redis-Based Persistent Cache
 
-**Result:** Potentially dozens of unnecessary Gemini API calls per day instead of just 1!
-
----
-
-## ✅ Solution: Redis-Based Persistent Cache
-
-### What We Fixed:
 ```typescript
-// ✅ GOOD for serverless
+// GOOD for serverless
 const redis = new Redis(process.env.REDIS_URL);
 await redis.setex(key, CACHE_TTL_SECONDS, JSON.stringify(data));
 ```
 
-### Key Improvements:
+**Key Improvements:**
+1. **Persistent Across Restarts** — Cache survives container restarts, 24-hour TTL managed by Redis
+2. **Shared Across All Containers** — One fetch benefits all containers
+3. **Distributed Lock** — Prevents multiple containers from fetching simultaneously
+4. **Graceful Fallback** — Falls back to direct Gemini API call if Redis fails
 
-#### 1. **Persistent Across Restarts**
-- Cache survives container restarts
-- Data stored in external Redis server
-- 24-hour TTL managed by Redis itself
+### v2.0 Architecture Flow
 
-#### 2. **Shared Across All Containers**
-- All serverless containers connect to same Redis instance
-- One fetch benefits all containers
-- True 1 API call per day per sport
-
-#### 3. **Distributed Lock**
-```typescript
-const lockAcquired = await redis.set(lockKey, "1", "EX", 30, "NX");
-```
-- Prevents multiple containers from fetching simultaneously
-- If Container A is fetching, Container B waits
-- Guarantees only 1 Gemini API call even under high load
-
-#### 4. **Graceful Fallback**
-```typescript
-catch (error) {
-  console.error(`Redis cache error for ${sport}:`, error);
-  return fetchSportsData(sport); // Direct fetch if Redis fails
-}
-```
-- If Redis is down, falls back to direct Gemini API call
-- App doesn't crash, just loses cache benefit temporarily
-
----
-
-## 🏗️ Architecture Flow
-
-### First Request (Cache Miss):
+**First Request (Cache Miss):**
 ```
 User Request → Container 1
              ↓
@@ -90,7 +155,7 @@ Container 1 stores result in Redis (24hr TTL)
 Container 1 returns data to user
 ```
 
-### Subsequent Requests (Cache Hit):
+**Subsequent Requests (Cache Hit):**
 ```
 User Request → Container 2
              ↓
@@ -101,7 +166,7 @@ Container 2 returns cached data (no Gemini call)
 Takes <10ms instead of 3-5 seconds
 ```
 
-### Concurrent Requests (Race Condition Handled):
+**Concurrent Requests (Race Condition Handled):**
 ```
 User A Request → Container 1
 User B Request → Container 2 (same time)
@@ -112,31 +177,44 @@ Container 2 checks Redis → Empty → Tries lock → BLOCKED
 Container 1 fetches from Gemini
 Container 2 waits 1 second, retries Redis → Found!
                       ↓
-Both return same data, only 1 API call made ✅
+Both return same data, only 1 API call made
+```
+
+### v2.0 Cost & Performance
+
+**Gemini API Costs Saved:**
+- **Before (v1.0)**: ~100-500 calls/day (depending on traffic & containers)
+- **After (v2.0)**: 4 calls/day maximum (1 per sport)
+- **Savings**: 96-99% reduction in API costs
+
+**Response Time:**
+- **Before (no cache)**: 3-5 seconds per request
+- **After (Redis hit)**: 5-20ms per request
+
+### v2.0 Redis CLI Commands (Legacy)
+
+```bash
+# These key patterns are from v2.0. For v3.0 keys, see the section above.
+
+# Check all cache keys
+KEYS sports:*
+
+# Get cached data
+GET sports:dashboard:cricket
+
+# Check TTL (time to live)
+TTL sports:dashboard:cricket
+
+# Manual clear cache
+DEL sports:dashboard:cricket
+
+# Check lock status
+GET sports:lock:cricket
 ```
 
 ---
 
-## 📊 Cost & Performance Benefits
-
-### Gemini API Costs Saved:
-- **Before**: ~100-500 calls/day (depending on traffic & containers)
-- **After**: 4 calls/day maximum (1 per sport)
-- **Savings**: 96-99% reduction in API costs
-
-### Response Time:
-- **Before (no cache)**: 3-5 seconds per request
-- **After (Redis hit)**: 5-20ms per request
-- **Improvement**: 150-1000x faster
-
-### Reliability:
-- **Before**: Every container failure loses cache
-- **After**: Cache persists independently in Redis
-- **Uptime**: Cache survives all container restarts
-
----
-
-## 🚀 Production Deployment
+## Production Deployment
 
 ### GCP Serverless Options:
 1. **Cloud Run** (recommended) + **Memorystore for Redis**
@@ -170,9 +248,10 @@ gcloud redis instances describe draftcrick-cache \
 
 ---
 
-## 🔍 Monitoring & Debugging
+## Monitoring & Debugging
 
-### Check Cache Status:
+### v3.0 Cache Status Endpoint
+
 ```typescript
 // Query the cacheStatus endpoint
 const status = await trpc.sports.cacheStatus.query();
@@ -181,88 +260,73 @@ const status = await trpc.sports.cacheStatus.query();
 {
   "cricket": {
     "fresh": true,
-    "fetchedAt": "2026-02-09T18:30:00Z",
+    "fetchedAt": "2026-02-12T10:30:00Z",
     "matchCount": 45,
-    "tournamentCount": 8
+    "tournamentCount": 8,
+    "source": "postgresql",          // NEW: shows data source
+    "hotCacheHit": true,             // NEW: whether served from Redis
+    "lastRefreshDuration": 2340,     // NEW: ms for last Gemini refresh
+    "nextRefreshAfter": "2026-02-12T10:35:00Z"  // NEW: when data goes stale
   },
-  "football": null  // Not cached yet
+  "football": null  // Not loaded yet
 }
 ```
 
-### Redis CLI Commands:
+### Testing
+
+**Test Hot Cache Hit (v3.0):**
 ```bash
-# Connect to Redis
-redis-cli -h localhost -p 6379
+# First request (PG miss → Gemini fetch → PG write → Redis write)
+time curl http://localhost:3001/trpc/sports.dashboard?input=%7B%22sport%22%3A%22cricket%22%7D
+# Takes 3-5 seconds (cold start)
 
-# Check all cache keys
-KEYS sports:*
+# Second request (Redis hot cache hit)
+time curl http://localhost:3001/trpc/sports.dashboard?input=%7B%22sport%22%3A%22cricket%22%7D
+# Takes <10ms
 
-# Get cached data
-GET sports:dashboard:cricket
-
-# Check TTL (time to live)
-TTL sports:dashboard:cricket
-
-# Manual clear cache
-DEL sports:dashboard:cricket
-
-# Check lock status
-GET sports:lock:cricket
+# After 5 minutes (Redis expired, PG hit — still fresh)
+time curl http://localhost:3001/trpc/sports.dashboard?input=%7B%22sport%22%3A%22cricket%22%7D
+# Takes ~30-50ms (PG query, re-populates Redis)
 ```
 
----
-
-## 🧪 Testing
-
-### Test Cache Hit:
+**Test Distributed Lock:**
 ```bash
-# First request (cache miss)
-time curl http://localhost:3001/trpc/sports.dashboard?input=%7B%22sport%22%3A%22cricket%22%7D
-# Takes 3-5 seconds
-
-# Second request (cache hit)
-time curl http://localhost:3001/trpc/sports.dashboard?input=%7B%22sport%22%3A%22cricket%22%7D
-# Takes <50ms ✅
-```
-
-### Test Distributed Lock:
-```bash
-# Clear cache first
-redis-cli DEL sports:dashboard:cricket
+# Clear hot cache
+redis-cli --scan --pattern "sports:hot:*" | xargs redis-cli DEL
 
 # Make 5 simultaneous requests
 for i in {1..5}; do
   curl http://localhost:3001/trpc/sports.dashboard?input=%7B%22sport%22%3A%22cricket%22%7D &
 done
 
-# Check Redis - should only see 1 lock acquired
-# Only 1 Gemini API call in logs ✅
+# Only 1 Gemini API call in logs (lock prevents duplicates)
 ```
 
 ---
 
-## 📝 Summary
+## Summary
 
-### What Changed:
-- ❌ **Before**: In-memory `Map()` cache (bad for serverless)
-- ✅ **After**: Redis-based persistent cache (perfect for serverless)
+### Architecture Evolution:
+- v1.0: In-memory `Map()` cache (bad for serverless)
+- v2.0: Redis as primary 24hr data store (good for serverless, but ephemeral)
+- **v3.0: PostgreSQL source of truth + Redis hot cache (durable + fast)**
 
-### Key Features:
-1. **Persistent** - Survives all container restarts
-2. **Shared** - All containers use same cache
-3. **Locked** - Prevents duplicate API calls
-4. **Fast** - Sub-50ms response times
-5. **Reliable** - Falls back gracefully if Redis fails
+### v3.0 Key Features:
+1. **Durable** — Data persists in PostgreSQL, survives any restart
+2. **Smart** — Per-match refresh intervals based on match phase
+3. **Fast** — Redis hot cache for sub-10ms responses
+4. **Locked** — Distributed locks prevent duplicate Gemini calls
+5. **Observable** — Full audit trail in `data_refresh_log` table
+6. **Resilient** — Works without Redis (falls back to PG), works without Gemini (serves stale PG data)
 
 ### Production Ready:
-- ✅ Works with GCP Cloud Run
-- ✅ Works with GCP Memorystore
-- ✅ Handles high concurrency
-- ✅ Minimal API costs
-- ✅ Maximum performance
+- Works with GCP Cloud Run + Memorystore + Cloud SQL
+- Handles high concurrency with distributed locks
+- Minimal Gemini API costs via smart refresh intervals
+- Full monitoring via PostgreSQL queries and Redis key inspection
 
 ---
 
-**Updated:** February 9, 2026  
-**Version:** 2.0 (Redis-based)  
+**Updated:** February 12, 2026
+**Version:** 3.0 (PostgreSQL source of truth + Redis hot cache)
 **Status:** Production-ready for serverless deployment

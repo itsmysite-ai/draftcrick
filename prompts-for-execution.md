@@ -38,6 +38,7 @@ You already created issues #1-21. Here's which prompt implements which issue:
 |---------|-------|----------|--------|
 | #1 | Home Screen — Real Data Integration | PROMPT 4 | ⬜ |
 | #2 | Tournament Display & Filtering | PROMPT 5 | ⬜ |
+| — | Smart Refresh Architecture — PG Persistence | PROMPT 5.5 | ⬜ |
 | #3 | Tournament Mode Database Schema (19 tables) | PROMPT 2 | ⬜ |
 | #4 | Geo-Location & Regional Compliance Foundation | PROMPTS 6-9 | ⬜ |
 | #5 | Authentication Testing (7 test cases) | PROMPT 10 | ⬜ |
@@ -261,6 +262,88 @@ Self-verify:
 
 Branch: feature/phase-2.75-tournament-display
 Commit: feat(phase-2.75): tournament display, filtering, and details screen
+```
+
+### Step 4.5: Smart Refresh Architecture (Run After Tournament Display)
+
+```
+PROMPT 5.5: Smart Refresh Architecture — PostgreSQL Persistence
+────────────────────────────────────────────────────────────────
+Read /docs/SMART_REFRESH_ARCHITECTURE.md for the full architecture spec.
+Also read /docs/REDIS_CACHE_ARCHITECTURE.md (updated v3.0 section) and
+/docs/LOGGING_GUIDE.md for structured logging patterns.
+
+This prompt moves sports data from ephemeral Redis-only caching (24hr TTL)
+to PostgreSQL as the source of truth, with smart per-match refresh
+intervals triggered by user requests. Redis becomes a thin hot-cache
+layer (5min TTL).
+
+Implement in this order:
+
+1. Database schema (Drizzle):
+   a. Create `tournaments` table — external_id, name, sport, status,
+      start_date, end_date, teams JSONB, refresh tracking columns.
+      Unique constraint on (external_id, sport).
+   b. Create `data_refresh_log` table — entity_type, entity_id, sport,
+      trigger, status, duration_ms, records_upserted, error_message.
+   c. ALTER `matches` table — add tournament_id (FK to tournaments),
+      external_id, match_phase (idle/pre_match/live/post_match/completed),
+      last_refreshed_at, next_refresh_after, refresh_count.
+   d. Run `npx drizzle-kit generate` and apply migration.
+   e. Verify tables: SELECT tablename FROM pg_tables WHERE schemaname='public'
+
+2. Shared types (packages/shared or appropriate location):
+   - MatchPhase type: 'idle' | 'pre_match' | 'live' | 'post_match' | 'completed'
+   - REFRESH_INTERVALS map: idle=12h, pre_match=2h, live=5min, post_match=30min, completed=null
+   - RefreshLogEntry, RefreshResult interfaces
+   - determineMatchPhase() function (based on start_time, end_time, status)
+
+3. Create `sports-data.ts` service (packages/api/src/services/):
+   - getDashboard(sport): check PG, trigger refresh if stale, return data
+   - getTournament(tournamentId): get tournament + its matches from PG
+   - getMatch(matchId): get single match from PG
+   - upsertTournaments(sport, data): upsert Gemini tournament data into PG
+     using ON CONFLICT (external_id, sport) DO UPDATE
+   - upsertMatches(tournamentId, data): upsert Gemini match data into PG
+   - shouldRefresh(entityType, entityId): compare next_refresh_after vs NOW()
+   - executeRefresh(entityType, entityId, userId?): acquire lock, call Gemini,
+     upsert PG, log to data_refresh_log
+   - Use getLogger("sports-data") for all logging
+
+4. Refactor `sports-cache.ts`:
+   - Remove 24hr TTL primary cache logic
+   - Keep as thin hot-cache layer:
+     * getFromHotCache(key): Redis GET with 5min TTL
+     * setHotCache(key, data, ttl=300): Redis SETEX
+     * invalidateHotCache(pattern): Redis DEL by pattern
+   - Keep distributed lock (acquireRefreshLock / releaseRefreshLock)
+   - Add rate limiting (checkRateLimit)
+   - Use getLogger("sports-cache") for all logging
+
+5. Update `sports.ts` router:
+   - Dashboard endpoint: Redis hot cache → PG (via sports-data) → Gemini
+   - Implement stale-while-revalidate: return existing PG data immediately,
+     trigger background refresh if stale
+   - Cold start path: wait for Gemini fetch when no PG data exists
+   - Update cacheStatus endpoint to show v3.0 info (source, hotCacheHit,
+     lastRefreshDuration, nextRefreshAfter)
+
+6. Feature flag: Add SMART_REFRESH_ENABLED env var (default: true).
+   When false, revert to v2.0 behavior for rollback safety.
+
+Self-verify:
+- Verify tournaments table exists with correct columns
+- Verify data_refresh_log table exists with correct columns
+- Verify matches table has new columns (match_phase, last_refreshed_at, etc.)
+- Hit sports.dashboard endpoint — verify data flows through PG, not just Redis
+- Hit it again within 5min — verify Redis hot cache hit (<10ms)
+- Wait 5min, hit again — verify PG hit (~30-50ms), Redis repopulated
+- Check data_refresh_log has entries with correct trigger/status/duration
+- Check that concurrent requests don't trigger duplicate Gemini calls (lock works)
+- Run npx tsc --noEmit — no TypeScript errors
+
+Branch: feature/phase-2.75-smart-refresh
+Commit: feat(phase-2.75): PostgreSQL persistence + smart per-match refresh architecture
 ```
 
 ### Step 5: Geo-Location Foundation (Run After Schema is Merged)
