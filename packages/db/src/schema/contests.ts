@@ -9,6 +9,7 @@ import {
   jsonb,
   index,
   unique,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
@@ -51,7 +52,7 @@ export const leagueMembers = pgTable(
       .defaultNow(),
   },
   (table) => [
-    unique("pk_league_member").on(table.leagueId, table.userId),
+    primaryKey({ columns: [table.leagueId, table.userId] }),
   ]
 );
 
