@@ -49,6 +49,15 @@ interface DraftPlayer {
   stats: Record<string, number>;
 }
 
+/** Safely parse AI-returned date/time strings into a Date object */
+function parseSafeDate(dateStr?: string, timeStr?: string): Date {
+  if (!dateStr) return new Date();
+  // Strip timezone abbreviations (IST, EST, etc.) that Date.parse can't handle
+  const cleanTime = (timeStr ?? "").replace(/\s+[A-Z]{2,4}$/, "");
+  const parsed = new Date(`${dateStr} ${cleanTime}`);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 // ─── Main ───────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -231,7 +240,7 @@ export default function HomeScreen() {
                     teamHome={m.teamA}
                     teamAway={m.teamB}
                     venue={m.venue ?? m.tournamentName}
-                    startTime={new Date(`${m.date} ${m.time}`)}
+                    startTime={parseSafeDate(m.date, m.time)}
                     status={m.status === "delayed" || m.status === "abandoned" ? "abandoned" : m.status}
                     result={m.scoreSummary}
                     onPress={() => {
