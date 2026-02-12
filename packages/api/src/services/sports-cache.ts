@@ -7,7 +7,10 @@
 import type { Sport, SportsDashboardData } from "@draftcrick/shared";
 import { DEFAULT_SPORT } from "@draftcrick/shared";
 import { fetchSportsData } from "./gemini-sports";
+import { getLogger } from "../lib/logger";
 import Redis from "ioredis";
+
+const log = getLogger("sports-cache");
 
 /** 24 hours in seconds (Redis uses seconds for TTL) */
 const CACHE_TTL_SECONDS = 24 * 60 * 60;
@@ -45,9 +48,9 @@ const inflight = new Map<string, Promise<SportsDashboardData>>();
 export async function getSportsDashboard(
   sport: Sport = DEFAULT_SPORT
 ): Promise<SportsDashboardData> {
-  const key = `sports:dashboard:${sport}`;
+  const cacheKey = `sports:dashboard:${sport}`;
   const lockKey = `sports:lock:${sport}`;
-  
+
   try {
     const redisClient = getRedis();
 
@@ -58,20 +61,24 @@ export async function getSportsDashboard(
     }
 
     // Try to get from Redis cache
-    const cached = await redisClient.get(key);
+    const cached = await redisClient.get(cacheKey);
     if (cached) {
       const entry: CacheEntry = JSON.parse(cached);
+      log.debug({ cacheKey, sport }, "Redis cache hit");
       return entry.data;
     }
 
     // Cache miss - need to fetch from Gemini
+    log.info({ cacheKey, sport }, "Cache miss — fetching from Gemini");
+
     // Use Redis lock to prevent multiple containers from fetching simultaneously
     const lockAcquired = await redisClient.set(lockKey, "1", "EX", 30, "NX");
-    
+
     if (!lockAcquired) {
+      log.debug({ cacheKey, sport }, "Cache miss — waiting for peer fetch");
       // Another container is fetching, wait a bit and try cache again
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const retryCache = await redisClient.get(key);
+      const retryCache = await redisClient.get(cacheKey);
       if (retryCache) {
         const entry: CacheEntry = JSON.parse(retryCache);
         return entry.data;
@@ -86,22 +93,23 @@ export async function getSportsDashboard(
           data,
           fetchedAt: Date.now(),
         };
-        
+
         // Store in Redis with 24hr TTL
-        await redisClient.setex(key, CACHE_TTL_SECONDS, JSON.stringify(entry));
-        
+        await redisClient.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(entry));
+        log.debug({ cacheKey, ttlSeconds: CACHE_TTL_SECONDS }, "Cached Gemini response");
+
         // Release lock
         await redisClient.del(lockKey);
         inflight.delete(sport);
-        
+
         return data;
       })
       .catch(async (err) => {
         // Release lock on error
         await redisClient.del(lockKey);
         inflight.delete(sport);
-        
-        console.error(`Gemini fetch failed for ${sport}:`, err);
+
+        log.error({ sport, error: String(err) }, "Gemini fetch failed");
         throw err;
       });
 
@@ -109,7 +117,7 @@ export async function getSportsDashboard(
     return fetchPromise;
 
   } catch (error) {
-    console.error(`Redis cache error for ${sport}:`, error);
+    log.warn({ sport, error: String(error) }, "Redis unavailable — falling back to direct Gemini");
     // Fallback to direct fetch if Redis fails
     return fetchSportsData(sport);
   }
@@ -122,15 +130,16 @@ export async function getSportsDashboard(
 export async function refreshSportsDashboard(
   sport: Sport = DEFAULT_SPORT
 ): Promise<SportsDashboardData> {
-  const key = `sports:dashboard:${sport}`;
-  
+  const cacheKey = `sports:dashboard:${sport}`;
+
   try {
     const redisClient = getRedis();
-    await redisClient.del(key);
+    await redisClient.del(cacheKey);
+    log.info({ cacheKey, sport }, "Cache cleared (admin refresh)");
   } catch (error) {
-    console.error(`Redis delete error for ${sport}:`, error);
+    log.warn({ sport, error: String(error) }, "Redis delete failed during refresh");
   }
-  
+
   return getSportsDashboard(sport);
 }
 
@@ -140,14 +149,14 @@ export async function refreshSportsDashboard(
 export async function getCacheStatus(): Promise<Record<string, { fresh: boolean; fetchedAt: string; matchCount: number; tournamentCount: number } | null>> {
   const status: Record<string, any> = {};
   const sports: Sport[] = ["cricket", "football", "kabaddi", "basketball"];
-  
+
   try {
     const redisClient = getRedis();
-    
+
     for (const sport of sports) {
-      const key = `sports:dashboard:${sport}`;
-      const cached = await redisClient.get(key);
-      
+      const cacheKey = `sports:dashboard:${sport}`;
+      const cached = await redisClient.get(cacheKey);
+
       if (cached) {
         const entry: CacheEntry = JSON.parse(cached);
         const age = Date.now() - entry.fetchedAt;
@@ -162,9 +171,9 @@ export async function getCacheStatus(): Promise<Record<string, { fresh: boolean;
       }
     }
   } catch (error) {
-    console.error("Redis cache status error:", error);
+    log.error({ error: String(error) }, "Redis cache status check failed");
   }
-  
+
   return status;
 }
 
