@@ -1,6 +1,5 @@
 import type { Database } from "@draftcrick/db";
-import { matches, players, playerMatchScores } from "@draftcrick/db";
-import { eq } from "drizzle-orm";
+import { matches, players, playerMatchScores, playerStatuses } from "@draftcrick/db";
 
 /**
  * Cricket data service — ingests match/player data.
@@ -183,8 +182,76 @@ export async function seedCricketData(db: Database) {
     console.log(`  Linked ${matchPlayers.length} players to first match`);
   }
 
+  // Seed World Cup 2026 matches (draft-enabled)
+  const wcMatchPairs = [
+    { home: "India", away: "Australia", venue: "Narendra Modi Stadium", city: "Ahmedabad", hoursFromNow: 240 },
+    { home: "England", away: "South Africa", venue: "Lord's Cricket Ground", city: "London", hoursFromNow: 264 },
+    { home: "India", away: "England", venue: "Eden Gardens", city: "Kolkata", hoursFromNow: 288 },
+    { home: "Australia", away: "New Zealand", venue: "MCG", city: "Melbourne", hoursFromNow: 312 },
+    { home: "South Africa", away: "West Indies", venue: "Wanderers Stadium", city: "Johannesburg", hoursFromNow: 336 },
+    { home: "India", away: "New Zealand", venue: "Wankhede Stadium", city: "Mumbai", hoursFromNow: 360 },
+  ];
+
+  const seededWcMatches = [];
+  for (const m of wcMatchPairs) {
+    const startTime = new Date(Date.now() + m.hoursFromNow * 3600_000);
+    const [match] = await db
+      .insert(matches)
+      .values({
+        externalId: `wc-2026-${m.home.toLowerCase().replace(/\s+/g, "-")}-${m.away.toLowerCase().replace(/\s+/g, "-")}-${m.hoursFromNow}`,
+        sport: "cricket",
+        format: "odi",
+        tournament: "ICC Cricket World Cup 2026",
+        teamHome: m.home,
+        teamAway: m.away,
+        venue: m.venue,
+        city: m.city,
+        startTime,
+        status: "upcoming",
+        draftEnabled: true,
+        tournamentId: "wc-2026",
+      })
+      .onConflictDoNothing({ target: matches.externalId })
+      .returning();
+    if (match) seededWcMatches.push(match);
+  }
+  console.log(`  Seeded ${seededWcMatches.length} World Cup 2026 matches (draft-enabled)`);
+
+  // Seed player_statuses for all players (set to 'available')
+  const allPlayers = await db.query.players.findMany();
+  let statusCount = 0;
+  for (const player of allPlayers) {
+    // Set available for IPL 2026
+    await db
+      .insert(playerStatuses)
+      .values({
+        playerId: player.externalId,
+        tournamentId: "ipl-2026",
+        status: "available",
+      })
+      .onConflictDoNothing();
+
+    // Set available for World Cup 2026
+    await db
+      .insert(playerStatuses)
+      .values({
+        playerId: player.externalId,
+        tournamentId: "wc-2026",
+        status: "available",
+      })
+      .onConflictDoNothing();
+
+    statusCount++;
+  }
+  console.log(`  Seeded player_statuses for ${statusCount} players (2 tournaments each)`);
+
   console.log("Cricket data seeding complete.");
-  return { players: seededPlayers.length, matches: seededMatches.length };
+  return {
+    players: seededPlayers.length,
+    matches: seededMatches.length,
+    wcMatches: seededWcMatches.length,
+    playerStatuses: statusCount * 2,
+  };
 }
 
 /**
