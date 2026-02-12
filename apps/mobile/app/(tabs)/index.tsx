@@ -1,12 +1,13 @@
-import { ScrollView as RNScrollView } from "react-native";
+import { ScrollView as RNScrollView, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import {
   XStack,
   YStack,
   Text,
+  useTheme as useTamaguiTheme,
 } from "tamagui";
 import {
   Card,
@@ -18,134 +19,493 @@ import {
   SegmentTab,
   ModeToggle,
   StatLabel,
+  EggLoadingSpinner,
+  DesignSystem,
+  textStyles,
   formatUIText,
+  formatBadgeText,
 } from "@draftcrick/ui";
 import { useTheme } from "../../providers/ThemeProvider";
+import { trpc } from "../../lib/trpc";
 
-// ─── Sample player data (replace with tRPC query later) ─────────────
-const PLAYERS = [
-  { id: 1, name: "Virat Kohli", role: "BAT" as const, team: "IND", ovr: 97, stats: { avg: 53.4, sr: 93.2, runs: 13848 } },
-  { id: 2, name: "Jasprit Bumrah", role: "BOWL" as const, team: "IND", ovr: 96, stats: { wkts: 178, econ: 4.2, avg: 21.7 } },
-  { id: 3, name: "Pat Cummins", role: "BOWL" as const, team: "AUS", ovr: 95, stats: { wkts: 196, econ: 4.8, avg: 22.1 } },
-  { id: 4, name: "Joe Root", role: "BAT" as const, team: "ENG", ovr: 95, stats: { avg: 50.6, sr: 56.2, runs: 12402 } },
-  { id: 5, name: "Rashid Khan", role: "BOWL" as const, team: "AFG", ovr: 94, stats: { wkts: 172, econ: 4.1, avg: 19.8 } },
-  { id: 6, name: "Ben Stokes", role: "AR" as const, team: "ENG", ovr: 94, stats: { avg: 36.7, sr: 71.4, wkts: 104 } },
-  { id: 7, name: "Kane Williamson", role: "BAT" as const, team: "NZ", ovr: 93, stats: { avg: 54.3, sr: 52.1, runs: 8889 } },
-  { id: 8, name: "Shakib Al Hasan", role: "AR" as const, team: "BAN", ovr: 93, stats: { avg: 34.8, sr: 68.3, wkts: 237 } },
-  { id: 9, name: "Rishabh Pant", role: "WK" as const, team: "IND", ovr: 92, stats: { avg: 44.1, sr: 73.9, runs: 2648 } },
-  { id: 10, name: "Kagiso Rabada", role: "BOWL" as const, team: "SA", ovr: 92, stats: { wkts: 168, econ: 5.1, avg: 23.4 } },
-  { id: 11, name: "Travis Head", role: "BAT" as const, team: "AUS", ovr: 91, stats: { avg: 42.8, sr: 68.5, runs: 3210 } },
-  { id: 12, name: "Quinton de Kock", role: "WK" as const, team: "SA", ovr: 91, stats: { avg: 38.6, sr: 71.2, runs: 5765 } },
-];
-
-type Player = (typeof PLAYERS)[number];
+// ─── Types ───────────────────────────────────────────────────────────
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
-// ─── Role color mapping for Tamagui ─────────────────────────────────
-const ROLE_TOKENS: Record<RoleKey, { bg: string; text: string; lightBg: string; lightText: string }> = {
-  BAT: { bg: "$roleBatBg", text: "$roleBatText", lightBg: "$roleBatLightBg", lightText: "$roleBatLightText" },
-  BOWL: { bg: "$roleBowlBg", text: "$roleBowlText", lightBg: "$roleBowlLightBg", lightText: "$roleBowlLightText" },
-  AR: { bg: "$roleArBg", text: "$roleArText", lightBg: "$roleArLightBg", lightText: "$roleArLightText" },
-  WK: { bg: "$roleWkBg", text: "$roleWkText", lightBg: "$roleWkLightBg", lightText: "$roleWkLightText" },
+/** Map DB role strings to display role codes */
+const ROLE_MAP: Record<string, RoleKey> = {
+  batsman: "BAT",
+  bowler: "BOWL",
+  all_rounder: "AR",
+  wicket_keeper: "WK",
 };
 
+interface PlayerStats {
+  credits?: number;
+  [key: string]: number | undefined;
+}
+
+interface DraftPlayer {
+  id: string;
+  name: string;
+  role: RoleKey;
+  team: string;
+  credits: number;
+  stats: Record<string, number>;
+}
+
+/** Safely parse AI-returned date/time strings into a Date object */
+function parseSafeDate(dateStr?: string, timeStr?: string): Date {
+  if (!dateStr) return new Date();
+  const cleanTime = (timeStr ?? "").replace(/\s+[A-Z]{2,4}$/, "");
+  const parsed = new Date(`${dateStr} ${cleanTime}`);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+/** Format countdown for upcoming matches */
+function formatCountdown(date: Date): string {
+  const diffMs = date.getTime() - Date.now();
+  if (diffMs <= 0) return "STARTED";
+  const hours = Math.floor(diffMs / 3_600_000);
+  const mins = Math.floor((diffMs % 3_600_000) / 60_000);
+  if (hours > 24) return `${Math.floor(hours / 24)}d`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+// ─── MatchCard (follows LiveMatchCard pattern from live.tsx) ─────────
+function HomeMatchCard({
+  match,
+  index,
+  onPress,
+}: {
+  match: any;
+  index: number;
+  onPress: () => void;
+}) {
+  const isLive = match.status === "live";
+  const teamA = match.teamA || match.teamHome || "TBA";
+  const teamB = match.teamB || match.teamAway || "TBA";
+  const tournament = match.tournamentName || match.tournament || "cricket";
+  const startTime = parseSafeDate(match.date, match.time);
+
+  return (
+    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+      <Card pressable live={isLive} onPress={onPress} padding="$6" marginBottom="$3">
+        {/* Header: tournament badge + status */}
+        <XStack justifyContent="space-between" alignItems="center" marginBottom="$4">
+          <Badge variant="role" size="sm">
+            {formatBadgeText(tournament)}
+          </Badge>
+          <Badge variant={isLive ? "live" : "default"} size="sm">
+            {isLive ? formatBadgeText("live") : formatCountdown(startTime)}
+          </Badge>
+        </XStack>
+
+        {/* Teams */}
+        <XStack alignItems="center" justifyContent="center" marginBottom="$4">
+          <YStack flex={1} alignItems="center" gap={6}>
+            <InitialsAvatar name={teamA} playerRole="BAT" ovr={0} size={48} />
+            <Text {...textStyles.playerName} numberOfLines={1} textAlign="center">
+              {teamA}
+            </Text>
+          </YStack>
+
+          <YStack alignItems="center" gap={2}>
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+              {formatUIText("vs")}
+            </Text>
+            {match.format && (
+              <Text fontFamily="$mono" fontSize={9} color="$colorMuted" letterSpacing={0.5}>
+                {formatBadgeText(match.format)}
+              </Text>
+            )}
+          </YStack>
+
+          <YStack flex={1} alignItems="center" gap={6}>
+            <InitialsAvatar name={teamB} playerRole="BOWL" ovr={0} size={48} />
+            <Text {...textStyles.playerName} numberOfLines={1} textAlign="center">
+              {teamB}
+            </Text>
+          </YStack>
+        </XStack>
+
+        {/* Score summary */}
+        {match.scoreSummary && (
+          <YStack alignItems="center" marginBottom="$3">
+            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorCricket">
+              {match.scoreSummary}
+            </Text>
+          </YStack>
+        )}
+
+        {/* Footer: venue + time */}
+        <XStack
+          justifyContent="space-between"
+          alignItems="center"
+          paddingTop="$3"
+          borderTopWidth={1}
+          borderTopColor="$borderColor"
+        >
+          <Text {...textStyles.hint} flex={1} numberOfLines={1}>
+            {match.venue || match.time || ""}
+          </Text>
+          <Button onPress={onPress} size="sm" variant={isLive ? "primary" : "secondary"}>
+            {isLive ? formatUIText("watch live") : formatUIText("draft now")}
+          </Button>
+        </XStack>
+      </Card>
+    </Animated.View>
+  );
+}
 
 // ─── Main ───────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mode, toggleMode, t, roles } = useTheme();
+  const theme = useTamaguiTheme();
+  const { mode, toggleMode } = useTheme();
 
-  const [myTeam, setMyTeam] = useState<Player[]>([]);
-  const [allDrafted, setAllDrafted] = useState<number[]>([]);
+  // ── tRPC queries ──
+  const dashboardQuery = trpc.sports.dashboard.useQuery(
+    { sport: "cricket" },
+    { staleTime: 60 * 60_000, retry: 1 },
+  );
+  const playersQuery = trpc.player.list.useQuery(undefined, {
+    staleTime: 5 * 60_000,
+  });
+
+  // ── Draft state ──
+  const [myTeam, setMyTeam] = useState<DraftPlayer[]>([]);
+  const [allDrafted, setAllDrafted] = useState<string[]>([]);
   const [round, setRound] = useState(1);
   const [pick, setPick] = useState(1);
-  const [tab, setTab] = useState<"draft" | "team">("draft");
+  const [tab, setTab] = useState<"matches" | "draft" | "team">("matches");
   const [roleFilter, setRoleFilter] = useState<"all" | RoleKey>("all");
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedTournament, setSelectedTournament] = useState<string | null>(null);
 
-  const handleDraft = (player: Player) => {
+  // ── Map DB players to draft-friendly shape ──
+  const players: DraftPlayer[] = (playersQuery.data ?? []).map((p: any) => {
+    const rawStats = (typeof p.stats === "string" ? JSON.parse(p.stats) : p.stats ?? {}) as PlayerStats;
+    const credits = rawStats.credits ?? 8;
+    return {
+      id: p.id as string,
+      name: p.name as string,
+      role: ROLE_MAP[p.role as string] ?? "BAT",
+      team: (p.team as string) ?? "???",
+      credits,
+      stats: { cr: credits },
+    };
+  });
+
+  const handleDraft = useCallback((player: DraftPlayer) => {
     setMyTeam((prev) => [...prev, player]);
     setAllDrafted((prev) => [...prev, player.id]);
     setPick((p) => p + 1);
     if (pick % 4 === 0) setRound((r) => r + 1);
-  };
+  }, [pick]);
 
-  const available = PLAYERS.filter((p) => !allDrafted.includes(p.id));
+  const available = players.filter((p) => !allDrafted.includes(p.id));
   const filtered = roleFilter === "all" ? available : available.filter((p) => p.role === roleFilter);
-  return (
-    <YStack flex={1} backgroundColor="$background">
-      <RNScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
-        {/* ── Header ── */}
-        <Animated.View entering={FadeIn.delay(0)}>
-          <XStack
-            justifyContent="space-between"
-            alignItems="flex-start"
-            paddingHorizontal="$4"
-            paddingBottom="$5"
-            paddingTop={insets.top + 8}
-          >
-            <YStack>
-              <XStack alignItems="center" gap="$2">
-                <Text fontSize={22}>🥚</Text>
-                <Text fontFamily="$mono" fontSize={17} fontWeight="500" color="$color" letterSpacing={-0.5}>
-                  tami·draft
-                </Text>
-                <XStack backgroundColor="$colorAccentLight" paddingHorizontal={7} paddingVertical={2} borderRadius="$1">
-                  <Text fontFamily="$mono" fontSize={9} fontWeight="600" color="$colorAccent">
-                    🏏 cricket
-                  </Text>
-                </XStack>
-              </XStack>
-              <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={3} marginLeft={30}>
-                fantasy cricket companion
-              </Text>
-            </YStack>
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([dashboardQuery.refetch(), playersQuery.refetch()]);
+    setRefreshing(false);
+  }, [dashboardQuery, playersQuery]);
 
-            <ModeToggle mode={mode} onToggle={toggleMode} />
-          </XStack>
-        </Animated.View>
+  // ── Full-screen loading state ──
+  const isInitialLoad = dashboardQuery.isLoading && playersQuery.isLoading;
+  if (isInitialLoad) {
+    return (
+      <YStack
+        flex={1}
+        justifyContent="center"
+        alignItems="center"
+        paddingTop={insets.top}
+        backgroundColor="$background"
+      >
+        <EggLoadingSpinner size={48} message={formatUIText("loading matches")} />
+      </YStack>
+    );
+  }
 
-        {/* ── Happiness Meter ── */}
-        <Animated.View entering={FadeInDown.delay(30).springify()}>
-          <AnnouncementBanner />
-        </Animated.View>
-
-        {/* ── Segment Tabs ── */}
-        <XStack
-          backgroundColor="$backgroundSurfaceAlt"
-          marginHorizontal="$4"
-          marginBottom="$3"
-          borderRadius="$3"
-          padding="$1"
-          gap="$1"
+  // ── Full-screen error state ──
+  const hasError = dashboardQuery.isError && playersQuery.isError;
+  if (hasError) {
+    return (
+      <YStack
+        flex={1}
+        justifyContent="center"
+        alignItems="center"
+        paddingTop={insets.top}
+        paddingHorizontal="$8"
+        backgroundColor="$background"
+        gap="$3"
+      >
+        <Text fontSize={DesignSystem.emptyState.iconSize}>😵</Text>
+        <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" textAlign="center">
+          {formatUIText("something went wrong")}
+        </Text>
+        <Text
+          {...textStyles.hint}
+          textAlign="center"
+          lineHeight={18}
         >
-          {([
-            { key: "draft" as const, label: formatUIText("available"), count: available.length },
-            { key: "team" as const, label: formatUIText("my squad"), count: myTeam.length },
-          ]).map((tb) => (
-            <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
-              <Text
-                fontFamily="$body"
-                fontWeight="600"
-                fontSize={13}
-                color={tab === tb.key ? "$color" : "$colorMuted"}
-              >
-                {tb.label}
-              </Text>
-              <Text fontFamily="$mono" fontSize={11} color={tab === tb.key ? "$colorSecondary" : "$colorMuted"}>
-                {tb.count}
-              </Text>
-            </SegmentTab>
-          ))}
-        </XStack>
+          {formatUIText(dashboardQuery.error?.message ?? "couldn't load cricket data. check your connection.")}
+        </Text>
+        <Button variant="primary" size="md" marginTop="$3" onPress={onRefresh}>
+          {formatUIText("try again")}
+        </Button>
+      </YStack>
+    );
+  }
 
-        {/* ── Role Filter ── */}
-        {tab === "draft" && (
+  const matches = dashboardQuery.data?.matches ?? [];
+  const tournaments = dashboardQuery.data?.tournaments ?? [];
+
+  /** Count matches per tournament name */
+  const tournamentMatchCounts: Record<string, number> = {};
+  for (const m of matches) {
+    const name = (m as any).tournamentName ?? "";
+    tournamentMatchCounts[name] = (tournamentMatchCounts[name] ?? 0) + 1;
+  }
+
+  /** Filter matches by selected tournament */
+  const filteredMatches = selectedTournament
+    ? matches.filter((m: any) => (m.tournamentName ?? "") === selectedTournament)
+    : matches;
+
+  return (
+    <YStack flex={1} paddingTop={insets.top} backgroundColor="$background">
+      {/* ── Header ── */}
+      <Animated.View entering={FadeIn.delay(0)}>
+        <XStack
+          justifyContent="space-between"
+          alignItems="flex-start"
+          paddingHorizontal="$5"
+          paddingVertical="$4"
+        >
+          <YStack>
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={22}>🥚</Text>
+              <Text fontFamily="$mono" fontSize={17} fontWeight="500" color="$color" letterSpacing={-0.5}>
+                tami·draft
+              </Text>
+              <Badge backgroundColor="$colorAccentLight" color="$colorAccent" size="sm" fontWeight="600">
+                🏏 CRICKET
+              </Badge>
+            </XStack>
+            <Text {...textStyles.hint} marginTop={3} marginLeft={30}>
+              {formatUIText("fantasy cricket companion")}
+            </Text>
+          </YStack>
+
+          <ModeToggle mode={mode} onToggle={toggleMode} />
+        </XStack>
+      </Animated.View>
+
+      {/* ── Announcement Banner ── */}
+      <AnnouncementBanner />
+
+      {/* ── Segment Tabs ── */}
+      <XStack
+        marginHorizontal="$5"
+        marginTop="$4"
+        marginBottom="$4"
+        borderRadius="$3"
+        backgroundColor="$backgroundSurfaceAlt"
+        padding="$1"
+        gap="$1"
+      >
+        {([
+          { key: "matches" as const, label: "matches", count: filteredMatches.length },
+          { key: "draft" as const, label: "available", count: available.length },
+          { key: "team" as const, label: "my squad", count: myTeam.length },
+        ]).map((tb) => (
+          <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
+            <Text
+              fontFamily="$body"
+              fontWeight="600"
+              fontSize={13}
+              color={tab === tb.key ? "$color" : "$colorMuted"}
+            >
+              {formatUIText(tb.label)}
+            </Text>
+            <Text fontFamily="$mono" fontSize={11} color={tab === tb.key ? "$colorSecondary" : "$colorMuted"}>
+              {tb.count}
+            </Text>
+          </SegmentTab>
+        ))}
+      </XStack>
+
+      {/* ── Matches Tab ── */}
+      {tab === "matches" && (
+        <YStack flex={1}>
+          {/* Tournament Filter Strip */}
+          {tournaments.length > 0 && (
+            <RNScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flexGrow: 0, flexShrink: 0 }}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 14 }}
+            >
+              <FilterPill active={selectedTournament === null} onPress={() => setSelectedTournament(null)}>
+                <Text
+                  fontFamily="$body"
+                  fontSize={12}
+                  fontWeight="500"
+                  color={selectedTournament === null ? "$background" : "$colorSecondary"}
+                >
+                  {formatUIText("🏏 all")}
+                </Text>
+              </FilterPill>
+              {tournaments.map((t: any) => (
+                <FilterPill
+                  key={t.id}
+                  active={selectedTournament === t.name}
+                  onPress={() =>
+                    setSelectedTournament(
+                      selectedTournament === t.name ? null : t.name,
+                    )
+                  }
+                >
+                  <Text
+                    fontFamily="$body"
+                    fontSize={12}
+                    fontWeight="500"
+                    color={selectedTournament === t.name ? "$background" : "$colorSecondary"}
+                    numberOfLines={1}
+                  >
+                    {formatUIText(`🏆 ${t.name}`)}
+                  </Text>
+                </FilterPill>
+              ))}
+            </RNScrollView>
+          )}
+
+          <RNScrollView
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.accentBackground?.val}
+              />
+            }
+            contentContainerStyle={{ padding: 20, paddingTop: 10, paddingBottom: 120 }}
+          >
+            {/* Inline error banner */}
+            {dashboardQuery.isError && (
+              <Card marginBottom="$3" padding="$4">
+                <XStack alignItems="center" justifyContent="space-between">
+                  <Text fontFamily="$body" fontSize={13} color="$colorMuted">
+                    {formatUIText("couldn't refresh matches")}
+                  </Text>
+                  <Button size="sm" variant="secondary" onPress={() => dashboardQuery.refetch()}>
+                    {formatUIText("retry")}
+                  </Button>
+                </XStack>
+              </Card>
+            )}
+
+            {/* Selected tournament card */}
+            {selectedTournament && (() => {
+              const t = tournaments.find((t: any) => t.name === selectedTournament);
+              if (!t) return null;
+              return (
+                <Animated.View entering={FadeInDown.delay(0).springify()}>
+                  <Card
+                    pressable
+                    onPress={() => router.push(`/tournament/${encodeURIComponent(t.name)}`)}
+                    padding="$4"
+                    marginBottom="$4"
+                    borderWidth={2}
+                    borderColor="$accentBackground"
+                  >
+                    <XStack justifyContent="space-between" alignItems="center">
+                      <YStack flex={1} gap="$1">
+                        <Text {...textStyles.playerName} fontSize={14}>
+                          {(t as any).name}
+                        </Text>
+                        <XStack alignItems="center" gap="$2">
+                          <Badge variant="role" size="sm">
+                            {formatBadgeText((t as any).category)}
+                          </Badge>
+                          <Text {...textStyles.hint}>
+                            {tournamentMatchCounts[(t as any).name] ?? 0}{" "}
+                            {formatUIText("matches")}
+                          </Text>
+                        </XStack>
+                      </YStack>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onPress={() => router.push(`/tournament/${encodeURIComponent(t.name)}`)}
+                      >
+                        {formatUIText("details")}
+                      </Button>
+                    </XStack>
+                  </Card>
+                </Animated.View>
+              );
+            })()}
+
+            {dashboardQuery.isLoading ? (
+              <YStack alignItems="center" paddingVertical="$10">
+                <EggLoadingSpinner size={40} message={formatUIText("loading matches")} />
+              </YStack>
+            ) : filteredMatches.length > 0 ? (
+              <>
+                {filteredMatches.map((m: any, i: number) => (
+                  <HomeMatchCard
+                    key={m.id}
+                    match={m}
+                    index={i}
+                    onPress={() => {
+                      if (m.id.startsWith("ai-")) {
+                        router.push("/(tabs)/contests");
+                      }
+                    }}
+                  />
+                ))}
+                {/* Data source footer */}
+                {dashboardQuery.data?.lastFetched && (
+                  <Text {...textStyles.hint} textAlign="center" marginTop="$2">
+                    {formatUIText(`last updated: ${new Date(dashboardQuery.data.lastFetched).toLocaleTimeString()}`)}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Animated.View entering={FadeIn.delay(80)}>
+                <YStack alignItems="center" gap="$3" paddingVertical="$10">
+                  <Text fontSize={DesignSystem.emptyState.iconSize}>🏏</Text>
+                  <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+                    {formatUIText(selectedTournament ? "no matches in this tournament" : "no matches right now")}
+                  </Text>
+                  <Text
+                    {...textStyles.hint}
+                    textAlign="center"
+                    lineHeight={18}
+                  >
+                    {formatUIText(selectedTournament ? "try selecting a different tournament" : "check back soon for upcoming fixtures")}
+                  </Text>
+                </YStack>
+              </Animated.View>
+            )}
+          </RNScrollView>
+        </YStack>
+      )}
+
+      {/* ── Draft Tab ── */}
+      {tab === "draft" && (
+        <YStack flex={1}>
+          {/* Role Filter */}
           <RNScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 6, paddingBottom: 14 }}
+            style={{ flexGrow: 0 }}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 14 }}
           >
             {([
               { key: "all" as const, label: "all" },
@@ -161,83 +521,77 @@ export default function HomeScreen() {
                   fontWeight="500"
                   color={roleFilter === f.key ? "$background" : "$colorSecondary"}
                 >
-                  {f.label}
+                  {formatUIText(f.label)}
                 </Text>
               </FilterPill>
             ))}
           </RNScrollView>
-        )}
 
-        {/* ── Player List ── */}
-        <YStack paddingHorizontal="$4" gap="$2">
-          {tab === "draft" ? (
-            filtered.length > 0 ? (
-              filtered.map((p, i) => {
-                const [isHovered, setIsHovered] = useState(false);
-                return (
-                <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
-                  <Card 
-                    pressable
-                    onMouseEnter={() => setIsHovered(true)}
-                    onMouseLeave={() => setIsHovered(false)}
-                  >
-                    <XStack alignItems="center" gap="$3">
-                      <InitialsAvatar 
-                        name={p.name} 
-                        playerRole={p.role} 
-                        ovr={p.ovr}
-                        scale={isHovered ? 1.12 : 1}
-                      />
-                      <YStack flex={1} minWidth={0}>
-                        <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" marginBottom={3}>
-                          {p.name}
-                        </Text>
-                        <XStack alignItems="center" gap="$2" flexWrap="wrap">
-                          <Badge variant="role" size="sm">{p.role}</Badge>
-                          <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{p.team}</Text>
-                          <Text color="$borderColor">·</Text>
-                          {Object.entries(p.stats).map(([k, v]) => (
-                            <StatLabel key={k} label={k} value={v} />
-                          ))}
-                        </XStack>
-                      </YStack>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onPress={() => handleDraft(p)}
-                        backgroundColor={isHovered ? "$accentBackground" : "$backgroundSurfaceAlt"}
-                        color={isHovered ? "$white" : "$colorMuted"}
-                      >
-                        draft
-                      </Button>
-                    </XStack>
-                  </Card>
-                </Animated.View>
-              )})
-            ) : (
-              <YStack alignItems="center" paddingVertical="$8">
-                <Text fontSize={40} marginBottom="$3">🏏</Text>
-                <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center">
-                  no players in this role
-                </Text>
+          <RNScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 120 }}
+          >
+            {/* Inline error for players */}
+            {playersQuery.isError && (
+              <Card marginBottom="$3" padding="$4">
+                <XStack alignItems="center" justifyContent="space-between">
+                  <Text fontFamily="$body" fontSize={13} color="$colorMuted">
+                    {formatUIText("couldn't load players")}
+                  </Text>
+                  <Button size="sm" variant="secondary" onPress={() => playersQuery.refetch()}>
+                    {formatUIText("retry")}
+                  </Button>
+                </XStack>
+              </Card>
+            )}
+
+            {playersQuery.isLoading ? (
+              <YStack alignItems="center" paddingVertical="$10">
+                <EggLoadingSpinner size={40} message={formatUIText("loading players")} />
               </YStack>
-            )
-          ) : myTeam.length > 0 ? (
+            ) : filtered.length > 0 ? (
+              filtered.map((p, i) => (
+                <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
+                  <PlayerRow player={p} onDraft={handleDraft} />
+                </Animated.View>
+              ))
+            ) : (
+              <Animated.View entering={FadeIn.delay(80)}>
+                <YStack alignItems="center" gap="$3" paddingVertical="$10">
+                  <Text fontSize={DesignSystem.emptyState.iconSize}>{DesignSystem.emptyState.icon}</Text>
+                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center">
+                    {formatUIText("no players in this role")}
+                  </Text>
+                </YStack>
+              </Animated.View>
+            )}
+          </RNScrollView>
+        </YStack>
+      )}
+
+      {/* ── My Squad Tab ── */}
+      {tab === "team" && (
+        <RNScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        >
+          {myTeam.length > 0 ? (
             myTeam.map((p, i) => (
               <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
-                <Card>
+                <Card marginBottom="$3">
                   <XStack alignItems="center" gap="$3">
                     <Text fontFamily="$mono" fontSize={11} color="$colorMuted" width={20} textAlign="center">
                       {i + 1}
                     </Text>
-                    <InitialsAvatar name={p.name} playerRole={p.role} ovr={p.ovr} size={40} />
+                    <InitialsAvatar name={p.name} playerRole={p.role} ovr={p.credits * 10} size={40} />
                     <YStack flex={1}>
-                      <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" marginBottom={3}>
+                      <Text {...textStyles.playerName} marginBottom={3}>
                         {p.name}
                       </Text>
                       <XStack alignItems="center" gap="$2">
                         <Badge variant="role" size="sm">{p.role}</Badge>
-                        <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{p.team}</Text>
+                        <Text {...textStyles.secondary}>{p.team}</Text>
                       </XStack>
                     </YStack>
                   </XStack>
@@ -245,15 +599,62 @@ export default function HomeScreen() {
               </Animated.View>
             ))
           ) : (
-            <YStack alignItems="center" paddingVertical="$8">
-              <Text fontSize={48} marginBottom="$4">🥚</Text>
-              <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center" lineHeight={20}>
-                draft cricketers to hatch your squad
-              </Text>
-            </YStack>
+            <Animated.View entering={FadeIn.delay(80)}>
+              <YStack alignItems="center" gap="$3" paddingVertical="$10">
+                <Text fontSize={DesignSystem.emptyState.iconSize}>{DesignSystem.emptyState.icon}</Text>
+                <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center" lineHeight={20}>
+                  {formatUIText(DesignSystem.emptyState.message)}
+                </Text>
+              </YStack>
+            </Animated.View>
           )}
-        </YStack>
-      </RNScrollView>
+        </RNScrollView>
+      )}
     </YStack>
+  );
+}
+
+// ─── PlayerRow (extracted to avoid useState inside map) ──────────────
+function PlayerRow({ player, onDraft }: { player: DraftPlayer; onDraft: (p: DraftPlayer) => void }) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <Card
+      pressable
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      marginBottom="$3"
+      hoverStyle={{ backgroundColor: "$backgroundSurfaceHover" }}
+      pressStyle={{ backgroundColor: "$backgroundPress", scale: 0.98 }}
+    >
+      <XStack alignItems="center" gap="$3">
+        <InitialsAvatar
+          name={player.name}
+          playerRole={player.role}
+          ovr={player.credits * 10}
+          scale={isHovered ? DesignSystem.avatar.hoverScale : 1}
+        />
+        <YStack flex={1} minWidth={0}>
+          <Text {...textStyles.playerName} marginBottom={3}>
+            {player.name}
+          </Text>
+          <XStack alignItems="center" gap="$2" flexWrap="wrap">
+            <Badge variant="role" size="sm">{player.role}</Badge>
+            <Text {...textStyles.secondary}>{player.team}</Text>
+            <Text color="$borderColor">·</Text>
+            {Object.entries(player.stats).map(([k, v]) => (
+              <StatLabel key={k} label={k} value={v} />
+            ))}
+          </XStack>
+        </YStack>
+        <Button
+          size="sm"
+          variant="secondary"
+          onPress={() => onDraft(player)}
+        >
+          {formatUIText("draft")}
+        </Button>
+      </XStack>
+    </Card>
   );
 }
