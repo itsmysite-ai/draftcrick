@@ -18,8 +18,11 @@ import {
   invalidateHotCache,
 } from "../services/sports-cache";
 import { getLogger } from "../lib/logger";
-import type { Sport, SportsDashboardData } from "@draftcrick/shared";
+import type { Sport, SportsDashboardData, AITeamStanding } from "@draftcrick/shared";
 import { fetchSportsData } from "../services/gemini-sports";
+import { getDb } from "@draftcrick/db";
+import { tournaments } from "@draftcrick/db";
+import { eq, and } from "drizzle-orm";
 
 const log = getLogger("sports-router");
 
@@ -137,6 +140,39 @@ export const sportsRouter = router({
         tournaments: data.tournaments,
         lastFetched: data.lastFetched,
       };
+    }),
+
+  /**
+   * Get tournament standings (points table) from PostgreSQL.
+   * Standings are populated by the Gemini refresh flow.
+   */
+  standings: publicProcedure
+    .input(
+      z.object({
+        tournamentName: z.string(),
+        sport: z
+          .enum(["cricket", "football", "kabaddi", "basketball"])
+          .default("cricket"),
+      })
+    )
+    .query(async ({ input }): Promise<AITeamStanding[]> => {
+      const db = getDb();
+      const rows = await db
+        .select({ standings: tournaments.standings })
+        .from(tournaments)
+        .where(
+          and(
+            eq(tournaments.name, input.tournamentName),
+            eq(tournaments.sport, input.sport)
+          )
+        )
+        .limit(1);
+
+      const raw = rows[0]?.standings;
+      if (!raw || !Array.isArray(raw) || raw.length === 0) {
+        return [];
+      }
+      return raw as AITeamStanding[];
     }),
 
   /**

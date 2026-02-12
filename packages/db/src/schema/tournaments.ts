@@ -31,6 +31,9 @@ export const tournaments = pgTable(
     venueInfo: jsonb("venue_info"), // [{name, city, country}]
     category: text("category"), // international, domestic, league, bilateral, qualifier, friendly
 
+    // Standings data (AITeamStanding[]) — fetched via Gemini, cached as JSONB
+    standings: jsonb("standings").default([]),
+
     // Refresh tracking
     lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
     refreshSource: text("refresh_source"), // gemini, manual, seed

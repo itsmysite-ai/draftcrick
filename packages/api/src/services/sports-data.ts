@@ -8,12 +8,14 @@
 
 import { eq, and, sql } from "drizzle-orm";
 import { getDb } from "@draftcrick/db";
-import { tournaments, dataRefreshLog, matches } from "@draftcrick/db";
+import { tournaments, dataRefreshLog, matches, players } from "@draftcrick/db";
 import type { Database } from "@draftcrick/db";
 import type {
   Sport,
   AITournament,
   AIMatch,
+  AIPlayer,
+  AITeamStanding,
   SportsDashboardData,
 } from "@draftcrick/shared";
 import {
@@ -23,7 +25,7 @@ import {
   type RefreshTrigger,
   type RefreshResult,
 } from "@draftcrick/shared";
-import { fetchSportsData } from "./gemini-sports";
+import { fetchSportsData, fetchPlayerRosters, fetchTournamentStandings } from "./gemini-sports";
 import { acquireRefreshLock, releaseRefreshLock } from "./sports-cache";
 import { getLogger } from "../lib/logger";
 
@@ -47,6 +49,20 @@ function normalizeMatchExternalId(m: AIMatch): string {
     .join("_vs_");
   const dateStr = m.date.replace(/[^a-z0-9]/gi, "").toLowerCase();
   return `${teams}_${dateStr}`;
+}
+
+function normalizePlayerExternalId(name: string, nationality: string): string {
+  const normName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
+  const normNat = nationality
+    ? nationality
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+    : "unknown";
+  return `${normName}_${normNat}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +312,110 @@ export async function upsertMatches(
   return upserted;
 }
 
+/**
+ * Upsert players from Gemini into PostgreSQL using stable external IDs.
+ * Deduplicates by name+nationality — same player in multiple tournaments = one row.
+ * Returns count of upserted records.
+ */
+export async function upsertPlayers(
+  sport: Sport,
+  aiPlayers: AIPlayer[],
+  db?: Database
+): Promise<number> {
+  const database = db ?? getDb();
+  const now = new Date();
+
+  // Local deduplication: keep latest entry per externalId
+  const dedupMap = new Map<string, AIPlayer>();
+  for (const p of aiPlayers) {
+    const externalId = normalizePlayerExternalId(p.name, p.nationality);
+    dedupMap.set(externalId, p);
+  }
+
+  let upserted = 0;
+
+  for (const [externalId, p] of dedupMap) {
+    const stats: Record<string, number | undefined> = {
+      credits: p.credits ?? undefined,
+      average: p.battingAvg ?? undefined,
+      bowlingAverage: p.bowlingAvg ?? undefined,
+    };
+    // Strip undefined keys
+    const cleanStats = Object.fromEntries(
+      Object.entries(stats).filter(([, v]) => v !== undefined)
+    );
+
+    await database
+      .insert(players)
+      .values({
+        externalId,
+        name: p.name,
+        team: p.team,
+        role: p.role,
+        nationality: p.nationality,
+        battingStyle: p.battingStyle,
+        bowlingStyle: p.bowlingStyle,
+        stats: cleanStats,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: players.externalId,
+        set: {
+          name: p.name,
+          team: p.team,
+          role: p.role,
+          nationality: p.nationality,
+          battingStyle: p.battingStyle,
+          bowlingStyle: p.bowlingStyle,
+          stats: cleanStats,
+          updatedAt: now,
+        },
+      });
+
+    upserted++;
+  }
+
+  log.info({ sport, count: upserted }, "Upserted players");
+  return upserted;
+}
+
+// ---------------------------------------------------------------------------
+// Standings persistence
+// ---------------------------------------------------------------------------
+
+/**
+ * Update tournament standings (points table) in PostgreSQL.
+ * Writes AITeamStanding[] as JSONB on each matching tournament row.
+ */
+export async function updateTournamentStandings(
+  sport: Sport,
+  standingsMap: Map<string, AITeamStanding[]>,
+  db?: Database
+): Promise<number> {
+  const database = db ?? getDb();
+  let updated = 0;
+
+  for (const [tournamentName, standings] of standingsMap) {
+    const result = await database
+      .update(tournaments)
+      .set({
+        standings: standings as any,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(tournaments.name, tournamentName),
+          eq(tournaments.sport, sport)
+        )
+      );
+
+    updated++;
+  }
+
+  log.info({ sport, count: updated }, "Updated tournament standings");
+  return updated;
+}
+
 // ---------------------------------------------------------------------------
 // Refresh orchestration
 // ---------------------------------------------------------------------------
@@ -346,7 +466,37 @@ export async function executeRefresh(
 
     const tournamentsUpserted = await upsertTournaments(sport, data.tournaments, db);
     const matchesUpserted = await upsertMatches(sport, data.matches, db);
-    const totalUpserted = tournamentsUpserted + matchesUpserted;
+
+    // Best-effort player roster fetch — failure does NOT block the refresh
+    let playersUpserted = 0;
+    try {
+      const tournamentNames = data.tournaments.map((t) => t.name);
+      if (tournamentNames.length > 0) {
+        const aiPlayers = await fetchPlayerRosters(sport, tournamentNames);
+        playersUpserted = await upsertPlayers(sport, aiPlayers, db);
+      }
+    } catch (playerError) {
+      log.warn(
+        { sport, error: String(playerError) },
+        "Player roster fetch failed — dashboard refresh continues"
+      );
+    }
+
+    // Best-effort standings fetch — failure does NOT block the refresh
+    try {
+      const tournamentNames = data.tournaments.map((t) => t.name);
+      if (tournamentNames.length > 0) {
+        const standingsMap = await fetchTournamentStandings(sport, tournamentNames);
+        await updateTournamentStandings(sport, standingsMap, db);
+      }
+    } catch (standingsError) {
+      log.warn(
+        { sport, error: String(standingsError) },
+        "Standings fetch failed — dashboard refresh continues"
+      );
+    }
+
+    const totalUpserted = tournamentsUpserted + matchesUpserted + playersUpserted;
 
     const durationMs = Date.now() - startTime;
 
@@ -364,7 +514,7 @@ export async function executeRefresh(
     }
 
     log.info(
-      { sport, trigger, durationMs, tournamentsUpserted, matchesUpserted },
+      { sport, trigger, durationMs, tournamentsUpserted, matchesUpserted, playersUpserted },
       "Refresh completed"
     );
 

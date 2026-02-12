@@ -2,7 +2,7 @@
 
 > **Every prompt you need to execute, in order, to build DraftCrick.**  
 > Copy-paste each prompt into Claude Code. Review the output. Move to the next.  
-> **Last Updated:** February 11, 2026
+> **Last Updated:** February 12, 2026
 
 ---
 
@@ -36,9 +36,9 @@ You already created issues #1-21. Here's which prompt implements which issue:
 
 | Issue # | Title | Prompt # | Status |
 |---------|-------|----------|--------|
-| #1 | Home Screen — Real Data Integration | PROMPT 4 | ⬜ |
-| #2 | Tournament Display & Filtering | PROMPT 5 | ⬜ |
-| #3 | Tournament Mode Database Schema (19 tables) | PROMPT 2 | ⬜ |
+| #1 | Home Screen — Real Data Integration | PROMPT 4 | ✅ Done |
+| #2 | Tournament Display & Filtering | PROMPT 5 | ✅ Done |
+| #3 | Tournament Mode Database Schema (19 tables) | PROMPT 2 | ✅ Done |
 | #4 | Geo-Location & Regional Compliance Foundation | PROMPTS 6-9 | ⬜ |
 | #5 | Authentication Testing (7 test cases) | PROMPT 10 | ⬜ |
 | #6 | Team Builder Testing (8 test cases) | PROMPT 11 | ⬜ |
@@ -51,7 +51,7 @@ You already created issues #1-21. Here's which prompt implements which issue:
 | #13 | Geo-Location Testing (14 test cases) | PROMPT 16 | ⬜ |
 | #14 | Fix all P0 bugs from testing | PROMPT 18 | ⬜ |
 | #15 | Fix all P1 bugs from testing | PROMPT 19 | ⬜ |
-| #16 | Tournament Details Screen UI | PROMPT 5 (included) | ⬜ |
+| #16 | Tournament Details Screen UI | PROMPT 5 (included) | ✅ Done |
 | #17 | Draft Eligibility Checks in UI | PROMPT 20 | ⬜ |
 | #18 | Admin endpoint — toggleDraft | PROMPT 20 | ⬜ |
 | #19 | Final verification — all features | PROMPT 23 | ⬜ |
@@ -208,10 +208,18 @@ Branch: feature/phase-2.75-seed-data
 Commit: feat(phase-2.75): seed tournament data + create tRPC router stubs
 ```
 
-### Step 3: Home Screen Real Data (🔀 PARALLEL — Can Run Alongside Step 4)
+### Step 3: Home Screen Real Data (🔀 PARALLEL — Can Run Alongside Step 4) ✅ DONE
+
+> **Completed:** Feb 12, 2026 on branch `feature/phase-2.75-smart-refresh`
+> **What was built beyond the prompt:**
+> - Smart Refresh Architecture (3-tier: Redis hot cache → PostgreSQL → Gemini API)
+> - Write-through PG persistence with stable external IDs and dedup
+> - Player roster fetching via Gemini (batched 3 tournaments/call) with credits + batting/bowling avg
+> - Distributed refresh locking + audit logging (`data_refresh_log` table)
+> - See `/docs/SMART_REFRESH_ARCHITECTURE.md` for full architecture spec
 
 ```
-PROMPT 4: Home Screen — Connect Real Data  [→ closes #1]
+PROMPT 4: Home Screen — Connect Real Data  [→ closes #1]  ✅ DONE
 ─────────────────────────────────────────
 Read /docs/NEW_PLAN.md section 1A "Home Screen — Real Data Integration".
 
@@ -220,13 +228,13 @@ Implement all 5 tasks:
 2. Add EggLoadingSpinner component while data is fetching
 3. Add empty state message when no matches are available
 4. Add user-friendly error handling when API fails (retry button)
-5. Verify Redis cache hit/miss — the logger should already show cache 
+5. Verify Redis cache hit/miss — the logger should already show cache
    status via the structured logger (see /docs/LOGGING_GUIDE.md, module: sports-cache)
 
 Use tami·draft design system components (see /docs/UI_GUIDE.md).
 
 Self-verify:
-- Run the app and take screenshots of: loading state, data loaded, 
+- Run the app and take screenshots of: loading state, data loaded,
   empty state, error state
 - Save to /screenshots/home-loading.png, /screenshots/home-data.png,
   /screenshots/home-empty.png, /screenshots/home-error.png
@@ -236,20 +244,29 @@ Branch: feature/phase-2.75-home-real-data
 Commit: feat(phase-2.75): connect home screen to real sports data API
 ```
 
-### Step 4: Tournament Display (🔀 PARALLEL — Can Run Alongside Step 3)
+### Step 4: Tournament Display (🔀 PARALLEL — Can Run Alongside Step 3) ✅ DONE
+
+> **Completed:** Feb 12, 2026 on branch `feature/phase-2.75-smart-refresh`
+> **What was built beyond the prompt:**
+> - Tournament standings (points tables) fetched via Gemini + Google Search grounding
+> - Standings stored as JSONB on `tournaments.standings` column
+> - `trpc.sports.standings` public endpoint reads standings from PG
+> - Standings tab renders full points table: #, Team, P, W, L, PTS, NRR with group headers
+> - Stats tab enhanced with batting avg + bowling avg alongside credits
+> - See `/docs/SMART_REFRESH_ARCHITECTURE.md` for how standings fit into the refresh pipeline
 
 ```
-PROMPT 5: Tournament Display & Filtering  [→ closes #2, #16]
+PROMPT 5: Tournament Display & Filtering  [→ closes #2, #16]  ✅ DONE
 ────────────────────────────────────────
 Read /docs/NEW_PLAN.md section 1B "Tournament Display & Filtering".
 
 Implement all 5 tasks:
 1. Create a TournamentCard component using tami·draft design system
    (see /docs/UI_GUIDE.md for component patterns)
-2. Add tournament list to the home screen showing active tournaments 
+2. Add tournament list to the home screen showing active tournaments
    (IPL, World Cup, BBL, etc.)
 3. Add tournament filtering — tap a tournament to filter matches by it
-4. Create /tournament/[id].tsx screen showing: matches, standings, 
+4. Create /tournament/[id].tsx screen showing: matches, standings,
    stats leaders for that tournament
 5. Add top performers and standings table to tournament details
 
