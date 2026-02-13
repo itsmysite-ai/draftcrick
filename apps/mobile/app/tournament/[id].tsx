@@ -275,25 +275,43 @@ export default function TournamentScreen() {
   // ── Standings query ──
   const standingsQuery = trpc.sports.standings.useQuery(
     { tournamentName, sport: "cricket" },
-    { staleTime: 60 * 60_000, enabled: detailTab === "standings" },
+    { staleTime: 60 * 60_000 },
   );
 
-  // ── Top players by credits, grouped by role ──
+  // ── Top players by credits, grouped by role (filtered to this tournament's teams) ──
   const topPlayers = useMemo(() => {
     const raw = (playersQuery.data ?? []) as any[];
-    const mapped = raw.map((p: any) => {
-      const stats =
-        typeof p.stats === "string" ? JSON.parse(p.stats) : p.stats ?? {};
-      return {
-        id: p.id as string,
-        name: p.name as string,
-        role: ROLE_MAP[p.role as string] ?? ("BAT" as RoleKey),
-        team: (p.team as string) ?? "???",
-        credits: (stats.credits as number) ?? 8,
-        battingAvg: (stats.average as number) ?? null,
-        bowlingAvg: (stats.bowlingAverage as number) ?? null,
-      };
-    });
+
+    // Extract team names from this tournament's matches
+    const tournamentTeams = new Set<string>();
+    for (const m of tournamentMatches) {
+      const match = m as any;
+      if (match.teamA) tournamentTeams.add(match.teamA);
+      if (match.teamHome) tournamentTeams.add(match.teamHome);
+      if (match.teamB) tournamentTeams.add(match.teamB);
+      if (match.teamAway) tournamentTeams.add(match.teamAway);
+    }
+
+    // If no teams found from matches, return empty (don't fall back to showing all players)
+    if (tournamentTeams.size === 0) {
+      return { BAT: [], BOWL: [], AR: [], WK: [] } as Record<RoleKey, any[]>;
+    }
+
+    const mapped = raw
+      .filter((p: any) => tournamentTeams.has(p.team as string))
+      .map((p: any) => {
+        const stats =
+          typeof p.stats === "string" ? JSON.parse(p.stats) : p.stats ?? {};
+        return {
+          id: p.id as string,
+          name: p.name as string,
+          role: ROLE_MAP[p.role as string] ?? ("BAT" as RoleKey),
+          team: (p.team as string) ?? "???",
+          credits: (stats.credits as number) ?? 8,
+          battingAvg: (stats.average as number) ?? null,
+          bowlingAvg: (stats.bowlingAverage as number) ?? null,
+        };
+      });
     // Top 5 per role
     const grouped: Record<RoleKey, typeof mapped> = { BAT: [], BOWL: [], AR: [], WK: [] };
     for (const p of mapped) {
@@ -303,7 +321,7 @@ export default function TournamentScreen() {
       grouped[role] = grouped[role].sort((a, b) => b.credits - a.credits).slice(0, 5);
     }
     return grouped;
-  }, [playersQuery.data]);
+  }, [playersQuery.data, tournamentMatches]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -403,8 +421,8 @@ export default function TournamentScreen() {
       >
         {([
           { key: "matches" as const, label: "matches", count: tournamentMatches.length },
-          { key: "standings" as const, label: "standings", count: 0 },
-          { key: "stats" as const, label: "stats", count: 0 },
+          { key: "standings" as const, label: "standings", count: (standingsQuery.data ?? []).length },
+          { key: "stats" as const, label: "stats", count: Object.values(topPlayers).flat().length },
         ]).map((tb) => (
           <SegmentTab key={tb.key} active={detailTab === tb.key} onPress={() => setDetailTab(tb.key)}>
             <Text
@@ -442,9 +460,7 @@ export default function TournamentScreen() {
                 match={m}
                 index={i}
                 onPress={() => {
-                  if (m.id.startsWith("ai-")) {
-                    router.push("/(tabs)/contests");
-                  }
+                  router.push(`/match/${encodeURIComponent(m.id)}`);
                 }}
               />
             ))

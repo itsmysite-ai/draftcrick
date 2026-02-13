@@ -44,16 +44,30 @@ Tournament: Name | Category | StartDate | EndDate
 Match: Team A vs Team B | Format | Time | Date | Status | Tournament Name | Venue
 [MATCHES_END]
 
+CRITICAL: Each Match line MUST have exactly 7 pipe-separated fields in this order:
+  Field 1: "Team A vs Team B" (the two teams)
+  Field 2: Format (e.g., T20, ODI, Test)
+  Field 3: Time with timezone (e.g., "7:30 PM IST")
+  Field 4: Date as "Mon DD, YYYY" (e.g., "Feb 12, 2026")
+  Field 5: Status (upcoming, live, completed, delayed, abandoned)
+  Field 6: Tournament Name (e.g., "ICC Men's T20 World Cup 2026") — NOT the venue
+  Field 7: Venue (e.g., "Dubai International Stadium") — NOT the tournament name
+
 Category must be one of: international, domestic, league, bilateral, qualifier, friendly
-Status must be one of: upcoming, live, completed, delayed, abandoned
 Format examples: ${SPORT_CONFIGS[sport]?.formatExamples.join(", ") ?? "League"}
-Use local time with timezone (e.g., "11:00 AM IST", "3:00 PM GMT")
-Date format: "Mon DD, YYYY" (e.g., "Feb 10, 2026")
 StartDate/EndDate format: "YYYY-MM-DD" or "unknown"
 
 Example:
 Tournament: ICC Men's T20 World Cup 2026 | international | 2026-02-01 | 2026-03-15
 Match: India vs Pakistan | T20 | 7:30 PM IST | Feb 12, 2026 | upcoming | ICC Men's T20 World Cup 2026 | Dubai International Stadium
+Match: Australia Women vs India Women | T20 | 2:00 PM AEDT | Feb 14, 2026 | upcoming | India Women tour of Australia 2026 | SCG, Sydney
+
+IMPORTANT — Team naming rules:
+- Use official full team names consistently across ALL matches in the same tournament.
+- For women's tournaments, ALWAYS include "Women" in every team name (e.g., "India Women" not "India", "Nepal Women" not "Nepal").
+- For A-team / development tournaments, ALWAYS include the suffix (e.g., "Bangladesh A Women" not "Bangladesh A" or "Bangladesh").
+- Never mix "Nepal" and "Nepal Women" or "UAE" and "UAE Women" within the same tournament.
+- The team name in a match MUST match exactly how other matches in that tournament refer to the same team.
 
 Return ALL currently active tournaments and as many scheduled matches as possible (up to 20).
 If there are live matches happening right now, mark them with status "live".
@@ -87,6 +101,15 @@ function parseTournaments(text: string, sport: Sport): AITournament[] {
   return tournaments;
 }
 
+/** Heuristic: does this string look like a venue name? */
+function looksLikeVenue(s: string): boolean {
+  if (!s) return false;
+  const venuePatterns = /stadium|ground|oval|park|arena|centre|center|cricket club|sports club|scg|mcg|waca|lords|edgbaston/i;
+  // Venues typically contain a city/country after a comma
+  const hasLocation = /,\s*[A-Z]/.test(s);
+  return venuePatterns.test(s) || hasLocation;
+}
+
 function parseMatches(text: string, sport: Sport): AIMatch[] {
   const matches: AIMatch[] = [];
   const section = text.match(/\[MATCHES_START\]([\s\S]*?)\[MATCHES_END\]/);
@@ -100,6 +123,17 @@ function parseMatches(text: string, sport: Sport): AIMatch[] {
       const status = (parts[4]?.toLowerCase() || "upcoming") as AIMatchStatus;
       const validStatuses: AIMatchStatus[] = ["upcoming", "live", "completed", "delayed", "abandoned"];
 
+      // Gemini sometimes swaps tournament name and venue, or omits tournament name.
+      // Detect and fix: if parts[5] looks like a venue, swap with parts[6].
+      let tournamentName = parts[5] || "Unknown Tournament";
+      let venue = parts[6] || null;
+
+      if (looksLikeVenue(tournamentName)) {
+        // parts[5] is actually the venue — swap
+        venue = tournamentName;
+        tournamentName = parts[6] || "Unknown Tournament";
+      }
+
       matches.push({
         id: `ai-match-${sport}-${index}`,
         teamA: teams[0] || "TBA",
@@ -109,8 +143,8 @@ function parseMatches(text: string, sport: Sport): AIMatch[] {
         time: parts[2] || "TBD",
         date: parts[3] || "TBD",
         status: validStatuses.includes(status) ? status : "upcoming",
-        tournamentName: parts[5] || "Unknown Tournament",
-        venue: parts[6] || null,
+        tournamentName,
+        venue,
         scoreSummary: null,
         sourceUrl: null,
       });
@@ -221,6 +255,13 @@ Bowling Style examples: Right-arm fast, Left-arm spin, Right-arm off-break, Left
 Example:
 Player: Virat Kohli | Royal Challengers Bengaluru | batsman | India | Right-hand bat | Right-arm medium | 10.0 | 48.5 | N/A | IPL
 Player: Jasprit Bumrah | Mumbai Indians | bowler | India | Right-hand bat | Right-arm fast | 9.5 | N/A | 20.3 | IPL
+
+IMPORTANT — Team naming rules:
+- The "Team Name" field MUST use the official team name as it appears in the tournament schedule.
+- For women's tournaments, ALWAYS use the women's team name (e.g., "India Women" not "India", "Nepal Women" not "Nepal").
+- For A-team / development tournaments, include the suffix (e.g., "Bangladesh A Women" not "Bangladesh A").
+- For franchise leagues (IPL, BBL, CPL), use the franchise name (e.g., "Mumbai Indians", "Chennai Super Kings").
+- For international tournaments, use the country name as it appears in match fixtures.
 
 Return ALL players for the requested tournaments. Include at least the main squad (15-25 players per team).
 `.trim();
@@ -391,6 +432,12 @@ Tournament Name: must match exactly one of the requested tournament names
 Example:
 Standing: 1 | India | 5 | 4 | 1 | 0 | 0 | 8 | +1.250 | Group A | ICC Champions Trophy 2025
 Standing: 2 | Australia | 5 | 3 | 2 | 0 | 0 | 6 | +0.430 | Group A | ICC Champions Trophy 2025
+
+IMPORTANT — Team naming rules:
+- Use the official team name as it appears in the tournament schedule.
+- For women's tournaments, ALWAYS use women's team names (e.g., "India Women" not "India").
+- For A-team / development tournaments, include the suffix (e.g., "Bangladesh A Women").
+- Team names in standings MUST match exactly how teams appear in the match fixtures.
 
 Return ALL teams for each tournament's standings. Order by position within each group/tournament.
 `.trim();

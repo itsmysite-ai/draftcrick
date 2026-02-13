@@ -16,9 +16,7 @@ import {
   InitialsAvatar,
   AnnouncementBanner,
   FilterPill,
-  SegmentTab,
   ModeToggle,
-  StatLabel,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -27,31 +25,6 @@ import {
 } from "@draftcrick/ui";
 import { useTheme } from "../../providers/ThemeProvider";
 import { trpc } from "../../lib/trpc";
-
-// ─── Types ───────────────────────────────────────────────────────────
-type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
-
-/** Map DB role strings to display role codes */
-const ROLE_MAP: Record<string, RoleKey> = {
-  batsman: "BAT",
-  bowler: "BOWL",
-  all_rounder: "AR",
-  wicket_keeper: "WK",
-};
-
-interface PlayerStats {
-  credits?: number;
-  [key: string]: number | undefined;
-}
-
-interface DraftPlayer {
-  id: string;
-  name: string;
-  role: RoleKey;
-  team: string;
-  credits: number;
-  stats: Record<string, number>;
-}
 
 /** Safely parse AI-returned date/time strings into a Date object */
 function parseSafeDate(dateStr?: string, timeStr?: string): Date {
@@ -138,7 +111,7 @@ function HomeMatchCard({
           </YStack>
         )}
 
-        {/* Footer: venue + time */}
+        {/* Footer: venue + action */}
         <XStack
           justifyContent="space-between"
           alignItems="center"
@@ -150,7 +123,7 @@ function HomeMatchCard({
             {match.venue || match.time || ""}
           </Text>
           <Button onPress={onPress} size="sm" variant={isLive ? "primary" : "secondary"}>
-            {isLive ? formatUIText("watch live") : formatUIText("draft now")}
+            {isLive ? formatUIText("view match") : formatUIText("view match")}
           </Button>
         </XStack>
       </Card>
@@ -170,53 +143,18 @@ export default function HomeScreen() {
     { sport: "cricket" },
     { staleTime: 60 * 60_000, retry: 1 },
   );
-  const playersQuery = trpc.player.list.useQuery(undefined, {
-    staleTime: 5 * 60_000,
-  });
 
-  // ── Draft state ──
-  const [myTeam, setMyTeam] = useState<DraftPlayer[]>([]);
-  const [allDrafted, setAllDrafted] = useState<string[]>([]);
-  const [round, setRound] = useState(1);
-  const [pick, setPick] = useState(1);
-  const [tab, setTab] = useState<"matches" | "draft" | "team">("matches");
-  const [roleFilter, setRoleFilter] = useState<"all" | RoleKey>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<string | null>(null);
 
-  // ── Map DB players to draft-friendly shape ──
-  const players: DraftPlayer[] = (playersQuery.data ?? []).map((p: any) => {
-    const rawStats = (typeof p.stats === "string" ? JSON.parse(p.stats) : p.stats ?? {}) as PlayerStats;
-    const credits = rawStats.credits ?? 8;
-    return {
-      id: p.id as string,
-      name: p.name as string,
-      role: ROLE_MAP[p.role as string] ?? "BAT",
-      team: (p.team as string) ?? "???",
-      credits,
-      stats: { cr: credits },
-    };
-  });
-
-  const handleDraft = useCallback((player: DraftPlayer) => {
-    setMyTeam((prev) => [...prev, player]);
-    setAllDrafted((prev) => [...prev, player.id]);
-    setPick((p) => p + 1);
-    if (pick % 4 === 0) setRound((r) => r + 1);
-  }, [pick]);
-
-  const available = players.filter((p) => !allDrafted.includes(p.id));
-  const filtered = roleFilter === "all" ? available : available.filter((p) => p.role === roleFilter);
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([dashboardQuery.refetch(), playersQuery.refetch()]);
+    await dashboardQuery.refetch();
     setRefreshing(false);
-  }, [dashboardQuery, playersQuery]);
+  }, [dashboardQuery]);
 
   // ── Full-screen loading state ──
-  const isInitialLoad = dashboardQuery.isLoading && playersQuery.isLoading;
-  if (isInitialLoad) {
+  if (dashboardQuery.isLoading) {
     return (
       <YStack
         flex={1}
@@ -231,8 +169,7 @@ export default function HomeScreen() {
   }
 
   // ── Full-screen error state ──
-  const hasError = dashboardQuery.isError && playersQuery.isError;
-  if (hasError) {
+  if (dashboardQuery.isError) {
     return (
       <YStack
         flex={1}
@@ -308,353 +245,157 @@ export default function HomeScreen() {
       {/* ── Announcement Banner ── */}
       <AnnouncementBanner />
 
-      {/* ── Segment Tabs ── */}
-      <XStack
-        marginHorizontal="$5"
-        marginTop="$4"
-        marginBottom="$4"
-        borderRadius="$3"
-        backgroundColor="$backgroundSurfaceAlt"
-        padding="$1"
-        gap="$1"
-      >
-        {([
-          { key: "matches" as const, label: "matches", count: filteredMatches.length },
-          { key: "draft" as const, label: "available", count: available.length },
-          { key: "team" as const, label: "my squad", count: myTeam.length },
-        ]).map((tb) => (
-          <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
+      {/* ── Tournament Filter Strip ── */}
+      {tournaments.length > 0 && (
+        <RNScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flexGrow: 0, flexShrink: 0 }}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 14, paddingTop: 10 }}
+        >
+          <FilterPill active={selectedTournament === null} onPress={() => setSelectedTournament(null)}>
             <Text
               fontFamily="$body"
-              fontWeight="600"
-              fontSize={13}
-              color={tab === tb.key ? "$color" : "$colorMuted"}
+              fontSize={12}
+              fontWeight="500"
+              color={selectedTournament === null ? "$background" : "$colorSecondary"}
             >
-              {formatUIText(tb.label)}
+              {formatUIText("🏏 all")}
             </Text>
-            <Text fontFamily="$mono" fontSize={11} color={tab === tb.key ? "$colorSecondary" : "$colorMuted"}>
-              {tb.count}
-            </Text>
-          </SegmentTab>
-        ))}
-      </XStack>
-
-      {/* ── Matches Tab ── */}
-      {tab === "matches" && (
-        <YStack flex={1}>
-          {/* Tournament Filter Strip */}
-          {tournaments.length > 0 && (
-            <RNScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ flexGrow: 0, flexShrink: 0 }}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 14 }}
+          </FilterPill>
+          {tournaments.map((t: any) => (
+            <FilterPill
+              key={t.id}
+              active={selectedTournament === t.name}
+              onPress={() =>
+                setSelectedTournament(
+                  selectedTournament === t.name ? null : t.name,
+                )
+              }
             >
-              <FilterPill active={selectedTournament === null} onPress={() => setSelectedTournament(null)}>
-                <Text
-                  fontFamily="$body"
-                  fontSize={12}
-                  fontWeight="500"
-                  color={selectedTournament === null ? "$background" : "$colorSecondary"}
-                >
-                  {formatUIText("🏏 all")}
-                </Text>
-              </FilterPill>
-              {tournaments.map((t: any) => (
-                <FilterPill
-                  key={t.id}
-                  active={selectedTournament === t.name}
-                  onPress={() =>
-                    setSelectedTournament(
-                      selectedTournament === t.name ? null : t.name,
-                    )
-                  }
-                >
-                  <Text
-                    fontFamily="$body"
-                    fontSize={12}
-                    fontWeight="500"
-                    color={selectedTournament === t.name ? "$background" : "$colorSecondary"}
-                    numberOfLines={1}
-                  >
-                    {formatUIText(`🏆 ${t.name}`)}
-                  </Text>
-                </FilterPill>
-              ))}
-            </RNScrollView>
-          )}
-
-          <RNScrollView
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.accentBackground?.val}
-              />
-            }
-            contentContainerStyle={{ padding: 20, paddingTop: 10, paddingBottom: 120 }}
-          >
-            {/* Inline error banner */}
-            {dashboardQuery.isError && (
-              <Card marginBottom="$3" padding="$4">
-                <XStack alignItems="center" justifyContent="space-between">
-                  <Text fontFamily="$body" fontSize={13} color="$colorMuted">
-                    {formatUIText("couldn't refresh matches")}
-                  </Text>
-                  <Button size="sm" variant="secondary" onPress={() => dashboardQuery.refetch()}>
-                    {formatUIText("retry")}
-                  </Button>
-                </XStack>
-              </Card>
-            )}
-
-            {/* Selected tournament card */}
-            {selectedTournament && (() => {
-              const t = tournaments.find((t: any) => t.name === selectedTournament);
-              if (!t) return null;
-              return (
-                <Animated.View entering={FadeInDown.delay(0).springify()}>
-                  <Card
-                    pressable
-                    onPress={() => router.push(`/tournament/${encodeURIComponent(t.name)}`)}
-                    padding="$4"
-                    marginBottom="$4"
-                    borderWidth={2}
-                    borderColor="$accentBackground"
-                  >
-                    <XStack justifyContent="space-between" alignItems="center">
-                      <YStack flex={1} gap="$1">
-                        <Text {...textStyles.playerName} fontSize={14}>
-                          {(t as any).name}
-                        </Text>
-                        <XStack alignItems="center" gap="$2">
-                          <Badge variant="role" size="sm">
-                            {formatBadgeText((t as any).category)}
-                          </Badge>
-                          <Text {...textStyles.hint}>
-                            {tournamentMatchCounts[(t as any).name] ?? 0}{" "}
-                            {formatUIText("matches")}
-                          </Text>
-                        </XStack>
-                      </YStack>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onPress={() => router.push(`/tournament/${encodeURIComponent(t.name)}`)}
-                      >
-                        {formatUIText("details")}
-                      </Button>
-                    </XStack>
-                  </Card>
-                </Animated.View>
-              );
-            })()}
-
-            {dashboardQuery.isLoading ? (
-              <YStack alignItems="center" paddingVertical="$10">
-                <EggLoadingSpinner size={40} message={formatUIText("loading matches")} />
-              </YStack>
-            ) : filteredMatches.length > 0 ? (
-              <>
-                {filteredMatches.map((m: any, i: number) => (
-                  <HomeMatchCard
-                    key={m.id}
-                    match={m}
-                    index={i}
-                    onPress={() => {
-                      if (m.id.startsWith("ai-")) {
-                        router.push("/(tabs)/contests");
-                      }
-                    }}
-                  />
-                ))}
-                {/* Data source footer */}
-                {dashboardQuery.data?.lastFetched && (
-                  <Text {...textStyles.hint} textAlign="center" marginTop="$2">
-                    {formatUIText(`last updated: ${new Date(dashboardQuery.data.lastFetched).toLocaleTimeString()}`)}
-                  </Text>
-                )}
-              </>
-            ) : (
-              <Animated.View entering={FadeIn.delay(80)}>
-                <YStack alignItems="center" gap="$3" paddingVertical="$10">
-                  <Text fontSize={DesignSystem.emptyState.iconSize}>🏏</Text>
-                  <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
-                    {formatUIText(selectedTournament ? "no matches in this tournament" : "no matches right now")}
-                  </Text>
-                  <Text
-                    {...textStyles.hint}
-                    textAlign="center"
-                    lineHeight={18}
-                  >
-                    {formatUIText(selectedTournament ? "try selecting a different tournament" : "check back soon for upcoming fixtures")}
-                  </Text>
-                </YStack>
-              </Animated.View>
-            )}
-          </RNScrollView>
-        </YStack>
-      )}
-
-      {/* ── Draft Tab ── */}
-      {tab === "draft" && (
-        <YStack flex={1}>
-          {/* Role Filter */}
-          <RNScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ flexGrow: 0 }}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 6, paddingBottom: 14 }}
-          >
-            {([
-              { key: "all" as const, label: "all" },
-              { key: "BAT" as const, label: "🏏 batsmen" },
-              { key: "BOWL" as const, label: "🎯 bowlers" },
-              { key: "AR" as const, label: "⚡ all-round" },
-              { key: "WK" as const, label: "🧤 keepers" },
-            ]).map((f) => (
-              <FilterPill key={f.key} active={roleFilter === f.key} onPress={() => setRoleFilter(f.key)}>
-                <Text
-                  fontFamily="$body"
-                  fontSize={12}
-                  fontWeight="500"
-                  color={roleFilter === f.key ? "$background" : "$colorSecondary"}
-                >
-                  {formatUIText(f.label)}
-                </Text>
-              </FilterPill>
-            ))}
-          </RNScrollView>
-
-          <RNScrollView
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ padding: 20, paddingTop: 0, paddingBottom: 120 }}
-          >
-            {/* Inline error for players */}
-            {playersQuery.isError && (
-              <Card marginBottom="$3" padding="$4">
-                <XStack alignItems="center" justifyContent="space-between">
-                  <Text fontFamily="$body" fontSize={13} color="$colorMuted">
-                    {formatUIText("couldn't load players")}
-                  </Text>
-                  <Button size="sm" variant="secondary" onPress={() => playersQuery.refetch()}>
-                    {formatUIText("retry")}
-                  </Button>
-                </XStack>
-              </Card>
-            )}
-
-            {playersQuery.isLoading ? (
-              <YStack alignItems="center" paddingVertical="$10">
-                <EggLoadingSpinner size={40} message={formatUIText("loading players")} />
-              </YStack>
-            ) : filtered.length > 0 ? (
-              filtered.map((p, i) => (
-                <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
-                  <PlayerRow player={p} onDraft={handleDraft} />
-                </Animated.View>
-              ))
-            ) : (
-              <Animated.View entering={FadeIn.delay(80)}>
-                <YStack alignItems="center" gap="$3" paddingVertical="$10">
-                  <Text fontSize={DesignSystem.emptyState.iconSize}>{DesignSystem.emptyState.icon}</Text>
-                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center">
-                    {formatUIText("no players in this role")}
-                  </Text>
-                </YStack>
-              </Animated.View>
-            )}
-          </RNScrollView>
-        </YStack>
-      )}
-
-      {/* ── My Squad Tab ── */}
-      {tab === "team" && (
-        <RNScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
-        >
-          {myTeam.length > 0 ? (
-            myTeam.map((p, i) => (
-              <Animated.View key={p.id} entering={FadeInDown.delay(60 + i * 40).springify()}>
-                <Card marginBottom="$3">
-                  <XStack alignItems="center" gap="$3">
-                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" width={20} textAlign="center">
-                      {i + 1}
-                    </Text>
-                    <InitialsAvatar name={p.name} playerRole={p.role} ovr={p.credits * 10} size={40} />
-                    <YStack flex={1}>
-                      <Text {...textStyles.playerName} marginBottom={3}>
-                        {p.name}
-                      </Text>
-                      <XStack alignItems="center" gap="$2">
-                        <Badge variant="role" size="sm">{p.role}</Badge>
-                        <Text {...textStyles.secondary}>{p.team}</Text>
-                      </XStack>
-                    </YStack>
-                  </XStack>
-                </Card>
-              </Animated.View>
-            ))
-          ) : (
-            <Animated.View entering={FadeIn.delay(80)}>
-              <YStack alignItems="center" gap="$3" paddingVertical="$10">
-                <Text fontSize={DesignSystem.emptyState.iconSize}>{DesignSystem.emptyState.icon}</Text>
-                <Text fontFamily="$mono" fontSize={12} color="$colorMuted" textAlign="center" lineHeight={20}>
-                  {formatUIText(DesignSystem.emptyState.message)}
-                </Text>
-              </YStack>
-            </Animated.View>
-          )}
+              <Text
+                fontFamily="$body"
+                fontSize={12}
+                fontWeight="500"
+                color={selectedTournament === t.name ? "$background" : "$colorSecondary"}
+                numberOfLines={1}
+              >
+                {formatUIText(`🏆 ${t.name}`)}
+              </Text>
+            </FilterPill>
+          ))}
         </RNScrollView>
       )}
-    </YStack>
-  );
-}
 
-// ─── PlayerRow (extracted to avoid useState inside map) ──────────────
-function PlayerRow({ player, onDraft }: { player: DraftPlayer; onDraft: (p: DraftPlayer) => void }) {
-  const [isHovered, setIsHovered] = useState(false);
+      {/* ── Matches List ── */}
+      <RNScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.accentBackground?.val}
+          />
+        }
+        contentContainerStyle={{ padding: 20, paddingTop: 10, paddingBottom: 120 }}
+      >
+        {/* Inline error banner */}
+        {dashboardQuery.isError && (
+          <Card marginBottom="$3" padding="$4">
+            <XStack alignItems="center" justifyContent="space-between">
+              <Text fontFamily="$body" fontSize={13} color="$colorMuted">
+                {formatUIText("couldn't refresh matches")}
+              </Text>
+              <Button size="sm" variant="secondary" onPress={() => dashboardQuery.refetch()}>
+                {formatUIText("retry")}
+              </Button>
+            </XStack>
+          </Card>
+        )}
 
-  return (
-    <Card
-      pressable
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      marginBottom="$3"
-      hoverStyle={{ backgroundColor: "$backgroundSurfaceHover" }}
-      pressStyle={{ backgroundColor: "$backgroundPress", scale: 0.98 }}
-    >
-      <XStack alignItems="center" gap="$3">
-        <InitialsAvatar
-          name={player.name}
-          playerRole={player.role}
-          ovr={player.credits * 10}
-          scale={isHovered ? DesignSystem.avatar.hoverScale : 1}
-        />
-        <YStack flex={1} minWidth={0}>
-          <Text {...textStyles.playerName} marginBottom={3}>
-            {player.name}
-          </Text>
-          <XStack alignItems="center" gap="$2" flexWrap="wrap">
-            <Badge variant="role" size="sm">{player.role}</Badge>
-            <Text {...textStyles.secondary}>{player.team}</Text>
-            <Text color="$borderColor">·</Text>
-            {Object.entries(player.stats).map(([k, v]) => (
-              <StatLabel key={k} label={k} value={v} />
+        {/* Selected tournament card */}
+        {selectedTournament && (() => {
+          const t = tournaments.find((t: any) => t.name === selectedTournament);
+          if (!t) return null;
+          return (
+            <Animated.View entering={FadeInDown.delay(0).springify()}>
+              <Card
+                pressable
+                onPress={() => router.push(`/tournament/${encodeURIComponent(t.name)}`)}
+                padding="$4"
+                marginBottom="$4"
+                borderWidth={2}
+                borderColor="$accentBackground"
+              >
+                <XStack justifyContent="space-between" alignItems="center">
+                  <YStack flex={1} gap="$1">
+                    <Text {...textStyles.playerName} fontSize={14}>
+                      {(t as any).name}
+                    </Text>
+                    <XStack alignItems="center" gap="$2">
+                      <Badge variant="role" size="sm">
+                        {formatBadgeText((t as any).category)}
+                      </Badge>
+                      <Text {...textStyles.hint}>
+                        {tournamentMatchCounts[(t as any).name] ?? 0}{" "}
+                        {formatUIText("matches")}
+                      </Text>
+                    </XStack>
+                  </YStack>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => router.push(`/tournament/${encodeURIComponent(t.name)}`)}
+                  >
+                    {formatUIText("details")}
+                  </Button>
+                </XStack>
+              </Card>
+            </Animated.View>
+          );
+        })()}
+
+        {dashboardQuery.isLoading ? (
+          <YStack alignItems="center" paddingVertical="$10">
+            <EggLoadingSpinner size={40} message={formatUIText("loading matches")} />
+          </YStack>
+        ) : filteredMatches.length > 0 ? (
+          <>
+            {filteredMatches.map((m: any, i: number) => (
+              <HomeMatchCard
+                key={m.id}
+                match={m}
+                index={i}
+                onPress={() => {
+                  router.push(`/match/${encodeURIComponent(m.id)}`);
+                }}
+              />
             ))}
-          </XStack>
-        </YStack>
-        <Button
-          size="sm"
-          variant="secondary"
-          onPress={() => onDraft(player)}
-        >
-          {formatUIText("draft")}
-        </Button>
-      </XStack>
-    </Card>
+            {/* Data source footer */}
+            {dashboardQuery.data?.lastFetched && (
+              <Text {...textStyles.hint} textAlign="center" marginTop="$2">
+                {formatUIText(`last updated: ${new Date(dashboardQuery.data.lastFetched).toLocaleTimeString()}`)}
+              </Text>
+            )}
+          </>
+        ) : (
+          <Animated.View entering={FadeIn.delay(80)}>
+            <YStack alignItems="center" gap="$3" paddingVertical="$10">
+              <Text fontSize={DesignSystem.emptyState.iconSize}>🏏</Text>
+              <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+                {formatUIText(selectedTournament ? "no matches in this tournament" : "no matches right now")}
+              </Text>
+              <Text
+                {...textStyles.hint}
+                textAlign="center"
+                lineHeight={18}
+              >
+                {formatUIText(selectedTournament ? "try selecting a different tournament" : "check back soon for upcoming fixtures")}
+              </Text>
+            </YStack>
+          </Animated.View>
+        )}
+      </RNScrollView>
+    </YStack>
   );
 }
