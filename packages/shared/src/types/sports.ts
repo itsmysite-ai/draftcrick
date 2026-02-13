@@ -65,6 +65,45 @@ export interface AIMatch {
 }
 
 /**
+ * A player fetched via Gemini AI + Google Search grounding.
+ * Sport-agnostic — role values are sport-specific (e.g., cricket roles below).
+ */
+export interface AIPlayer {
+  id: string;
+  name: string;
+  team: string;
+  role: "batsman" | "bowler" | "all_rounder" | "wicket_keeper";
+  nationality: string;
+  battingStyle: string | null;
+  bowlingStyle: string | null;
+  /** Fantasy credits 7.0-10.0 */
+  credits: number | null;
+  battingAvg: number | null;
+  bowlingAvg: number | null;
+  /** Tournament this player was fetched from */
+  tournamentName: string;
+  /** Source URL from Google Search grounding */
+  sourceUrl: string | null;
+}
+
+/**
+ * A team's standing in a tournament points table, fetched via Gemini AI.
+ * Stored as JSONB on the tournaments table for display caching.
+ */
+export interface AITeamStanding {
+  position: number;
+  team: string;
+  played: number;
+  won: number;
+  lost: number;
+  tied: number;
+  noResult: number;
+  points: number;
+  netRunRate: string; // "+0.825" or "-1.234"
+  group: string | null; // "Group A" or null
+}
+
+/**
  * Complete dashboard data returned by the sports endpoint.
  * Cached server-side with 24hr TTL.
  */

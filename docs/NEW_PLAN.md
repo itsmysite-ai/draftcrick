@@ -14,7 +14,7 @@
 | **Phase 1: Core Fantasy** | ✅ Complete | 100% | Weeks 4-7 | Salary cap, live scoring, wallet MVP |
 | **Phase 2: Draft & Leagues** | ✅ Complete | 100% | Weeks 8-11 | Draft rooms, auction, 200+ rules |
 | **Phase 2.5: UI Redesign** | 🔄 In Progress | 27% | Ongoing | tami·draft design system |
-| **Phase 2.75: Data, Tournaments & Testing** | 🎯 NEXT | 0% | Weeks 12-14 | Real data + tournament mode schema + testing |
+| **Phase 2.75: Data, Tournaments & Testing** | 🔄 In Progress | 35% | Weeks 12-14 | Real data + tournament mode schema + testing |
 | **Phase 3: AI & Analytics Engine** | ⏳ Planned | 40% backend | Weeks 15-19 | Projected points, Guru, comparison, FDR |
 | **Phase 4: Tournament Mode & League Depth** | ⏳ Planned | 0% | Weeks 20-24 | Season-long leagues, trades, playoffs, chips |
 | **Phase 5: Predictions & Social** | ⏳ Planned | 0% | Weeks 25-28 | Prediction leagues, H2H, chat, notifications |
@@ -58,10 +58,10 @@
 
 ---
 
-## Phase 2.75: Data Integration, Tournament Schema & Testing 🎯 NEXT PRIORITY
+## Phase 2.75: Data Integration, Tournament Schema & Testing 🔄 IN PROGRESS
 
-**Status:** Not Started  
-**Duration:** 3 weeks (Feb 10 – Mar 2, 2026)  
+**Status:** ~35% Complete
+**Duration:** 3 weeks (Feb 10 – Mar 2, 2026)
 **Goal:** Connect real data, lay the database foundation for tournament mode, and thoroughly test all existing features.
 
 ### Why This Phase is Critical
@@ -70,27 +70,45 @@ Before building new features, we need: real data flowing to the UI, the database
 
 ---
 
+### Completed So Far
+
+| Deliverable | Status | Details |
+|------------|--------|---------|
+| Smart Refresh Architecture | ✅ Done | 3-tier cache: Redis hot cache (5min) → PostgreSQL → Gemini API. Distributed locking, audit logging. See `/docs/SMART_REFRESH_ARCHITECTURE.md` |
+| PostgreSQL Persistence | ✅ Done | Write-through upserts for tournaments, matches, players. Stable external IDs for deduplication. |
+| Player Roster Fetch | ✅ Done | Gemini fetches full squad rosters (name, role, credits, batting/bowling avg) batched 3 tournaments/call. Stored as JSONB stats on players table. |
+| Tournament Standings Fetch | ✅ Done | Gemini fetches points tables (W/L/T/NR/Pts/NRR) batched 3 tournaments/call. Stored as JSONB on tournaments.standings column. |
+| Home Screen — Real Data | ✅ Done | Dashboard wired to `trpc.sports.dashboard`, loading/empty/error states, pull-to-refresh |
+| Tournament Card Component | ✅ Done | `TournamentCard` tami·draft component with badge, date range, match count |
+| Tournament Details Screen | ✅ Done | `/tournament/[id].tsx` with 3 tabs: matches, standings, stats |
+| Standings Tab | ✅ Done | Real points table from `trpc.sports.standings` — columns: #, Team, P, W, L, PTS, NRR. Group headers when applicable. |
+| Stats Tab Enhancement | ✅ Done | Top 5 per role with credits + batting avg + bowling avg |
+| Tournament Schema (19 tables) | ✅ Done | All tables created via Drizzle + migrations |
+| `sports.standings` endpoint | ✅ Done | Public tRPC query reads JSONB standings from PG |
+
+---
+
 ### Week 1 (Feb 10-16): Real Data + Tournament Schema
 
-#### 1A. Home Screen — Real Data Integration
+#### 1A. Home Screen — Real Data Integration ✅ COMPLETE
 
-| Task | Description | Time |
-|------|-------------|------|
-| Connect `sports.dashboard` API | Replace static data with `trpc.sports.dashboard.useQuery()` | 2-3h |
-| Loading states | EggLoadingSpinner while fetching | 1h |
-| Empty states | Message when no matches available | 1h |
-| Error handling | User-friendly errors if API fails | 1h |
-| Cache behavior verification | Verify 24hr Redis cache hit/miss | 2h |
+| Task | Description | Time | Status |
+|------|-------------|------|--------|
+| Connect `sports.dashboard` API | Replace static data with `trpc.sports.dashboard.useQuery()` | 2-3h | ✅ |
+| Loading states | EggLoadingSpinner while fetching | 1h | ✅ |
+| Empty states | Message when no matches available | 1h | ✅ |
+| Error handling | User-friendly errors if API fails | 1h | ✅ |
+| Cache behavior verification | Verify 24hr Redis cache hit/miss | 2h | ✅ |
 
-#### 1B. Tournament Display & Filtering
+#### 1B. Tournament Display & Filtering ✅ COMPLETE
 
-| Task | Description | Time |
-|------|-------------|------|
-| Tournament card component | New tami·draft component for tournament display | 3h |
-| Tournament list on home | Show active tournaments (IPL, World Cup, BBL, etc.) | 2h |
-| Tournament filtering | Filter matches by selected tournament | 2h |
-| Tournament details screen | `/tournament/[id].tsx` — matches, standings, stats leaders | 3h |
-| Tournament stats | Top performers, standings table | 2h |
+| Task | Description | Time | Status |
+|------|-------------|------|--------|
+| Tournament card component | New tami·draft component for tournament display | 3h | ✅ |
+| Tournament list on home | Show active tournaments (IPL, World Cup, BBL, etc.) | 2h | ✅ |
+| Tournament filtering | Filter matches by selected tournament | 2h | ✅ |
+| Tournament details screen | `/tournament/[id].tsx` — matches, standings, stats leaders | 3h | ✅ |
+| Tournament stats | Top performers, standings table | 2h | ✅ |
 
 #### 1C. Tournament Mode Database Schema (Foundation for Phase 4)
 
@@ -680,10 +698,13 @@ Build the geo-detection infrastructure now so every future feature can query a u
 
 ### Phase 2.75 Success Criteria
 
-- [ ] Home screen shows real data from Gemini API
-- [ ] Tournaments displayed with filtering
+- [x] Home screen shows real data from Gemini API
+- [x] Tournaments displayed with filtering
+- [x] Smart refresh architecture: Redis → PG → Gemini pipeline (see `/docs/SMART_REFRESH_ARCHITECTURE.md`)
+- [x] Player rosters fetched via Gemini with batting/bowling averages
+- [x] Tournament standings (points tables) fetched via Gemini and displayed
+- [x] All 19 new database tables created and migrated (+ `location_checks` table)
 - [ ] World Cup 2026 whitelisted for draft
-- [ ] All 19 new database tables created and migrated (+ `location_checks` table)
 - [ ] All authentication flows tested and working
 - [ ] All team builder features tested and working
 - [ ] All contest features tested and working

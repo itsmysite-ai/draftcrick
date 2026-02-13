@@ -9,6 +9,7 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 - `/docs/GEO_IMPLEMENTATION_GUIDE.md` — Geo-location & regional compliance spec
 - `/docs/UI_GUIDE.md` — tami·draft design system guide
 - `/docs/REDIS_CACHE_ARCHITECTURE.md` — Cache architecture
+- `/docs/SMART_REFRESH_ARCHITECTURE.md` — Smart refresh pipeline (Redis → PG → Gemini)
 - `/docs/LOGGING_GUIDE.md` — Structured logging & distributed tracing guide
 - `/docs/LOCAL_SETUP.md` — Local dev environment setup
 

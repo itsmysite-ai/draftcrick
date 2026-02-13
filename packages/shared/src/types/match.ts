@@ -55,6 +55,8 @@ export interface PlayerStats {
   bestBowling?: string;
   catches?: number;
   stumpings?: number;
+  /** Fantasy credits 7.0-10.0, set by Gemini player roster fetch */
+  credits?: number;
 }
 
 export interface PlayerMatchScore {

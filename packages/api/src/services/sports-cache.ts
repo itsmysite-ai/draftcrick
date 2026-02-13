@@ -1,18 +1,33 @@
 /**
- * Sports data cache — stores Gemini-fetched data with 24hr TTL in Redis.
- * SERVERLESS-COMPATIBLE: Uses Redis for persistent, shared cache across all containers.
- * Smart: only fetches once per day, serves cached data to all users.
+ * Sports Cache — Thin Redis hot-cache layer (v3.0).
+ *
+ * Redis serves 3 roles:
+ * 1. Hot cache (5min TTL) — avoid repeated PG queries
+ * 2. Distributed refresh lock (30s TTL) — prevent duplicate Gemini calls
+ * 3. Rate limiting — per-user request throttling
+ *
+ * PostgreSQL is the source of truth. See /docs/SMART_REFRESH_ARCHITECTURE.md.
  */
 
-import type { Sport, SportsDashboardData } from "@draftcrick/shared";
-import { DEFAULT_SPORT } from "@draftcrick/shared";
-import { fetchSportsData } from "./gemini-sports";
+import { getLogger } from "../lib/logger";
 import Redis from "ioredis";
 
-/** 24 hours in seconds (Redis uses seconds for TTL) */
-const CACHE_TTL_SECONDS = 24 * 60 * 60;
+const log = getLogger("sports-cache");
 
-/** Redis client singleton */
+/** Hot cache TTL: 5 minutes */
+const HOT_CACHE_TTL_SECONDS = 300;
+
+/** Refresh lock TTL: 30 seconds */
+const REFRESH_LOCK_TTL_SECONDS = 30;
+
+/** Rate limit: requests per window */
+const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+
+// ---------------------------------------------------------------------------
+// Redis client
+// ---------------------------------------------------------------------------
+
 let redis: Redis | null = null;
 
 function getRedis(): Redis {
@@ -30,143 +45,144 @@ function getRedis(): Redis {
   return redis;
 }
 
-interface CacheEntry {
-  data: SportsDashboardData;
-  fetchedAt: number; // Date.now() timestamp
-}
-
-/** Track in-flight fetches to avoid duplicate Gemini calls within same container */
-const inflight = new Map<string, Promise<SportsDashboardData>>();
+// ---------------------------------------------------------------------------
+// 1. Hot Cache (5-minute TTL)
+// ---------------------------------------------------------------------------
 
 /**
- * Get cached sports data from Redis, fetching from Gemini if stale or missing.
- * Deduplicates concurrent requests — only one Gemini call per sport across all containers.
+ * Get data from Redis hot cache. Returns null on miss or Redis failure.
  */
-export async function getSportsDashboard(
-  sport: Sport = DEFAULT_SPORT
-): Promise<SportsDashboardData> {
-  const key = `sports:dashboard:${sport}`;
-  const lockKey = `sports:lock:${sport}`;
-  
+export async function getFromHotCache<T>(key: string): Promise<T | null> {
   try {
     const redisClient = getRedis();
-
-    // Check if a fetch is already in flight in THIS container
-    const pending = inflight.get(sport);
-    if (pending) {
-      return pending;
-    }
-
-    // Try to get from Redis cache
-    const cached = await redisClient.get(key);
+    const cached = await redisClient.get(`sports:hot:${key}`);
     if (cached) {
-      const entry: CacheEntry = JSON.parse(cached);
-      return entry.data;
+      log.debug({ key }, "Hot cache hit");
+      return JSON.parse(cached) as T;
     }
-
-    // Cache miss - need to fetch from Gemini
-    // Use Redis lock to prevent multiple containers from fetching simultaneously
-    const lockAcquired = await redisClient.set(lockKey, "1", "EX", 30, "NX");
-    
-    if (!lockAcquired) {
-      // Another container is fetching, wait a bit and try cache again
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const retryCache = await redisClient.get(key);
-      if (retryCache) {
-        const entry: CacheEntry = JSON.parse(retryCache);
-        return entry.data;
-      }
-      // If still no cache, fall through to fetch
-    }
-
-    // Fetch fresh data
-    const fetchPromise = fetchSportsData(sport)
-      .then(async (data) => {
-        const entry: CacheEntry = {
-          data,
-          fetchedAt: Date.now(),
-        };
-        
-        // Store in Redis with 24hr TTL
-        await redisClient.setex(key, CACHE_TTL_SECONDS, JSON.stringify(entry));
-        
-        // Release lock
-        await redisClient.del(lockKey);
-        inflight.delete(sport);
-        
-        return data;
-      })
-      .catch(async (err) => {
-        // Release lock on error
-        await redisClient.del(lockKey);
-        inflight.delete(sport);
-        
-        console.error(`Gemini fetch failed for ${sport}:`, err);
-        throw err;
-      });
-
-    inflight.set(sport, fetchPromise);
-    return fetchPromise;
-
+    return null;
   } catch (error) {
-    console.error(`Redis cache error for ${sport}:`, error);
-    // Fallback to direct fetch if Redis fails
-    return fetchSportsData(sport);
+    log.warn({ key, error: String(error) }, "Redis hot cache read failed");
+    return null;
   }
 }
 
 /**
- * Force refresh cache for a sport (admin use).
- * Clears existing cache and fetches fresh data.
+ * Store data in Redis hot cache with TTL.
  */
-export async function refreshSportsDashboard(
-  sport: Sport = DEFAULT_SPORT
-): Promise<SportsDashboardData> {
-  const key = `sports:dashboard:${sport}`;
-  
+export async function setHotCache<T>(
+  key: string,
+  data: T,
+  ttlSeconds: number = HOT_CACHE_TTL_SECONDS
+): Promise<void> {
   try {
     const redisClient = getRedis();
-    await redisClient.del(key);
+    await redisClient.setex(
+      `sports:hot:${key}`,
+      ttlSeconds,
+      JSON.stringify(data)
+    );
+    log.debug({ key, ttlSeconds }, "Hot cache set");
   } catch (error) {
-    console.error(`Redis delete error for ${sport}:`, error);
+    log.warn({ key, error: String(error) }, "Redis hot cache write failed");
   }
-  
-  return getSportsDashboard(sport);
 }
 
 /**
- * Get cache status (for debugging / admin).
+ * Invalidate hot cache entries matching a key prefix.
  */
-export async function getCacheStatus(): Promise<Record<string, { fresh: boolean; fetchedAt: string; matchCount: number; tournamentCount: number } | null>> {
-  const status: Record<string, any> = {};
-  const sports: Sport[] = ["cricket", "football", "kabaddi", "basketball"];
-  
+export async function invalidateHotCache(keyPrefix: string): Promise<void> {
   try {
     const redisClient = getRedis();
-    
-    for (const sport of sports) {
-      const key = `sports:dashboard:${sport}`;
-      const cached = await redisClient.get(key);
-      
-      if (cached) {
-        const entry: CacheEntry = JSON.parse(cached);
-        const age = Date.now() - entry.fetchedAt;
-        status[sport] = {
-          fresh: age < CACHE_TTL_SECONDS * 1000,
-          fetchedAt: new Date(entry.fetchedAt).toISOString(),
-          matchCount: entry.data.matches.length,
-          tournamentCount: entry.data.tournaments.length,
-        };
-      } else {
-        status[sport] = null;
-      }
+    const pattern = `sports:hot:${keyPrefix}*`;
+    const keys = await redisClient.keys(pattern);
+    if (keys.length > 0) {
+      await redisClient.del(...keys);
+      log.debug({ pattern, count: keys.length }, "Hot cache invalidated");
     }
   } catch (error) {
-    console.error("Redis cache status error:", error);
+    log.warn({ keyPrefix, error: String(error) }, "Redis hot cache invalidate failed");
   }
-  
-  return status;
 }
+
+// ---------------------------------------------------------------------------
+// 2. Distributed Refresh Lock (30-second TTL)
+// ---------------------------------------------------------------------------
+
+/**
+ * Acquire a distributed lock for a refresh operation.
+ * Returns true if lock acquired, false if another process holds it.
+ */
+export async function acquireRefreshLock(entityKey: string): Promise<boolean> {
+  try {
+    const redisClient = getRedis();
+    const result = await redisClient.set(
+      `sports:refresh-lock:${entityKey}`,
+      "1",
+      "EX",
+      REFRESH_LOCK_TTL_SECONDS,
+      "NX"
+    );
+    const acquired = result === "OK";
+    log.debug({ entityKey, acquired }, "Refresh lock attempt");
+    return acquired;
+  } catch (error) {
+    log.warn({ entityKey, error: String(error) }, "Redis lock acquire failed — proceeding without lock");
+    // If Redis is down, allow the refresh (accept possible duplicate)
+    return true;
+  }
+}
+
+/**
+ * Release a distributed refresh lock.
+ */
+export async function releaseRefreshLock(entityKey: string): Promise<void> {
+  try {
+    const redisClient = getRedis();
+    await redisClient.del(`sports:refresh-lock:${entityKey}`);
+    log.debug({ entityKey }, "Refresh lock released");
+  } catch (error) {
+    log.warn({ entityKey, error: String(error) }, "Redis lock release failed");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. Rate Limiting
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a user has exceeded the rate limit for an endpoint.
+ * Returns true if under limit, false if rate-limited.
+ */
+export async function checkRateLimit(
+  userId: string,
+  endpoint: string
+): Promise<boolean> {
+  try {
+    const redisClient = getRedis();
+    const key = `sports:rate:${userId}:${endpoint}`;
+    const count = await redisClient.incr(key);
+
+    if (count === 1) {
+      // First request in window — set expiry
+      await redisClient.expire(key, RATE_LIMIT_WINDOW_SECONDS);
+    }
+
+    if (count > RATE_LIMIT_MAX) {
+      log.warn({ userId, endpoint, count }, "Rate limit exceeded");
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    log.warn({ userId, endpoint, error: String(error) }, "Redis rate limit check failed — allowing");
+    return true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Connection management
+// ---------------------------------------------------------------------------
 
 /**
  * Close Redis connection (for graceful shutdown).

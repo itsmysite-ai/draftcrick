@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./tournaments";
 export * from "./matches";
 export * from "./players";
 export * from "./contests";
