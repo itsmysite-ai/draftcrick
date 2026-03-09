@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  boolean,
   date,
   jsonb,
   index,
@@ -21,6 +22,9 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("user"), // user, admin, moderator
   kycStatus: text("kyc_status").notNull().default("pending"), // pending, verified, rejected
   preferredLang: text("preferred_lang").notNull().default("en"),
+  ageConfirmed: boolean("age_confirmed").notNull().default(false),
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

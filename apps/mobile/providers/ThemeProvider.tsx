@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useState, useMemo, useEffect, type ReactNode } from "react";
 import { TamaguiProvider, Theme } from "tamagui";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { tamaguiConfig } from "../../../tamagui.config";
 import { SportFontProvider } from "@draftplay/ui";
 import {
@@ -25,13 +26,48 @@ interface ThemeContextValue {
   themeName: string;
 }
 
+const STORAGE_KEY_MODE = "draftplay_theme_mode";
+const STORAGE_KEY_SPORT = "draftplay_sport";
+
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>("light");
-  const [sport, setSport] = useState<Sport>("cricket");
+  const [mode, setModeState] = useState<ThemeMode>("light");
+  const [sport, setSportState] = useState<Sport>("cricket");
+  const [loaded, setLoaded] = useState(false);
 
-  const toggleMode = () => setMode((m) => (m === "light" ? "dark" : "light"));
+  // Load persisted preferences on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [savedMode, savedSport] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY_MODE),
+          AsyncStorage.getItem(STORAGE_KEY_SPORT),
+        ]);
+        if (savedMode === "light" || savedMode === "dark") setModeState(savedMode);
+        if (savedSport === "cricket" || savedSport === "f1") setSportState(savedSport as Sport);
+      } catch {
+        // Storage unavailable — use defaults
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  // Persist on change
+  const setMode = (m: ThemeMode) => {
+    setModeState(m);
+    AsyncStorage.setItem(STORAGE_KEY_MODE, m).catch(() => {});
+  };
+
+  const setSport = (s: Sport) => {
+    setSportState(s);
+    AsyncStorage.setItem(STORAGE_KEY_SPORT, s).catch(() => {});
+  };
+
+  const toggleMode = () => {
+    const next = mode === "light" ? "dark" : "light";
+    setMode(next);
+  };
 
   // Build Tamagui theme name: for cricket we use the default light/dark,
   // for other sports we use sport_mode sub-themes
@@ -42,6 +78,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const roles = getRoleColors(sport, mode);
     return { mode, setMode, toggleMode, sport, setSport, t, roles, themeName };
   }, [mode, sport, themeName]);
+
+  // Don't render until preferences are loaded to avoid flash
+  if (!loaded) return null;
 
   return (
     <TamaguiProvider config={tamaguiConfig} defaultTheme={themeName}>

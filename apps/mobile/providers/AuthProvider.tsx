@@ -86,7 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string) => {
     setError(null);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      // Set token immediately so tRPC calls right after signUp work
+      const token = await cred.user.getIdToken();
+      setFirebaseToken(token);
+      setTRPCToken(token);
     } catch (e: any) {
       setError(e.message ?? "Sign up failed");
       throw e;

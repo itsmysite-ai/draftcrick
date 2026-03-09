@@ -1,11 +1,12 @@
 import { ScrollView } from "react-native";
+import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
-import { Card, Button, ModeToggle, AnnouncementBanner, TierBadge, formatUIText, formatBadgeText } from "@draftplay/ui";
+import { Card, Button, ModeToggle, AnnouncementBanner, TierBadge, AlertModal, formatUIText, formatBadgeText } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useAuth } from "../../providers/AuthProvider";
@@ -88,6 +89,9 @@ export default function ProfileScreen() {
   const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false, enabled: isLoggedIn });
   const myTier = trpc.subscription.getMyTier.useQuery(undefined, { retry: false, enabled: isLoggedIn });
   const { unreadCount } = useNotifications();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
 
   return (
     <YStack flex={1} backgroundColor="$background" paddingTop={insets.top} testID="profile-screen">
@@ -315,11 +319,18 @@ export default function ProfileScreen() {
         <Animated.View entering={FadeInDown.delay(240).springify()}>
           <XStack gap="$3">
             {[
-              { i: "help-circle-outline" as const, l: "Help & FAQ" },
-              { i: "document-text-outline" as const, l: "Terms" },
-              { i: "shield-checkmark-outline" as const, l: "Privacy" },
+              { i: "help-circle-outline" as const, l: "Help & FAQ", route: null },
+              { i: "document-text-outline" as const, l: "Terms", route: "/legal/terms" },
+              { i: "shield-checkmark-outline" as const, l: "Privacy", route: "/legal/privacy" },
             ].map((link, idx) => (
-              <Card key={idx} pressable flex={1} alignItems="center" gap="$2">
+              <Card
+                key={idx}
+                pressable
+                flex={1}
+                alignItems="center"
+                gap="$2"
+                onPress={link.route ? () => router.push(link.route as any) : undefined}
+              >
                 <Ionicons name={link.i} size={18} color={theme.colorMuted.val} />
                 <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$colorMuted">
                   {link.l}
@@ -349,8 +360,54 @@ export default function ProfileScreen() {
           </Animated.View>
         )}
 
+        {isLoggedIn && (
+          <Animated.View entering={FadeInDown.delay(360).springify()}>
+            <Button
+              variant="ghost"
+              size="md"
+              onPress={() => setShowDeleteModal(true)}
+              marginTop="$3"
+              testID="delete-account-btn"
+            >
+              <Text fontFamily="$body" fontSize={13} color="$error">
+                {formatUIText("delete account")}
+              </Text>
+            </Button>
+          </Animated.View>
+        )}
+
         <YStack height={120} />
       </ScrollView>
+
+      <AlertModal
+        visible={showDeleteModal}
+        title="Delete Account"
+        message="This permanently deletes your account, teams, and all data. This cannot be undone."
+        onDismiss={() => setShowDeleteModal(false)}
+        actions={[
+          {
+            label: "Cancel",
+            variant: "ghost",
+            onPress: () => setShowDeleteModal(false),
+          },
+          {
+            label: isDeleting ? "Deleting..." : "Delete Forever",
+            variant: "danger",
+            onPress: async () => {
+              setIsDeleting(true);
+              try {
+                await deleteAccountMutation.mutateAsync();
+                await signOut();
+                router.replace("/auth/login");
+              } catch {
+                setShowDeleteModal(false);
+              } finally {
+                setIsDeleting(false);
+              }
+            },
+          },
+        ]}
+      />
     </YStack>
   );
 }

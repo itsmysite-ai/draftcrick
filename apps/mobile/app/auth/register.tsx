@@ -15,6 +15,7 @@ import {
 } from "@draftplay/ui";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+import { trpc } from "../../lib/trpc";
 
 /** Convert raw Firebase error messages into user-friendly text */
 function friendlyAuthError(msg: string): string {
@@ -34,12 +35,14 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { signUp, error } = useAuth();
   const theme = useTamaguiTheme();
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const acceptTermsMutation = trpc.auth.acceptTerms.useMutation();
 
   const rawError = localError ?? error;
   const displayError = rawError ? friendlyAuthError(rawError) : null;
@@ -49,6 +52,7 @@ export default function RegisterScreen() {
     setIsSubmitting(true);
     try {
       await signUp(email, password);
+      await acceptTermsMutation.mutateAsync();
       router.replace("/(tabs)");
     } catch (e: any) {
       setLocalError(e.message ?? "Sign up failed");
@@ -100,23 +104,6 @@ export default function RegisterScreen() {
 
         <YStack gap="$4">
           <TextInput
-            testID="username-input"
-            placeholder={formatUIText("username")}
-            placeholderTextColor={theme.placeholderColor.val}
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            style={{
-              backgroundColor: theme.backgroundSurface.val,
-              borderRadius: DesignSystem.radius.lg,
-              padding: 16,
-              color: theme.color.val,
-              fontSize: 16,
-              borderWidth: 1,
-              borderColor: theme.borderColor.val,
-            }}
-          />
-          <TextInput
             testID="email-input"
             placeholder={formatUIText("email")}
             placeholderTextColor={theme.placeholderColor.val}
@@ -164,9 +151,108 @@ export default function RegisterScreen() {
               />
             </Pressable>
           </YStack>
-          <Button testID="submit-button" variant="primary" size="lg" onPress={handleRegister} disabled={isSubmitting} opacity={isSubmitting ? 0.6 : 1}>
+
+          {/* ── Compliance Checkboxes ── */}
+          <YStack gap="$3">
+            <Pressable
+              onPress={() => setAgeConfirmed(!ageConfirmed)}
+              testID="age-confirm-checkbox"
+            >
+              <XStack gap="$3" alignItems="flex-start">
+                <YStack
+                  width={22}
+                  height={22}
+                  borderRadius={4}
+                  borderWidth={2}
+                  borderColor={ageConfirmed ? "$accentBackground" : "$borderColor"}
+                  backgroundColor={ageConfirmed ? "$accentBackground" : "transparent"}
+                  alignItems="center"
+                  justifyContent="center"
+                  marginTop={2}
+                >
+                  {ageConfirmed && (
+                    <Ionicons name="checkmark" size={14} color="white" />
+                  )}
+                </YStack>
+                <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
+                  {formatUIText("i confirm i am 13 years or older")}
+                </Text>
+              </XStack>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setTermsAccepted(!termsAccepted)}
+              testID="terms-accept-checkbox"
+            >
+              <XStack gap="$3" alignItems="flex-start">
+                <YStack
+                  width={22}
+                  height={22}
+                  borderRadius={4}
+                  borderWidth={2}
+                  borderColor={termsAccepted ? "$accentBackground" : "$borderColor"}
+                  backgroundColor={termsAccepted ? "$accentBackground" : "transparent"}
+                  alignItems="center"
+                  justifyContent="center"
+                  marginTop={2}
+                >
+                  {termsAccepted && (
+                    <Ionicons name="checkmark" size={14} color="white" />
+                  )}
+                </YStack>
+                <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1} lineHeight={20}>
+                  {formatUIText("i agree to the ")}{" "}
+                  <Text
+                    fontFamily="$body"
+                    fontSize={13}
+                    color="$accentBackground"
+                    fontWeight="600"
+                    onPress={() => router.push("/legal/terms" as any)}
+                  >
+                    {formatUIText("terms of service")}
+                  </Text>
+                  {formatUIText(" and ")}{" "}
+                  <Text
+                    fontFamily="$body"
+                    fontSize={13}
+                    color="$accentBackground"
+                    fontWeight="600"
+                    onPress={() => router.push("/legal/privacy" as any)}
+                  >
+                    {formatUIText("privacy policy")}
+                  </Text>
+                </Text>
+              </XStack>
+            </Pressable>
+          </YStack>
+
+          <Button
+            testID="submit-button"
+            variant="primary"
+            size="lg"
+            onPress={handleRegister}
+            disabled={isSubmitting || !ageConfirmed || !termsAccepted}
+            opacity={isSubmitting || !ageConfirmed || !termsAccepted ? 0.4 : 1}
+          >
             {isSubmitting ? formatUIText("creating account...") : formatUIText("create account")}
           </Button>
+          <XStack alignItems="center" marginVertical="$2">
+            <YStack flex={1} height={1} backgroundColor="$borderColor" />
+            <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
+              {formatUIText("or continue with")}
+            </Text>
+            <YStack flex={1} height={1} backgroundColor="$borderColor" />
+          </XStack>
+
+          <XStack gap="$3">
+            <Button variant="secondary" size="md" flex={1} disabled={!ageConfirmed || !termsAccepted} opacity={!ageConfirmed || !termsAccepted ? 0.4 : 1}>
+              {formatUIText("google")}
+            </Button>
+            <Button variant="secondary" size="md" flex={1} disabled={!ageConfirmed || !termsAccepted} opacity={!ageConfirmed || !termsAccepted ? 0.4 : 1}>
+              {formatUIText("apple")}
+            </Button>
+          </XStack>
+
           <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/login")} cursor="pointer">
             <Text fontFamily="$body" fontSize={14} color="$colorMuted">
               {formatUIText("already have an account?")}{" "}

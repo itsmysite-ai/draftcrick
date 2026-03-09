@@ -1,7 +1,8 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 
-// Load environment variables from root .env file
+// Load environment variables: .env.local overrides .env
+config({ path: resolve(__dirname, "../../../.env.local"), override: true });
 config({ path: resolve(__dirname, "../../../.env") });
 
 import { Hono } from "hono";

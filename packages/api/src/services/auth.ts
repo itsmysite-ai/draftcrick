@@ -55,7 +55,8 @@ export async function verifyIdToken(token: string) {
   try {
     const auth = await getFirebaseAuth();
     return await auth.verifyIdToken(token);
-  } catch {
+  } catch (err: any) {
+    console.error("[AUTH] verifyIdToken failed:", err.code || err.message || err);
     return null;
   }
 }

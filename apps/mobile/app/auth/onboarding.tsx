@@ -34,14 +34,18 @@ export default function OnboardingScreen() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [confirmLocation, setConfirmLocation] = useState(false);
   const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const updateDeclaration = trpc.geo.updateDeclaration.useMutation();
+  const acceptTermsMutation = trpc.auth.acceptTerms.useMutation();
 
   const handleLocationNext = async () => {
     await updateDeclaration.mutateAsync({
       country: selectedCountry,
       state: selectedState ?? undefined,
     });
+    await acceptTermsMutation.mutateAsync();
     setStep(2);
   };
 
@@ -242,6 +246,64 @@ export default function OnboardingScreen() {
                   different state or country.
                 </Text>
               </XStack>
+
+              <XStack
+                gap="$3"
+                alignItems="flex-start"
+                onPress={() => setAgeConfirmed(!ageConfirmed)}
+                cursor="pointer"
+                testID="onboarding-age-checkbox"
+              >
+                <YStack
+                  width={22}
+                  height={22}
+                  borderRadius={4}
+                  borderWidth={2}
+                  borderColor={ageConfirmed ? "$accentBackground" : "$borderColor"}
+                  backgroundColor={ageConfirmed ? "$accentBackground" : "transparent"}
+                  alignItems="center"
+                  justifyContent="center"
+                  marginTop={2}
+                >
+                  {ageConfirmed && (
+                    <Text color="white" fontSize={14} fontWeight="700">
+                      ✓
+                    </Text>
+                  )}
+                </YStack>
+                <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
+                  I confirm I am 13 years or older.
+                </Text>
+              </XStack>
+
+              <XStack
+                gap="$3"
+                alignItems="flex-start"
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                cursor="pointer"
+                testID="onboarding-terms-checkbox"
+              >
+                <YStack
+                  width={22}
+                  height={22}
+                  borderRadius={4}
+                  borderWidth={2}
+                  borderColor={termsAccepted ? "$accentBackground" : "$borderColor"}
+                  backgroundColor={termsAccepted ? "$accentBackground" : "transparent"}
+                  alignItems="center"
+                  justifyContent="center"
+                  marginTop={2}
+                >
+                  {termsAccepted && (
+                    <Text color="white" fontSize={14} fontWeight="700">
+                      ✓
+                    </Text>
+                  )}
+                </YStack>
+                <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
+                  I agree to the Terms of Service and Privacy Policy.
+                </Text>
+              </XStack>
             </YStack>
           </ScrollView>
 
@@ -252,11 +314,13 @@ export default function OnboardingScreen() {
               disabled={
                 !confirmLocation ||
                 !confirmUpdate ||
+                !ageConfirmed ||
+                !termsAccepted ||
                 (selectedCountry === "IN" && !selectedState) ||
                 updateDeclaration.isPending
               }
               opacity={
-                !confirmLocation || !confirmUpdate || (selectedCountry === "IN" && !selectedState)
+                !confirmLocation || !confirmUpdate || !ageConfirmed || !termsAccepted || (selectedCountry === "IN" && !selectedState)
                   ? 0.4
                   : 1
               }
