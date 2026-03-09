@@ -1,10 +1,10 @@
-import type { ScoringRules } from "../types";
+import type { CricketScoringRules } from "../types";
 
 /**
  * Default scoring rules for T20 cricket fantasy.
  * Based on industry standards (Dream11/CrickBattle).
  */
-export const DEFAULT_T20_SCORING: ScoringRules = {
+export const DEFAULT_T20_SCORING: CricketScoringRules = {
   // Batting
   runPoints: 1,
   boundaryBonus: 1, // +1 per four (total 2 per four)
@@ -39,7 +39,7 @@ export const DEFAULT_T20_SCORING: ScoringRules = {
   playerOfMatchBonus: 25,
 };
 
-export const DEFAULT_ODI_SCORING: ScoringRules = {
+export const DEFAULT_ODI_SCORING: CricketScoringRules = {
   runPoints: 1,
   boundaryBonus: 1,
   sixBonus: 2,
@@ -70,7 +70,7 @@ export const DEFAULT_ODI_SCORING: ScoringRules = {
   playerOfMatchBonus: 20,
 };
 
-export const DEFAULT_TEST_SCORING: ScoringRules = {
+export const DEFAULT_TEST_SCORING: CricketScoringRules = {
   runPoints: 1,
   boundaryBonus: 1,
   sixBonus: 2,
@@ -95,7 +95,7 @@ export const DEFAULT_TEST_SCORING: ScoringRules = {
 
 export function getScoringRulesForFormat(
   format: "t20" | "odi" | "test"
-): ScoringRules {
+): CricketScoringRules {
   switch (format) {
     case "t20":
       return DEFAULT_T20_SCORING;

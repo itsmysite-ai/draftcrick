@@ -2,7 +2,8 @@ import { FlatList, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
@@ -10,7 +11,6 @@ import {
   InitialsAvatar,
   FilterPill,
   HatchModal,
-  ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
   CricketBallIcon,
@@ -22,7 +22,8 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
-import { useTheme } from "../../providers/ThemeProvider";
+
+import { HeaderControls } from "../../components/HeaderControls";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -45,7 +46,7 @@ export default function DraftRoomScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const { data: draftState, refetch: refetchState } = trpc.draft.getState.useQuery({ roomId: roomId! }, { refetchInterval: 3000 });
   const { data: picks, refetch: refetchPicks } = trpc.draft.getPicks.useQuery({ roomId: roomId! });
   const { data: room } = trpc.draft.getRoom.useQuery({ roomId: roomId! });
@@ -130,7 +131,7 @@ export default function DraftRoomScreen() {
                 </Text>
               </YStack>
             )}
-            <ModeToggle mode={mode} onToggle={toggleMode} />
+            <HeaderControls />
           </XStack>
         </XStack>
         {draftState?.status === "in_progress" && (

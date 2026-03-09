@@ -2,17 +2,17 @@ import { FlatList, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text } from "tamagui";
-import { Card, Badge, BackButton, Button, ModeToggle, formatUIText } from "@draftplay/ui";
+import { YStack, XStack } from "tamagui";
+import { Text } from "../../../components/SportText";
+import { Card, Badge, BackButton, Button, formatUIText } from "@draftplay/ui";
 import { trpc } from "../../../lib/trpc";
 import { useAuth } from "../../../providers/AuthProvider";
-import { useTheme } from "../../../providers/ThemeProvider";
+import { HeaderControls } from "../../../components/HeaderControls";
 
 export default function LeagueTradesScreen() {
   const { id: leagueId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mode, toggleMode } = useTheme();
   const { user } = useAuth();
   const { data: myTrades, refetch } = trpc.trade.myTrades.useQuery({ leagueId: leagueId! });
   const { data: leagueTrades } = trpc.trade.leagueTrades.useQuery({ leagueId: leagueId! });
@@ -74,7 +74,7 @@ export default function LeagueTradesScreen() {
                   {formatUIText("trades")}
                 </Text>
               </XStack>
-              <ModeToggle mode={mode} onToggle={toggleMode} />
+              <HeaderControls />
             </XStack>
             <Button testID="propose-trade-btn" variant="primary" size="md" marginTop="$3" onPress={() => router.push(`/league/${leagueId}/propose-trade` as any)}>
               Propose a Trade

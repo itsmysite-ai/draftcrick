@@ -6,9 +6,9 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import {
   XStack,
   YStack,
-  Text,
   useTheme as useTamaguiTheme,
 } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
@@ -16,7 +16,6 @@ import {
   BackButton,
   InitialsAvatar,
   SegmentTab,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -27,8 +26,9 @@ import {
   CricketBallIcon,
   DraftPlayLogo,
 } from "@draftplay/ui";
-import { useTheme } from "../../providers/ThemeProvider";
+import { useSport } from "../../providers/ThemeProvider";
 import { trpc } from "../../lib/trpc";
+import { HeaderControls } from "../../components/HeaderControls";
 
 import type { AITeamStanding } from "@draftplay/shared";
 
@@ -332,14 +332,15 @@ export default function TournamentScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
+  const { sport } = useSport();
 
   const [detailTab, setDetailTab] = useState<DetailTab>("matches");
   const [refreshing, setRefreshing] = useState(false);
 
   // ── tRPC queries ──
   const dashboardQuery = trpc.sports.dashboard.useQuery(
-    { sport: "cricket" },
+    { sport },
     { staleTime: 60 * 60_000, retry: 1 },
   );
   const playersQuery = trpc.player.list.useQuery(undefined, {
@@ -380,7 +381,7 @@ export default function TournamentScreen() {
 
   // ── Standings query ──
   const standingsQuery = trpc.sports.standings.useQuery(
-    { tournamentName, sport: "cricket" },
+    { tournamentName, sport },
     { staleTime: 60 * 60_000 },
   );
 
@@ -461,7 +462,7 @@ export default function TournamentScreen() {
               {formatUIText("tournament")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
         <YStack flex={1} justifyContent="center" alignItems="center" gap="$3">
           <CricketBatIcon size={DesignSystem.emptyState.iconSize} />
@@ -493,7 +494,7 @@ export default function TournamentScreen() {
             {formatUIText("tournament")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       {/* ── Tournament Header ── */}

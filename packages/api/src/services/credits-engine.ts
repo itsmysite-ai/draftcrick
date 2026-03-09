@@ -9,12 +9,13 @@
  * - Wicket-keeper: 35% bat avg, 20% strike rate, 20% form, 15% sentiment, 10% experience
  */
 
+import type { CricketRole } from "@draftplay/shared";
 import { getLogger } from "../lib/logger";
 
 const log = getLogger("credits-engine");
 
 export interface PlayerStatsForCredits {
-  role: "batsman" | "bowler" | "all_rounder" | "wicket_keeper";
+  role: CricketRole;
   battingAvg: number | null;
   strikeRate: number | null;
   bowlingAvg: number | null;

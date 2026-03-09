@@ -2,14 +2,14 @@ import { FlatList, Alert } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useState, useEffect } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   Button,
   InitialsAvatar,
   StatLabel,
-  ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
@@ -20,7 +20,8 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
-import { useTheme } from "../../providers/ThemeProvider";
+
+import { HeaderControls } from "../../components/HeaderControls";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -40,7 +41,7 @@ export default function AuctionRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const { data: auctionState, refetch } = trpc.draft.getAuctionState.useQuery({ roomId: roomId! }, { refetchInterval: 2000 });
   const { data: players } = trpc.player.list.useQuery(undefined);
   const nominateMutation = trpc.draft.nominate.useMutation({ onSuccess: () => refetch() });
@@ -115,7 +116,7 @@ export default function AuctionRoomScreen() {
                 {formatUIText("team")}: {myTeamSize} {formatUIText("players")}
               </Text>
             </YStack>
-            <ModeToggle mode={mode} onToggle={toggleMode} />
+            <HeaderControls />
           </XStack>
         </XStack>
         {countdown !== null && (

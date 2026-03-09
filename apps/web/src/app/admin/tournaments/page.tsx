@@ -10,6 +10,7 @@ export default function TournamentsPage() {
   const toggleVisible = trpc.admin.tournaments.toggleVisible.useMutation({
     onSuccess: () => tournaments.refetch(),
   });
+  const [sport, setSport] = useState<"cricket" | "f1">("cricket");
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const discover = trpc.admin.tournaments.discover.useMutation({
     onSuccess: (data) => {
@@ -37,8 +38,20 @@ export default function TournamentsPage() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>Tournaments</h1>
+        <select
+          value={sport}
+          onChange={(e) => setSport(e.target.value as "cricket" | "f1")}
+          style={{
+            padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)",
+            backgroundColor: "var(--bg-surface)", fontSize: 13, fontWeight: 500,
+            cursor: "pointer", marginRight: 8,
+          }}
+        >
+          <option value="cricket">Cricket</option>
+          <option value="f1">F1</option>
+        </select>
         <button
-          onClick={() => { setSuccessMsg(null); discover.mutate({ sport: "cricket" }); }}
+          onClick={() => { setSuccessMsg(null); discover.mutate({ sport }); }}
           disabled={discover.isPending}
           style={{
             padding: "8px 16px", backgroundColor: "var(--amber)", color: "#fff", border: "none",

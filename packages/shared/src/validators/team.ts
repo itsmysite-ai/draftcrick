@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { CRICKET_ROLES, F1_ROLES } from "../types/roles";
+
+// All valid roles across all sports
+const ALL_ROLES = [...CRICKET_ROLES, ...F1_ROLES] as const;
 
 export const createTeamSchema = z.object({
   contestId: z.string().uuid().optional(),
@@ -7,10 +11,10 @@ export const createTeamSchema = z.object({
     .array(
       z.object({
         playerId: z.string().uuid(),
-        role: z.enum(["batsman", "bowler", "all_rounder", "wicket_keeper"]),
+        role: z.enum(ALL_ROLES as unknown as [string, ...string[]]),
       })
     )
-    .length(11, "Team must have exactly 11 players"),
+    .min(1, "Team must have at least 1 player"),
   captainId: z.string().uuid(),
   viceCaptainId: z.string().uuid(),
 });
@@ -21,10 +25,10 @@ export const updateTeamSchema = z.object({
     .array(
       z.object({
         playerId: z.string().uuid(),
-        role: z.enum(["batsman", "bowler", "all_rounder", "wicket_keeper"]),
+        role: z.enum(ALL_ROLES as unknown as [string, ...string[]]),
       })
     )
-    .length(11)
+    .min(1)
     .optional(),
   captainId: z.string().uuid().optional(),
   viceCaptainId: z.string().uuid().optional(),

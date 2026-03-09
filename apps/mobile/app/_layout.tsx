@@ -80,12 +80,24 @@ export default function RootLayout() {
       try {
         const Font = require("expo-font");
         await Font.loadAsync({
-          DMSans_400Regular: require("@expo-google-fonts/dm-sans/DMSans_400Regular.ttf"),
-          DMSans_500Medium: require("@expo-google-fonts/dm-sans/DMSans_500Medium.ttf"),
-          DMSans_600SemiBold: require("@expo-google-fonts/dm-sans/DMSans_600SemiBold.ttf"),
-          DMSans_700Bold: require("@expo-google-fonts/dm-sans/DMSans_700Bold.ttf"),
-          DMMono_400Regular: require("@expo-google-fonts/dm-mono/DMMono_400Regular.ttf"),
-          DMMono_500Medium: require("@expo-google-fonts/dm-mono/DMMono_500Medium.ttf"),
+          DMSans_400Regular: require("@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf"),
+          DMSans_500Medium: require("@expo-google-fonts/dm-sans/500Medium/DMSans_500Medium.ttf"),
+          DMSans_600SemiBold: require("@expo-google-fonts/dm-sans/600SemiBold/DMSans_600SemiBold.ttf"),
+          DMSans_700Bold: require("@expo-google-fonts/dm-sans/700Bold/DMSans_700Bold.ttf"),
+          DMMono_400Regular: require("@expo-google-fonts/dm-mono/400Regular/DMMono_400Regular.ttf"),
+          DMMono_500Medium: require("@expo-google-fonts/dm-mono/500Medium/DMMono_500Medium.ttf"),
+          // F1 fonts — Titillium Web (F1 official body font) + Space Mono
+          TitilliumWeb_400Regular: require("@expo-google-fonts/titillium-web/400Regular/TitilliumWeb_400Regular.ttf"),
+          TitilliumWeb_400Regular_Italic: require("@expo-google-fonts/titillium-web/400Regular_Italic/TitilliumWeb_400Regular_Italic.ttf"),
+          TitilliumWeb_600SemiBold: require("@expo-google-fonts/titillium-web/600SemiBold/TitilliumWeb_600SemiBold.ttf"),
+          TitilliumWeb_600SemiBold_Italic: require("@expo-google-fonts/titillium-web/600SemiBold_Italic/TitilliumWeb_600SemiBold_Italic.ttf"),
+          TitilliumWeb_700Bold: require("@expo-google-fonts/titillium-web/700Bold/TitilliumWeb_700Bold.ttf"),
+          TitilliumWeb_700Bold_Italic: require("@expo-google-fonts/titillium-web/700Bold_Italic/TitilliumWeb_700Bold_Italic.ttf"),
+          TitilliumWeb_900Black: require("@expo-google-fonts/titillium-web/900Black/TitilliumWeb_900Black.ttf"),
+          SpaceMono_400Regular: require("@expo-google-fonts/space-mono/400Regular/SpaceMono_400Regular.ttf"),
+          SpaceMono_400Regular_Italic: require("@expo-google-fonts/space-mono/400Regular_Italic/SpaceMono_400Regular_Italic.ttf"),
+          SpaceMono_700Bold: require("@expo-google-fonts/space-mono/700Bold/SpaceMono_700Bold.ttf"),
+          SpaceMono_700Bold_Italic: require("@expo-google-fonts/space-mono/700Bold_Italic/SpaceMono_700Bold_Italic.ttf"),
         });
       } catch (e) {
         console.warn("Font loading failed, using system fonts:", e);

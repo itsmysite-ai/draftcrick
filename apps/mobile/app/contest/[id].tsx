@@ -3,7 +3,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useCallback, useEffect, useRef } from "react";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing, withDelay } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
@@ -11,7 +12,6 @@ import {
   BackButton,
   InitialsAvatar,
   StatLabel,
-  ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
@@ -23,8 +23,9 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+
 import { useAuth } from "../../providers/AuthProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 // ── Countdown helper ─────────────────────────────────────────────
 function formatCountdownFull(targetDate: string | Date): string {
@@ -74,7 +75,7 @@ export default function ContestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -193,7 +194,7 @@ export default function ContestDetailScreen() {
             {formatUIText("contest")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       {/* Contest Header */}

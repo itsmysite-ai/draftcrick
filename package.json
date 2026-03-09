@@ -72,5 +72,9 @@
   "packageManager": "pnpm@9.15.4",
   "engines": {
     "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/space-mono": "^0.4.2"
   }
 }

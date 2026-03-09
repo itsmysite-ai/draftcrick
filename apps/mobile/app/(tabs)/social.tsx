@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { YStack, XStack, Text } from "tamagui";
-import { Card, Badge, Button, ModeToggle, AnnouncementBanner, DraftPlayLogo, formatUIText, formatBadgeText } from "@draftplay/ui";
+import { YStack, XStack } from "tamagui";
+import { Text } from "../../components/SportText";
+import { Card, Badge, Button, AnnouncementBanner, DraftPlayLogo, formatUIText, formatBadgeText } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 function LeagueCard({
   item,
@@ -106,7 +108,7 @@ function LeagueCard({
 export default function SocialScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { t, mode, toggleMode } = useTheme();
+  const { t } = useTheme();
   const {
     data: memberships,
     isLoading,
@@ -131,7 +133,7 @@ export default function SocialScreen() {
         <Text fontFamily="$mono" fontSize={17} fontWeight="500" color="$color" letterSpacing={-0.5}>
           {formatUIText("my leagues")}
         </Text>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <AnnouncementBanner />

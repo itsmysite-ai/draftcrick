@@ -2,12 +2,12 @@ import { ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../../components/SportText";
 import {
   Card,
   Badge,
   BackButton,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -16,7 +16,7 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../../lib/trpc";
-import { useTheme } from "../../../providers/ThemeProvider";
+import { HeaderControls } from "../../../components/HeaderControls";
 
 const QUESTION_TYPE_ICONS: Record<string, string> = {
   match_winner: "🏏",
@@ -37,7 +37,7 @@ export default function PredictionResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
 
   const answersQuery = trpc.prediction.getUserAnswers.useQuery(
     { matchId: matchId!, leagueId: "00000000-0000-0000-0000-000000000000" },
@@ -77,7 +77,7 @@ export default function PredictionResultsScreen() {
               {formatUIText("results")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
 
         {/* Summary Card */}

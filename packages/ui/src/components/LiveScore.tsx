@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { YStack, Text } from "tamagui";
+import { YStack } from "tamagui";
+import { Text } from "../primitives/SportText";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,

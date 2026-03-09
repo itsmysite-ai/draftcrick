@@ -3,14 +3,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo, useCallback } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../../components/SportText";
 import {
   Card,
   Badge,
   Button,
   BackButton,
   InitialsAvatar,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -19,15 +19,16 @@ import {
   formatTeamName,
 } from "@draftplay/ui";
 import { trpc } from "../../../lib/trpc";
-import { useTheme } from "../../../providers/ThemeProvider";
+
 import { useNavigationStore } from "../../../lib/navigation-store";
+import { HeaderControls } from "../../../components/HeaderControls";
 
 export default function TeamSolverScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const matchId = decodeURIComponent(id ?? "");
   const router = useRouter();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const insets = useSafeAreaInsets();
   const matchCtx = useNavigationStore((s) => s.matchContext);
 
@@ -102,7 +103,7 @@ export default function TeamSolverScreen() {
             {formatUIText("team solver")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <YStack paddingHorizontal="$4">

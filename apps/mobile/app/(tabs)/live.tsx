@@ -8,16 +8,17 @@ import Animated, {
   FadeInDown, FadeIn, useSharedValue, useAnimatedStyle,
   withRepeat, withTiming, Easing,
 } from "react-native-reanimated";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { useSport } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 import {
   Card,
   Badge,
   Button,
   InitialsAvatar,
   StatLabel,
-  ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
@@ -268,13 +269,13 @@ function LiveMatchCard({
 export default function LiveScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mode, toggleMode } = useTheme();
+  const { sport } = useSport();
   const theme = useTamaguiTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch from Gemini sports API (cached 24hr)
   const aiData = trpc.sports.dashboard.useQuery(
-    { sport: "cricket" },
+    { sport },
     { staleTime: 60 * 60 * 1000, retry: 1 },
   );
 
@@ -328,7 +329,7 @@ export default function LiveScreen() {
           status: m.status,
           format: m.format?.toUpperCase() || "T20",
           venue: m.venue,
-          sport: "cricket" as const,
+          sport,
           scoreSummary: m.scoreSummary || null,
           result: m.result || null,
           tossWinner: m.tossWinner || null,
@@ -404,7 +405,7 @@ export default function LiveScreen() {
               {liveMatches.length}
             </Badge>
           )}
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
       </XStack>
 

@@ -3,7 +3,8 @@
  * Shows lock icon, feature name, required tier, and upgrade CTA.
  */
 
-import { XStack, YStack, Text } from "tamagui";
+import { XStack, YStack } from "tamagui";
+import { Text } from "../primitives/SportText";
 import { DesignSystem } from "../constants/designSystem";
 import { TierBadge } from "./TierBadge";
 

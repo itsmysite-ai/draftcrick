@@ -2,12 +2,12 @@ import { TextInput, ScrollView, ActivityIndicator } from "react-native";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Button,
   BackButton,
-  ModeToggle,
   AnnouncementBanner,
   DesignSystem,
   textStyles,
@@ -15,7 +15,8 @@ import {
   formatBadgeText,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { useSport } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
 type Template = "casual" | "competitive" | "pro" | "custom";
@@ -37,7 +38,7 @@ export default function CreateLeagueScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+  const { sport } = useSport();
   const [name, setName] = useState("");
   const [format, setFormat] = useState<LeagueFormat>("salary_cap");
   const [template, setTemplate] = useState<Template>("casual");
@@ -45,7 +46,7 @@ export default function CreateLeagueScreen() {
   const [maxMembers, setMaxMembers] = useState("10");
   const [isPrivate, setIsPrivate] = useState(true);
 
-  const tournamentsQuery = trpc.sports.tournaments.useQuery({ sport: "cricket" });
+  const tournamentsQuery = trpc.sports.tournaments.useQuery({ sport });
   const availableTournaments = tournamentsQuery.data?.tournaments ?? [];
 
   // Auto-select first tournament when data loads
@@ -79,7 +80,7 @@ export default function CreateLeagueScreen() {
             {formatUIText("create league")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <AnnouncementBanner marginHorizontal={0} />

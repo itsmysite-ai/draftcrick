@@ -3,7 +3,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
@@ -11,7 +12,6 @@ import {
   Button,
   FilterPill,
   InitialsAvatar,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -22,7 +22,7 @@ import {
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
 import { useAuth } from "../../providers/AuthProvider";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 type Tab = "standings" | "upcoming" | "awards";
 
@@ -50,7 +50,7 @@ export default function TournamentLeagueDetailScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const setMatchContext = useNavigationStore((s) => s.setMatchContext);
   const [tab, setTab] = useState<Tab>("standings");
 
@@ -114,7 +114,7 @@ export default function TournamentLeagueDetailScreen() {
               {formatUIText("tournament league")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
 
         {/* League Info Card */}

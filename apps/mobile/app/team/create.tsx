@@ -3,7 +3,8 @@ import { useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
@@ -12,7 +13,6 @@ import {
   InitialsAvatar,
   FilterPill,
   AnnouncementBanner,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -22,7 +22,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -43,7 +43,6 @@ export default function TeamBuilderScreen() {
   const tournament = navCtx?.tournament;
   const router = useRouter();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const insets = useSafeAreaInsets();
   const [selectedTab, setSelectedTab] = useState<string>("wicket_keeper");
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
@@ -195,7 +194,7 @@ export default function TeamBuilderScreen() {
               {formatUIText("build team")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
 
         {AlertBanner}
@@ -274,7 +273,7 @@ export default function TeamBuilderScreen() {
             {formatUIText("build team")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       {AlertBanner}

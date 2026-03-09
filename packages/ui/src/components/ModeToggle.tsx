@@ -1,4 +1,5 @@
-import { XStack, YStack, Text, type GetProps } from "tamagui";
+import { XStack, YStack, type GetProps } from "tamagui";
+import { Text } from "../primitives/SportText";
 
 interface ModeToggleProps extends Omit<GetProps<typeof XStack>, "children"> {
   mode: "light" | "dark";

@@ -1,3 +1,5 @@
+import type { PlayerRole } from "./match";
+
 export type LeagueFormat =
   | "salary_cap"
   | "draft"
@@ -71,7 +73,8 @@ export interface LeagueRules {
   customRules?: Record<string, unknown>;
 }
 
-export interface ScoringRules {
+// Cricket-specific scoring rules (the original ScoringRules)
+export interface CricketScoringRules {
   // Batting
   runPoints?: number;
   boundaryBonus?: number;
@@ -97,6 +100,22 @@ export interface ScoringRules {
   // Other
   playerOfMatchBonus?: number;
 }
+
+// F1-specific scoring rules
+export interface F1ScoringRules {
+  raceFinishPoints?: Record<number, number>;
+  sprintFinishPoints?: Record<number, number>;
+  fastestLapBonus?: number;
+  polePositionBonus?: number;
+  dnfPenalty?: number;
+  positionsGainedPoints?: number;
+  constructorFinishPoints?: Record<number, number>;
+  driverOfTheDayBonus?: number;
+  playerOfMatchBonus?: number;
+}
+
+// Backwards compatible — existing code using ScoringRules still works
+export type ScoringRules = CricketScoringRules | F1ScoringRules;
 
 export type ContestStatus =
   | "open"

@@ -3,12 +3,12 @@ import { useRouter } from "expo-router";
 import { useState, useRef, useCallback } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Badge,
   BackButton,
   Button,
-  ModeToggle,
   EggLoadingSpinner,
   CricketBatIcon,
   Paywall,
@@ -22,7 +22,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 import { usePaywall } from "../../hooks/usePaywall";
 
 interface Message {
@@ -48,7 +48,7 @@ export default function GuruScreen() {
   };
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const flatListRef = useRef<FlatList>(null);
   const { gate, hasAccess, paywallProps } = usePaywall();
   const [userMessageCount, setUserMessageCount] = useState(0);
@@ -150,7 +150,7 @@ export default function GuruScreen() {
               <TierBadge tier="pro" size="sm" />
             </XStack>
           )}
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
       </XStack>
 

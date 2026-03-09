@@ -2,11 +2,11 @@ import { TextInput } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Button,
   BackButton,
-  ModeToggle,
   AnnouncementBanner,
   DesignSystem,
   textStyles,
@@ -14,13 +14,12 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 export default function JoinLeagueScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const [inviteCode, setInviteCode] = useState("");
 
   const joinMutation = trpc.league.join.useMutation({
@@ -40,7 +39,7 @@ export default function JoinLeagueScreen() {
         paddingBottom="$2"
       >
         <BackButton onPress={() => router.back()} />
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <AnnouncementBanner />

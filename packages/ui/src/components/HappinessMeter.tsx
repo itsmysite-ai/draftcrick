@@ -1,4 +1,5 @@
-import { YStack, XStack, Text, View, type GetProps } from "tamagui";
+import { YStack, XStack, View, type GetProps } from "tamagui";
+import { Text } from "../primitives/SportText";
 
 interface HappinessMeterProps extends Omit<GetProps<typeof XStack>, "children"> {
   current: number;

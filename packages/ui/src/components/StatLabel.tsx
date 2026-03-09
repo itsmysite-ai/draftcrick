@@ -1,4 +1,5 @@
-import { Text, XStack, type GetProps } from "tamagui";
+import { XStack, type GetProps } from "tamagui";
+import { Text } from "../primitives/SportText";
 
 interface StatLabelProps extends Omit<GetProps<typeof XStack>, "children"> {
   label: string;

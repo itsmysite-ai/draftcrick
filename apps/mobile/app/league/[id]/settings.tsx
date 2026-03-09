@@ -2,10 +2,11 @@ import { TextInput, ScrollView, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { BackButton, Button, Card, ModeToggle, formatUIText } from "@draftplay/ui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../../components/SportText";
+import { BackButton, Button, Card, formatUIText } from "@draftplay/ui";
 import { trpc } from "../../../lib/trpc";
-import { useTheme } from "../../../providers/ThemeProvider";
+import { HeaderControls } from "../../../components/HeaderControls";
 import { RULE_CATEGORY_LABELS, getRulesByCategory, type RuleCategory } from "@draftplay/shared";
 
 const CATEGORIES: RuleCategory[] = ["teamComposition", "scoring", "boosters", "transfers", "playoffs", "salary", "autoManagement", "scoringModifiers", "draft", "auction"];
@@ -15,7 +16,6 @@ export default function LeagueSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const { data: league, refetch } = trpc.league.getById.useQuery({ id: leagueId! });
   const updateMutation = trpc.league.updateSettings.useMutation({ onSuccess: () => { Alert.alert("Settings updated!"); refetch(); } });
   const regenCodeMutation = trpc.league.regenerateInviteCode.useMutation({ onSuccess: () => refetch() });
@@ -45,7 +45,7 @@ export default function LeagueSettingsScreen() {
             {formatUIText("league settings")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
       <Card padding="$4" marginBottom="$4">
         <Text fontFamily="$mono" fontSize={12} color="$colorMuted" fontWeight="600" marginBottom="$2">BASIC SETTINGS</Text>

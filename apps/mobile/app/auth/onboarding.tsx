@@ -1,17 +1,17 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView } from "react-native";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Button,
-  ModeToggle,
   AnnouncementBanner,
   DesignSystem,
   formatUIText,
   DraftPlayLogo,
 } from "@draftplay/ui";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 import { trpc } from "../../lib/trpc";
 import { COUNTRIES, INDIA_STATES } from "@draftplay/shared";
 
@@ -25,7 +25,6 @@ const FORMATS = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const [step, setStep] = useState(0);
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
   const [preferredFormat, setPreferredFormat] = useState<string | null>(null);
@@ -70,7 +69,7 @@ export default function OnboardingScreen() {
           ))}
         </XStack>
         <XStack flex={1} justifyContent="flex-end">
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
       </XStack>
 

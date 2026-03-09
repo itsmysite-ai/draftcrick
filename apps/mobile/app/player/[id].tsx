@@ -2,14 +2,14 @@ import { ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   BackButton,
   InitialsAvatar,
   StatLabel,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -18,7 +18,7 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -26,7 +26,7 @@ export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const insets = useSafeAreaInsets();
   const player = trpc.player.getById.useQuery({ id: id! }, { enabled: !!id });
 
@@ -63,7 +63,7 @@ export default function PlayerScreen() {
             {formatUIText("player")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       {/* Player Profile */}

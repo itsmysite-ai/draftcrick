@@ -3,7 +3,7 @@
  * Designed for easy expansion beyond cricket to football, kabaddi, basketball, etc.
  */
 
-import type { Sport } from "./match";
+import type { Sport, PlayerRole } from "./match";
 
 // Re-export Sport from match.ts — single source of truth
 export type { Sport } from "./match";
@@ -80,7 +80,7 @@ export interface AIPlayer {
   id: string;
   name: string;
   team: string;
-  role: "batsman" | "bowler" | "all_rounder" | "wicket_keeper";
+  role: PlayerRole;
   nationality: string;
   battingStyle: string | null;
   bowlingStyle: string | null;

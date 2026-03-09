@@ -3,14 +3,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   BackButton,
   Button,
   FilterPill,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -20,7 +20,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 const QUESTION_TYPE_ICONS: Record<string, string> = {
   match_winner: "🏏",
@@ -47,7 +47,7 @@ export default function PredictionQuestionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const navCtx = useNavigationStore((s) => s.matchContext);
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -124,7 +124,7 @@ export default function PredictionQuestionsScreen() {
               {formatUIText("predict")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
 
         {/* Match Info */}

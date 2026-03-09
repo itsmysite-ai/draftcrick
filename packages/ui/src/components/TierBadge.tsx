@@ -1,4 +1,5 @@
-import { XStack, Text } from "tamagui";
+import { XStack } from "tamagui";
+import { Text } from "../primitives/SportText";
 
 const TIER_STYLES = {
   free: { bg: "$colorMuted", text: "$background", label: "FREE" },

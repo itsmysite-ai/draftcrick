@@ -145,6 +145,28 @@ export const DesignSystem = {
 } as const;
 
 /**
+ * Sport-specific role metadata.
+ * Returns the role definitions for the given sport.
+ */
+export const SPORT_ROLES: Record<string, Record<string, { name: string; emoji: string; token: string }>> = {
+  cricket: {
+    BAT: { name: "Batsmen", emoji: "🏏", token: "BAT" },
+    BOWL: { name: "Bowlers", emoji: "🔴", token: "BOWL" },
+    AR: { name: "All-Rounders", emoji: "⚡", token: "AR" },
+    WK: { name: "Keepers", emoji: "🧤", token: "WK" },
+  },
+  f1: {
+    DRV: { name: "Drivers", emoji: "🏎️", token: "DRV" },
+    CON: { name: "Constructors", emoji: "🏗️", token: "CON" },
+    TP: { name: "Team Principals", emoji: "👔", token: "TP" },
+  },
+};
+
+export function getRolesForDesignSystem(sport: string) {
+  return SPORT_ROLES[sport] ?? SPORT_ROLES.cricket;
+}
+
+/**
  * Common Text Components Props
  */
 export const textStyles = {

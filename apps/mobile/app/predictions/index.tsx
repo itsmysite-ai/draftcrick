@@ -3,13 +3,13 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   BackButton,
   Button,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -19,7 +19,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 import { useAuth } from "../../providers/AuthProvider";
 
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
@@ -42,7 +42,7 @@ export default function PredictionsHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const { user } = useAuth();
   const setMatchContext = useNavigationStore((s) => s.setMatchContext);
 
@@ -85,7 +85,7 @@ export default function PredictionsHubScreen() {
               {formatUIText("predictions")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
 
         {/* Stats Banner */}

@@ -67,13 +67,30 @@ export default function AdminDashboard() {
 }
 
 function RefreshButton() {
+  const [sport, setSport] = React.useState<"cricket" | "f1">("cricket");
   const discover = trpc.admin.tournaments.discover.useMutation();
   const refresh = trpc.admin.system.triggerRefresh.useMutation();
 
   return (
-    <div style={{ display: "flex", gap: 12 }}>
+    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+      <select
+        value={sport}
+        onChange={(e) => setSport(e.target.value as "cricket" | "f1")}
+        style={{
+          padding: "10px 14px",
+          borderRadius: 8,
+          border: "1px solid var(--border)",
+          backgroundColor: "var(--bg-surface)",
+          fontSize: 14,
+          fontWeight: 500,
+          cursor: "pointer",
+        }}
+      >
+        <option value="cricket">Cricket</option>
+        <option value="f1">F1</option>
+      </select>
       <button
-        onClick={() => discover.mutate({ sport: "cricket" })}
+        onClick={() => discover.mutate({ sport })}
         disabled={discover.isPending}
         style={{
           padding: "10px 20px",
@@ -90,7 +107,7 @@ function RefreshButton() {
         {discover.isPending ? "Discovering..." : "Discover Tournaments"}
       </button>
       <button
-        onClick={() => refresh.mutate({ sport: "cricket" })}
+        onClick={() => refresh.mutate({ sport })}
         disabled={refresh.isPending}
         style={{
           padding: "10px 20px",

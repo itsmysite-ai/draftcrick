@@ -54,7 +54,7 @@ async function filterActiveTournaments(data: SportsDashboardData): Promise<Sport
 
 const sportInput = z.object({
   sport: z
-    .enum(["cricket", "football", "kabaddi", "basketball"])
+    .enum(["cricket", "f1", "football", "kabaddi", "basketball"])
     .default("cricket"),
 });
 
@@ -142,7 +142,7 @@ export const sportsRouter = router({
       z.object({
         tournamentName: z.string(),
         sport: z
-          .enum(["cricket", "football", "kabaddi", "basketball"])
+          .enum(["cricket", "f1", "football", "kabaddi", "basketball"])
           .default("cricket"),
       })
     )

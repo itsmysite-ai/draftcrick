@@ -3,17 +3,17 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { YStack, XStack, Text, Switch, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, Switch, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   BackButton,
-  ModeToggle,
   EggLoadingSpinner,
   textStyles,
   formatUIText,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 function PrefToggle({
   icon,
@@ -79,7 +79,7 @@ function PrefToggle({
 export default function NotificationSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mode, toggleMode } = useTheme();
+
 
   const utils = trpc.useUtils();
   const prefsQuery = trpc.notification.getPreferences.useQuery();
@@ -137,7 +137,7 @@ export default function NotificationSettingsScreen() {
             {formatUIText("notification settings")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       {!prefs ? (

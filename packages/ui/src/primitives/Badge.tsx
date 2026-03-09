@@ -1,6 +1,7 @@
-import { styled, Text } from "tamagui";
+import { styled, Text as TamaguiText } from "tamagui";
+import { Text } from "./SportText";
 
-export const Badge = styled(Text, {
+export const Badge = styled(TamaguiText, {
   paddingHorizontal: "$2",
   paddingVertical: "$1",
   borderRadius: "$6", // 24px - chip/badge radius

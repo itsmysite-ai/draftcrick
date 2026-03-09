@@ -3,12 +3,12 @@ import { useRouter } from "expo-router";
 import { useState, useCallback, useEffect } from "react";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   BackButton,
   Button,
-  ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
@@ -18,8 +18,8 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
 import { useAuth } from "../../providers/AuthProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 const TXN_LABELS: Record<string, string> = {
   daily_claim: "daily reward",
@@ -75,7 +75,6 @@ export default function WalletScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const { isLoading: authLoading } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -157,7 +156,7 @@ export default function WalletScreen() {
             {formatUIText("pop coins")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <AnnouncementBanner />

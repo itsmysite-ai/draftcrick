@@ -3,7 +3,8 @@ import { useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
@@ -11,7 +12,6 @@ import {
   BackButton,
   InitialsAvatar,
   FilterPill,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -21,7 +21,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 type SquadPlayer = {
   playerId: string;
@@ -55,7 +55,7 @@ export default function SubmitTeamScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const navCtx = useNavigationStore((s) => s.matchContext);
   const tournamentLeagueId = navCtx?.contestId ?? ""; // reuse contestId field for tlId
   const matchId = navCtx?.matchId ?? "";
@@ -170,7 +170,7 @@ export default function SubmitTeamScreen() {
               {formatUIText("set team")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
 
         {/* Carried indicator */}

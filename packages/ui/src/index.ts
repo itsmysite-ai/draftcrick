@@ -1,6 +1,12 @@
 // Theme
 export * from "./theme";
 
+// Sport Font Context
+export { SportFontProvider, useSportFont } from "./context/SportFontContext";
+
+// Sport-aware Text (re-exported for convenience)
+export { Text as SportText } from "./primitives/SportText";
+
 // Primitives
 export * from "./primitives";
 

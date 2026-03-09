@@ -3,14 +3,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   Button,
   BackButton,
   InitialsAvatar,
-  ModeToggle,
   EggLoadingSpinner,
   FDRBadge,
   CricketBallIcon,
@@ -26,9 +26,10 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+import { useSport } from "../../providers/ThemeProvider";
 import { useAuth } from "../../providers/AuthProvider";
 import { usePaywall } from "../../hooks/usePaywall";
+import { HeaderControls } from "../../components/HeaderControls";
 
 /** Safely parse AI-returned date/time strings into a Date object */
 function parseSafeDate(dateStr?: string, timeStr?: string): Date {
@@ -179,13 +180,14 @@ export default function MatchScreen() {
   const matchId = decodeURIComponent(id ?? "");
   const router = useRouter();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
+  const { sport } = useSport();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   // Reuse dashboard data to find the match
   const dashboardQuery = trpc.sports.dashboard.useQuery(
-    { sport: "cricket" },
+    { sport },
     { staleTime: 60 * 60_000, retry: 1 },
   );
 
@@ -247,7 +249,7 @@ export default function MatchScreen() {
         result: dbMatchDirect.result || null,
         tossWinner: dbMatchDirect.tossWinner || null,
         tossDecision: dbMatchDirect.tossDecision || null,
-        sport: "cricket",
+        sport,
       };
     }
     return null;
@@ -421,7 +423,7 @@ export default function MatchScreen() {
               {formatUIText("match center")}
             </Text>
           </XStack>
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
         <YStack flex={1} justifyContent="center" alignItems="center" gap="$3">
           <CricketBatIcon size={DesignSystem.emptyState.iconSize} />
@@ -451,7 +453,7 @@ export default function MatchScreen() {
             {formatUIText("match center")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <RNScrollView

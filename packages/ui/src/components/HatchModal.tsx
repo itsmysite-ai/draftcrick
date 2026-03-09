@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { YStack, XStack, Text, styled } from "tamagui";
+import { YStack, XStack, styled } from "tamagui";
+import { Text } from "../primitives/SportText";
 import { InitialsAvatar } from "./InitialsAvatar";
 import { CricketBatIcon } from "./CricketBatIcon";
 import { DraftPlayLogo } from "./DraftPlayLogo";

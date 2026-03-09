@@ -41,7 +41,7 @@ function TabItem({
   const tabOpacity = useSharedValue(isFocused ? 1 : 0.5);
 
   useEffect(() => {
-    tabOpacity.value = withTiming(isFocused ? 1 : 0.5, { duration: 180 });
+    tabOpacity.value = withTiming(isFocused ? 1 : 0.7, { duration: 180 });
   }, [isFocused, tabOpacity]);
 
   const animStyle = useAnimatedStyle(() => ({
@@ -52,7 +52,7 @@ function TabItem({
   const tab = TABS[route] || TABS.index;
   const isLive = route === "live";
 
-  const iconColor = isFocused ? (isLive ? t.red : t.accent) : t.textTertiary;
+  const iconColor = isFocused ? (isLive ? t.red : t.accent) : t.text;
 
   return (
     <Pressable

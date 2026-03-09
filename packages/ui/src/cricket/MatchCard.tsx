@@ -1,5 +1,6 @@
 import React from "react";
-import { XStack, YStack, Text, H4 } from "tamagui";
+import { XStack, YStack, H4 } from "tamagui";
+import { Text } from "../primitives/SportText";
 import { Card } from "../primitives/Card";
 import { Badge } from "../primitives/Badge";
 

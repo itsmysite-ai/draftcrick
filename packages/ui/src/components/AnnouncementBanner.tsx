@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { XStack, YStack, Text, type GetProps } from "tamagui";
+import { XStack, YStack, type GetProps } from "tamagui";
+import { Text } from "../primitives/SportText";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -11,13 +12,24 @@ import Animated, {
 // ─────────────────────────────────────────────────────────────────────────────
 // ANNOUNCEMENTS — edit here to update across all screens
 // ─────────────────────────────────────────────────────────────────────────────
-const ANNOUNCEMENTS = [
-  "t20 world cup fantasy is live — draft your dream xi now",
-  "auction draft mode: bid on players in real-time",
-  "pro tip: diversify picks across roles for higher points",
-  "league trades: swap players with friends in your league",
-  "coming soon: head-to-head contests with friends",
-];
+const SPORT_ANNOUNCEMENTS = {
+  cricket: [
+    "t20 world cup fantasy is live — draft your dream xi now",
+    "auction draft mode: bid on players in real-time",
+    "pro tip: diversify picks across roles for higher points",
+    "league trades: swap players with friends in your league",
+    "coming soon: head-to-head contests with friends",
+  ],
+  f1: [
+    "f1 fantasy is here — build your dream grid now",
+    "pick your drivers, constructors & team principal",
+    "pro tip: fastest lap bonus can swing your points",
+    "race weekend scoring: qualifying + sprint + race",
+    "coming soon: constructor championship leagues",
+  ],
+};
+
+const DEFAULT_ANNOUNCEMENTS = SPORT_ANNOUNCEMENTS.cricket;
 
 const TYPING_SPEED = 38;       // ms per character
 const PAUSE_DURATION = 3200;   // ms to hold the full text
@@ -32,6 +44,7 @@ interface AnnouncementContext {
 
 interface AnnouncementBannerProps extends Omit<GetProps<typeof YStack>, "children"> {
   context?: AnnouncementContext;
+  sport?: string;
 }
 
 /**
@@ -87,9 +100,11 @@ export function AnnouncementBanner(props: AnnouncementBannerProps) {
 
   // Build combined announcement list: contextual first, then static
   const contextMsgs = buildContextualAnnouncements(props.context);
+  const sportKey = props.sport ?? "cricket";
+  const sportAnnouncements = sportKey === "f1" ? SPORT_ANNOUNCEMENTS.f1 : SPORT_ANNOUNCEMENTS.cricket;
   const allAnnouncements = contextMsgs.length > 0
-    ? [...contextMsgs, ...ANNOUNCEMENTS]
-    : ANNOUNCEMENTS;
+    ? [...contextMsgs, ...sportAnnouncements]
+    : sportAnnouncements;
 
   // Typing + cycling logic
   useEffect(() => {

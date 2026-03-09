@@ -7,14 +7,14 @@ import { useRouter } from "expo-router";
 import { useState, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   Button,
   InitialsAvatar,
   SegmentTab,
-  ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
@@ -27,7 +27,8 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { useSport } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 import { useAuth } from "../../providers/AuthProvider";
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -409,14 +410,14 @@ export default function ContestsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+  const { sport } = useSport();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"matches" | "my">("matches");
 
   // Match data
   const aiData = trpc.sports.dashboard.useQuery(
-    { sport: "cricket" },
+    { sport },
     { staleTime: 60 * 60_000, retry: 1 },
   );
 
@@ -471,7 +472,7 @@ export default function ContestsScreen() {
             {formatUIText("play")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <AnnouncementBanner />

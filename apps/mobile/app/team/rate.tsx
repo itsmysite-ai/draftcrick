@@ -3,13 +3,13 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   Button,
   BackButton,
-  ModeToggle,
   EggLoadingSpinner,
   CricketBatIcon,
   Paywall,
@@ -21,7 +21,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 import { usePaywall } from "../../hooks/usePaywall";
 
 const GRADE_COLORS: Record<string, string> = {
@@ -50,7 +50,6 @@ export default function RateMyTeamScreen() {
   };
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const { gate, hasAccess, paywallProps } = usePaywall();
 
   // Demo team for display purposes — in production this comes from team builder state
@@ -105,7 +104,7 @@ export default function RateMyTeamScreen() {
           </Text>
           {!hasAccess("pro") && <TierBadge tier="pro" size="sm" />}
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <RNScrollView

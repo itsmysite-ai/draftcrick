@@ -1,4 +1,5 @@
-import { YStack, XStack, Text, styled } from "tamagui";
+import { YStack, XStack, styled } from "tamagui";
+import { Text } from "../primitives/SportText";
 import { Button } from "../primitives/Button";
 import { formatUIText } from "../constants/designSystem";
 

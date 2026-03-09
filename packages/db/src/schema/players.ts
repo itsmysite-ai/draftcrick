@@ -18,7 +18,8 @@ export const players = pgTable("players", {
   externalId: text("external_id").unique().notNull(),
   name: text("name").notNull(),
   team: text("team").notNull(),
-  role: text("role").notNull(), // batsman, bowler, all_rounder, wicket_keeper
+  role: text("role").notNull(), // batsman, bowler, all_rounder, wicket_keeper, driver, constructor, team_principal
+  sport: text("sport").notNull().default("cricket"),
   photoUrl: text("photo_url"),
   nationality: text("nationality"),
   battingStyle: text("batting_style"),
@@ -61,6 +62,8 @@ export const playerMatchScores = pgTable(
     fantasyPoints: decimal("fantasy_points", { precision: 8, scale: 2 })
       .notNull()
       .default("0"),
+    sport: text("sport").notNull().default("cricket"),
+    sportStats: jsonb("sport_stats").default({}), // F1/other sport stats as flexible JSONB
     isPlaying: boolean("is_playing").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

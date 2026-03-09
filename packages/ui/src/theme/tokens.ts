@@ -73,6 +73,43 @@ export const tokens = createTokens({
     roleWkLightBgDark: "#221A30",
     roleWkLightTextDark: "#A088CC",
 
+    // ── F1: Racing Red + Carbon Black ──
+    f1Red: "#E10600",
+    f1RedHover: "#FF2D28",
+    f1RedDark: "#B80500",
+    f1RedLight: "#FDE8E8",
+    f1RedLightDark: "#2E1010",
+    f1Carbon: "#15151E",
+    f1CarbonLight: "#E8E8EA",
+    f1CarbonDark: "#2A2A35",
+    f1CarbonLightDark: "#1A1A22",
+
+    // ── F1 Role colors (light mode) ──
+    roleDrvBg: "#E10600",
+    roleDrvText: "#FFFFFF",
+    roleDrvLightBg: "#FDE8E8",
+    roleDrvLightText: "#B80500",
+    roleConBg: "#15151E",
+    roleConText: "#E8E8EA",
+    roleConLightBg: "#E8E8EA",
+    roleConLightText: "#15151E",
+    roleTpBg: "#1E40AF",
+    roleTpText: "#DBEAFE",
+    roleTpLightBg: "#EFF6FF",
+    roleTpLightText: "#1E40AF",
+
+    // ── F1 Role colors (dark mode) ──
+    roleDrvBgDark: "#CC0500",
+    roleDrvLightBgDark: "#2E1010",
+    roleDrvLightTextDark: "#FF4D48",
+    roleConBgDark: "#2A2A35",
+    roleConLightBgDark: "#1A1A22",
+    roleConLightTextDark: "#9A9AA0",
+    roleTpBgDark: "#1E3A8A",
+    roleTpTextDark: "#BFDBFE",
+    roleTpLightBgDark: "#0F1A30",
+    roleTpLightTextDark: "#60A5FA",
+
     // ── Semantic ──
     success: "#30A46C",
     warning: "#F5A623",

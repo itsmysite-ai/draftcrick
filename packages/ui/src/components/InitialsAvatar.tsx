@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
-import { YStack, XStack, Text, type GetProps } from "tamagui";
+import { YStack, XStack, type GetProps } from "tamagui";
+import { Text } from "../primitives/SportText";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 

@@ -88,7 +88,7 @@ const tournamentsRouter = router({
 
   discover: adminProcedure
     .input(z.object({
-      sport: z.enum(["cricket", "football", "kabaddi", "basketball"]).default("cricket"),
+      sport: z.enum(["cricket", "f1", "football", "kabaddi", "basketball"]).default("cricket"),
     }))
     .mutation(async ({ input }) => {
       const result = await executeDiscovery(input.sport as Sport);
@@ -1221,7 +1221,7 @@ const systemRouter = router({
 
   triggerRefresh: adminProcedure
     .input(z.object({
-      sport: z.enum(["cricket", "football", "kabaddi", "basketball"]).default("cricket"),
+      sport: z.enum(["cricket", "f1", "football", "kabaddi", "basketball"]).default("cricket"),
       unfiltered: z.boolean().default(false),
     }))
     .mutation(async ({ input }) => {

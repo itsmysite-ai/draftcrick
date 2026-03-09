@@ -3,14 +3,14 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   BackButton,
   Button,
   InitialsAvatar,
-  ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
   DesignSystem,
@@ -20,13 +20,12 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 export default function LeaguesListScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const { data: memberships, isLoading, refetch } = trpc.league.myLeagues.useQuery();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -58,7 +57,7 @@ export default function LeaguesListScreen() {
                   {formatUIText("my leagues")}
                 </Text>
               </XStack>
-              <ModeToggle mode={mode} onToggle={toggleMode} />
+              <HeaderControls />
             </XStack>
             <AnnouncementBanner marginHorizontal={0} />
             <XStack gap="$3">

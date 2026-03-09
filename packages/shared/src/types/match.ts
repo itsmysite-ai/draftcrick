@@ -1,5 +1,6 @@
-export type Sport = "cricket" | "football" | "kabaddi" | "basketball";
+export type Sport = "cricket" | "f1" | "football" | "kabaddi" | "basketball";
 export type CricketFormat = "t20" | "odi" | "test";
+export type F1Format = "race" | "sprint" | "qualifying";
 export type MatchStatus = "upcoming" | "live" | "completed" | "abandoned";
 export type TossDecision = "bat" | "bowl";
 
@@ -23,11 +24,12 @@ export interface Match {
   createdAt: Date;
 }
 
-export type PlayerRole =
-  | "batsman"
-  | "bowler"
-  | "all_rounder"
-  | "wicket_keeper";
+// Cricket roles
+export type CricketRole = "batsman" | "bowler" | "all_rounder" | "wicket_keeper";
+// F1 roles
+export type F1Role = "driver" | "constructor" | "team_principal";
+// Union of all sport roles (DB stores as text, fully compatible)
+export type PlayerRole = CricketRole | F1Role;
 
 export interface Player {
   id: string;
@@ -44,8 +46,14 @@ export interface Player {
   updatedAt: Date;
 }
 
-export interface PlayerStats {
+// Base stats shared across all sports
+export interface BasePlayerStats {
   matches?: number;
+  credits?: number;
+}
+
+// Cricket-specific player stats
+export interface CricketPlayerStats extends BasePlayerStats {
   runs?: number;
   wickets?: number;
   average?: number;
@@ -55,9 +63,21 @@ export interface PlayerStats {
   bestBowling?: string;
   catches?: number;
   stumpings?: number;
-  /** Fantasy credits 7.0-10.0, set by Gemini player roster fetch */
-  credits?: number;
 }
+
+// F1-specific player stats
+export interface F1PlayerStats extends BasePlayerStats {
+  wins?: number;
+  podiums?: number;
+  polePositions?: number;
+  fastestLaps?: number;
+  championshipPoints?: number;
+  dnfs?: number;
+  avgFinishPosition?: number;
+}
+
+// Union type — backwards compatible (CricketPlayerStats is the existing shape)
+export type PlayerStats = CricketPlayerStats | F1PlayerStats;
 
 export interface PlayerMatchScore {
   id: string;

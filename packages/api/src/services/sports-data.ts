@@ -556,7 +556,7 @@ export async function upsertPlayers(
 
     // Calculate deterministic credits from stats
     const calculatedCredits = calculatePlayerCredits({
-      role: p.role,
+      role: p.role as import("@draftplay/shared").CricketRole,
       battingAvg: p.battingAvg,
       strikeRate: (p as any).strikeRate ?? null,
       bowlingAvg: p.bowlingAvg,

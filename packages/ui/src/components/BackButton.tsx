@@ -1,4 +1,5 @@
-import { XStack, Text, type GetProps } from "tamagui";
+import { XStack, type GetProps } from "tamagui";
+import { Text } from "../primitives/SportText";
 
 interface BackButtonProps extends Omit<GetProps<typeof XStack>, "children"> {
   onPress: () => void;

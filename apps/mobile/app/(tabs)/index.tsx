@@ -6,16 +6,15 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import {
   XStack,
   YStack,
-  Text,
   useTheme as useTamaguiTheme,
 } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   Button,
   InitialsAvatar,
   AnnouncementBanner,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -26,7 +25,8 @@ import {
   CricketBallIcon,
   DraftPlayLogo,
 } from "@draftplay/ui";
-import { useTheme } from "../../providers/ThemeProvider";
+import { useTheme, useSport } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 import { useAuth } from "../../providers/AuthProvider";
 import { trpc } from "../../lib/trpc";
 
@@ -80,10 +80,13 @@ function getTeamRole(tossWinner: string | null, tossDecision: string | null, tea
 function FeaturedMatchCard({
   match,
   onPress,
+  sport = "cricket",
 }: {
   match: any;
   onPress: () => void;
+  sport?: string;
 }) {
+  const isCricket = sport === "cricket";
   const teamA = formatTeamName(match.teamA || match.teamHome || "TBA");
   const teamB = formatTeamName(match.teamB || match.teamAway || "TBA");
   const startTime = parseSafeDate(match.date, match.time);
@@ -98,7 +101,7 @@ function FeaturedMatchCard({
       <YStack padding="$4" paddingBottom="$3">
         <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
           <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
-            {formatBadgeText(match.tournamentName || match.tournament || "cricket")}
+            {formatBadgeText(match.tournamentName || match.tournament || (isCricket ? "cricket" : "formula 1"))}
           </Text>
           <Badge variant={isLive ? "live" : "default"} size="sm">
             {isLive ? formatBadgeText("live") : formatCountdown(startTime)}
@@ -108,12 +111,12 @@ function FeaturedMatchCard({
         <XStack alignItems="center" justifyContent="center" gap="$4">
           <YStack flex={1} alignItems="center" gap={4}>
             <InitialsAvatar
-              name={teamA} playerRole="BAT" ovr={0} size={42}
-              hideBadge={isCompleted ? teamAWon !== true : !isLive || !teamARole}
+              name={teamA} playerRole={(isCricket ? "BAT" : "DRV") as any} ovr={0} size={42}
+              hideBadge={isCompleted ? teamAWon !== true : isCricket ? (!isLive || !teamARole) : true}
               badgeContent={
                 isCompleted && teamAWon === true
                   ? <Text fontSize={10} lineHeight={14}>🏆</Text>
-                  : isLive && teamARole
+                  : isLive && isCricket && teamARole
                     ? (teamARole === "bat" ? <CricketBatIcon size={14} /> : <CricketBallIcon size={10} />)
                     : undefined
               }
@@ -142,12 +145,12 @@ function FeaturedMatchCard({
 
           <YStack flex={1} alignItems="center" gap={4}>
             <InitialsAvatar
-              name={teamB} playerRole="BOWL" ovr={0} size={42}
-              hideBadge={isCompleted ? teamAWon !== false : !isLive || !teamARole}
+              name={teamB} playerRole={(isCricket ? "BOWL" : "CON") as any} ovr={0} size={42}
+              hideBadge={isCompleted ? teamAWon !== false : isCricket ? (!isLive || !teamARole) : true}
               badgeContent={
                 isCompleted && teamAWon === false
                   ? <Text fontSize={10} lineHeight={14}>🏆</Text>
-                  : isLive && teamARole
+                  : isLive && isCricket && teamARole
                     ? (teamARole === "bat" ? <CricketBallIcon size={10} /> : <CricketBatIcon size={14} />)
                     : undefined
               }
@@ -171,8 +174,8 @@ function FeaturedMatchCard({
           </Text>
         )}
 
-        {/* Toss */}
-        {match.tossWinner && (
+        {/* Toss — cricket only */}
+        {isCricket && match.tossWinner && (
           <XStack alignSelf="center" alignItems="center" gap={6} marginTop="$2" opacity={match.scoreSummary ? 0.6 : 1}>
             <Text fontFamily="$mono" fontSize={match.scoreSummary ? 8 : 9} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
               toss
@@ -206,14 +209,14 @@ function FeaturedMatchCard({
       >
         <YStack gap={1}>
           <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorAccent">
-            {formatUIText("mega contest")}
+            {formatUIText(isCricket ? "mega contest" : "grand prix contest")}
           </Text>
           <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-            {formatUIText("free entry · win prizes")}
+            {formatUIText(isCricket ? "free entry · win prizes" : "free entry · build your grid")}
           </Text>
         </YStack>
         <Button variant="primary" size="sm" onPress={onPress} testID="featured-create-team-btn">
-          {formatUIText("create team")}
+          {formatUIText(isCricket ? "create team" : "build grid")}
         </Button>
       </XStack>
     </Card>
@@ -252,14 +255,15 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+  const { t } = useTheme();
+  const { sport, setSport } = useSport();
   const { user } = useAuth();
 
   const [refreshing, setRefreshing] = useState(false);
 
   // ── Queries ──
   const dashboardQuery = trpc.sports.dashboard.useQuery(
-    { sport: "cricket" },
+    { sport },
     { staleTime: 60 * 60_000, retry: 1 },
   );
 
@@ -384,12 +388,12 @@ export default function HomeScreen() {
                 </XStack>
               </Card>
             )}
-            <ModeToggle mode={mode} onToggle={toggleMode} />
+            <HeaderControls />
           </XStack>
         </XStack>
       </Animated.View>
 
-      <AnnouncementBanner />
+      <AnnouncementBanner sport={sport} />
 
       <RNScrollView
         showsVerticalScrollIndicator={false}
@@ -417,10 +421,13 @@ export default function HomeScreen() {
         {nextMatch && (
           <Animated.View entering={FadeInDown.delay(60).springify()}>
             <Text {...textStyles.sectionHeader} marginBottom="$2">
-              {formatUIText(nextMatch.status === "live" ? "live now — join the action" : "next match — create your team")}
+              {formatUIText(nextMatch.status === "live"
+                ? "live now — join the action"
+                : sport === "f1" ? "next race — build your grid" : "next match — create your team")}
             </Text>
             <FeaturedMatchCard
               match={nextMatch}
+              sport={sport}
               onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.id)}`)}
             />
           </Animated.View>
@@ -431,7 +438,7 @@ export default function HomeScreen() {
           <Animated.View entering={FadeInDown.delay(120).springify()}>
             <XStack justifyContent="space-between" alignItems="center" marginTop="$5" marginBottom="$2">
               <Text {...textStyles.sectionHeader}>
-                {formatUIText("more matches")}
+                {formatUIText(sport === "f1" ? "more races" : "more matches")}
               </Text>
               <Button size="sm" variant="secondary" onPress={() => router.push("/(tabs)/contests")}>
                 {formatUIText("see all")}
@@ -463,7 +470,7 @@ export default function HomeScreen() {
                       </Text>
                       <XStack alignItems="center" gap="$2">
                         <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                          {formatBadgeText(m.format || "T20")}
+                          {formatBadgeText(m.format || (sport === "f1" ? "Race" : "T20"))}
                         </Text>
                         <Badge variant="default" size="sm">
                           {formatCountdown(startTime)}
@@ -514,9 +521,9 @@ export default function HomeScreen() {
               onPress={() => router.push("/guru")}
               testID="nav-guru"
             >
-              <DraftPlayLogo size={24} />
+              <Text fontSize={24}>{sport === "f1" ? "🏎️" : "🏏"}</Text>
               <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$color">
-                {formatUIText("cricket guru")}
+                {formatUIText(sport === "f1" ? "paddock guru" : "cricket guru")}
               </Text>
             </Card>
             <Card
@@ -542,10 +549,10 @@ export default function HomeScreen() {
             <YStack alignItems="center" gap="$3" paddingVertical="$8">
               <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
               <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$color">
-                {formatUIText("no upcoming matches")}
+                {formatUIText(sport === "f1" ? "no upcoming races" : "no upcoming matches")}
               </Text>
               <Text {...textStyles.hint} textAlign="center" lineHeight={20}>
-                {formatUIText("check back soon for upcoming fixtures")}
+                {formatUIText(sport === "f1" ? "check back soon for upcoming race weekends" : "check back soon for upcoming fixtures")}
               </Text>
             </YStack>
           </Animated.View>

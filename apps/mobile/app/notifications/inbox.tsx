@@ -3,19 +3,19 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Button,
   BackButton,
-  ModeToggle,
   DesignSystem,
   textStyles,
   formatUIText,
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
   deadline_reminder: "alarm-outline",
@@ -49,7 +49,7 @@ export default function NotificationInboxScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
+
   const utils = trpc.useUtils();
 
   const inboxQuery = trpc.notification.getInbox.useInfiniteQuery(
@@ -116,7 +116,7 @@ export default function NotificationInboxScreen() {
               {formatUIText("mark all read")}
             </Text>
           )}
-          <ModeToggle mode={mode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
       </XStack>
 

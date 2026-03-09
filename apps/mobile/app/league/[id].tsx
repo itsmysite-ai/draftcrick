@@ -3,7 +3,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
@@ -11,7 +12,6 @@ import {
   Button,
   InitialsAvatar,
   SegmentTab,
-  ModeToggle,
   AnnouncementBanner,
   DesignSystem,
   textStyles,
@@ -21,7 +21,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 export default function LeagueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,7 +29,6 @@ export default function LeagueDetailScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const [tab, setTab] = useState<"members" | "standings">("members");
   const { data: league, isLoading, refetch } = trpc.league.getById.useQuery({ id: id! });
   const standings = trpc.league.memberStandings.useQuery({ leagueId: id! }, { enabled: !!id });
@@ -83,7 +82,7 @@ export default function LeagueDetailScreen() {
             <XStack alignItems="center" gap="$3">
               <BackButton onPress={() => router.back()} />
             </XStack>
-            <ModeToggle mode={mode} onToggle={toggleMode} />
+            <HeaderControls />
           </XStack>
           <AnnouncementBanner marginHorizontal={0} />
           <Card padding="$5" marginBottom="$4">

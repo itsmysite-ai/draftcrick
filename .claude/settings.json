@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(# Check if API server is running on 3001 lsof -i :3001)"
+      "Bash(# Check if API server is running on 3001 lsof -i :3001)",
+      "Bash(test -f /Users/chandanreddy/Documents/draftcrick/apps/mobile/app/\\\\\\(tabs\\\\\\)/social.tsx)",
+      "Bash(test -f /Users/chandanreddy/Documents/draftcrick/apps/mobile/components/HeaderControls.tsx)",
+      "WebFetch(domain:www.formula1.com)",
+      "Bash(pkill -f \"expo start\")",
+      "Bash(pkill -f \"node.*metro\")",
+      "Bash(pkill -f metro)",
+      "WebFetch(domain:pages.charlimarie.com)"
     ],
     "additionalDirectories": [
       "/tmp"

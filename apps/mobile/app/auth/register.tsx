@@ -3,18 +3,18 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Button,
   BackButton,
-  ModeToggle,
   AnnouncementBanner,
   DesignSystem,
   formatUIText,
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { useAuth } from "../../providers/AuthProvider";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 /** Convert raw Firebase error messages into user-friendly text */
 function friendlyAuthError(msg: string): string {
@@ -34,7 +34,6 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { signUp, error } = useAuth();
   const theme = useTamaguiTheme();
-  const { mode, toggleMode } = useTheme();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -69,7 +68,7 @@ export default function RegisterScreen() {
         paddingBottom="$2"
       >
         <BackButton onPress={() => router.back()} />
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <HeaderControls />
       </XStack>
 
       <AnnouncementBanner />

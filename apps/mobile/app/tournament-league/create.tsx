@@ -2,13 +2,13 @@ import { ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
   Button,
   BackButton,
-  ModeToggle,
   EggLoadingSpinner,
   DesignSystem,
   textStyles,
@@ -16,7 +16,7 @@ import {
   formatBadgeText,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useTheme } from "../../providers/ThemeProvider";
+import { HeaderControls } from "../../components/HeaderControls";
 
 type Mode = "salary_cap" | "draft" | "auction";
 
@@ -30,7 +30,6 @@ export default function CreateTournamentLeagueScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const { mode: themeMode, toggleMode } = useTheme();
 
   const [selectedTournament, setSelectedTournament] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<Mode>("salary_cap");
@@ -74,7 +73,7 @@ export default function CreateTournamentLeagueScreen() {
               {formatUIText("create tournament league")}
             </Text>
           </XStack>
-          <ModeToggle mode={themeMode} onToggle={toggleMode} />
+          <HeaderControls />
         </XStack>
 
         {/* Step 1: Select Tournament */}

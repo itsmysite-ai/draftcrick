@@ -1,4 +1,4 @@
-import type { ScoringRules } from "../types";
+import type { CricketScoringRules } from "../types";
 
 /**
  * DraftPlay 200+ Rule Engine
@@ -29,7 +29,7 @@ export interface TeamCompositionRules {
 // ────────────────────────────────────────
 // Category 2: Scoring
 // ────────────────────────────────────────
-export interface ExtendedScoringRules extends ScoringRules {
+export interface ExtendedScoringRules extends CricketScoringRules {
   // Batting extras
   dotBallFacedPenalty: number;
   thirtyRunBonus: number;

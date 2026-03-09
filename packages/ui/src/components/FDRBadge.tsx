@@ -1,4 +1,5 @@
-import { XStack, Text } from "tamagui";
+import { XStack } from "tamagui";
+import { Text } from "../primitives/SportText";
 
 const FDR_COLORS = {
   1: { bg: "#1a7a3a", text: "#ffffff", label: "very easy" },

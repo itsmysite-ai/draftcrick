@@ -1,12 +1,12 @@
 import type { PlayerMatchScore } from "../types";
-import type { ScoringRules } from "../types";
+import type { CricketScoringRules } from "../types";
 
 /**
- * Calculate fantasy points for a player's performance in a match.
+ * Calculate cricket fantasy points for a player's performance in a match.
  */
 export function calculateFantasyPoints(
   score: Omit<PlayerMatchScore, "id" | "playerId" | "matchId" | "fantasyPoints" | "isPlaying" | "updatedAt">,
-  rules: ScoringRules
+  rules: CricketScoringRules
 ): number {
   let points = 0;
 
