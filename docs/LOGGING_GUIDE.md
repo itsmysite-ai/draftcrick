@@ -1,6 +1,6 @@
 # Logging & Distributed Tracing Guide
 
-This guide covers how to use the structured logging and distributed tracing system across the DraftCrick frontend (Expo + Next.js) and backend (Hono + tRPC).
+This guide covers how to use the structured logging and distributed tracing system across the DraftPlay frontend (Expo + Next.js) and backend (Hono + tRPC).
 
 ## Architecture Overview
 
@@ -434,7 +434,7 @@ export function createLogger(component: string) {
 **Mobile (`apps/mobile/app/_layout.tsx`):**
 
 ```typescript
-import { startLogger, stopLogger, setLoggerContext } from "@draftcrick/shared/logger";
+import { startLogger, stopLogger, setLoggerContext } from "@draftplay/shared/logger";
 
 useEffect(() => {
   startLogger(process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001");
@@ -448,7 +448,7 @@ setLoggerContext({ userId: firebaseUser.uid });
 **Web (`apps/web/src/lib/providers.tsx`):**
 
 ```typescript
-import { startLogger, stopLogger, setLoggerContext } from "@draftcrick/shared/logger";
+import { startLogger, stopLogger, setLoggerContext } from "@draftplay/shared/logger";
 
 useEffect(() => {
   startLogger(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001");
@@ -461,7 +461,7 @@ useEffect(() => {
 Every file should create a **child logger** scoped to its component/module:
 
 ```typescript
-import { createLogger } from "@draftcrick/shared/logger";
+import { createLogger } from "@draftplay/shared/logger";
 
 const log = createLogger("TeamBuilder");
 ```
@@ -537,7 +537,7 @@ export function createTracingBatchLink(url: string) {
 **Usage in tRPC client setup:**
 
 ```typescript
-import { createTracingBatchLink } from "@draftcrick/shared/trpc-tracing-link";
+import { createTracingBatchLink } from "@draftplay/shared/trpc-tracing-link";
 
 export function getTRPCClient() {
   return trpc.createClient({
@@ -554,7 +554,7 @@ export function getTRPCClient() {
 
 ```typescript
 import { io } from "socket.io-client";
-import { getCorrelationId, getTracingHeaders } from "@draftcrick/shared/logger";
+import { getCorrelationId, getTracingHeaders } from "@draftplay/shared/logger";
 
 const socket = io(`${API_URL}/draft`, {
   query: { correlationId: getCorrelationId() },
@@ -570,7 +570,7 @@ const socket = io(`${API_URL}/draft`, {
 Generate a new correlation ID at the start of each significant user flow:
 
 ```typescript
-import { newCorrelationId, createLogger } from "@draftcrick/shared/logger";
+import { newCorrelationId, createLogger } from "@draftplay/shared/logger";
 
 const log = createLogger("DraftRoom");
 
@@ -725,13 +725,13 @@ log.debug("Gemini response", { content: geminiResponse });
 
 1. Import and create a child logger:
    ```typescript
-   import { createLogger } from "@draftcrick/shared/logger";
+   import { createLogger } from "@draftplay/shared/logger";
    const log = createLogger("MyComponent");
    ```
 
 2. If the file starts a new user flow, generate a new correlation ID:
    ```typescript
-   import { newCorrelationId } from "@draftcrick/shared/logger";
+   import { newCorrelationId } from "@draftplay/shared/logger";
    ```
 
 3. Replace `console.log/error/warn` calls following the level guide above.
@@ -740,7 +740,7 @@ log.debug("Gemini response", { content: geminiResponse });
 
 5. For direct `fetch()` calls (rare — prefer tRPC), spread tracing headers:
    ```typescript
-   import { getTracingHeaders } from "@draftcrick/shared/logger";
+   import { getTracingHeaders } from "@draftplay/shared/logger";
 
    await fetch(url, {
      headers: { ...getTracingHeaders() },
@@ -765,7 +765,7 @@ For local development:
 - Backend logs appear as JSON lines in the terminal (Pino)
 - Use `pino-pretty` for human-readable local output:
   ```bash
-  pnpm --filter @draftcrick/api dev | pnpm exec pino-pretty
+  pnpm --filter @draftplay/api dev | pnpm exec pino-pretty
   ```
 
 ---
@@ -791,8 +791,8 @@ For local development:
 
 ### Backend
 ```bash
-pnpm --filter @draftcrick/api add pino
-pnpm --filter @draftcrick/api add -D pino-pretty  # local dev only
+pnpm --filter @draftplay/api add pino
+pnpm --filter @draftplay/api add -D pino-pretty  # local dev only
 ```
 
 ### Frontend

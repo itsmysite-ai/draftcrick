@@ -1,5 +1,5 @@
 
-// tami·draft color constants — see packages/ui/src/theme for full tokens
+// draftplay.ai color constants — see packages/ui/src/theme for full tokens
 export const COLORS = {
   bg: '#111210',
   bgLight: '#F7F5F0',

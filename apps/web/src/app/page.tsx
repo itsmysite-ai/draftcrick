@@ -15,7 +15,7 @@ export default function HomePage() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 24, fontWeight: 800, fontFamily: "var(--font-heading)" }}>
-            tami&#xB7;draft
+            DraftPlay.ai
           </span>
         </div>
         <nav style={{ display: "flex", gap: 24, alignItems: "center" }}>
@@ -190,7 +190,7 @@ export default function HomePage() {
           fontSize: 13,
         }}
       >
-        &copy; {new Date().getFullYear()} tami&#xB7;draft. All rights reserved.
+        &copy; {new Date().getFullYear()} DraftPlay.ai. All rights reserved.
       </footer>
     </div>
   );

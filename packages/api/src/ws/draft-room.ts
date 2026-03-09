@@ -1,5 +1,5 @@
 import type { Server, Socket } from "socket.io";
-import type { Database } from "@draftcrick/db";
+import type { Database } from "@draftplay/db";
 import {
   loadDraftState,
   validatePick,

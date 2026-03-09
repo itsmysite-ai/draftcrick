@@ -16,12 +16,25 @@ import {
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
+
+/** Format raw role enum to display-friendly text */
+function formatRoleDisplay(role: string): string {
+  const r = (role ?? "").toUpperCase();
+  switch (r) {
+    case "BATSMAN": case "BAT": return "Batsman";
+    case "BOWLER": case "BOWL": return "Bowler";
+    case "ALL_ROUNDER": case "ALL-ROUNDER": case "AR": return "All-Rounder";
+    case "WICKET_KEEPER": case "WICKETKEEPER": case "WK": return "Wicket-Keeper";
+    default: return role;
+  }
+}
 
 export default function AuctionRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
@@ -78,15 +91,15 @@ export default function AuctionRoomScreen() {
   };
 
   return (
-    <YStack flex={1} backgroundColor="$background">
+    <YStack flex={1} backgroundColor="$background" testID="auction-room-screen">
       {/* Header */}
       <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
           <YStack>
-            <Text fontFamily="$mono" fontSize={14} fontWeight="800" letterSpacing={1} color="$accentBackground">
+            <Text testID="auction-phase" fontFamily="$mono" fontSize={14} fontWeight="800" letterSpacing={1} color="$accentBackground">
               {phaseLabel(auctionState?.phase ?? "waiting")}
             </Text>
-            <Text fontFamily="$body" fontSize={12} color="$color" marginTop={2}>
+            <Text testID="auction-sold-count" fontFamily="$body" fontSize={12} color="$color" marginTop={2}>
               {formatUIText("sold")}: {auctionState?.soldPlayers?.length ?? 0} {formatUIText("players")}
             </Text>
           </YStack>
@@ -95,10 +108,10 @@ export default function AuctionRoomScreen() {
               <Text {...textStyles.hint}>
                 {formatBadgeText("your budget")}
               </Text>
-              <Text fontFamily="$mono" fontWeight="900" fontSize={DesignSystem.fontSize["4xl"]} color="$accentBackground">
-                {myBudget.toFixed(1)}
+              <Text testID="auction-my-budget" fontFamily="$mono" fontWeight="900" fontSize={DesignSystem.fontSize["4xl"]} color="$accentBackground">
+                {myBudget > 0 ? myBudget.toFixed(0) : "—"}
               </Text>
-              <Text {...textStyles.hint}>
+              <Text testID="auction-my-team-size" {...textStyles.hint}>
                 {formatUIText("team")}: {myTeamSize} {formatUIText("players")}
               </Text>
             </YStack>
@@ -107,6 +120,7 @@ export default function AuctionRoomScreen() {
         </XStack>
         {countdown !== null && (
           <YStack
+            testID="auction-countdown"
             marginTop="$3"
             alignSelf="center"
             backgroundColor={countdown <= 3 ? "$error" : countdown <= 5 ? "$colorCricket" : "$accentBackground"}
@@ -125,7 +139,7 @@ export default function AuctionRoomScreen() {
 
       {/* Current Player Being Auctioned */}
       {currentPlayer && (
-        <Card margin="$4" padding="$5" borderWidth={2} borderColor="$accentBackground">
+        <Card testID="auction-current-player" margin="$4" padding="$5" borderWidth={2} borderColor="$accentBackground">
           <Text {...textStyles.hint} letterSpacing={1}>
             {formatBadgeText("now auctioning")}
           </Text>
@@ -137,12 +151,12 @@ export default function AuctionRoomScreen() {
               size={46}
             />
             <YStack flex={1}>
-              <Text {...textStyles.playerName} fontSize={18}>
+              <Text testID="auction-current-name" {...textStyles.playerName} fontSize={18}>
                 {(currentPlayer as any).name}
               </Text>
               <XStack alignItems="center" gap="$2" marginTop={2}>
                 <Badge variant="role" size="sm">
-                  {formatBadgeText((currentPlayer as any).role ?? "")}
+                  {formatRoleDisplay((currentPlayer as any).role ?? "")}
                 </Badge>
                 <Text {...textStyles.secondary}>
                   {(currentPlayer as any).team}
@@ -156,7 +170,7 @@ export default function AuctionRoomScreen() {
                 <Text {...textStyles.hint}>
                   {formatBadgeText("highest bid")}
                 </Text>
-                <Text fontFamily="$mono" fontWeight="900" fontSize={28} color="$colorCricket">
+                <Text testID="auction-highest-bid" fontFamily="$mono" fontWeight="900" fontSize={28} color="$colorCricket">
                   {auctionState.highestBid.amount}
                 </Text>
               </YStack>
@@ -167,9 +181,10 @@ export default function AuctionRoomScreen() {
           )}
           {(auctionState?.phase === "bidding" || auctionState?.phase === "going_once" || auctionState?.phase === "going_twice") && (
             <XStack gap="$2" marginTop="$4">
-              {[nextBidAmount, nextBidAmount + 2, nextBidAmount + 5].map((amount) => (
+              {[nextBidAmount, nextBidAmount + 2, nextBidAmount + 5].map((amount, idx) => (
                 <Button
                   key={amount}
+                  testID={idx === 0 ? "auction-bid-next" : idx === 1 ? "auction-bid-plus2" : "auction-bid-plus5"}
                   variant={amount > myBudget ? "secondary" : "primary"}
                   size="md"
                   flex={1}
@@ -188,7 +203,7 @@ export default function AuctionRoomScreen() {
       {/* Nomination prompt */}
       {isMyNomination && !currentPlayer && auctionState?.phase === "nominating" && (
         <YStack padding="$4">
-          <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorCricket" marginBottom="$3">
+          <Text testID="auction-nominate-prompt" fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorCricket" marginBottom="$3">
             {formatUIText("your turn to nominate a player!")}
           </Text>
         </YStack>
@@ -201,6 +216,7 @@ export default function AuctionRoomScreen() {
             {formatUIText("available")} ({availablePlayers.length})
           </Text>
           <FlatList
+            testID="auction-available-list"
             data={availablePlayers}
             keyExtractor={(item: any) => item.id}
             renderItem={({ item, index }: { item: any; index: number }) => (
@@ -227,7 +243,7 @@ export default function AuctionRoomScreen() {
                       </Text>
                       <XStack alignItems="center" gap="$1">
                         <Badge variant="role" size="sm">
-                          {formatBadgeText(item.role ?? "")}
+                          {formatRoleDisplay(item.role ?? "")}
                         </Badge>
                         <Text {...textStyles.secondary}>
                           {item.team}
@@ -240,9 +256,7 @@ export default function AuctionRoomScreen() {
             )}
             ListEmptyComponent={
               <YStack alignItems="center" paddingVertical="$8">
-                <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$4">
-                  {DesignSystem.emptyState.icon}
-                </Text>
+                <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
                 <Text {...textStyles.hint} textAlign="center">
                   {formatUIText("no players remaining")}
                 </Text>
@@ -257,6 +271,7 @@ export default function AuctionRoomScreen() {
             {formatUIText("sold")} ({auctionState?.soldPlayers?.length ?? 0})
           </Text>
           <FlatList
+            testID="auction-sold-list"
             data={[...(auctionState?.soldPlayers ?? [])].reverse()}
             keyExtractor={(item: any, idx: number) => `${item.playerId}-${idx}`}
             renderItem={({ item }: { item: any }) => {

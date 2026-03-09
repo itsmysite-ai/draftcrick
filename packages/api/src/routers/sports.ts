@@ -1,7 +1,8 @@
 /**
- * Sports data router — serves tournaments and matches via smart refresh architecture.
+ * Sports data router — serves tournaments and matches as a read-only layer.
  *
- * Flow: Redis hot cache (5min) → PostgreSQL (source of truth) → Gemini API (on stale).
+ * Flow: Redis hot cache (5min) → PostgreSQL (source of truth).
+ * All Gemini refreshes are admin-initiated only (discover, toggle visible, force refresh).
  * See /docs/SMART_REFRESH_ARCHITECTURE.md for full spec.
  */
 
@@ -9,8 +10,8 @@ import { z } from "zod";
 import { router, publicProcedure, adminProcedure } from "../trpc";
 import {
   getDashboardFromPg,
-  shouldRefreshDashboard,
   executeRefresh,
+  shouldRefreshDashboard,
 } from "../services/sports-data";
 import {
   getFromHotCache,
@@ -18,16 +19,38 @@ import {
   invalidateHotCache,
 } from "../services/sports-cache";
 import { getLogger } from "../lib/logger";
-import type { Sport, SportsDashboardData, AITeamStanding } from "@draftcrick/shared";
-import { fetchSportsData } from "../services/gemini-sports";
-import { getDb } from "@draftcrick/db";
-import { tournaments } from "@draftcrick/db";
+import type { Sport, SportsDashboardData, AITeamStanding } from "@draftplay/shared";
+import { getDb } from "@draftplay/db";
+import { tournaments } from "@draftplay/db";
 import { eq, and } from "drizzle-orm";
+import { getVisibleTournamentNames, getEffectiveTeamRules } from "../services/admin-config";
 
 const log = getLogger("sports-router");
 
-/** Feature flag: set SMART_REFRESH_ENABLED=false to bypass PG and use direct Gemini (v2 fallback) */
-const SMART_REFRESH_ENABLED = process.env.SMART_REFRESH_ENABLED !== "false";
+/** Filter dashboard data to only include admin-visible tournaments and their matches. */
+async function filterActiveTournaments(data: SportsDashboardData): Promise<SportsDashboardData> {
+  const activeTournaments = await getVisibleTournamentNames();
+  if (activeTournaments.length === 0) return data; // no filter = show all
+
+  const activeLower = activeTournaments.map((t) => t.toLowerCase());
+
+  const filteredTournaments = data.tournaments.filter((t) =>
+    activeLower.some((active) => t.name.toLowerCase().includes(active) || active.includes(t.name.toLowerCase()))
+  );
+
+  const filteredMatches = data.matches.filter((m) =>
+    activeLower.some((active) =>
+      (m.tournamentName ?? "").toLowerCase().includes(active) ||
+      active.includes((m.tournamentName ?? "").toLowerCase())
+    )
+  );
+
+  return {
+    ...data,
+    tournaments: filteredTournaments,
+    matches: filteredMatches,
+  };
+}
 
 const sportInput = z.object({
   sport: z
@@ -43,12 +66,6 @@ const sportInput = z.object({
  * 4. Cold start: wait for Gemini if no PG data
  */
 async function getSmartDashboard(sport: Sport): Promise<SportsDashboardData> {
-  // Fallback: bypass PG persistence, call Gemini directly (v2 behavior)
-  if (!SMART_REFRESH_ENABLED) {
-    log.info({ sport }, "Smart refresh disabled — direct Gemini fetch");
-    return fetchSportsData(sport);
-  }
-
   const cacheKey = `dashboard:${sport}`;
 
   // 1. Redis hot cache
@@ -57,44 +74,17 @@ async function getSmartDashboard(sport: Sport): Promise<SportsDashboardData> {
     return cached;
   }
 
-  // 2. PostgreSQL
+  // 2. PostgreSQL — read-only, no Gemini refresh triggered from user app.
+  //    All refreshes are admin-initiated (discover, toggle visible, force refresh).
   const pgData = await getDashboardFromPg(sport);
 
   if (pgData) {
-    // Check staleness
-    const stale = await shouldRefreshDashboard(sport);
-    if (stale) {
-      // Stale-while-revalidate: return existing data, refresh in background
-      log.info({ sport }, "PG data stale — returning existing + triggering background refresh");
-      executeRefresh(sport, "user_request").then(async (result) => {
-        if (result.refreshed) {
-          // Invalidate hot cache so next request gets fresh data
-          await invalidateHotCache(`dashboard:${sport}`);
-        }
-      }).catch((err) => {
-        log.error({ sport, error: String(err) }, "Background refresh failed");
-      });
-    }
-
-    // Populate hot cache with current PG data
     await setHotCache(cacheKey, pgData);
     return pgData;
   }
 
-  // 3. Cold start — no PG data at all. Must wait for Gemini fetch.
-  log.info({ sport }, "Cold start — waiting for Gemini fetch");
-  const result = await executeRefresh(sport, "cold_start");
-
-  if (result.refreshed) {
-    const freshData = await getDashboardFromPg(sport);
-    if (freshData) {
-      await setHotCache(cacheKey, freshData);
-      return freshData;
-    }
-  }
-
-  // Fallback: return empty data
-  log.warn({ sport }, "Cold start failed — returning empty dashboard");
+  // 3. No data — admin must discover + enable tournaments first
+  log.info({ sport }, "No PG data — admin must discover and enable tournaments");
   return {
     tournaments: [],
     matches: [],
@@ -112,7 +102,8 @@ export const sportsRouter = router({
   dashboard: publicProcedure
     .input(sportInput)
     .query(async ({ input }) => {
-      return getSmartDashboard(input.sport as Sport);
+      const data = await getSmartDashboard(input.sport as Sport);
+      return filterActiveTournaments(data);
     }),
 
   /**
@@ -121,7 +112,7 @@ export const sportsRouter = router({
   todayMatches: publicProcedure
     .input(sportInput)
     .query(async ({ input }) => {
-      const data = await getSmartDashboard(input.sport as Sport);
+      const data = await filterActiveTournaments(await getSmartDashboard(input.sport as Sport));
       return {
         matches: data.matches,
         lastFetched: data.lastFetched,
@@ -135,7 +126,7 @@ export const sportsRouter = router({
   tournaments: publicProcedure
     .input(sportInput)
     .query(async ({ input }) => {
-      const data = await getSmartDashboard(input.sport as Sport);
+      const data = await filterActiveTournaments(await getSmartDashboard(input.sport as Sport));
       return {
         tournaments: data.tournaments,
         lastFetched: data.lastFetched,
@@ -181,7 +172,7 @@ export const sportsRouter = router({
   liveMatches: publicProcedure
     .input(sportInput)
     .query(async ({ input }) => {
-      const data = await getSmartDashboard(input.sport as Sport);
+      const data = await filterActiveTournaments(await getSmartDashboard(input.sport as Sport));
       return {
         matches: data.matches.filter((m) => m.status === "live"),
         lastFetched: data.lastFetched,
@@ -192,12 +183,23 @@ export const sportsRouter = router({
    * Force refresh — clears hot cache and triggers immediate Gemini fetch.
    * Admin only.
    */
+  /**
+   * Get effective team rules for a tournament (public endpoint for mobile team builder).
+   */
+  teamRules: publicProcedure
+    .input(z.object({ tournamentId: z.string().uuid().optional() }))
+    .query(async ({ input }) => {
+      return getEffectiveTeamRules(input.tournamentId);
+    }),
+
   refresh: adminProcedure
     .input(sportInput)
     .mutation(async ({ input }) => {
       const sport = input.sport as Sport;
+      const activeFilter = await getVisibleTournamentNames();
+      const filter = activeFilter.length > 0 ? activeFilter : undefined;
       await invalidateHotCache(`dashboard:${sport}`);
-      const result = await executeRefresh(sport, "manual");
+      const result = await executeRefresh(sport, "manual", undefined, filter);
       if (result.refreshed) {
         const data = await getDashboardFromPg(sport);
         if (data) {

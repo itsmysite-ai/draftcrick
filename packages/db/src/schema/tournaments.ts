@@ -8,6 +8,7 @@ import {
   index,
   integer,
   uniqueIndex,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { matches } from "./matches";
@@ -30,9 +31,16 @@ export const tournaments = pgTable(
     teams: jsonb("teams"), // [{name, shortName, logo}]
     venueInfo: jsonb("venue_info"), // [{name, city, country}]
     category: text("category"), // international, domestic, league, bilateral, qualifier, friendly
+    description: text("description"), // 1-line summary from Gemini discovery
 
     // Standings data (AITeamStanding[]) — fetched via Gemini, cached as JSONB
     standings: jsonb("standings").default([]),
+    standingsUpdatedAt: timestamp("standings_updated_at", { withTimezone: true }),
+    standingsFetchAction: text("standings_fetch_action"), // "new" | "updated" | "unchanged"
+
+    // Admin controls
+    isVisible: boolean("is_visible").notNull().default(false),
+    tournamentRules: jsonb("tournament_rules"), // per-tournament overrides: { maxBudget, maxOverseas, maxFromOneTeam, roleLimits }
 
     // Refresh tracking
     lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),

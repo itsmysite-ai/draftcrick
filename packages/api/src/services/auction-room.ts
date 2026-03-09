@@ -1,5 +1,5 @@
-import type { Database } from "@draftcrick/db";
-import { draftRooms, draftPicks } from "@draftcrick/db";
+import type { Database } from "@draftplay/db";
+import { draftRooms, draftPicks } from "@draftplay/db";
 import { eq } from "drizzle-orm";
 
 export type AuctionPhase =

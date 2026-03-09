@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { YStack, XStack, Text, type GetProps } from "tamagui";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
@@ -5,9 +6,12 @@ type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 interface InitialsAvatarProps extends Omit<GetProps<typeof YStack>, "children" | "role"> {
   name: string;
   playerRole: RoleKey;
-  ovr: number;
+  ovr: number | string;
   size?: number;
   imageUrl?: string; // Future: AI-generated portraits
+  hideBadge?: boolean;
+  /** Custom badge content — replaces the default OVR text badge */
+  badgeContent?: ReactNode;
 }
 
 /**
@@ -21,6 +25,8 @@ export function InitialsAvatar({
   ovr,
   size = 46,
   imageUrl,
+  hideBadge,
+  badgeContent,
   ...props
 }: InitialsAvatarProps) {
   const initials = getInitials(name);
@@ -64,26 +70,34 @@ export function InitialsAvatar({
         </Text>
       )}
 
-      {/* OVR Badge */}
-      <XStack
-        position="absolute"
-        bottom={-5}
-        right={-5}
-        backgroundColor="$color"
-        paddingHorizontal={5}
-        paddingVertical={1}
-        borderRadius={6}
-      >
-        <Text
-          fontFamily="$mono"
-          fontSize={9}
-          fontWeight="700"
-          color="$background"
-          lineHeight={16}
+      {/* Badge — always uses black pill, custom content or default OVR text inside */}
+      {!hideBadge && (
+        <XStack
+          position="absolute"
+          bottom={-5}
+          right={-5}
+          backgroundColor="$color"
+          paddingHorizontal={5}
+          paddingVertical={2}
+          borderRadius={6}
+          alignItems="center"
+          justifyContent="center"
+          minWidth={18}
+          minHeight={18}
         >
-          {ovr}
-        </Text>
-      </XStack>
+          {badgeContent ?? (
+            <Text
+              fontFamily="$mono"
+              fontSize={9}
+              fontWeight="700"
+              color="$background"
+              lineHeight={16}
+            >
+              {ovr}
+            </Text>
+          )}
+        </XStack>
+      )}
     </YStack>
   );
 }

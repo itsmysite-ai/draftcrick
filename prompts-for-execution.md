@@ -1,8 +1,9 @@
-# DraftCrick — Claude Code Prompt Runbook
+# DraftPlay — Claude Code Prompt Runbook
 
-> **Every prompt you need to execute, in order, to build DraftCrick.**  
-> Copy-paste each prompt into Claude Code. Review the output. Move to the next.  
-> **Last Updated:** February 12, 2026
+> **Every prompt you need to execute, in order, to build DraftPlay.**
+> Copy-paste each prompt into Claude Code. Review the output. Move to the next.
+> **Last Updated:** March 3, 2026
+> **Strategy:** Launch Roadmap (L1→L6) — ship a sticky product in ~9 weeks, defer advanced features with "Coming Soon" UI screens.
 
 ---
 
@@ -32,34 +33,50 @@
 
 ## Your GitHub Issues → Prompt Mapping
 
-You already created issues #1-21. Here's which prompt implements which issue:
+You already created issues #1-21 for Phase 2.75. Here's which prompt implements which issue:
 
-| Issue # | Title | Prompt # | Status |
-|---------|-------|----------|--------|
-| #1 | Home Screen — Real Data Integration | PROMPT 4 | ✅ Done |
-| #2 | Tournament Display & Filtering | PROMPT 5 | ✅ Done |
-| #3 | Tournament Mode Database Schema (19 tables) | PROMPT 2 | ✅ Done |
-| #4 | Geo-Location & Regional Compliance Foundation | PROMPTS 6-9 | ⬜ |
-| #5 | Authentication Testing (7 test cases) | PROMPT 10 | ⬜ |
-| #6 | Team Builder Testing (8 test cases) | PROMPT 11 | ⬜ |
-| #7 | Contest System Testing (7 test cases) | PROMPT 12 | ⬜ |
-| #8 | Draft Room Testing (7 test cases) | PROMPT 13 | ⬜ |
-| #9 | Auction Room Testing (6 test cases) | PROMPT 13 | ⬜ |
-| #10 | Wallet Testing (5 test cases) | PROMPT 14 | ⬜ |
-| #11 | Live Scoring Testing (5 test cases) | PROMPT 14 | ⬜ |
-| #12 | Caching & Performance Testing (5 test cases) | PROMPT 15 | ⬜ |
-| #13 | Geo-Location Testing (14 test cases) | PROMPT 16 | ⬜ |
-| #14 | Fix all P0 bugs from testing | PROMPT 18 | ⬜ |
-| #15 | Fix all P1 bugs from testing | PROMPT 19 | ⬜ |
-| #16 | Tournament Details Screen UI | PROMPT 5 (included) | ✅ Done |
-| #17 | Draft Eligibility Checks in UI | PROMPT 20 | ⬜ |
-| #18 | Admin endpoint — toggleDraft | PROMPT 20 | ⬜ |
-| #19 | Final verification — all features | PROMPT 23 | ⬜ |
-| #20 | Migrate Match Center to tami·draft | PROMPT 21 | ⬜ |
-| #21 | Migrate Team Builder to tami·draft | PROMPT 22 | ⬜ |
+| Issue # | Title | Prompt # | Launch Phase | Status |
+|---------|-------|----------|-------------|--------|
+| #1 | Home Screen — Real Data Integration | PROMPT 4 | L1 | ✅ Done |
+| #2 | Tournament Display & Filtering | PROMPT 5 | L1 | ✅ Done |
+| #3 | Tournament Mode Database Schema (19 tables) | PROMPT 2 | L1 | ✅ Done |
+| #4 | Geo-Location & Regional Compliance Foundation | PROMPTS 6-9 | L1 | ✅ Done |
+| #5 | Authentication Testing (7 test cases) | PROMPT 10 | L1 | ⬜ |
+| #6 | Team Builder Testing (8 test cases) | PROMPT 11 | L1 | ⬜ |
+| #7 | Contest System Testing (7 test cases) | PROMPT 12 | L1 | ⬜ |
+| #8 | Draft Room Testing (7 test cases) | PROMPT 13 | L1 | ⬜ |
+| #9 | Auction Room Testing (6 test cases) | PROMPT 13 | L1 | ⬜ |
+| #10 | Wallet Testing (5 test cases) | PROMPT 14 | L1 | ⬜ |
+| #11 | Live Scoring Testing (5 test cases) | PROMPT 14 | L1 | ⬜ |
+| #12 | Caching & Performance Testing (5 test cases) | PROMPT 15 | L1 | ⬜ |
+| #13 | Geo-Location Testing (14 test cases) | PROMPT 16 | L1 | ⬜ |
+| #14 | Fix all P0 bugs from testing | PROMPT 18 | L1 | ⬜ |
+| #15 | Fix all P1 bugs from testing | PROMPT 19 | L1 | ⬜ |
+| #16 | Tournament Details Screen UI | PROMPT 5 (included) | L1 | ✅ Done |
+| #17 | Draft Eligibility Checks in UI | PROMPT 20 | L1 | ⬜ |
+| #18 | Admin endpoint — toggleDraft | PROMPT 20 | L1 | ⬜ |
+| #19 | Final verification — all features | PROMPT 21 | L1 | ⬜ |
+| #20 | Migrate Match Center to draftplay.ai | PROMPT 21 | L1 | ⬜ |
+| #21 | Migrate Team Builder to draftplay.ai | PROMPT 22 | L1 | ⬜ |
+
+**New issues will be created by PROMPTs 22, 31, 36 for L2-L5 features.**
 
 **Skip Prompt 0B** (labels — already created) and **Prompt 1** (issues — already created).
 **Start with Prompt 0A** (Playwright setup), then **Prompt 2** (schema).
+
+---
+
+## Launch Roadmap Quick Reference
+
+```
+L1: Finish Phase 2.75  →  Prompts 0A-21   (testing + polish)
+L2: AI Engine           →  Prompts 22-28   (FDR, projections, Guru, Rate My Team)
+L3: Push Notifications  →  Prompts 29-30   (FCM, 5 core types)
+L4: Tournament Mode     →  Prompts 31-35   (season leagues, chips, awards)
+L5: Predictions         →  Prompts 36-37   (11 types, AI questions)
+L6: Coming Soon + Launch→  Prompts 38-44   (15 screens, polish, beta prep)
+Post-Launch             →  Prompts 45-58   (replace Coming Soon with real features)
+```
 
 ---
 
@@ -231,7 +248,7 @@ Implement all 5 tasks:
 5. Verify Redis cache hit/miss — the logger should already show cache
    status via the structured logger (see /docs/LOGGING_GUIDE.md, module: sports-cache)
 
-Use tami·draft design system components (see /docs/UI_GUIDE.md).
+Use draftplay.ai design system components (see /docs/UI_GUIDE.md).
 
 Self-verify:
 - Run the app and take screenshots of: loading state, data loaded,
@@ -261,7 +278,7 @@ PROMPT 5: Tournament Display & Filtering  [→ closes #2, #16]  ✅ DONE
 Read /docs/NEW_PLAN.md section 1B "Tournament Display & Filtering".
 
 Implement all 5 tasks:
-1. Create a TournamentCard component using tami·draft design system
+1. Create a TournamentCard component using draftplay.ai design system
    (see /docs/UI_GUIDE.md for component patterns)
 2. Add tournament list to the home screen showing active tournaments
    (IPL, World Cup, BBL, etc.)
@@ -669,7 +686,7 @@ Create a polished tournament details screen at /tournament/[id].tsx:
 - Standings tab: team standings table (W/L/NRR/Points)
 - Stats tab: top run scorers, top wicket takers, best economy
 
-Use tami·draft design system components throughout.
+Use draftplay.ai design system components throughout.
 
 Self-verify:
 - Take screenshots of all 3 tabs
@@ -710,13 +727,13 @@ PROMPT 20: Screen Migrations (Match Center + Team Builder)  [→ closes #20, #21
 ─────────────────────────────────────────────────────────
 Read /docs/UI_GUIDE.md for design system patterns.
 
-Migrate 2 screens to tami·draft design system:
-1. Match Center screen — replace old components with tami·draft equivalents
-2. Team Builder screen — replace old components with tami·draft equivalents
+Migrate 2 screens to draftplay.ai design system:
+1. Match Center screen — replace old components with draftplay.ai equivalents
+2. Team Builder screen — replace old components with draftplay.ai equivalents
 
 For each screen:
 - Replace all old style objects with Tamagui tokens
-- Use tami·draft components (TournamentCard, etc.)
+- Use draftplay.ai components (TournamentCard, etc.)
 - Ensure all text uses the design system typography
 - Test dark mode compatibility
 
@@ -727,7 +744,7 @@ Self-verify:
 - Verify no visual regressions on other screens
 
 Branch: feature/phase-2.75-screen-migrations
-Commit: feat(phase-2.75): migrate Match Center + Team Builder to tami·draft
+Commit: feat(phase-2.75): migrate Match Center + Team Builder to draftplay.ai
 ```
 
 ### Step 8: Phase 2.75 Sign-Off
@@ -746,8 +763,8 @@ For EACH criterion, verify it passes:
 - [ ] 65+ Playwright tests written and passing
 - [ ] All P0 bugs fixed
 - [ ] P1 bugs fixed or documented
-- [ ] Match Center migrated to tami·draft
-- [ ] Team Builder migrated to tami·draft
+- [ ] Match Center migrated to draftplay.ai
+- [ ] Team Builder migrated to draftplay.ai
 - [ ] Geo-detection: IP + GPS + declaration all resolving correctly
 - [ ] Feature gates: paid features hidden for restricted zones
 - [ ] Gemini API routing to nearest region
@@ -764,26 +781,36 @@ If anything fails, fix it and re-verify.
 
 ---
 
-## PHASE 3: AI & ANALYTICS ENGINE (Weeks 15-19)
+## L2: AI ENGINE — Phase 3 Core (Weeks 16-18)
 
-### Week 15-16: FDR + Projected Points
+> **These are the killer differentiators. No competitor has AI-powered fantasy cricket advice.**
+> Only implementing the CORE features (FDR, Projections, Guru, Rate My Team).
+> Comparison, Ownership, Previews, Transfer Planner are deferred to post-launch.
+
+### Step 9: Create Launch AI Issues
 
 ```
-PROMPT 22: Create Phase 3 GitHub Issues
-──────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 3 section in full.
+PROMPT 22: Create Phase 3 Core GitHub Issues
+─────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 3 sections 3.1-3.4 ONLY (FDR, Projected
+Points, Guru Chat, Rate My Team).
 
-Create GitHub issues for ALL Phase 3 tasks organized by week:
-- Week 15-16: FDR System + Projected Points Engine
-- Week 17: Cricket Guru Chat + Rate My Team
-- Week 18: Player Comparison + Ownership Stats
-- Week 19: AI Match Previews + Transfer Planner
+Create GitHub issues for the CORE AI features only:
+- FDR System (fixture difficulty ratings)
+- AI Projected Points Engine
+- Cricket Guru Chat
+- Rate My Team
 
-Label: phase:3, area:ai
-Milestone: Create Phase 3 Week 15-16, 17, 18, 19 milestones
+Do NOT create issues for: Player Comparison, Ownership Stats,
+Match Previews, or Transfer Planner — these are post-launch.
+
+Label: phase:3, area:ai, priority:P0
+Milestone: Create "L2: AI Engine" milestone
 
 List all created issue numbers when done.
 ```
+
+### Step 10: FDR + Projected Points
 
 ```
 PROMPT 23: Fixture Difficulty Rating (FDR) System
@@ -791,13 +818,13 @@ PROMPT 23: Fixture Difficulty Rating (FDR) System
 Read /docs/NEW_PLAN.md section 3.1 "Fixture Difficulty Rating System".
 
 Implement the FDR engine:
-1. Gemini API prompt that analyzes opponent strength, venue, recent form, 
+1. Gemini API prompt that analyzes opponent strength, venue, recent form,
    head-to-head, conditions → returns 1-5 difficulty rating
 2. Batting and bowling difficulty breakdown
 3. Store results in fixture_difficulty table (created in Phase 2.75)
 4. Cache FDR results in Redis (24hr TTL)
 5. Create tRPC endpoint: fdr.getByTeam, fdr.getByMatch
-6. Create FDR visualization component (color-coded 1-5 scale, 
+6. Create FDR visualization component (color-coded 1-5 scale,
    green=easy, red=hard)
 7. FDR matrix view (team × upcoming matches grid)
 
@@ -818,7 +845,7 @@ PROMPT 24: AI Projected Points Engine
 Read /docs/NEW_PLAN.md section 3.2 "AI Projected Points Engine".
 
 Implement the projection engine:
-1. Gemini prompt that analyzes: player recent form, venue stats, 
+1. Gemini prompt that analyzes: player recent form, venue stats,
    opponent weakness, match conditions → returns projected fantasy points
 2. Confidence interval (high/medium/low)
 3. Breakdown: batting/bowling/fielding/bonus projections
@@ -840,7 +867,7 @@ Branch: feature/phase-3-projected-points
 Commit: feat(phase-3): AI projected points engine with Gemini
 ```
 
-### Week 17: Guru + Rate My Team
+### Step 11: Guru Chat + Rate My Team
 
 ```
 PROMPT 25: Cricket Guru AI Chat
@@ -851,12 +878,13 @@ Implement:
 1. Chat UI screen with message bubbles (user + AI)
 2. Input field with send button + suggested questions
 3. Gemini-powered responses with cricket fantasy context
-4. System prompt that includes: current match data, player stats, 
+4. System prompt that includes: current match data, player stats,
    FDR ratings, user's team composition
 5. Store conversations in guru_conversations table
-6. Pre-built quick questions: "Who should I captain?", 
+6. Pre-built quick questions: "Who should I captain?",
    "Best differential pick?", "Analyze my team"
 7. Rate-limit to prevent abuse (10 messages per hour)
+8. Floating action button (🥚 egg icon) accessible from all screens
 
 Self-verify:
 - Take screenshot of empty chat screen
@@ -882,6 +910,7 @@ Implement:
 5. Specific suggestions: "Consider X instead of Y because..."
 6. Captain/VC recommendation if current choice is suboptimal
 7. UI card showing the rating with expandable details
+8. Accessible from Guru chat ("Rate my team") AND as standalone screen
 
 Self-verify:
 - Create a test team with known good/bad picks
@@ -894,182 +923,157 @@ Branch: feature/phase-3-rate-my-team
 Commit: feat(phase-3): Rate My Team with AI analysis
 ```
 
-### Week 18: Comparison + Ownership
+### Step 12: AI Engine Tests + Verification
 
 ```
-PROMPT 27: Player Comparison Tool
-────────────────────────────────
-Read /docs/NEW_PLAN.md section 3.5 "Player Comparison Tool".
-
-Implement:
-1. Select 2-4 players to compare side-by-side
-2. Stats comparison table (batting avg, strike rate, economy, etc.)
-3. Projected points comparison for upcoming match
-4. Form trend chart (last 5 matches)
-5. Venue-specific stats
-6. AI verdict: "Player A is the better pick because..."
-7. Share comparison as image (for social media)
-
-Self-verify:
-- Compare Virat Kohli vs Rohit Sharma → screenshot
-- Compare 3 all-rounders → screenshot
-- Verify AI verdict makes sense
-- Test the share image generation
-
-Branch: feature/phase-3-player-comparison
-Commit: feat(phase-3): player comparison tool with AI verdicts
-```
-
-```
-PROMPT 28: Ownership Stats + Template Team
-─────────────────────────────────────────
-Read /docs/NEW_PLAN.md section 3.6 "Ownership Stats & Template Team".
-
-Implement:
-1. Calculate ownership % per player across all user teams
-2. Captain %, vice-captain % stats
-3. Effective ownership calculation
-4. Transfer trends (rising/falling)
-5. Store in player_ownership table
-6. Template team: AI-generated "most popular team" + "contrarian team"
-7. UI showing ownership bars on player selection screen
-
-Self-verify:
-- Generate ownership stats for an active match
-- Screenshot ownership bars on player list
-- Screenshot template team suggestion
-- Verify percentages add up correctly
-
-Branch: feature/phase-3-ownership-stats
-Commit: feat(phase-3): ownership stats + AI template teams
-```
-
-### Week 19: Match Previews + Transfer Planner
-
-```
-PROMPT 29: AI Match Previews
-───────────────────────────
-Read /docs/NEW_PLAN.md section 3.7 "AI-Generated Match Previews".
-
-Implement:
-1. Gemini generates a pre-match analysis article for each match
-2. Includes: pitch report, weather, team news, key battles, 
-   fantasy picks, captain picks, differential picks
-3. Store in a match_previews table or cache
-4. Generate automatically 6 hours before match start
-5. Match preview screen with formatted article
-6. "Key Fantasy Picks" section with player cards
-
-Self-verify:
-- Generate a preview for an upcoming match
-- Screenshot the preview article
-- Verify it includes all required sections
-- Check that fantasy picks link to player cards
-
-Branch: feature/phase-3-match-previews
-Commit: feat(phase-3): AI-generated match preview articles
-```
-
-```
-PROMPT 30: Transfer Planner
-──────────────────────────
-Read /docs/NEW_PLAN.md section 3.8 "Transfer Planner".
-
-Implement:
-1. Show upcoming fixtures for the next 3-5 matches
-2. Suggest transfers based on FDR + projections
-3. "Bank transfer" vs "Use now" recommendation
-4. Transfer impact analysis: points gained/lost estimate
-5. Wildcard planner: best week to play wildcard
-6. UI with transfer suggestions and reasoning
-
-Self-verify:
-- Screenshot transfer suggestions for current GW
-- Verify suggestions reference FDR and projections
-- Test wildcard timing recommendation
-
-Branch: feature/phase-3-transfer-planner
-Commit: feat(phase-3): transfer planner with AI suggestions
-```
-
-```
-PROMPT 31: Phase 3 Tests
-───────────────────────
-Read /docs/NEW_PLAN.md Phase 3 Success Criteria.
-
-Create Playwright E2E tests for all Phase 3 features:
+PROMPT 27: Phase 3 Core Tests
+─────────────────────────────
+Create Playwright E2E tests for the CORE Phase 3 features:
 - FDR displays correctly (5 tests)
 - Projections show on player cards (5 tests)
 - Guru chat responds with relevant cricket advice (3 tests)
 - Rate My Team returns reasonable scores (3 tests)
-- Player comparison works for 2-4 players (3 tests)
-- Ownership stats display correctly (3 tests)
-- Match previews generate and display (3 tests)
-- Transfer planner shows suggestions (3 tests)
 
 Run all tests. Fix failures. Report results.
 
-Branch: test/phase-3-tests
-Commit: test(phase-3): comprehensive AI feature E2E tests (28 cases)
+Branch: test/phase-3-core-tests
+Commit: test(phase-3): core AI feature E2E tests (16 cases)
 ```
 
 ```
-PROMPT 32: Phase 3 Verification
-──────────────────────────────
-Read /docs/NEW_PLAN.md Phase 3 Success Criteria.
-
+PROMPT 28: Phase 3 Core Verification
+────────────────────────────────────
 Verify each criterion with proof:
 - [ ] FDR generates 1-5 ratings for all fixtures
 - [ ] Projected points calculated with confidence intervals
 - [ ] Guru chat provides contextual fantasy cricket advice
 - [ ] Rate My Team scores correlate with team quality
-- [ ] Player comparison works for 2-4 players
-- [ ] Ownership stats update and display correctly
-- [ ] Match previews auto-generate before matches
-- [ ] Transfer planner makes data-driven suggestions
 - [ ] All AI features use region-routed Gemini API
 - [ ] All AI responses cached in Redis
 
-Save report to /screenshots/phase-3-signoff.md
+Save report to /screenshots/phase-3-core-signoff.md
 ```
 
 ---
 
-## PHASE 4: TOURNAMENT MODE + LEAGUES (Weeks 20-24)
+## L3: PUSH NOTIFICATIONS (Week 19)
+
+> **Without notifications, users forget the app exists. This is the #1 retention lever.**
+
+### Step 13: FCM + Core Notifications
 
 ```
-PROMPT 33: Create Phase 4 GitHub Issues
-──────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 4 section in full (it's the longest phase).
+PROMPT 29: Push Notifications — FCM Setup + Core Types
+─────────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 5 section 5.4 "Push Notifications (FCM)".
 
-Create GitHub issues for all tasks:
-- Week 20-21: Tournament Mode Core (season-long leagues, team 
-  submissions, auto-carry, chip system)
-- Week 22: Trading System (drop/add, inter-team, waivers, locks)
-- Week 23: Playoffs + Commissioner (bracket generation, commissioner 
-  tools, veto, announcements)
-- Week 24: Advanced Leagues + Integration Testing + Geo-Verification 
-  for Paid Actions
+Implement CORE notification types only (the ones needed for launch):
 
-Label: phase:4
-Create milestones for each week.
-List all created issue numbers.
+1. FCM setup:
+   - Configure Firebase Cloud Messaging in the Expo app
+   - Create notification service on backend (packages/api/src/services/notifications.ts)
+   - Device token registration tRPC endpoint
+   - Use getLogger("notifications") for structured logging
+
+2. Core notification types (launch-critical):
+   - "Match starts in 1 hour — set your team!" (deadline reminder)
+   - "Team lock in 30 minutes!" (urgent deadline)
+   - "Match completed! You scored X pts — Rank #Y" (score update)
+   - "Your player [name] marked doubtful" (status alert)
+   - "You moved up 5 spots in the leaderboard!" (rank change)
+
+3. Notification preferences:
+   - Per-category toggle (deadlines, scores, alerts)
+   - Quiet hours setting
+   - Notification preferences screen in Settings
+
+4. Notification inbox screen:
+   - List of recent notifications with read/unread state
+   - Tap to navigate to relevant screen
+
+Self-verify:
+- Send a test notification to a real device
+- Screenshot notification on device lock screen
+- Screenshot notification inbox screen
+- Screenshot notification preferences screen
+- Verify notifications log correctly with structured logger
+
+Branch: feature/launch-push-notifications
+Commit: feat(launch): push notifications with FCM — 5 core types + preferences
 ```
 
 ```
-PROMPT 34: Season-Long League Core
+PROMPT 30: Notification Tests
+─────────────────────────────
+Create tests for push notification system:
+- Device token registration works (2 tests)
+- Notification sent on match deadline (2 tests)
+- Notification preferences respected (2 tests)
+- Notification inbox displays correctly (2 tests)
+
+Run all tests. Fix failures. Report.
+
+Branch: test/launch-notifications-tests
+Commit: test(launch): push notification E2E tests (8 cases)
+```
+
+---
+
+## L4: TOURNAMENT MODE CORE (Weeks 20-21)
+
+> **Season-long leagues make users come back every match day for 2 months.**
+> Only implementing CORE tournament features. Trading, waivers, playoffs,
+> commissioner tools are deferred to post-launch with Coming Soon screens.
+
+### Step 14: Create Tournament Mode Core Issues
+
+```
+PROMPT 31: Create Tournament Mode Core GitHub Issues
+───────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 4 sections 4.1, 4.2, 4.9, and 4.15 ONLY.
+
+Create GitHub issues for LAUNCH-CRITICAL tournament features:
+- Tournament League Creation & Joining (4.1)
+- Per-Match Team Submission System (4.2)
+- Chips / Power-Ups System (4.9)
+- Weekly/Match Awards (4.15)
+
+Do NOT create issues for: Advance Queue, Player Locking, Inter-Team
+Trading, FAAB Waivers, Player Status, Playoffs, Commissioner Tools,
+Captain Change, Opponent Visibility, Custom Tournaments, H2H Mode,
+Geo-Verification for Paid Actions — these are post-launch.
+
+Label: phase:4, priority:P0
+Milestone: Create "L4: Tournament Mode Core" milestone
+
+List all created issue numbers when done.
+```
+
+### Step 15: Season-Long Leagues + Team Submission
+
+```
+PROMPT 32: Season-Long League Core
 ─────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 4, Week 20-21 "Tournament Mode Core".
+Read /docs/NEW_PLAN.md Phase 4, sections 4.1 and 4.2.
 
 Implement:
-1. Create/join a season-long tournament league
-2. Link league to a tournament (IPL, World Cup)
-3. Mode selection: salary_cap, draft, or auction
-4. Per-match team submissions using tournament_team_submissions
-5. Auto-carry team from previous match if not updated
-6. Points accumulation across the full tournament
-7. Season standings with live rank updates
-8. Match-by-match points breakdown
+1. Create/join a season-long tournament league:
+   - Link league to a tournament (IPL, World Cup)
+   - Mode selection: salary_cap, draft, or auction
+   - Choose template: Casual / Competitive / Pro
+   - Get invite code to share
+
+2. Per-match team submission:
+   - Current squad carried from previous match
+   - Make changes (counts as trades from free_trades allowance)
+   - Select Captain / Vice-Captain
+   - Submit before deadline
+   - Auto-carry: if user doesn't modify, last team auto-submits
+
+3. Points accumulation across full tournament:
+   - Season standings with live rank updates
+   - Match-by-match points breakdown
+   - Total points leaderboard
 
 Self-verify:
 - Create a tournament league for IPL
@@ -1077,20 +1081,25 @@ Self-verify:
 - Skip match 2 → verify auto-carry works
 - Submit different team for match 3
 - Verify cumulative points and standings
+- Screenshot league creation flow
+- Screenshot team submission screen
+- Screenshot standings table
 
-Branch: feature/phase-4-tournament-core
-Commit: feat(phase-4): season-long tournament league core
+Branch: feature/launch-tournament-core
+Commit: feat(launch): season-long tournament league core + per-match team submission
 ```
 
+### Step 16: Chips + Awards
+
 ```
-PROMPT 35: Chip System (Wildcard, Triple Captain, Bench Boost, etc.)
+PROMPT 33: Chip System (Wildcard, Triple Captain, Bench Boost, etc.)
 ──────────────────────────────────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 4, chip system section.
+Read /docs/NEW_PLAN.md Phase 4 section 4.9 "Chips / Power-Ups System".
 
 Implement:
-1. Chip types: wildcard, triple_captain, bench_boost, free_hit, 
+1. Chip types: wildcard, triple_captain, bench_boost, free_hit,
    power_play, death_over_specialist
-2. Chip usage limits from league config (chips_config JSONB)
+2. Chip usage limits from league config
 3. Activate chip before team lock
 4. Apply chip effects to scoring:
    - Triple Captain: 3x captain points
@@ -1108,402 +1117,653 @@ Self-verify:
 - Screenshot chip selection UI
 - Screenshot chip active indicator on team screen
 
-Branch: feature/phase-4-chips
-Commit: feat(phase-4): fantasy chip system with 6 chip types
+Branch: feature/launch-chips
+Commit: feat(launch): fantasy chip system with 6 chip types
 ```
 
 ```
-PROMPT 36: Trading System
-────────────────────────
-Read /docs/NEW_PLAN.md Phase 4, Week 22 "Trading System".
+PROMPT 34: Weekly/Match Awards
+──────────────────────────────
+Read /docs/NEW_PLAN.md Phase 4 section 4.15 "Weekly/Match Awards".
 
 Implement:
-1. Drop/Add trades: drop a player, pick up another
-2. Free trades vs penalty trades (from league config)
-3. Inter-team trades: propose trade, accept/reject
-4. Waiver claims: claim a dropped player with priority
-5. Player locks: dropped players locked for N hours
-6. Trade deadline enforcement
-7. Trade history in tournament_trades table
-8. Trade notifications
+1. Auto-calculated awards after each match completes:
+   - Manager of the Match (highest fantasy points)
+   - Best Captain Pick (highest captain points)
+   - Biggest Differential (highest pts from <10% owned player)
+   - Most Improved (biggest rank jump)
+   - Orange Cap (running tournament top scorer)
+   - Purple Cap (running tournament top wicket-taker)
+2. Awards stored in league_awards table
+3. Awards display on league detail screen (trophy room)
+4. Push notification: "You won Manager of the Match!"
 
 Self-verify:
-- Execute a drop/add trade → verify it's logged
-- Exceed free trades → verify penalty applied
-- Propose inter-team trade → accept → verify swap
-- Drop a player → verify lock period
-- Try to trade after deadline → verify blocked
+- Simulate match completion → verify awards calculated
+- Screenshot awards display on league detail
+- Verify push notification sent for award
+- Screenshot trophy room
 
-Branch: feature/phase-4-trading
-Commit: feat(phase-4): trading system with drop/add, inter-team, waivers
+Branch: feature/launch-awards
+Commit: feat(launch): match awards system with 6 award types + notifications
 ```
 
-```
-PROMPT 37: Playoffs + Commissioner Tools
-───────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 4, Week 23.
-
-Implement:
-1. Playoff bracket generation (IPL-style, semi-final, custom)
-2. Bracket visualization UI
-3. Commissioner tools:
-   - Assign bonus/penalty points
-   - Grant extra trades
-   - Edit a user's team (emergency)
-   - Veto a trade
-   - Kick/ban a user
-   - Post league announcements
-4. All actions logged in commissioner_actions table
-5. Commissioner dashboard screen
-
-Self-verify:
-- Generate IPL-style playoff bracket
-- Screenshot bracket visualization
-- Use each commissioner tool → verify logged
-- Screenshot commissioner dashboard
-
-Branch: feature/phase-4-playoffs-commissioner
-Commit: feat(phase-4): playoff brackets + commissioner tools
-```
+### Step 17: Tournament Mode Tests
 
 ```
-PROMPT 38: Geo-Verification for Paid Actions
-───────────────────────────────────────────
-Read /docs/GEO_IMPLEMENTATION_GUIDE.md section on verifyForPaidAction 
-and /docs/NEW_PLAN.md Phase 4 geo-verification tasks.
-
-Implement:
-1. geo.verifyForPaidAction tRPC endpoint:
-   - REQUIRES GPS coordinates (not just IP)
-   - Blocks if zone doesn't allow paid actions
-   - Returns error with explanation if blocked
-   
-2. Integrate into contest join flow:
-   - Call verifyForPaidAction before any wallet deduction
-   - Show location verification dialog
-   
-3. Integrate into wallet deposit flow:
-   - Verify location before accepting deposit
-   
-4. Periodic re-check (every 30 minutes during active session)
-
-5. India-specific:
-   - KYC verification required for india_real_money zone
-   - 30% TDS on winnings > ₹100
-   - 28% GST on contest entry fees
-
-Self-verify:
-- Test paid contest join with US location → allowed
-- Test paid contest join with India location (PROGA active) → blocked
-- Test periodic re-check fires every 30 min
-- Screenshot the location verification dialog
-- Screenshot the "blocked" message for restricted zones
-
-Branch: feature/phase-4-geo-paid-actions
-Commit: feat(phase-4): geo-verification for all paid actions + KYC/TDS
-```
-
-```
-PROMPT 39: Phase 4 Tests + Verification
-──────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 4 success criteria and testing section.
-
+PROMPT 35: Tournament Mode Core Tests + Verification
+───────────────────────────────────────────────────
 Create tests + verify:
-- Season-long league lifecycle (create → submit → score → standings)
-- All 6 chips work correctly
-- Trading: drop/add, inter-team, waivers, locks
-- Playoffs bracket generation + advancement
-- Commissioner tools logged correctly
-- Geo-verification blocks paid actions in restricted zones
-- GPS required for paid actions
+- Season-long league lifecycle (create → join → submit → score → standings) (5 tests)
+- Auto-carry team works (2 tests)
+- All 6 chips work correctly with scoring modifiers (6 tests)
+- Awards auto-calculated after match (3 tests)
+- Award notifications sent (2 tests)
 
 Run full test suite. Fix failures. Report.
-Save signoff to /screenshots/phase-4-signoff.md
+
+Branch: test/launch-tournament-tests
+Commit: test(launch): tournament mode core E2E tests (18 cases)
 ```
 
 ---
 
-## PHASE 5: PREDICTIONS & SOCIAL (Weeks 25-28)
+## L5: PREDICTIONS + AWARDS (Week 22)
+
+> **Low-friction daily engagement. Users who don't have time for a full team can still
+> play predictions in 30 seconds.**
+
+### Step 18: Prediction System
 
 ```
-PROMPT 40: Create Phase 5 GitHub Issues
-──────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 5 in full.
-Create all GitHub issues. Label: phase:5.
+PROMPT 36: Prediction Leagues — 11 Question Types
+────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 5 section 5.1 "Prediction Question Engine".
+
+Implement the prediction system:
+
+1. 11 prediction question types:
+   - match_winner, victory_margin, top_scorer, top_wicket_taker,
+     century_scored, first_innings_total, player_performance,
+     sixes_count, custom_yes_no, custom_range, custom_multi_choice
+
+2. AI-generated questions:
+   - Before each match, Gemini generates 5-8 contextual prediction questions
+   - Uses: pitch data, player form, historical matchups
+   - Questions stored in prediction_questions table
+
+3. User submission:
+   - Card-based swipeable UI for answering predictions
+   - Must submit before match start deadline
+   - 2nd innings predictions available at innings break
+
+4. Auto-grading:
+   - When match completes, resolve all questions automatically
+   - Points: base points per question type + exact prediction bonus
+   - Store answers in prediction_answers table
+
+5. Prediction leaderboard:
+   - Cumulative points, accuracy %, current streak, best streak
+   - Stored in prediction_standings table
+   - Rank change indicators
+
+Self-verify:
+- Generate AI questions for an upcoming match → screenshot
+- Submit predictions for all question types → screenshot
+- Resolve a match → verify auto-grading works
+- Screenshot prediction leaderboard with streaks
+- Verify push notification: "You got 5/8 predictions right!"
+
+Branch: feature/launch-predictions
+Commit: feat(launch): prediction league system — 11 types + AI questions + leaderboard
+```
+
+### Step 19: Prediction Tests
+
+```
+PROMPT 37: Prediction System Tests
+──────────────────────────────────
+Create tests for predictions:
+- AI generates questions for a match (2 tests)
+- All 11 question types render correctly (3 tests)
+- User can submit predictions before deadline (2 tests)
+- Auto-grading resolves correctly (3 tests)
+- Leaderboard ranks correctly (2 tests)
+- Prediction streaks tracked (2 tests)
+
+Run all tests. Fix failures. Report.
+
+Branch: test/launch-prediction-tests
+Commit: test(launch): prediction system E2E tests (14 cases)
+```
+
+---
+
+## L6: COMING SOON SCREENS + LAUNCH PREP (Week 23)
+
+> **Show users what's coming. Every deferred feature gets a beautiful "Coming Soon"
+> screen so users know the app is growing and have a reason to come back for updates.**
+
+### Step 20: Coming Soon Component + Screens
+
+```
+PROMPT 38: Coming Soon Component
+───────────────────────────────
+Create a reusable ComingSoon component using draftplay.ai design system
+(see /docs/UI_GUIDE.md).
+
+The component should:
+1. Display the feature name as a heading
+2. Show a brief 1-2 sentence description of what's coming
+3. Display the EggLoadingSpinner (from @draftplay/ui) in a
+   "hatching" state to symbolize the feature being built
+4. Show a "Coming Soon" badge using draftplay.ai Badge component
+5. Optional: "Notify Me" button that registers interest
+   (store in a simple notify_interest table or analytics event)
+6. Match the draftplay.ai design system aesthetic (DM Sans/DM Mono,
+   retro-modern, clean layout)
+
+Component API:
+```tsx
+<ComingSoon
+  title="Player Comparison"
+  description="Compare 2-4 players side-by-side with AI-powered insights and radar charts."
+  icon="compare" // optional icon identifier
+  notifyEnabled={true} // show "Notify Me" button
+/>
+```
+
+Self-verify:
+- Screenshot the component with different feature names
+- Verify it uses draftplay.ai typography and colors
+- Verify dark mode compatibility
+
+Branch: feature/launch-coming-soon-component
+Commit: feat(launch): reusable ComingSoon component with draftplay.ai design
 ```
 
 ```
-PROMPT 41: Prediction Leagues
-───────────────────────────
-Read /docs/NEW_PLAN.md Phase 5, prediction system.
+PROMPT 39: Coming Soon Screens — Phase 3 Deferred Features
+─────────────────────────────────────────────────────────
+Create Coming Soon screens for all deferred Phase 3 features.
+Use the ComingSoon component created in PROMPT 38.
 
-Implement the 11 prediction types:
-1. Match winner
-2. Victory margin
-3. Top scorer (match)
-4. Top wicket taker
-5. First ball dismissal
-6. Total sixes
-7. Highest opening partnership
-8. Player of the match
-9. Score in first 6 overs
-10. Score in last 5 overs
-11. Method of victory
+Create the following screens/routes:
 
-Include:
-- AI-generated prediction questions per match
-- User submission before match start
-- Auto-grading when match completes
-- Prediction leaderboard per tournament
-- Points: exact prediction bonus, close guess partial points
+1. /compare → "Player Comparison Tool"
+   Description: "Compare 2-4 players side-by-side with stats, form trends,
+   AI verdicts, and radar charts. Find the best pick for any match."
 
-Branch: feature/phase-5-predictions
+2. /ownership → "Ownership Stats & Template Team"
+   Description: "See what % of managers own each player. View the most
+   popular team and find hidden differential picks."
+
+3. /match/[id]/preview → "AI Match Previews"
+   Description: "AI-generated pre-match analysis with pitch reports,
+   key battles, fantasy tips, and predicted XIs. Published 12 hours
+   before every match."
+
+4. /planner → "Transfer Planner"
+   Description: "Plan your transfers across the next 5-10 matches.
+   AI suggests the optimal transfer path based on fixtures and projections."
+
+Each screen should:
+- Use the ComingSoon component
+- Have proper navigation (back button, tab integration)
+- Be accessible from the relevant navigation point (e.g., Guru tab)
+- Include "Notify Me" button
+
+Self-verify:
+- Screenshot each Coming Soon screen
+- Verify navigation to/from each screen works
+- Verify all 4 screens render correctly
+
+Branch: feature/launch-coming-soon-phase3
+Commit: feat(launch): Coming Soon screens for deferred Phase 3 features
 ```
 
 ```
-PROMPT 42: H2H Matchups
-──────────────────────
-Read /docs/NEW_PLAN.md Phase 5, H2H section.
+PROMPT 40: Coming Soon Screens — Phase 4 Deferred Features
+─────────────────────────────────────────────────────────
+Create Coming Soon screens for all deferred Phase 4 features.
 
-Implement head-to-head system:
-- Random pairings per match week
-- 3 points for win, 1 for draw, 0 for loss
-- H2H standings table
-- Match result display (your score vs opponent score)
-- Season-long H2H champion
+1. /league/[id]/trades → "Inter-Team Trading"
+   Description: "Propose player-for-player trades with league members.
+   Accept, reject, or counter. Commissioner can veto unfair trades."
 
-Branch: feature/phase-5-h2h
+2. /league/[id]/waivers → "FAAB Waiver System"
+   Description: "Blind-bid on unclaimed players using your Free Agent
+   Acquisition Budget. Highest bid wins. Manage your budget wisely
+   across the entire tournament."
+
+3. /league/[id]/playoffs → "Playoff Brackets"
+   Description: "IPL-style, semi-final, or custom playoff formats.
+   Top teams battle head-to-head in knockout rounds to crown the champion."
+
+4. /league/[id]/commissioner → "Commissioner Tools"
+   Description: "Full league management dashboard. Assign points, grant
+   trades, veto deals, send announcements, and manage members."
+
+5. /custom-tournament → "Custom Tournament Builder"
+   Description: "Cherry-pick matches from any tournament to create your
+   own custom competition. Perfect for 'India matches only' or
+   'T20s only' leagues."
+
+6. /league/[id]/h2h → "Head-to-Head Mode"
+   Description: "Face a different league member every match. Win = 3 pts,
+   draw = 1 pt. Separate H2H standings alongside cumulative points."
+
+Self-verify:
+- Screenshot each Coming Soon screen
+- Verify navigation works from league detail screen
+- Verify all 6 screens render correctly
+
+Branch: feature/launch-coming-soon-phase4
+Commit: feat(launch): Coming Soon screens for deferred Phase 4 features
 ```
 
 ```
-PROMPT 43: Social Features (Chat + Notifications + Referrals)
+PROMPT 41: Coming Soon Screens — Phase 5-8 Deferred Features
 ───────────────────────────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 5, social features.
+Create Coming Soon screens for deferred social and future features.
 
-Implement:
-1. League chat (Firestore-backed)
-2. Push notifications (FCM):
-   - Match starting soon
-   - Team lock deadline
-   - Trade proposed
-   - Match completed + points update
-3. Referral system with bonus credits
-4. Share team/results to social media
+1. /league/[id]/chat → "League Chat"
+   Description: "Real-time league chat for banter, trash talk, and strategy
+   discussion. Share player cards, react with emojis, and get system
+   alerts for trades and awards."
 
-Branch: feature/phase-5-social
+2. /challenges → "1v1 Challenges"
+   Description: "Challenge any player to a head-to-head match contest.
+   Both set teams, match plays, winner takes bragging rights."
+
+3. /referrals → "Invite Friends"
+   Description: "Share your referral code with friends. Both of you earn
+   bonus credits when they join. Track your invites and rewards."
+
+4. /web → "DraftPlay Web" (accessible from Settings/More)
+   Description: "Full DraftPlay experience on desktop. Larger charts,
+   drag-and-drop transfers, and expanded analytics. Coming to web browsers."
+
+5. /guru/voice → "Voice Commands"
+   Description: "Talk to Guru with your voice. 'Captain Virat Kohli',
+   'Add Bumrah to my team', 'Who should I pick?' — hands-free
+   fantasy cricket management."
+
+Self-verify:
+- Screenshot each Coming Soon screen
+- Verify navigation works
+- Verify all 5 screens render correctly
+
+Branch: feature/launch-coming-soon-social
+Commit: feat(launch): Coming Soon screens for social + future features
+```
+
+### Step 21: Launch Prep + Final Polish
+
+```
+PROMPT 42: Launch Polish + Basic Security
+────────────────────────────────────────
+Prepare the app for beta launch:
+
+1. Security basics:
+   - Rate limiting on all public tRPC endpoints
+   - Input validation on all user-submitted data
+   - Verify no SQL injection or XSS vulnerabilities in new code
+   - Ensure auth middleware covers all protected routes
+
+2. Performance check:
+   - Verify Redis cache is working across all AI features
+   - Check API response times (target: <300ms cached, <3s uncached)
+   - Verify EggLoadingSpinner shows for all async operations
+
+3. Error handling:
+   - All screens have error states with retry buttons
+   - Network errors show user-friendly messages
+   - AI feature failures fallback gracefully (show cached data or "try again")
+
+4. App polish:
+   - Verify all Coming Soon screens are accessible from navigation
+   - Verify notification preferences screen works
+   - Test full user journey: signup → build team → join league →
+     submit team → see scores → check awards → ask Guru
+
+Self-verify:
+- Run full Playwright test suite: npx playwright test
+- Take screenshots of key user journey moments
+- Verify 0 P0 bugs remaining
+- Save launch readiness report to /screenshots/launch-readiness.md
+
+Branch: feature/launch-polish
+Commit: feat(launch): launch polish — security, performance, error handling
 ```
 
 ```
-PROMPT 44: Phase 5 Tests + Verification
-──────────────────────────────────────
-Tests + signoff for Phase 5.
-Save to /screenshots/phase-5-signoff.md
-```
-
----
-
-## PHASE 6: WEB, ADMIN & CORPORATE (Weeks 29-32)
-
-```
-PROMPT 45: Create Phase 6 GitHub Issues
-──────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 6 in full.
-Create all GitHub issues. Label: phase:6.
-```
-
-```
-PROMPT 46: Web Parity
-───────────────────
-Read /docs/NEW_PLAN.md Phase 6, web platform section.
-
-Implement web (Next.js) versions of all mobile screens:
-- Responsive layouts for desktop and tablet
-- Same tRPC endpoints, different UI components
-- SEO-optimized pages for public content (tournaments, previews)
-
-Branch: feature/phase-6-web
-```
-
-```
-PROMPT 47: Admin Dashboard
+PROMPT 43: Beta Launch Prep
 ─────────────────────────
-Read /docs/NEW_PLAN.md Phase 6, admin section.
+1. App store preparation:
+   - Take 6-8 app store screenshots (home, team builder, Guru chat,
+     predictions, tournament league, Coming Soon teaser)
+   - Write app description and keywords
+   - Set up TestFlight (iOS) and Internal Testing (Android)
 
-Implement admin dashboard:
-- User management (search, ban, view activity)
-- Tournament management (create, toggle draft, edit)
-- Contest management (approve, settle, cancel)
-- Geo-compliance dashboard (location checks, mismatch alerts, 
-  zone distribution, PROGA toggle, state ban list editor)
-- Financial reports (deposits, withdrawals, GST/TDS collected)
-- System health (API response times, cache hit rates)
+2. Beta invite system:
+   - Create invite codes (limit: 500)
+   - Invite code entry screen on first launch
+   - Track invite code usage
 
-Branch: feature/phase-6-admin
+3. Monitoring:
+   - Set up error tracking (Sentry or similar)
+   - Set up uptime monitoring
+   - Create alerts for: API errors >1%, response time >5s,
+     crash rate >0.5%
+
+4. Landing page:
+   - Simple "Join the Beta" page with email capture
+   - Feature highlights: AI Guru, Projected Points, Season Leagues
+
+Branch: feature/launch-beta-prep
+Commit: feat(launch): beta launch preparation — store assets, invites, monitoring
 ```
 
-```
-PROMPT 48: Phase 6 Tests + Verification
-──────────────────────────────────────
-Tests + signoff for Phase 6.
-Save to /screenshots/phase-6-signoff.md
-```
-
----
-
-## PHASE 7: POLISH, TESTING & LAUNCH (Weeks 33-36)
+### Step 22: Full Regression + Launch Signoff
 
 ```
-PROMPT 49: Create Phase 7 GitHub Issues
-──────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 7 in full.
-Create all GitHub issues. Label: phase:7.
-```
-
-```
-PROMPT 50: Security + VPN Detection
-──────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 7, security section and 
-/docs/GEO_IMPLEMENTATION_GUIDE.md VPN detection section.
-
-Implement:
-1. VPN detection heuristics (IP/GPS mismatch, known VPN IPs, 
-   datacenter IPs)
-2. Security audit: SQL injection, XSS, CSRF, auth bypass
-3. Rate limiting on all public endpoints
-4. Input validation on all user-submitted data
-
-Branch: feature/phase-7-security
-```
-
-```
-PROMPT 51: Performance Optimization
-──────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 7, performance section.
-
-Implement:
-1. Database query optimization (explain analyze slow queries)
-2. Redis cache optimization (pre-warming, cascade invalidation)
-3. Bundle size optimization (lazy loading, code splitting)
-4. Image optimization (compression, lazy loading)
-5. WebSocket connection pooling
-
-Target: all API responses under 300ms (cached), under 1s (uncached)
-
-Branch: feature/phase-7-performance
-```
-
-```
-PROMPT 52: PROGA Ruling Response + Geo-Compliance Final
-─────────────────────────────────────────────────────
-Read /docs/GEO_IMPLEMENTATION_GUIDE.md sections on PROGA scenarios.
-
-Prepare for all 3 PROGA outcomes:
-1. PROGA upheld → verify india_free_only works correctly
-2. PROGA struck down → test state-level ban list 
-   (AP, TG, AS, OD blocked; others allowed)
-3. PROGA modified → licensing pathway (placeholder)
-
-Implement:
-- Admin UI to toggle PROGA_ACTIVE flag
-- Admin UI to edit state ban list
-- Geo-compliance stress testing (zone transitions, edge cases)
-
-Branch: feature/phase-7-proga-compliance
-```
-
-```
-PROMPT 53: Beta Launch Prep
-─────────────────────────
-Read /docs/NEW_PLAN.md Phase 7, launch section.
-
-1. Set up production Cloud Run deployment
-2. Configure production Cloud SQL + Memorystore
-3. Set up monitoring (error tracking, uptime checks)
-4. Create production .env with all secrets
-5. App store screenshots and metadata
-6. Privacy policy and terms of service pages
-7. Beta invite system (limited access codes)
-
-Branch: feature/phase-7-launch-prep
-```
-
-```
-PROMPT 54: Phase 7 Full Regression + Signoff
-───────────────────────────────────────────
-Run the COMPLETE test suite across all phases.
+PROMPT 44: Full Regression Test + Launch Signoff
+───────────────────────────────────────────────
+Run the COMPLETE test suite across ALL launch features.
 
 npx playwright test
 
-Generate final report.
-Fix any regressions.
-Save to /screenshots/phase-7-launch-signoff.md
+Generate a comprehensive report:
+- Phase 2.75 tests: X passing
+- AI Engine tests: X passing
+- Notification tests: X passing
+- Tournament Mode tests: X passing
+- Prediction tests: X passing
+- Total: X passing, X failing, X skipped
 
-This is the go/no-go for beta launch.
+For each launch feature, verify:
+- [ ] Auth flows work (signup, login, logout)
+- [ ] Home screen shows real data
+- [ ] AI projected points display on player cards
+- [ ] FDR ratings show on fixture calendar
+- [ ] Guru chat responds with relevant advice
+- [ ] Rate My Team returns grade + suggestions
+- [ ] Push notifications delivered for all 5 core types
+- [ ] Tournament league can be created and joined
+- [ ] Per-match team submission works
+- [ ] Auto-carry works when user doesn't update team
+- [ ] All 6 chips activate and affect scoring
+- [ ] Match awards auto-calculated and notified
+- [ ] All 11 prediction types work end-to-end
+- [ ] All 15 Coming Soon screens accessible and rendering
+- [ ] Geo-detection works (IP + GPS + declaration)
+- [ ] Feature gates hide paid features in restricted zones
+
+Save to /screenshots/launch-signoff.md
+
+THIS IS THE GO/NO-GO FOR BETA LAUNCH. 🚀
 ```
 
 ---
 
-## PHASE 8: VOICE, AI CONTENT & POST-LAUNCH (Post-Launch)
+## POST-LAUNCH PROMPTS (Run After Beta Launch, Based on User Demand)
+
+> **These prompts implement the features shown as "Coming Soon" during launch.**
+> **Run them in order of user demand — check analytics and feedback to prioritize.**
+
+### Post-Launch Wave 1: Complete Phase 3 + Basic Social
 
 ```
-PROMPT 55: Create Phase 8 GitHub Issues
-──────────────────────────────────────
-Read /docs/NEW_PLAN.md Phase 8 in full.
-Create all GitHub issues. Label: phase:8.
-```
-
-```
-PROMPT 56: Voice Commands (if user demand)
-─────────────────────────────────────────
-Voice input for team management:
-"Captain Virat Kohli", "Add Bumrah", "Show my team"
-Using GCP Speech-to-Text.
-
-Branch: feature/phase-8-voice
-```
-
-```
-PROMPT 57: AI Newsletter + Dynamic Pricing
-─────────────────────────────────────────
-1. Weekly AI-generated newsletter per user (personalized picks, 
-   transfer tips, league updates)
-2. Dynamic player pricing based on ownership + performance
-3. Cup mode (tournament-within-tournament)
-
-Branch: feature/phase-8-ai-content
-```
-
-```
-PROMPT 58: Geo-Infrastructure Scaling (If US Users > 10%)
+PROMPT 45: Player Comparison Tool (Replaces Coming Soon)
 ───────────────────────────────────────────────────────
-Read /docs/GEO_IMPLEMENTATION_GUIDE.md section 5 infrastructure scaling.
+Read /docs/NEW_PLAN.md section 3.5 "Player Comparison Tool".
 
-Only if needed:
-1. Cross-region PostgreSQL read replica (us-central1)
-2. Edge caching layer (Cloudflare Workers KV)
-3. Cloud Run multi-region deployment
-4. Gemini API auto-region detection
+Implement the full feature and replace the Coming Soon screen at /compare:
+1. Select 2-4 players to compare side-by-side
+2. Stats comparison table (batting avg, strike rate, economy, etc.)
+3. Projected points comparison for upcoming match
+4. Form trend chart (last 5 matches)
+5. Venue-specific stats
+6. AI verdict: "Player A is the better pick because..."
+7. Share comparison as image
+8. Remove the ComingSoon component, wire up real UI
 
-Branch: feature/phase-8-geo-scaling
+Branch: feature/post-launch-player-comparison
+Commit: feat(post-launch): player comparison tool — replaces Coming Soon
+```
+
+```
+PROMPT 46: Ownership Stats + Template Team (Replaces Coming Soon)
+───────────────────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md section 3.6 "Ownership Stats & Template Team".
+
+Replace Coming Soon at /ownership with full feature:
+1. Ownership % per player across all user teams
+2. Captain %, vice-captain % stats
+3. Template team: AI-generated "most popular team" + "contrarian team"
+4. Ownership bars on player selection screen
+5. Transfer trends (rising/falling)
+
+Branch: feature/post-launch-ownership
+Commit: feat(post-launch): ownership stats + template team — replaces Coming Soon
+```
+
+```
+PROMPT 47: AI Match Previews (Replaces Coming Soon)
+──────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md section 3.7 "AI-Generated Match Previews".
+
+Replace Coming Soon at /match/[id]/preview with full feature:
+1. Gemini generates pre-match analysis for each match
+2. Pitch report, weather, team news, key battles, fantasy tips
+3. Auto-generate 6-12 hours before match start
+4. "Key Fantasy Picks" section with player cards
+5. Personalized section for users with teams
+
+Branch: feature/post-launch-match-previews
+Commit: feat(post-launch): AI match previews — replaces Coming Soon
+```
+
+```
+PROMPT 48: Transfer Planner (Replaces Coming Soon)
+─────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md section 3.8 "Transfer Planner".
+
+Replace Coming Soon at /planner with full feature:
+1. Upcoming fixtures for next 3-5 matches
+2. AI transfer suggestions based on FDR + projections
+3. Transfer impact analysis (points gained/lost estimate)
+4. Wildcard timing recommendation
+5. Multiple plan comparison
+
+Branch: feature/post-launch-transfer-planner
+Commit: feat(post-launch): transfer planner — replaces Coming Soon
+```
+
+```
+PROMPT 49: League Chat (Replaces Coming Soon)
+────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 5 section 5.3 "League Chat".
+
+Replace Coming Soon at /league/[id]/chat with full feature:
+1. Firestore real-time messaging
+2. @mentions, emoji reactions
+3. System messages (trades, awards, scores)
+4. Shareable player/team/match cards in chat
+5. Commissioner pinned announcements
+
+Branch: feature/post-launch-league-chat
+Commit: feat(post-launch): league chat — replaces Coming Soon
+```
+
+### Post-Launch Wave 2: Advanced Tournament Features
+
+```
+PROMPT 50: Inter-Team Trading (Replaces Coming Soon)
+──────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 4 sections 4.4, 4.5, 4.6.
+
+Replace Coming Soon at /league/[id]/trades with full features:
+1. Drop/Add trades with free trade tracking
+2. Inter-team trade proposals (propose, accept, reject, counter)
+3. Commissioner veto with 24h window
+4. Player locks on dropped players
+5. FAAB waiver system (blind bidding for free agents)
+6. Trade board UI showing all pending/recent trades
+
+Branch: feature/post-launch-trading
+Commit: feat(post-launch): full trading system — replaces Coming Soon
+```
+
+```
+PROMPT 51: Playoffs + Commissioner (Replaces Coming Soon)
+───────────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 4 sections 4.8, 4.10.
+
+Replace Coming Soon screens with full features:
+1. Playoff bracket generation (IPL-style, semi-final, custom)
+2. Bracket visualization UI
+3. Commissioner dashboard with all management tools
+4. Action logging in commissioner_actions table
+
+Branch: feature/post-launch-playoffs-commissioner
+Commit: feat(post-launch): playoffs + commissioner tools — replaces Coming Soon
+```
+
+```
+PROMPT 52: H2H Mode + Custom Tournaments (Replaces Coming Soon)
+─────────────────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 4 sections 4.13, 4.14.
+
+Replace Coming Soon screens with full features:
+1. H2H scheduling (round-robin) + result resolution
+2. H2H standings table
+3. Custom tournament builder (cherry-pick matches)
+4. Match selection UI with filters
+
+Branch: feature/post-launch-h2h-custom
+Commit: feat(post-launch): H2H mode + custom tournaments — replaces Coming Soon
+```
+
+### Post-Launch Wave 3: Social + Growth + Scale
+
+```
+PROMPT 53: 1v1 Challenges + Referrals (Replaces Coming Soon)
+──────────────────────────────────────────────────────────
+Replace Coming Soon screens at /challenges and /referrals:
+1. Challenge system: create, accept, resolve
+2. Referral code generation + tracking
+3. Referral reward distribution (bonus credits)
+4. Deep linking for referral codes
+
+Branch: feature/post-launch-challenges-referrals
+Commit: feat(post-launch): 1v1 challenges + referral system — replaces Coming Soon
+```
+
+```
+PROMPT 54: Geo-Verification for Paid Actions
+───────────────────────────────────────────
+Read /docs/GEO_IMPLEMENTATION_GUIDE.md section on verifyForPaidAction.
+
+Implement when real-money features are enabled:
+1. geo.verifyForPaidAction (GPS-required)
+2. Integrate into contest join + wallet deposit flows
+3. Periodic session re-check (30 min)
+4. India KYC + TDS/GST if zone = india_real_money
+
+Branch: feature/post-launch-geo-paid-actions
+Commit: feat(post-launch): geo-verification for paid actions
+```
+
+```
+PROMPT 55: Web App (Replaces Coming Soon)
+────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 6.
+
+Build web (Next.js) versions of all mobile screens:
+- Responsive layouts for desktop/tablet
+- Web-optimized tools (larger charts, drag-and-drop)
+- SEO for public content
+- Marketing landing pages
+
+Branch: feature/post-launch-web
+Commit: feat(post-launch): web app with full parity — replaces Coming Soon
+```
+
+```
+PROMPT 56: Admin Dashboard
+─────────────────────────
+Read /docs/NEW_PLAN.md Phase 6 admin section.
+
+Build admin dashboard (separate Next.js app):
+- Tournament, user, league management
+- Geo-compliance dashboard
+- Financial reports
+- System health monitoring
+
+Branch: feature/post-launch-admin
+Commit: feat(post-launch): admin dashboard
+```
+
+```
+PROMPT 57: Voice Commands (Replaces Coming Soon — If User Demand)
+───────────────────────────────────────────────────────────────
+Read /docs/NEW_PLAN.md Phase 8 section 8.1.
+
+Replace Coming Soon at /guru/voice:
+- GCP Speech-to-Text for voice input
+- Voice responses from Guru
+- "Captain Virat Kohli", "Add Bumrah", "Show my team"
+
+Branch: feature/post-launch-voice
+Commit: feat(post-launch): voice commands for Guru — replaces Coming Soon
+```
+
+```
+PROMPT 58: Performance + Security Hardening (Pre-Public Launch)
+────────────────────────────────────────────────────────────
+Before opening to public (beyond beta):
+1. VPN detection heuristics
+2. Full security audit
+3. Load testing (1000+ concurrent rooms)
+4. Database optimization
+5. Redis cache tuning
+6. PROGA ruling response (toggle flag based on Supreme Court)
+
+Branch: feature/post-launch-hardening
+Commit: feat(post-launch): security + performance hardening for public launch
 ```
 
 ---
 
-## TOTAL PROMPT COUNT
+## TOTAL PROMPT COUNT (Updated for Launch Roadmap)
 
-| Phase | Prompts | Issues Created | Tests |
-|-------|---------|---------------|-------|
-| Setup | 0A-0B | Labels + milestones | — |
-| 2.75 Week 1 | 1-9 | ~25 | — |
-| 2.75 Week 2 | 10-16 | — | 65+ tests |
-| 2.75 Week 3 | 17-21 | — | Bug fixes |
-| 3 | 22-32 | ~30 | 28+ tests |
-| 4 | 33-39 | ~35 | 20+ tests |
-| 5 | 40-44 | ~20 | 15+ tests |
-| 6 | 45-48 | ~15 | 10+ tests |
-| 7 | 49-54 | ~15 | Full regression |
-| 8 | 55-58 | ~10 | — |
-| **TOTAL** | **58 prompts** | **~150 issues** | **140+ tests** |
+| Launch Phase | Prompts | Focus | Tests |
+|-------------|---------|-------|-------|
+| **Setup** | 0A-0B | Labels + infrastructure | — |
+| **L1: Finish 2.75** | 1-21 | Testing, bugs, polish | 65+ tests |
+| **L2: AI Engine** | 22-28 | FDR, projections, Guru, Rate My Team | 16 tests |
+| **L3: Push Notifications** | 29-30 | FCM, 5 core types, preferences | 8 tests |
+| **L4: Tournament Mode** | 31-35 | Season leagues, chips, awards | 18 tests |
+| **L5: Predictions** | 36-37 | 11 types, AI questions, leaderboard | 14 tests |
+| **L6: Coming Soon + Launch** | 38-44 | 15 Coming Soon screens, polish, beta prep | Full regression |
+| **Post-Launch Wave 1** | 45-49 | Comparison, ownership, previews, planner, chat | — |
+| **Post-Launch Wave 2** | 50-52 | Trading, playoffs, commissioner, H2H | — |
+| **Post-Launch Wave 3** | 53-58 | Challenges, referrals, geo-paid, web, admin, voice | — |
+| **TOTAL** | **58 prompts** | | **120+ tests** |
 
-**Estimated calendar time:** 6-8 months at 2-3 prompts/day with review.  
+### Launch Timeline
+
+| Week | What | Prompts |
+|------|------|---------|
+| Weeks 14-15 | Finish Phase 2.75 testing + polish | 10-21 |
+| Weeks 16-18 | AI Engine (FDR, projections, Guru, Rate My Team) | 22-28 |
+| Week 19 | Push Notifications | 29-30 |
+| Weeks 20-21 | Tournament Mode Core (leagues, chips, awards) | 31-35 |
+| Week 22 | Predictions | 36-37 |
+| Week 23 | Coming Soon screens + launch polish | 38-43 |
+| **Week 24** | **Launch signoff + BETA LAUNCH** | **44** |
+
+**Target Beta Launch:** May 12, 2026 (~9 weeks from March 3)
 **Your active time per prompt:** ~10-20 minutes (review PR, check screenshots, merge).

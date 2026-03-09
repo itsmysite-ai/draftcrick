@@ -15,6 +15,34 @@
       "when": 1770907149569,
       "tag": "0001_rainy_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772595161990,
+      "tag": "0002_fantasy-teams-optional-contest",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772629752474,
+      "tag": "0003_add-admin-config",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772898000000,
+      "tag": "0004_add-score-summary",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772721520049,
+      "tag": "0005_orange_wallflower",
+      "breakpoints": true
     }
   ]
 }

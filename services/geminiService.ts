@@ -225,7 +225,7 @@ export async function askGuruWithTools(message: string, context: { players: Play
       };
     } else {
       return {
-        text: "I'm the DraftCrick Guru! I can help you pick players, analyze your team, or clear your squad. What would you like to do?",
+        text: "I'm the DraftPlay Guru! I can help you pick players, analyze your team, or clear your squad. What would you like to do?",
         functionCalls: undefined
       };
     }
@@ -235,7 +235,7 @@ export async function askGuruWithTools(message: string, context: { players: Play
     model: 'gemini-3-flash-preview',
     contents: `User asks: "${message}". Current Team: ${JSON.stringify(context.team)}. Available: ${JSON.stringify(context.players)}`,
     config: {
-      systemInstruction: "You are the DraftCrick Guru. You can chat but also perform actions like optimizing or clearing the squad using tools. If the user asks to 'pick a team' or 'fill my squad', use optimize_squad.",
+      systemInstruction: "You are the DraftPlay Guru. You can chat but also perform actions like optimizing or clearing the squad using tools. If the user asks to 'pick a team' or 'fill my squad', use optimize_squad.",
       tools: [{ functionDeclarations: squadTools }]
     }
   });

@@ -12,7 +12,7 @@ RUN pnpm install --frozen-lockfile
 COPY packages/api/ ./packages/api/
 COPY packages/db/ ./packages/db/
 COPY packages/shared/ ./packages/shared/
-RUN pnpm --filter @draftcrick/api build
+RUN pnpm --filter @draftplay/api build
 
 FROM base AS runtime
 WORKDIR /app

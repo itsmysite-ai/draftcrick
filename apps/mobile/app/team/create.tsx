@@ -1,5 +1,5 @@
-import { ScrollView, Alert } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { ScrollView, Alert, Platform } from "react-native";
+import { useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,8 +18,10 @@ import {
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
+import { useNavigationStore } from "../../lib/navigation-store";
 import { useTheme } from "../../providers/ThemeProvider";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
@@ -31,7 +33,14 @@ const TABS = [{ key: "wicket_keeper", label: "WK" }, { key: "batsman", label: "B
 type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number };
 
 export default function TeamBuilderScreen() {
-  const { matchId, contestId } = useLocalSearchParams<{ matchId: string; contestId?: string }>();
+  const navCtx = useNavigationStore((s) => s.matchContext);
+  const matchId = navCtx?.matchId;
+  const contestId = navCtx?.contestId;
+  const teamA = navCtx?.teamA;
+  const teamB = navCtx?.teamB;
+  const format = navCtx?.format;
+  const venue = navCtx?.venue;
+  const tournament = navCtx?.tournament;
   const router = useRouter();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
@@ -41,43 +50,133 @@ export default function TeamBuilderScreen() {
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
   const [step, setStep] = useState<"pick" | "captain">("pick");
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertType, setAlertType] = useState<"error" | "success">("error");
+  const [sortBy, setSortBy] = useState<"credits" | "projected">("credits");
   const matchPlayers = trpc.player.getByMatch.useQuery({ matchId: matchId! }, { enabled: !!matchId });
+  const navigateAfterCreate = () => {
+    if (contestId) {
+      router.replace(`/contest/${contestId}`);
+    } else if (matchId) {
+      router.replace(`/match/${matchId}`);
+    } else {
+      router.replace("/(tabs)");
+    }
+  };
   const createTeam = trpc.team.create.useMutation({
-    onSuccess: () => { Alert.alert(formatUIText("team created!"), formatUIText("your team has been created successfully."), [{ text: formatUIText("ok"), onPress: () => router.back() }]); },
-    onError: (error) => { Alert.alert(formatUIText("error"), error.message); },
+    onSuccess: () => {
+      if (Platform.OS === "web") {
+        setAlertType("success");
+        setAlertMessage(formatUIText("team created successfully!"));
+        setTimeout(navigateAfterCreate, 1500);
+      } else {
+        Alert.alert(formatUIText("team created!"), formatUIText("your team has been created successfully."), [{ text: formatUIText("ok"), onPress: navigateAfterCreate }]);
+      }
+    },
+    onError: (error) => { showAlert(formatUIText("error"), error.message); },
   });
+  // Cross-platform alert — Alert.alert is a no-op on web
+  function showAlert(title: string, message?: string, buttons?: Array<{ text: string; onPress?: () => void }>) {
+    if (Platform.OS === "web") {
+      setAlertType("error");
+      setAlertMessage(message ? `${title}: ${message}` : title);
+      setTimeout(() => setAlertMessage(null), 4000);
+      const onPress = buttons?.find((b) => b.onPress)?.onPress;
+      if (onPress) onPress();
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  }
+
   const creditsUsed = useMemo(() => selectedPlayers.reduce((sum, p) => sum + p.credits, 0), [selectedPlayers]);
   const creditsRemaining = MAX_BUDGET - creditsUsed;
   const roleCounts = useMemo(() => { const c: Record<string, number> = {}; for (const p of selectedPlayers) c[p.role] = (c[p.role] ?? 0) + 1; return c; }, [selectedPlayers]);
   const teamCounts = useMemo(() => { const c: Record<string, number> = {}; for (const p of selectedPlayers) c[p.team] = (c[p.team] ?? 0) + 1; return c; }, [selectedPlayers]);
+  const overseasRule = (matchPlayers.data as any)?.overseasRule as { enabled: boolean; hostCountry: string } | null;
   const playersByRole = useMemo(() => {
-    if (!matchPlayers.data) return {};
-    const grouped: Record<string, Array<{ id: string; name: string; team: string; role: string; credits: number; nationality: string }>> = {};
-    for (const ps of matchPlayers.data) { const player = ps.player; if (!player) continue; const role = player.role; if (!grouped[role]) grouped[role] = []; const credits = (player.stats as Record<string, unknown>)?.credits as number ?? 8.0; grouped[role].push({ id: player.id, name: player.name, team: player.team, role: player.role, credits, nationality: player.nationality ?? "India" }); }
+    const list = (matchPlayers.data as any)?.players ?? matchPlayers.data ?? [];
+    if (!Array.isArray(list) || list.length === 0) return {};
+    const grouped: Record<string, Array<{ id: string; name: string; team: string; role: string; credits: number; nationality: string; formNote: string | null }>> = {};
+    for (const ps of list) { const player = ps.player; if (!player) continue; const role = player.role; if (!grouped[role]) grouped[role] = []; const s = (player.stats as Record<string, unknown>) ?? {}; const credits = (s.adminCredits as number) ?? (s.calculatedCredits as number) ?? (s.geminiCredits as number) ?? (s.credits as number) ?? 8.0; const formNote = (s.formNote as string) ?? null; grouped[role].push({ id: player.id, name: player.name, team: player.team, role: player.role, credits, nationality: player.nationality ?? "", formNote }); }
     for (const role of Object.keys(grouped)) grouped[role]!.sort((a, b) => b.credits - a.credits);
     return grouped;
   }, [matchPlayers.data]);
+
+  // Projections query — needs match info from URL params
+  const projPlayerList = useMemo(() => {
+    const all = Object.values(playersByRole).flat();
+    return all.map((p) => ({ id: p.id, name: p.name, role: p.role, team: p.team }));
+  }, [playersByRole]);
+
+  const projectionsQuery = trpc.analytics.getPlayerProjections.useQuery(
+    {
+      matchId: matchId!,
+      teamA: teamA || "",
+      teamB: teamB || "",
+      format: format || "T20",
+      venue: venue || null,
+      tournament: tournament || "unknown",
+      players: projPlayerList,
+    },
+    { enabled: projPlayerList.length > 0 && !!teamA && !!teamB, staleTime: 60 * 60_000, retry: 1 },
+  );
+
+  const projectionsByPlayerId = useMemo(() => {
+    const map = new Map<string, { projectedPoints: number; confidenceLow: number; confidenceHigh: number; captainRank: number }>();
+    const players = projectionsQuery.data?.players;
+    if (!players || !Array.isArray(players)) return map;
+    for (const p of players) {
+      map.set(p.playerId, {
+        projectedPoints: Number(p.projectedPoints),
+        confidenceLow: Number(p.confidenceLow),
+        confidenceHigh: Number(p.confidenceHigh),
+        captainRank: p.captainRank,
+      });
+    }
+    return map;
+  }, [projectionsQuery.data]);
+
   const selectedIds = new Set(selectedPlayers.map((p) => p.playerId));
-  const currentRolePlayers = playersByRole[selectedTab] ?? [];
+  const currentRolePlayers = useMemo(() => {
+    const list = playersByRole[selectedTab] ?? [];
+    if (sortBy === "projected" && projectionsByPlayerId.size > 0) {
+      return [...list].sort((a, b) => {
+        const pA = projectionsByPlayerId.get(a.id)?.projectedPoints ?? 0;
+        const pB = projectionsByPlayerId.get(b.id)?.projectedPoints ?? 0;
+        return pB - pA;
+      });
+    }
+    return list;
+  }, [playersByRole, selectedTab, sortBy, projectionsByPlayerId]);
   const currentRoleLimit = ROLE_LIMITS[selectedTab];
   const canSelectMore = selectedPlayers.length < TEAM_SIZE;
 
   function togglePlayer(player: { id: string; name: string; team: string; role: string; credits: number }) {
     if (selectedIds.has(player.id)) { setSelectedPlayers((prev) => prev.filter((p) => p.playerId !== player.id)); if (captainId === player.id) setCaptainId(null); if (viceCaptainId === player.id) setViceCaptainId(null); return; }
-    if (!canSelectMore) { Alert.alert(formatUIText("team full"), formatUIText(`you've already selected ${TEAM_SIZE} players`)); return; }
-    const roleCount = roleCounts[player.role] ?? 0; const limit = ROLE_LIMITS[player.role]; if (limit && roleCount >= limit.max) { Alert.alert(formatUIText("role limit"), formatUIText(`max ${limit.max} ${limit.label} players allowed`)); return; }
-    if (player.credits > creditsRemaining) { Alert.alert(formatUIText("budget exceeded"), `${player.name} ${formatUIText("costs")} ${player.credits} ${formatUIText("credits, but you only have")} ${creditsRemaining.toFixed(1)} ${formatUIText("remaining")}`); return; }
-    const playerTeamCount = teamCounts[player.team] ?? 0; if (playerTeamCount >= 7) { Alert.alert(formatUIText("team limit"), formatUIText(`max 7 players from ${player.team}`)); return; }
+    if (!canSelectMore) { showAlert(formatUIText("team full"), formatUIText(`you've already selected ${TEAM_SIZE} players`)); return; }
+    const roleCount = roleCounts[player.role] ?? 0; const limit = ROLE_LIMITS[player.role]; if (limit && roleCount >= limit.max) { showAlert(formatUIText("role limit"), formatUIText(`max ${limit.max} ${limit.label} players allowed`)); return; }
+    if (player.credits > creditsRemaining) { showAlert(formatUIText("budget exceeded"), `${player.name} ${formatUIText("costs")} ${player.credits} ${formatUIText("credits, but you only have")} ${creditsRemaining.toFixed(1)} ${formatUIText("remaining")}`); return; }
+    const playerTeamCount = teamCounts[player.team] ?? 0; if (playerTeamCount >= 7) { showAlert(formatUIText("team limit"), formatUIText(`max 7 players from ${player.team}`)); return; }
     setSelectedPlayers((prev) => [...prev, { playerId: player.id, role: player.role, name: player.name, team: player.team, credits: player.credits }]);
   }
-  function handleContinue() { for (const [role, limits] of Object.entries(ROLE_LIMITS)) { const count = roleCounts[role] ?? 0; if (count < limits.min) { Alert.alert(formatUIText("missing roles"), formatUIText(`need at least ${limits.min} ${limits.label} player(s), have ${count}`)); return; } } setStep("captain"); }
-  function handleSubmit() { if (!captainId || !viceCaptainId) { Alert.alert(formatUIText("select captain & vc"), formatUIText("please select both captain and vice-captain")); return; } if (captainId === viceCaptainId) { Alert.alert(formatUIText("invalid"), formatUIText("captain and vice-captain must be different")); return; } createTeam.mutate({ contestId: contestId || "", players: selectedPlayers.map((p) => ({ playerId: p.playerId, role: p.role as "batsman" | "bowler" | "all_rounder" | "wicket_keeper" })), captainId, viceCaptainId }); }
+  function handleContinue() { for (const [role, limits] of Object.entries(ROLE_LIMITS)) { const count = roleCounts[role] ?? 0; if (count < limits.min) { showAlert(formatUIText("missing roles"), formatUIText(`need at least ${limits.min} ${limits.label} player(s), have ${count}`)); return; } } setStep("captain"); }
+  function handleSubmit() { if (!captainId || !viceCaptainId) { showAlert(formatUIText("select captain & vc"), formatUIText("please select both captain and vice-captain")); return; } if (captainId === viceCaptainId) { showAlert(formatUIText("invalid"), formatUIText("captain and vice-captain must be different")); return; } createTeam.mutate({ ...(contestId ? { contestId } : {}), matchId: matchId || undefined, players: selectedPlayers.map((p) => ({ playerId: p.playerId, role: p.role as "batsman" | "bowler" | "all_rounder" | "wicket_keeper" })), captainId, viceCaptainId }); }
 
   if (matchPlayers.isLoading) return (
     <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center" gap="$3">
       <EggLoadingSpinner size={48} message={formatUIText("loading players")} />
     </YStack>
   );
+
+  // Inline alert banner component for web
+  const AlertBanner = alertMessage ? (
+    <Animated.View entering={FadeInDown.springify()}>
+      <XStack backgroundColor={alertType === "success" ? "$accentBackground" : "$error"} paddingVertical="$2" paddingHorizontal="$4" marginHorizontal="$4" marginBottom="$2" borderRadius="$2" alignItems="center" gap="$2">
+        <Text fontFamily="$body" fontSize={12} fontWeight="600" color="white" flex={1}>{alertMessage}</Text>
+        <Text fontSize={12} color="white" onPress={() => setAlertMessage(null)} cursor="pointer">✕</Text>
+      </XStack>
+    </Animated.View>
+  ) : null;
 
   if (step === "captain") {
     return (
@@ -99,6 +198,8 @@ export default function TeamBuilderScreen() {
           <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
 
+        {AlertBanner}
+
         <YStack backgroundColor="$backgroundSurface" padding="$4">
           <Text fontFamily="$mono" fontWeight="500" fontSize={15} color="$color" letterSpacing={-0.5}>
             {formatUIText("select captain & vice-captain")}
@@ -117,7 +218,7 @@ export default function TeamBuilderScreen() {
                     <XStack alignItems="center" gap="$2" flex={1}>
                       <InitialsAvatar
                         name={player.name}
-                        playerRole={((player.role ?? "BAT").toUpperCase().replace("_", "").substring(0, 4)) as RoleKey}
+                        playerRole={(({ batsman: "BAT", bowler: "BOWL", all_rounder: "AR", wicket_keeper: "WK" } as Record<string, RoleKey>)[player.role] ?? "BAT")}
                         ovr={Math.round(player.credits * 10)}
                         size={32}
                       />
@@ -149,7 +250,7 @@ export default function TeamBuilderScreen() {
           <Button variant="secondary" size="md" flex={1} onPress={() => setStep("pick")}>
             {formatUIText("back")}
           </Button>
-          <Button variant="primary" size="lg" flex={2} disabled={!captainId || !viceCaptainId || createTeam.isPending} opacity={!captainId || !viceCaptainId ? 0.4 : 1} onPress={handleSubmit}>
+          <Button variant="primary" size="lg" flex={2} disabled={!captainId || !viceCaptainId || createTeam.isPending} opacity={!captainId || !viceCaptainId ? 0.4 : 1} onPress={handleSubmit} testID="create-team-btn">
             {createTeam.isPending ? formatUIText("creating...") : formatUIText("create team")}
           </Button>
         </XStack>
@@ -158,7 +259,7 @@ export default function TeamBuilderScreen() {
   }
 
   return (
-    <YStack flex={1} backgroundColor="$background">
+    <YStack flex={1} backgroundColor="$background" testID="team-builder-screen">
       {/* ── Inline Header ── */}
       <XStack
         justifyContent="space-between"
@@ -175,6 +276,8 @@ export default function TeamBuilderScreen() {
         </XStack>
         <ModeToggle mode={mode} onToggle={toggleMode} />
       </XStack>
+
+      {AlertBanner}
 
       {/* Stats Header */}
       <XStack backgroundColor="$backgroundSurface" padding="$4" justifyContent="space-between" alignItems="center">
@@ -219,17 +322,34 @@ export default function TeamBuilderScreen() {
         })}
       </XStack>
 
-      {currentRoleLimit && (
-        <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center" marginBottom="$2">
-          {formatUIText(`pick ${currentRoleLimit.min}-${currentRoleLimit.max} ${currentRoleLimit.label} players`)}
-        </Text>
-      )}
+      <XStack justifyContent="space-between" alignItems="center" paddingHorizontal="$4" marginBottom="$2">
+        {currentRoleLimit ? (
+          <Text fontFamily="$body" fontSize={12} color="$colorMuted">
+            {formatUIText(`pick ${currentRoleLimit.min}-${currentRoleLimit.max} ${currentRoleLimit.label} players`)}
+          </Text>
+        ) : <Text />}
+        {projectionsByPlayerId.size > 0 && (
+          <XStack gap="$1">
+            <FilterPill active={sortBy === "credits"} onPress={() => setSortBy("credits")}>
+              <Text fontFamily="$mono" fontSize={9} fontWeight="700" color={sortBy === "credits" ? "$background" : "$colorMuted"}>
+                {formatBadgeText("credits")}
+              </Text>
+            </FilterPill>
+            <FilterPill active={sortBy === "projected"} onPress={() => setSortBy("projected")}>
+              <Text fontFamily="$mono" fontSize={9} fontWeight="700" color={sortBy === "projected" ? "$background" : "$colorMuted"}>
+                {formatBadgeText("projected")}
+              </Text>
+            </FilterPill>
+          </XStack>
+        )}
+      </XStack>
 
       {/* Player List */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12 }}>
         {currentRolePlayers.length > 0 ? currentRolePlayers.map((player, i) => {
           const isSelected = selectedIds.has(player.id);
           const isDisabled = !isSelected && (selectedPlayers.length >= TEAM_SIZE || player.credits > creditsRemaining);
+          const proj = projectionsByPlayerId.get(player.id);
           return (
             <Animated.View key={player.id} entering={FadeInDown.delay(i * 25).springify()}>
               <Card
@@ -243,16 +363,36 @@ export default function TeamBuilderScreen() {
                 <XStack alignItems="center">
                   <InitialsAvatar
                     name={player.name}
-                    playerRole={((player.role ?? "BAT").toUpperCase().replace("_", "").substring(0, 4)) as RoleKey}
+                    playerRole={(({ batsman: "BAT", bowler: "BOWL", all_rounder: "AR", wicket_keeper: "WK" } as Record<string, RoleKey>)[player.role] ?? "BAT")}
                     ovr={Math.round(player.credits * 10)}
                     size={32}
                   />
                   <YStack flex={1} marginLeft="$2">
-                    <Text {...textStyles.playerName}>{player.name}</Text>
+                    <XStack alignItems="center" gap="$1">
+                      <Text {...textStyles.playerName}>{player.name}</Text>
+                      {proj && proj.captainRank <= 3 && (
+                        <Text fontSize={10} lineHeight={12}>👑</Text>
+                      )}
+                    </XStack>
                     <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
-                      {player.team}{player.nationality !== "India" ? ` · ${formatUIText("overseas")}` : ""}
+                      {player.team}{overseasRule?.enabled && player.nationality && player.nationality !== overseasRule.hostCountry ? ` · ${formatUIText("overseas")}` : ""}
                     </Text>
+                    {player.formNote && (
+                      <Text fontFamily="$body" fontSize={9} color="$accentBackground" opacity={0.6} marginTop={2} numberOfLines={3} lineHeight={12}>
+                        {player.formNote}
+                      </Text>
+                    )}
                   </YStack>
+                  {proj && (
+                    <YStack alignItems="center" marginRight="$2">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                        {proj.projectedPoints.toFixed(1)}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={8} color="$colorMuted">
+                        {formatUIText("pts")}
+                      </Text>
+                    </YStack>
+                  )}
                   <YStack alignItems="center" marginRight="$3">
                     <Text fontFamily="$mono" fontWeight="700" fontSize={16} color={isSelected ? "$accentBackground" : "$color"}>
                       {player.credits.toFixed(1)}
@@ -268,7 +408,7 @@ export default function TeamBuilderScreen() {
           );
         }) : (
           <Card padding="$8" alignItems="center">
-            <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$3">{DesignSystem.emptyState.icon}</Text>
+            <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
             <Text {...textStyles.hint} textAlign="center" lineHeight={20}>
               {formatUIText("players for this role will appear once seeded")}
             </Text>
@@ -278,7 +418,7 @@ export default function TeamBuilderScreen() {
 
       {/* Continue Button */}
       <YStack padding="$4">
-        <Button variant="primary" size="lg" disabled={selectedPlayers.length < TEAM_SIZE} opacity={selectedPlayers.length < TEAM_SIZE ? 0.4 : 1} onPress={handleContinue}>
+        <Button variant="primary" size="lg" disabled={selectedPlayers.length < TEAM_SIZE} opacity={selectedPlayers.length < TEAM_SIZE ? 0.4 : 1} onPress={handleContinue} testID="team-continue-btn">
           {selectedPlayers.length < TEAM_SIZE
             ? formatUIText(`select ${TEAM_SIZE - selectedPlayers.length} more players`)
             : formatUIText("select captain & vc")}

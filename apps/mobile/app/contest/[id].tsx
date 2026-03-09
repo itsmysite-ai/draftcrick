@@ -1,7 +1,7 @@
-import { ScrollView, RefreshControl } from "react-native";
+import { ScrollView, RefreshControl, Share as RNShare, Clipboard } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState, useCallback } from "react";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import { useState, useCallback, useEffect, useRef } from "react";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing, withDelay } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
@@ -18,41 +18,168 @@ import {
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  formatTeamName,
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
+import { useNavigationStore } from "../../lib/navigation-store";
 import { useTheme } from "../../providers/ThemeProvider";
+import { useAuth } from "../../providers/AuthProvider";
+
+// ── Countdown helper ─────────────────────────────────────────────
+function formatCountdownFull(targetDate: string | Date): string {
+  const target = typeof targetDate === "string" ? new Date(targetDate) : targetDate;
+  const diff = target.getTime() - Date.now();
+  if (diff <= 0) return "starting now";
+  const days = Math.floor(diff / 86_400_000);
+  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
+  const mins = Math.floor((diff % 3_600_000) / 60_000);
+  if (days > 0) return `${days}d ${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+// ── Confetti Particle ────────────────────────────────────────────
+function ConfettiParticle({ delay, color, startX }: { delay: number; color: string; startX: number }) {
+  const y = useSharedValue(-20);
+  const x = useSharedValue(startX);
+  const opacity = useSharedValue(1);
+  const rotate = useSharedValue(0);
+
+  useEffect(() => {
+    y.value = withDelay(delay, withTiming(400, { duration: 2000, easing: Easing.out(Easing.quad) }));
+    x.value = withDelay(delay, withTiming(startX + (Math.random() - 0.5) * 100, { duration: 2000 }));
+    opacity.value = withDelay(delay + 1200, withTiming(0, { duration: 800 }));
+    rotate.value = withDelay(delay, withRepeat(withTiming(360, { duration: 1000 }), 3, false));
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    position: "absolute" as const,
+    top: y.value,
+    left: x.value,
+    opacity: opacity.value,
+    transform: [{ rotate: `${rotate.value}deg` }],
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: color,
+  }));
+
+  return <Animated.View style={style} />;
+}
+
+const CONFETTI_COLORS = ["#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98FB98"];
 
 export default function ContestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
+  const [showTeam, setShowTeam] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [countdown, setCountdown] = useState("");
+  const celebrationShown = useRef(false);
+
   const contest = trpc.contest.getById.useQuery({ id: id! }, { enabled: !!id });
   const standings = trpc.contest.getStandings.useQuery({ contestId: id! }, { enabled: !!id });
-  const onRefresh = useCallback(async () => { setRefreshing(true); await Promise.all([contest.refetch(), standings.refetch()]); setRefreshing(false); }, [contest, standings]);
+  const myContests = trpc.contest.myContests.useQuery(undefined, { retry: false });
+  const myPosition = trpc.contest.myPosition.useQuery({ contestId: id! }, { enabled: !!id && !!user });
+  const myTeam = trpc.team.getByContest.useQuery({ contestId: id! }, { enabled: !!id && !!user });
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([contest.refetch(), standings.refetch(), myContests.refetch(), myPosition.refetch(), myTeam.refetch()]);
+    setRefreshing(false);
+  }, [contest, standings, myContests, myPosition, myTeam]);
+
+  const c = contest.data;
+  const match = c?.match;
+
+  // Countdown timer for pre-match (#3)
+  useEffect(() => {
+    if (!match?.startTime || c?.status !== "open") return;
+    const update = () => setCountdown(formatCountdownFull(match.startTime));
+    update();
+    const interval = setInterval(update, 30_000);
+    return () => clearInterval(interval);
+  }, [match?.startTime, c?.status]);
+
+  // Post-settlement celebration trigger (#7)
+  const isSettled = c?.status === "settled";
+  const prizeWon = (() => {
+    if (!isSettled || !myPosition?.data) return 0;
+    const dist = c?.prizeDistribution as Array<{ rank: number; amount: number }> | null;
+    if (!dist || !Array.isArray(dist)) return 0;
+    const entry = dist.find((p) => p.rank === myPosition.data!.rank);
+    return entry?.amount ?? 0;
+  })();
+
+  useEffect(() => {
+    if (isSettled && prizeWon > 0 && !celebrationShown.current) {
+      celebrationShown.current = true;
+      setShowCelebration(true);
+      setTimeout(() => setShowCelebration(false), 8000);
+    }
+  }, [isSettled, prizeWon]);
 
   if (contest.isLoading) return (
     <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center">
       <EggLoadingSpinner size={48} message={formatUIText("loading contest")} />
     </YStack>
   );
-  const c = contest.data;
   if (!c) return (
     <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center">
-      <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$4">{DesignSystem.emptyState.icon}</Text>
+      <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
       <Text {...textStyles.hint}>{formatUIText("contest not found")}</Text>
     </YStack>
   );
 
-  const match = c.match;
   const isOpen = c.status === "open";
   const isLive = c.status === "live";
+  const isSettling = c.status === "settling";
+  const hasJoined = (myContests.data ?? []).some((mc: any) => mc.contestId === id || mc.contest?.id === id);
+  const currentUserId = (user as any)?.id ?? null;
+  const isH2H = c.maxEntries === 2 || c.contestType === "h2h";
+  const standingsData = standings.data ?? [];
+
+  // Score breakdown data (#2)
+  const teamPlayers = myTeam.data?.playerDetails ?? [];
+  const captain = teamPlayers.find((p: any) => p.isCaptain);
+  const viceCaptain = teamPlayers.find((p: any) => p.isViceCaptain);
+  const basePoints = teamPlayers.reduce((sum: number, p: any) => sum + (p.fantasyPoints ?? 0), 0);
+  const captainBonus = captain ? (captain.fantasyPoints ?? 0) : 0; // extra 1x
+  const vcBonus = viceCaptain ? (viceCaptain.fantasyPoints ?? 0) * 0.5 : 0; // extra 0.5x
+  const hasScores = (isLive || isSettled) && basePoints > 0;
+
+  const shareResult = () => {
+    const text = `I finished #${myPosition.data?.rank} in "${c.name}" on DraftPlay${prizeWon > 0 ? ` and won ${prizeWon} PC!` : "!"}`;
+    try {
+      RNShare.share({ message: text });
+    } catch {
+      // Clipboard fallback
+    }
+  };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />}>
-      {/* ── Inline Header ── */}
+    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />} testID="contest-detail-screen">
+      {/* Confetti overlay (#7) */}
+      {showCelebration && (
+        <YStack position="absolute" top={0} left={0} right={0} height={500} zIndex={100} pointerEvents="none">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <ConfettiParticle
+              key={i}
+              delay={i * 80}
+              color={CONFETTI_COLORS[i % CONFETTI_COLORS.length]!}
+              startX={30 + (i * 13) % 300}
+            />
+          ))}
+        </YStack>
+      )}
+
+      {/* Header */}
       <XStack
         justifyContent="space-between"
         alignItems="center"
@@ -72,36 +199,264 @@ export default function ContestDetailScreen() {
       {/* Contest Header */}
       <YStack padding="$5">
         <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
-          <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} flex={1}>
+          <Text testID="contest-name" fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} flex={1}>
             {c.name}
           </Text>
-          <Badge variant={isLive ? "live" : "role"} size="sm">
+          <Badge testID="contest-status-badge" variant={isLive ? "live" : "role"} size="sm">
             {formatBadgeText(c.status ?? "open")}
           </Badge>
         </XStack>
         {match && (
-          <XStack justifyContent="space-between" alignItems="center">
-            <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
-              {match.teamHome} {formatUIText("vs")} {match.teamAway}
-            </Text>
-            <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$accentBackground">
-              {match.tournament ?? formatUIText("cricket")}
-            </Text>
-          </XStack>
+          <YStack gap="$1">
+            <XStack justifyContent="space-between" alignItems="center">
+              <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+                {formatTeamName(match.teamHome)} {formatUIText("vs")} {formatTeamName(match.teamAway)}
+              </Text>
+              <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$accentBackground">
+                {match.tournament ?? formatUIText("cricket")}
+              </Text>
+            </XStack>
+            {match.result && (
+              <Text fontFamily="$body" fontWeight="700" fontSize={11} color="$accentBackground">
+                {match.result}
+              </Text>
+            )}
+            {match.tossWinner && (
+              <XStack alignItems="center" gap={8} marginTop={4} alignSelf="flex-start">
+                <Text fontFamily="$mono" fontSize={9} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
+                  toss
+                </Text>
+                <YStack width={3} height={3} borderRadius={1.5} backgroundColor="$colorMuted" opacity={0.5} />
+                <Text fontFamily="$body" fontSize={11} fontWeight="600" color="$color">
+                  {match.tossWinner}
+                </Text>
+                <Text fontFamily="$mono" fontSize={10} fontWeight="500" color="$colorAccent">
+                  elected to {match.tossDecision}
+                </Text>
+              </XStack>
+            )}
+          </YStack>
         )}
       </YStack>
 
-      <AnnouncementBanner />
+      {/* Pre-Match Countdown (#3) — only show when match is truly upcoming */}
+      {isOpen && match?.status !== "completed" && match?.status !== "live" && match?.startTime && countdown && (
+        <Animated.View entering={FadeInDown.delay(0).springify()}>
+          <Card marginHorizontal="$4" marginBottom="$4" padding="$4" borderColor="$colorAccentLight" borderWidth={1}>
+            <XStack justifyContent="space-between" alignItems="center">
+              <YStack>
+                <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
+                  {formatBadgeText("match starts in")}
+                </Text>
+                <Text fontFamily="$mono" fontWeight="800" fontSize={24} color="$accentBackground" marginTop={2}>
+                  {countdown}
+                </Text>
+              </YStack>
+              {hasJoined && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id }); router.push("/team/create"); } }}
+                >
+                  {formatUIText("edit team")}
+                </Button>
+              )}
+            </XStack>
+          </Card>
+        </Animated.View>
+      )}
+
+      <AnnouncementBanner context={
+        isOpen && match?.startTime ? { matchInfo: `${formatTeamName(match.teamHome)} vs ${formatTeamName(match.teamAway)} — ${countdown}` } :
+        isLive ? { matchInfo: `${formatTeamName(match?.teamHome ?? "")} vs ${formatTeamName(match?.teamAway ?? "")} is live!` } :
+        undefined
+      } />
+
+      {/* Post-Settlement Celebration Banner (#7) */}
+      {isSettled && hasJoined && prizeWon > 0 && (
+        <Animated.View entering={FadeInDown.delay(0).springify()}>
+          <Card marginHorizontal="$4" marginBottom="$4" padding="$5" borderColor="$colorCricket" borderWidth={2} alignItems="center">
+            <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$colorCricket" marginBottom="$1">
+              {formatUIText("you won!")}
+            </Text>
+            <Text fontFamily="$mono" fontWeight="700" fontSize={28} color="$accentBackground" marginBottom="$2">
+              {prizeWon.toLocaleString()} PC
+            </Text>
+            <Text fontFamily="$mono" fontSize={11} color="$colorMuted" marginBottom="$3">
+              #{myPosition.data?.rank} of {myPosition.data?.totalEntries}
+            </Text>
+            <Button variant="secondary" size="sm" onPress={shareResult}>
+              {formatUIText("share result")}
+            </Button>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* User Result Card — shown when user has joined */}
+      {hasJoined && myPosition.data && (
+        <Animated.View entering={FadeInDown.delay(0).springify()}>
+          <Card
+            marginHorizontal="$4"
+            marginBottom="$4"
+            padding="$4"
+            borderWidth={2}
+            borderColor="$accentBackground"
+            testID="user-result-card"
+          >
+            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5} marginBottom="$2">
+              {formatBadgeText("your result")}
+            </Text>
+            <XStack justifyContent="space-between" alignItems="center">
+              <YStack gap={2}>
+                <XStack alignItems="baseline" gap="$2">
+                  <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$accentBackground">
+                    #{myPosition.data.rank}
+                  </Text>
+                  {/* Percentile badge (#1) */}
+                  <Badge variant="role" size="sm">
+                    {formatBadgeText(`top ${myPosition.data.percentile.toFixed(0)}%`)}
+                  </Badge>
+                </XStack>
+                <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                  of {myPosition.data.totalEntries} entries
+                </Text>
+              </YStack>
+              <YStack alignItems="flex-end" gap={2}>
+                <Text fontFamily="$mono" fontWeight="700" fontSize={20} color="$color">
+                  {myTeam.data ? myTeam.data.totalPoints.toFixed(1) : "—"} {formatUIText("pts")}
+                </Text>
+                {isSettled && prizeWon > 0 && (
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorCricket">
+                    won {prizeWon.toLocaleString()} PC
+                  </Text>
+                )}
+              </YStack>
+            </XStack>
+
+            {/* View Team toggle */}
+            <Button
+              variant="secondary"
+              size="sm"
+              marginTop="$3"
+              onPress={() => setShowTeam(!showTeam)}
+              testID="view-team-btn"
+            >
+              {formatUIText(showTeam ? "hide team" : "view your team")}
+            </Button>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* Score Breakdown — Captain/VC Impact (#2) */}
+      {hasScores && hasJoined && captain && (
+        <Animated.View entering={FadeInDown.delay(50).springify()}>
+          <Card marginHorizontal="$4" marginBottom="$4" padding="$4">
+            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5} marginBottom="$3">
+              {formatBadgeText("captain/vc impact")}
+            </Text>
+            <XStack justifyContent="space-between" marginBottom="$2">
+              <XStack alignItems="center" gap="$2">
+                <Badge variant="live" size="sm">C</Badge>
+                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                  {captain.name}
+                </Text>
+              </XStack>
+              <YStack alignItems="flex-end">
+                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                  {((captain.fantasyPoints ?? 0) * 2).toFixed(1)} pts
+                </Text>
+                <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                  +{(captain.fantasyPoints ?? 0).toFixed(1)} bonus (2x)
+                </Text>
+              </YStack>
+            </XStack>
+            {viceCaptain && (
+              <XStack justifyContent="space-between" marginBottom="$2">
+                <XStack alignItems="center" gap="$2">
+                  <Badge variant="role" size="sm">VC</Badge>
+                  <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                    {viceCaptain.name}
+                  </Text>
+                </XStack>
+                <YStack alignItems="flex-end">
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                    {((viceCaptain.fantasyPoints ?? 0) * 1.5).toFixed(1)} pts
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                    +{vcBonus.toFixed(1)} bonus (1.5x)
+                  </Text>
+                </YStack>
+              </XStack>
+            )}
+            <XStack borderTopWidth={1} borderTopColor="$borderColor" paddingTop="$2" justifyContent="space-between">
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("base points")}</Text>
+              <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$color">{basePoints.toFixed(1)}</Text>
+            </XStack>
+            <XStack justifyContent="space-between" marginTop={2}>
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("c/vc bonus")}</Text>
+              <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$accentBackground">+{(captainBonus + vcBonus).toFixed(1)}</Text>
+            </XStack>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* Team View — expandable */}
+      {showTeam && myTeam.data && (
+        <Animated.View entering={FadeInDown.delay(0).springify()}>
+          <YStack paddingHorizontal="$4" marginBottom="$4">
+            {/* Pre-match team preview (#3) — show player grid */}
+            {teamPlayers.map((p: any, i: number) => {
+              const multiplier = p.isCaptain ? "2x" : p.isViceCaptain ? "1.5x" : "";
+              return (
+                <Card key={p.id || i} marginBottom="$1" padding="$3">
+                  <XStack alignItems="center">
+                    <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={hasScores ? (p.fantasyPoints ?? 0).toFixed(0) : 0} size={28} hideBadge={!hasScores} />
+                    <YStack flex={1} marginLeft="$2">
+                      <XStack alignItems="center" gap="$1">
+                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        {p.isCaptain && (
+                          <Badge variant="live" size="sm">C</Badge>
+                        )}
+                        {p.isViceCaptain && (
+                          <Badge variant="role" size="sm">VC</Badge>
+                        )}
+                      </XStack>
+                      <XStack alignItems="center" gap="$1">
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                          {p.team}
+                        </Text>
+                        <Badge variant="default" size="sm">{formatBadgeText(p.role)}</Badge>
+                      </XStack>
+                    </YStack>
+                    <YStack alignItems="flex-end">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                        {(p.contribution ?? p.fantasyPoints ?? 0).toFixed(1)}
+                      </Text>
+                      {multiplier ? (
+                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                          {(p.fantasyPoints ?? 0).toFixed(1)} {multiplier}
+                        </Text>
+                      ) : null}
+                    </YStack>
+                  </XStack>
+                </Card>
+              );
+            })}
+          </YStack>
+        </Animated.View>
+      )}
 
       {/* Stats Grid */}
       <XStack flexWrap="wrap" padding="$4" gap="$3">
         {[
-          { label: formatUIText("prize pool"), value: `\u20B9${c.prizePool}` },
-          { label: formatUIText("entry fee"), value: c.entryFee === 0 ? formatBadgeText("free") : `\u20B9${c.entryFee}` },
-          { label: formatUIText("spots"), value: `${c.currentEntries}/${c.maxEntries}` },
-          { label: formatUIText("type"), value: formatBadgeText(c.contestType ?? "") },
+          { label: formatUIText("prize pool"), value: `${c.prizePool.toLocaleString()} PC`, tid: "contest-prize-pool" },
+          { label: formatUIText("entry fee"), value: c.entryFee === 0 ? formatBadgeText("free") : `${c.entryFee} PC`, tid: "contest-entry-fee" },
+          { label: formatUIText("spots"), value: `${c.currentEntries}/${c.maxEntries}`, tid: "contest-spots" },
+          { label: formatUIText("type"), value: formatBadgeText(c.contestType ?? ""), tid: "contest-type" },
         ].map((item) => (
-          <Card key={item.label} flex={1} minWidth="45%" padding="$3">
+          <Card key={item.label} testID={item.tid} flex={1} minWidth="45%" padding="$3">
             <Text {...textStyles.hint}>{item.label}</Text>
             <Text fontFamily="$mono" fontWeight="700" fontSize={18} color="$color" marginTop="$1">
               {item.value}
@@ -116,21 +471,55 @@ export default function ContestDetailScreen() {
           <YStack height={6} backgroundColor="$accentBackground" borderRadius={3} width={`${Math.min(100, (c.currentEntries / c.maxEntries) * 100)}%` as any} />
         </YStack>
         <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$1" textAlign="center">
-          {c.maxEntries - c.currentEntries} {formatUIText("spots left")}
+          {isSettled
+            ? `${c.currentEntries} ${formatUIText("entries")}`
+            : `${c.maxEntries - c.currentEntries} ${formatUIText("spots left")}`}
         </Text>
       </YStack>
 
-      {/* Join Button */}
-      {isOpen && (
-        <YStack paddingHorizontal="$4" marginBottom="$4">
-          <Button variant="primary" size="lg" onPress={() => { if (match) router.push(`/team/create?matchId=${match.id}&contestId=${c.id}`); }}>
-            {c.entryFee === 0 ? formatUIText("join free") : `${formatUIText("join")} \u20B9${c.entryFee}`}
-          </Button>
-        </YStack>
-      )}
+      {/* Status-Aware Action Section */}
+      <YStack paddingHorizontal="$4" marginBottom="$4">
+        {isOpen && match?.status !== "completed" && match?.status !== "live" && (
+          hasJoined ? (
+            <Button variant="secondary" size="lg" testID="join-contest-btn" disabled opacity={0.7}>
+              {formatUIText("joined")} {"\u2713"}
+            </Button>
+          ) : (
+            <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id }); router.push("/team/create"); } }} testID="join-contest-btn">
+              {c.entryFee === 0 ? formatUIText("join free") : `${formatUIText("join")} ${c.entryFee} PC`}
+            </Button>
+          )
+        )}
+        {isLive && (
+          <Card padding="$3" alignItems="center" borderColor="$colorAccent" borderWidth={1}>
+            <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorAccent">
+              {formatUIText("match in progress")}
+            </Text>
+          </Card>
+        )}
+        {isSettling && (
+          <Card padding="$3" alignItems="center">
+            <EggLoadingSpinner size={20} message={formatUIText("results being calculated...")} />
+          </Card>
+        )}
+        {isSettled && (
+          <Card padding="$3" alignItems="center" borderColor="$colorCricket" borderWidth={1}>
+            <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorCricket">
+              {formatUIText("match completed · results final")}
+            </Text>
+          </Card>
+        )}
+        {(match?.status === "completed" && !isSettled && !isSettling && !isLive) && (
+          <Card padding="$3" alignItems="center" borderColor="$colorAccent" borderWidth={1}>
+            <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorAccent">
+              {formatUIText("match completed")}
+            </Text>
+          </Card>
+        )}
+      </YStack>
 
       {/* Prize Distribution */}
-      {c.prizeDistribution && Array.isArray(c.prizeDistribution) && (c.prizeDistribution as Array<{ rank: number; amount: number }>).length > 0 && (
+      {c.prizePool > 0 && c.prizeDistribution && Array.isArray(c.prizeDistribution) && (c.prizeDistribution as Array<{ rank: number; amount: number }>).length > 0 && (
         <YStack paddingHorizontal="$4" marginBottom="$6">
           <Text {...textStyles.sectionHeader} marginBottom="$3">
             {formatUIText("prize distribution")}
@@ -142,7 +531,7 @@ export default function ContestDetailScreen() {
                   #{prize.rank}
                 </Text>
                 <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
-                  {"\u20B9"}{prize.amount}
+                  {prize.amount.toLocaleString()} PC
                 </Text>
               </XStack>
             </Card>
@@ -150,48 +539,148 @@ export default function ContestDetailScreen() {
         </YStack>
       )}
 
-      {/* Leaderboard */}
-      <YStack paddingHorizontal="$4" marginBottom="$6">
-        <Text {...textStyles.sectionHeader} marginBottom="$3">
-          {formatUIText("leaderboard")}
-        </Text>
-        {standings.isLoading ? (
-          <EggLoadingSpinner size={32} message={formatUIText("loading standings")} />
-        ) : standings.data && standings.data.length > 0 ? (
-          standings.data.map((entry: { rank: number; userId: string; totalPoints: number }, i: number) => (
-            <Animated.View key={entry.userId} entering={FadeInDown.delay(i * 30).springify()}>
-              <Card marginBottom="$1" padding="$3" borderColor={i < 3 ? "$colorCricketLight" : "$borderColor"}>
-                <XStack alignItems="center">
-                  <YStack width={36} alignItems="center">
-                    <Text fontFamily="$mono" fontWeight="800" fontSize={14} color={i === 0 ? "$colorCricket" : i === 1 ? "$colorSecondary" : i === 2 ? "$colorHatch" : "$color"}>
-                      #{entry.rank}
-                    </Text>
+      {/* H2H Visual Duel (#5) — replaces standard leaderboard for 2-player contests */}
+      {isH2H && standingsData.length === 2 ? (
+        <YStack paddingHorizontal="$4" marginBottom="$6">
+          <Text {...textStyles.sectionHeader} marginBottom="$3">
+            {formatUIText("head to head")}
+          </Text>
+          <Animated.View entering={FadeInDown.delay(0).springify()}>
+            <Card padding="$4">
+              {/* Side-by-side duel */}
+              <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
+                {standingsData.map((entry: any, idx: number) => {
+                  const name = entry.displayName || entry.username || `Player ${entry.rank}`;
+                  const isMe = currentUserId && entry.userId === currentUserId;
+                  const isWinner = isSettled && entry.rank === 1;
+                  return (
+                    <YStack key={entry.userId} flex={1} alignItems="center" gap={4}>
+                      <InitialsAvatar name={name} playerRole="BAT" ovr={0} size={42} hideBadge />
+                      <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1} textAlign="center">
+                        {name}
+                      </Text>
+                      {isMe && <Badge variant="live" size="sm">{formatBadgeText("you")}</Badge>}
+                      <Text fontFamily="$mono" fontWeight="800" fontSize={22} color={isWinner ? "$colorCricket" : "$color"} marginTop="$1">
+                        {entry.totalPoints.toFixed(1)}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{formatUIText("pts")}</Text>
+                      {isWinner && (
+                        <Badge variant="live" size="sm">{formatBadgeText("winner")}</Badge>
+                      )}
+                    </YStack>
+                  );
+                })}
+              </XStack>
+
+              {/* Comparison bar */}
+              {(() => {
+                const totalPts = standingsData[0].totalPoints + standingsData[1].totalPoints;
+                const pct1 = totalPts > 0 ? (standingsData[0].totalPoints / totalPts) * 100 : 50;
+                return (
+                  <YStack>
+                    <XStack height={8} borderRadius={4} overflow="hidden" backgroundColor="$borderColor">
+                      <YStack height={8} backgroundColor="$accentBackground" borderRadius={4} width={`${pct1}%` as any} />
+                      <YStack flex={1} height={8} backgroundColor="$colorCricket" />
+                    </XStack>
+                    <XStack justifyContent="space-between" marginTop={4}>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{pct1.toFixed(0)}%</Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{(100 - pct1).toFixed(0)}%</Text>
+                    </XStack>
                   </YStack>
-                  <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
-                    <InitialsAvatar
-                      name={`Player ${entry.userId.slice(0, 4)}`}
-                      playerRole="BAT"
-                      ovr={0}
-                      size={28}
-                    />
-                    <Text {...textStyles.playerName}>
-                      {formatUIText("player")} {entry.userId.slice(0, 8)}
-                    </Text>
-                  </XStack>
-                  <StatLabel label={formatUIText("pts")} value={entry.totalPoints.toFixed(1)} />
-                </XStack>
-              </Card>
-            </Animated.View>
-          ))
-        ) : (
-          <Card padding="$6" alignItems="center">
-            <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$3">{DesignSystem.emptyState.icon}</Text>
-            <Text {...textStyles.hint} textAlign="center">
-              {isOpen ? formatUIText("leaderboard will appear once the match starts") : formatUIText("no entries yet")}
+                );
+              })()}
+            </Card>
+          </Animated.View>
+        </YStack>
+      ) : (
+        /* Standard Leaderboard with enhanced "YOU" row (#1) */
+        <YStack paddingHorizontal="$4" marginBottom="$6">
+          <Text {...textStyles.sectionHeader} marginBottom="$3">
+            {formatUIText("leaderboard")}
+          </Text>
+          {standings.isLoading ? (
+            <EggLoadingSpinner size={32} message={formatUIText("loading standings")} />
+          ) : standingsData.length > 0 ? (
+            standingsData.map((entry: { rank: number; userId: string; totalPoints: number; displayName?: string; username?: string }, i: number) => {
+              const displayName = entry.displayName || entry.username || `Player ${entry.rank}`;
+              const isCurrentUser = currentUserId && entry.userId === currentUserId;
+              return (
+                <Animated.View key={entry.userId} entering={FadeInDown.delay(i * 30).springify()}>
+                  <Card
+                    testID={`contest-leaderboard-entry-${entry.rank}`}
+                    marginBottom="$1"
+                    padding="$3"
+                    borderColor={isCurrentUser ? "$accentBackground" : i < 3 ? "$colorCricketLight" : "$borderColor"}
+                    borderWidth={isCurrentUser ? 2 : 1}
+                    backgroundColor={isCurrentUser ? "$backgroundSurfaceAlt" : undefined}
+                  >
+                    <XStack alignItems="center">
+                      <YStack width={36} alignItems="center">
+                        <Text fontFamily="$mono" fontWeight="800" fontSize={isCurrentUser ? 16 : 14} color={i === 0 ? "$colorCricket" : i === 1 ? "$colorSecondary" : i === 2 ? "$colorHatch" : "$color"}>
+                          #{entry.rank}
+                        </Text>
+                      </YStack>
+                      <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
+                        <InitialsAvatar
+                          name={displayName}
+                          playerRole="BAT"
+                          ovr={`#${entry.rank}`}
+                          size={28}
+                        />
+                        <YStack flex={1}>
+                          <Text {...textStyles.playerName} fontWeight={isCurrentUser ? "700" : "600"}>
+                            {displayName}
+                          </Text>
+                          {/* Enhanced YOU badge with percentile (#1) */}
+                          {isCurrentUser && myPosition.data && (
+                            <XStack gap="$1" marginTop={1}>
+                              <Badge variant="live" size="sm">{formatBadgeText("you")}</Badge>
+                              <Badge variant="role" size="sm">{formatBadgeText(`top ${myPosition.data.percentile.toFixed(0)}%`)}</Badge>
+                            </XStack>
+                          )}
+                        </YStack>
+                      </XStack>
+                      <StatLabel label={formatUIText("pts")} value={entry.totalPoints.toFixed(1)} />
+                    </XStack>
+                  </Card>
+                </Animated.View>
+              );
+            })
+          ) : (
+            <Card padding="$6" alignItems="center">
+              <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
+              <Text {...textStyles.hint} textAlign="center">
+                {isOpen ? formatUIText("leaderboard will appear once the match starts") : formatUIText("no entries yet")}
+              </Text>
+            </Card>
+          )}
+        </YStack>
+      )}
+
+      {/* Pre-match team lineup preview (#3) — compact grid when no team view expanded */}
+      {isOpen && hasJoined && !showTeam && teamPlayers.length > 0 && (
+        <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <YStack paddingHorizontal="$4" marginBottom="$6">
+            <Text {...textStyles.sectionHeader} marginBottom="$3">
+              {formatUIText("your team")}
             </Text>
-          </Card>
-        )}
-      </YStack>
+            <Card padding="$3">
+              <XStack flexWrap="wrap" gap="$2">
+                {teamPlayers.map((p: any, i: number) => (
+                  <XStack key={p.id || i} alignItems="center" gap={4} minWidth="45%" paddingVertical={2}>
+                    <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={0} size={22} hideBadge />
+                    <Text fontFamily="$body" fontSize={11} color="$color" numberOfLines={1} flex={1}>
+                      {p.name}
+                    </Text>
+                    {p.isCaptain && <Badge variant="live" size="sm">C</Badge>}
+                    {p.isViceCaptain && <Badge variant="role" size="sm">VC</Badge>}
+                  </XStack>
+                ))}
+              </XStack>
+            </Card>
+          </YStack>
+        </Animated.View>
+      )}
     </ScrollView>
   );
 }

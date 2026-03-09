@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
-import { eq, desc, asc, and, gte, lte } from "drizzle-orm";
-import { matches } from "@draftcrick/db";
+import { eq, desc, asc, and, or, gte, lte } from "drizzle-orm";
+import { matches } from "@draftplay/db";
 
 export const matchRouter = router({
   /**
@@ -66,12 +66,20 @@ export const matchRouter = router({
     }),
 
   /**
-   * Get live matches
+   * Get live + upcoming + recently completed matches
    */
   live: publicProcedure.query(async ({ ctx }) => {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const result = await ctx.db.query.matches.findMany({
-      where: eq(matches.status, "live"),
-      orderBy: [asc(matches.startTime)],
+      where: or(
+        eq(matches.status, "live"),
+        eq(matches.status, "upcoming"),
+        and(
+          eq(matches.status, "completed"),
+          gte(matches.startTime, oneDayAgo),
+        ),
+      ),
+      orderBy: [desc(matches.status), asc(matches.startTime)],
     });
     return result;
   }),

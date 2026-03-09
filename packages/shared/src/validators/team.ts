@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const createTeamSchema = z.object({
-  contestId: z.string().uuid(),
+  contestId: z.string().uuid().optional(),
+  matchId: z.string().optional(),
   players: z
     .array(
       z.object({

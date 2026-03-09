@@ -1,5 +1,5 @@
 {
-  "extends": "@draftcrick/tsconfig/react-native.json",
+  "extends": "@draftplay/tsconfig/react-native.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./*"]

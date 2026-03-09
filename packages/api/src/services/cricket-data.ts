@@ -1,5 +1,5 @@
-import type { Database } from "@draftcrick/db";
-import { matches, players, playerMatchScores, playerStatuses } from "@draftcrick/db";
+import type { Database } from "@draftplay/db";
+import { matches, players, playerMatchScores, playerStatuses, contests, leagues, users } from "@draftplay/db";
 
 /**
  * Cricket data service — ingests match/player data.
@@ -163,23 +163,35 @@ export async function seedCricketData(db: Database) {
   }
   console.log(`  Seeded ${seededMatches.length} matches`);
 
-  // Seed player-match associations for the first match (CSK vs MI)
-  if (seededMatches.length > 0 && seededPlayers.length > 0) {
-    const firstMatch = seededMatches[0]!;
-    const matchPlayers = seededPlayers.filter(
+  // Seed player-match associations for first match
+  // Use newly seeded match or find existing CSK vs MI match
+  const allDbPlayers = seededPlayers.length > 0 ? seededPlayers : await db.query.players.findMany();
+  let targetMatch = seededMatches[0];
+  if (!targetMatch) {
+    // Find existing CSK vs MI match
+    const existingMatch = await db.query.matches.findFirst({
+      where: (m, { and, eq }) => and(eq(m.teamHome, "CSK"), eq(m.teamAway, "MI")),
+    });
+    targetMatch = existingMatch ?? undefined;
+  }
+  if (targetMatch && allDbPlayers.length > 0) {
+    const matchPlayers = allDbPlayers.filter(
       (p) => p.team === "CSK" || p.team === "MI"
     );
+    let linkedCount = 0;
     for (const player of matchPlayers) {
-      await db
+      const [inserted] = await db
         .insert(playerMatchScores)
         .values({
           playerId: player.id,
-          matchId: firstMatch.id,
+          matchId: targetMatch.id,
           isPlaying: true,
         })
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning();
+      if (inserted) linkedCount++;
     }
-    console.log(`  Linked ${matchPlayers.length} players to first match`);
+    console.log(`  Linked ${linkedCount} players to match ${targetMatch.id.substring(0, 8)} (${matchPlayers.length} total)`);
   }
 
   // Seed World Cup 2026 matches (draft-enabled)
@@ -209,7 +221,6 @@ export async function seedCricketData(db: Database) {
         startTime,
         status: "upcoming",
         draftEnabled: true,
-        tournamentId: "wc-2026",
       })
       .onConflictDoNothing({ target: matches.externalId })
       .returning();
@@ -217,11 +228,10 @@ export async function seedCricketData(db: Database) {
   }
   console.log(`  Seeded ${seededWcMatches.length} World Cup 2026 matches (draft-enabled)`);
 
-  // Seed player_statuses for all players (set to 'available')
-  const allPlayers = await db.query.players.findMany();
+  // Seed player_statuses for seed players only (not all DB players — too slow)
   let statusCount = 0;
-  for (const player of allPlayers) {
-    // Set available for IPL 2026
+  const statusPlayers = seededPlayers.length > 0 ? seededPlayers : [];
+  for (const player of statusPlayers) {
     await db
       .insert(playerStatuses)
       .values({
@@ -230,8 +240,6 @@ export async function seedCricketData(db: Database) {
         status: "available",
       })
       .onConflictDoNothing();
-
-    // Set available for World Cup 2026
     await db
       .insert(playerStatuses)
       .values({
@@ -240,10 +248,80 @@ export async function seedCricketData(db: Database) {
         status: "available",
       })
       .onConflictDoNothing();
-
     statusCount++;
   }
   console.log(`  Seeded player_statuses for ${statusCount} players (2 tournaments each)`);
+
+  // Seed a test user for league ownership
+  const [testUser] = await db
+    .insert(users)
+    .values({
+      firebaseUid: "seed-test-user",
+      email: "test@draftplay.dev",
+      username: "test_player",
+      displayName: "Test Player",
+      role: "user",
+    })
+    .onConflictDoNothing({ target: users.firebaseUid })
+    .returning();
+  const testUserId = testUser?.id ?? (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.firebaseUid, "seed-test-user") }))?.id;
+  console.log(`  Test user: ${testUserId ? "ready" : "missing"}`);
+
+  // Seed contests for the first seeded match (CSK vs MI)
+  let contestCount = 0;
+  if (seededMatches.length > 0) {
+    const firstMatchId = seededMatches[0]!.id;
+    const contestDefs = [
+      { name: "Mega Contest — 10L Prize Pool", entryFee: "49", prizePool: "1000000", maxEntries: 100000, contestType: "public", isGuaranteed: true },
+      { name: "Head to Head", entryFee: "100", prizePool: "180", maxEntries: 2, contestType: "h2h", isGuaranteed: false },
+      { name: "Winner Takes All", entryFee: "500", prizePool: "9000", maxEntries: 20, contestType: "public", isGuaranteed: false },
+      { name: "Free Practice Contest", entryFee: "0", prizePool: "0", maxEntries: 1000, contestType: "public", isGuaranteed: true },
+    ];
+    for (const c of contestDefs) {
+      const [contest] = await db
+        .insert(contests)
+        .values({
+          matchId: firstMatchId,
+          name: c.name,
+          entryFee: c.entryFee,
+          prizePool: c.prizePool,
+          maxEntries: c.maxEntries,
+          currentEntries: Math.floor(Math.random() * Math.min(c.maxEntries, 50)),
+          contestType: c.contestType,
+          isGuaranteed: c.isGuaranteed,
+          status: "open",
+          prizeDistribution: [{ rank: 1, amount: Number(c.prizePool) * 0.5 }, { rank: 2, amount: Number(c.prizePool) * 0.3 }, { rank: 3, amount: Number(c.prizePool) * 0.2 }],
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (contest) contestCount++;
+    }
+  }
+  console.log(`  Seeded ${contestCount} contests`);
+
+  // Seed a league
+  let leagueCount = 0;
+  if (testUserId) {
+    const [league] = await db
+      .insert(leagues)
+      .values({
+        name: "DraftPlay Champions League",
+        ownerId: testUserId,
+        format: "salary_cap",
+        sport: "cricket",
+        tournament: "IPL 2026",
+        season: "2026",
+        isPrivate: false,
+        inviteCode: "CRICK2026",
+        maxMembers: 10,
+        template: "competitive",
+        rules: { tradeDeadline: true, waiverWire: true, playoffs: true },
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (league) leagueCount++;
+  }
+  console.log(`  Seeded ${leagueCount} leagues`);
 
   console.log("Cricket data seeding complete.");
   return {
@@ -251,12 +329,18 @@ export async function seedCricketData(db: Database) {
     matches: seededMatches.length,
     wcMatches: seededWcMatches.length,
     playerStatuses: statusCount * 2,
+    contests: contestCount,
+    leagues: leagueCount,
   };
 }
 
 /**
  * Get player credits (price) from their stats JSONB.
+ * Admin-set credits (adminCredits) take priority over Gemini-fetched credits.
  */
 export function getPlayerCredits(stats: Record<string, unknown>): number {
+  if (stats?.adminCredits != null) return stats.adminCredits as number;
+  if (stats?.calculatedCredits != null) return stats.calculatedCredits as number;
+  if (stats?.geminiCredits != null) return stats.geminiCredits as number;
   return (stats?.credits as number) ?? 8.0;
 }

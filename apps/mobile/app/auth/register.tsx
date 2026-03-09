@@ -1,7 +1,8 @@
-import { TextInput } from "react-native";
+import { TextInput, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
   Button,
@@ -10,22 +11,51 @@ import {
   AnnouncementBanner,
   DesignSystem,
   formatUIText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
+
+/** Convert raw Firebase error messages into user-friendly text */
+function friendlyAuthError(msg: string): string {
+  if (msg.includes("auth/email-already-in-use"))
+    return "This email is already registered. Try signing in instead.";
+  if (msg.includes("auth/weak-password"))
+    return "Password must be at least 6 characters.";
+  if (msg.includes("auth/invalid-email"))
+    return "Please enter a valid email address.";
+  if (msg.includes("auth/network-request-failed"))
+    return "Network error. Check your connection.";
+  return msg.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/i, "").trim() || "Sign up failed. Please try again.";
+}
 
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signUp } = useAuth();
+  const { signUp, error } = useAuth();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const rawError = localError ?? error;
+  const displayError = rawError ? friendlyAuthError(rawError) : null;
 
   const handleRegister = async () => {
-    await signUp(email, password);
+    setLocalError(null);
+    setIsSubmitting(true);
+    try {
+      await signUp(email, password);
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      setLocalError(e.message ?? "Sign up failed");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -46,9 +76,9 @@ export default function RegisterScreen() {
 
       {/* ── Form ── */}
       <YStack flex={1} justifyContent="center" paddingHorizontal="$6">
-        <Text fontSize={48} textAlign="center" marginBottom="$4">
-          {DesignSystem.emptyState.icon}
-        </Text>
+        <YStack alignItems="center" marginBottom="$4">
+          <DraftPlayLogo size={48} animate />
+        </YStack>
         <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
           {formatUIText("create account")}
         </Text>
@@ -56,8 +86,22 @@ export default function RegisterScreen() {
           {formatUIText("join thousands of fantasy cricket players")}
         </Text>
 
+        {displayError && (
+          <Text
+            testID="auth-error"
+            fontFamily="$body"
+            fontSize={14}
+            color="$error"
+            marginBottom="$4"
+            textAlign="center"
+          >
+            {displayError}
+          </Text>
+        )}
+
         <YStack gap="$4">
           <TextInput
+            testID="username-input"
             placeholder={formatUIText("username")}
             placeholderTextColor={theme.placeholderColor.val}
             value={username}
@@ -74,6 +118,7 @@ export default function RegisterScreen() {
             }}
           />
           <TextInput
+            testID="email-input"
             placeholder={formatUIText("email")}
             placeholderTextColor={theme.placeholderColor.val}
             value={email}
@@ -90,24 +135,38 @@ export default function RegisterScreen() {
               borderColor: theme.borderColor.val,
             }}
           />
-          <TextInput
-            placeholder={formatUIText("password (8+ characters)")}
-            placeholderTextColor={theme.placeholderColor.val}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            style={{
-              backgroundColor: theme.backgroundSurface.val,
-              borderRadius: DesignSystem.radius.lg,
-              padding: 16,
-              color: theme.color.val,
-              fontSize: 16,
-              borderWidth: 1,
-              borderColor: theme.borderColor.val,
-            }}
-          />
-          <Button variant="primary" size="lg" onPress={handleRegister}>
-            {formatUIText("create account")}
+          <YStack>
+            <TextInput
+              testID="password-input"
+              placeholder={formatUIText("password (8+ characters)")}
+              placeholderTextColor={theme.placeholderColor.val}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              style={{
+                backgroundColor: theme.backgroundSurface.val,
+                borderRadius: DesignSystem.radius.lg,
+                padding: 16,
+                paddingRight: 48,
+                color: theme.color.val,
+                fontSize: 16,
+                borderWidth: 1,
+                borderColor: theme.borderColor.val,
+              }}
+            />
+            <Pressable
+              onPress={() => setShowPassword(!showPassword)}
+              style={{ position: "absolute", right: 14, top: 16 }}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={22}
+                color={theme.colorMuted.val}
+              />
+            </Pressable>
+          </YStack>
+          <Button testID="submit-button" variant="primary" size="lg" onPress={handleRegister} disabled={isSubmitting} opacity={isSubmitting ? 0.6 : 1}>
+            {isSubmitting ? formatUIText("creating account...") : formatUIText("create account")}
           </Button>
           <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/login")} cursor="pointer">
             <Text fontFamily="$body" fontSize={14} color="$colorMuted">

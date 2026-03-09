@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "DraftCrick",
-    "slug": "draftcrick",
+    "name": "DraftPlay.ai \u2014 Fantasy Sports Drafting",
+    "slug": "draftplay",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "draftcrick",
+    "scheme": "draftplay",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -13,13 +13,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.draftcrick.app"
+      "bundleIdentifier": "com.draftplay.app"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0A1628"
       },
-      "package": "com.draftcrick.app"
+      "package": "com.draftplay.app"
     },
     "web": {
       "bundler": "metro",

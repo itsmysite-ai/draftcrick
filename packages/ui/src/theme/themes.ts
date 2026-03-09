@@ -2,7 +2,7 @@ import { createTheme } from "tamagui";
 import { tokens } from "./tokens";
 
 /**
- * tami·draft — Light theme
+ * draftplay.ai — Light theme
  * Warm off-white backgrounds, earthy green accents.
  */
 export const light = createTheme({
@@ -71,7 +71,7 @@ export const light = createTheme({
 });
 
 /**
- * tami·draft — Dark theme
+ * draftplay.ai — Dark theme
  * Deep charcoal-green backgrounds, lighter green accents.
  */
 export const dark = createTheme({

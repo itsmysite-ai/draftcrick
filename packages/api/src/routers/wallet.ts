@@ -1,128 +1,53 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { eq, desc, and, sql } from "drizzle-orm";
-import { wallets, transactions } from "@draftcrick/db";
+import { desc, and, eq } from "drizzle-orm";
+import { transactions } from "@draftplay/db";
+import { getBalance, claimDailyReward, canClaimDaily } from "../services/pop-coins";
+import { getUserTier, getTierConfigs } from "../services/subscription";
 import { TRPCError } from "@trpc/server";
 
 export const walletRouter = router({
   /**
-   * Get user's wallet balance
+   * Get user's Pop Coins balance + daily claim status
    */
   getBalance: protectedProcedure.query(async ({ ctx }) => {
-    let wallet = await ctx.db.query.wallets.findFirst({
-      where: eq(wallets.userId, ctx.user.id),
-    });
-
-    // Auto-create wallet if it doesn't exist
-    if (!wallet) {
-      const [created] = await ctx.db
-        .insert(wallets)
-        .values({ userId: ctx.user.id })
-        .returning();
-      wallet = created!;
-    }
+    const wallet = await getBalance(ctx.db, ctx.user.id);
+    const canClaim = canClaimDaily(wallet.lastDailyClaimAt);
 
     return {
-      cashBalance: Number(wallet.cashBalance),
-      bonusBalance: Number(wallet.bonusBalance),
-      totalBalance: Number(wallet.cashBalance) + Number(wallet.bonusBalance),
-      totalDeposited: Number(wallet.totalDeposited),
-      totalWithdrawn: Number(wallet.totalWithdrawn),
-      totalWinnings: Number(wallet.totalWinnings),
+      coinBalance: wallet.coinBalance,
+      totalEarned: wallet.totalEarned,
+      totalSpent: wallet.totalSpent,
+      totalWon: wallet.totalWon,
+      canClaimDaily: canClaim,
+      currentStreak: wallet.loginStreak,
     };
   }),
 
   /**
-   * Deposit funds (creates a pending transaction).
-   * In production, this initiates Razorpay/Stripe checkout.
-   * For development, directly credits the wallet.
+   * Claim daily Pop Coins reward (tier-based amount + streak bonus)
    */
-  deposit: protectedProcedure
-    .input(
-      z.object({
-        amount: z.number().min(1).max(100000),
-        gateway: z.enum(["razorpay", "stripe"]).default("razorpay"),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      // Ensure wallet exists
-      const existing = await ctx.db.query.wallets.findFirst({
-        where: eq(wallets.userId, ctx.user.id),
+  claimDaily: protectedProcedure.mutation(async ({ ctx }) => {
+    const tier = await getUserTier(ctx.db, ctx.user.id);
+    const configs = await getTierConfigs();
+    const dailyCoinDrip = configs[tier].features.dailyCoinDrip;
+
+    try {
+      const result = await claimDailyReward(ctx.db, ctx.user.id, dailyCoinDrip);
+      return {
+        success: true,
+        coinsAwarded: result.coinsAwarded,
+        newStreak: result.newStreak,
+        streakBonus: result.streakBonus,
+        tier,
+      };
+    } catch (e: any) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: e.message,
       });
-      if (!existing) {
-        await ctx.db.insert(wallets).values({ userId: ctx.user.id });
-      }
-
-      // In dev mode: directly credit. In production: create pending + redirect to gateway.
-      const [txn] = await ctx.db
-        .insert(transactions)
-        .values({
-          userId: ctx.user.id,
-          type: "deposit",
-          amount: String(input.amount),
-          status: "completed",
-          gateway: input.gateway,
-          metadata: { environment: "development" },
-        })
-        .returning();
-
-      // Credit wallet
-      await ctx.db
-        .update(wallets)
-        .set({
-          cashBalance: sql`${wallets.cashBalance} + ${String(input.amount)}`,
-          totalDeposited: sql`${wallets.totalDeposited} + ${String(input.amount)}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(wallets.userId, ctx.user.id));
-
-      return { transactionId: txn!.id, status: "completed" };
-    }),
-
-  /**
-   * Withdraw funds
-   */
-  withdraw: protectedProcedure
-    .input(
-      z.object({
-        amount: z.number().min(10).max(100000),
-      })
-    )
-    .mutation(async ({ ctx, input }) => {
-      const wallet = await ctx.db.query.wallets.findFirst({
-        where: eq(wallets.userId, ctx.user.id),
-      });
-
-      if (!wallet || Number(wallet.cashBalance) < input.amount) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Insufficient balance",
-        });
-      }
-
-      // Debit wallet
-      await ctx.db
-        .update(wallets)
-        .set({
-          cashBalance: sql`${wallets.cashBalance} - ${String(input.amount)}`,
-          totalWithdrawn: sql`${wallets.totalWithdrawn} + ${String(input.amount)}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(wallets.userId, ctx.user.id));
-
-      const [txn] = await ctx.db
-        .insert(transactions)
-        .values({
-          userId: ctx.user.id,
-          type: "withdrawal",
-          amount: String(input.amount),
-          status: "completed",
-          metadata: { environment: "development" },
-        })
-        .returning();
-
-      return { transactionId: txn!.id, status: "completed" };
-    }),
+    }
+  }),
 
   /**
    * Get transaction history
@@ -131,10 +56,18 @@ export const walletRouter = router({
     .input(
       z.object({
         type: z
-          .enum(["deposit", "withdrawal", "entry_fee", "winnings", "bonus", "refund", "tds"])
+          .enum([
+            "daily_claim",
+            "contest_entry",
+            "contest_win",
+            "prediction_win",
+            "referral_bonus",
+            "pack_purchase",
+            "streak_bonus",
+            "achievement",
+          ])
           .optional(),
         limit: z.number().int().min(1).max(100).default(20),
-        cursor: z.string().uuid().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -152,7 +85,7 @@ export const walletRouter = router({
 
       return result.map((t) => ({
         ...t,
-        amount: Number(t.amount),
+        amount: t.amount,
       }));
     }),
 });

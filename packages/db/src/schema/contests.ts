@@ -65,12 +65,8 @@ export const contests = pgTable(
       .notNull()
       .references(() => matches.id),
     name: text("name").notNull(),
-    entryFee: decimal("entry_fee", { precision: 10, scale: 2 })
-      .notNull()
-      .default("0"),
-    prizePool: decimal("prize_pool", { precision: 12, scale: 2 })
-      .notNull()
-      .default("0"),
+    entryFee: integer("entry_fee").notNull().default(0),
+    prizePool: integer("prize_pool").notNull().default(0),
     maxEntries: integer("max_entries").notNull(),
     currentEntries: integer("current_entries").notNull().default(0),
     status: text("status").notNull().default("open"), // open, locked, live, settling, settled, cancelled
@@ -95,8 +91,8 @@ export const fantasyTeams = pgTable(
       .notNull()
       .references(() => users.id),
     contestId: uuid("contest_id")
-      .notNull()
       .references(() => contests.id),
+    matchId: text("match_id"),
     players: jsonb("players").notNull(), // [{playerId, role, isPlaying}]
     captainId: uuid("captain_id")
       .notNull()
@@ -117,7 +113,7 @@ export const fantasyTeams = pgTable(
       .defaultNow(),
   },
   (table) => [
-    unique("uq_user_contest").on(table.userId, table.contestId),
+    unique("uq_user_contest").on(table.userId, table.contestId, table.matchId),
   ]
 );
 

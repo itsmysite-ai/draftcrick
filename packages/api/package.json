@@ -1,5 +1,5 @@
 {
-  "name": "@draftcrick/api",
+  "name": "@draftplay/api",
   "version": "0.0.1",
   "private": true,
   "main": "./src/index.ts",
@@ -12,8 +12,8 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@draftcrick/db": "workspace:*",
-    "@draftcrick/shared": "workspace:*",
+    "@draftplay/db": "workspace:*",
+    "@draftplay/shared": "workspace:*",
     "@google/genai": "^1.40.0",
     "@hono/node-server": "^1.13.0",
     "@trpc/client": "^11.0.0-rc.0",
@@ -24,12 +24,13 @@
     "hono": "^4.6.0",
     "ioredis": "^5.4.0",
     "pino": "^10.3.1",
+    "razorpay": "^2.9.6",
     "socket.io": "^4.8.0",
     "superjson": "^2.2.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@draftcrick/tsconfig": "workspace:*",
+    "@draftplay/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

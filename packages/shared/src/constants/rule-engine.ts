@@ -1,7 +1,7 @@
 import type { ScoringRules } from "../types";
 
 /**
- * DraftCrick 200+ Rule Engine
+ * DraftPlay 200+ Rule Engine
  *
  * All league rules organized into 8 categories with progressive disclosure.
  * Each rule has: key, label, description, type, default value, min/max bounds.

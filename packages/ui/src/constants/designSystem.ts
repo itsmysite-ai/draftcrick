@@ -1,5 +1,5 @@
 /**
- * tami·draft Design System Constants
+ * draftplay.ai Design System Constants
  * Global styling rules to ensure consistency across all screens
  */
 
@@ -103,9 +103,9 @@ export const DesignSystem = {
    * Empty States
    */
   emptyState: {
-    icon: "🥚",
+    icon: "▶",
     iconSize: 48,
-    message: "draft cricketers to hatch your squad",
+    message: "draft players to build your squad",
   },
 
   /**
@@ -128,11 +128,11 @@ export const DesignSystem = {
     },
     BOWL: {
       name: "Bowlers",
-      emoji: "🎯",
+      emoji: "🔴",
       token: "BOWL",
     },
     AR: {
-      name: "All-Round",
+      name: "All-Rounders",
       emoji: "⚡",
       token: "AR",
     },
@@ -208,4 +208,13 @@ export const formatUIText = (text: string): string => {
  */
 export const formatBadgeText = (text: string): string => {
   return text.toUpperCase();
+};
+
+/**
+ * Strip "Men" / "Women" suffix from team names for display.
+ * The tournament name already indicates the gender category,
+ * so "India Men" becomes "India", "England Women" becomes "England".
+ */
+export const formatTeamName = (name: string): string => {
+  return name.replace(/ Men$| Women$/, "");
 };

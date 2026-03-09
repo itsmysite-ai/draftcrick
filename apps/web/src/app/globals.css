@@ -1,4 +1,4 @@
-/* tami·draft Design Tokens — Light */
+/* draftplay.ai Design Tokens — Light */
 :root {
   --bg: #F7F5F0;
   --bg-surface: #FFFFFF;
@@ -16,7 +16,7 @@
   --font-data: var(--font-dm-mono), ui-monospace, monospace;
 }
 
-/* tami·draft Design Tokens — Dark */
+/* draftplay.ai Design Tokens — Dark */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #111210;

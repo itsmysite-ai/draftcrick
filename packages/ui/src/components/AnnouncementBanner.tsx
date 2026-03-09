@@ -12,10 +12,10 @@ import Animated, {
 // ANNOUNCEMENTS — edit here to update across all screens
 // ─────────────────────────────────────────────────────────────────────────────
 const ANNOUNCEMENTS = [
-  "ipl 2026 fantasy leagues are open — create or join now",
-  "new feature: auction draft mode is live",
-  "weekend challenge: build your dream xi and win rewards",
+  "t20 world cup fantasy is live — draft your dream xi now",
+  "auction draft mode: bid on players in real-time",
   "pro tip: diversify picks across roles for higher points",
+  "league trades: swap players with friends in your league",
   "coming soon: head-to-head contests with friends",
 ];
 
@@ -24,7 +24,15 @@ const PAUSE_DURATION = 3200;   // ms to hold the full text
 const FLIP_DURATION = 280;     // ms for the railway-station flip transition
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface AnnouncementBannerProps extends Omit<GetProps<typeof YStack>, "children"> {}
+interface AnnouncementContext {
+  matchInfo?: string;       // e.g. "IND vs NZ starts in 2 hours!"
+  contestCount?: number;    // e.g. 3 → "you're in 3 contests today!"
+  streakDays?: number;      // e.g. 5 → "day 5 streak — keep it up!"
+}
+
+interface AnnouncementBannerProps extends Omit<GetProps<typeof YStack>, "children"> {
+  context?: AnnouncementContext;
+}
 
 /**
  * AnnouncementBanner — railway-station-style announcement strip
@@ -35,6 +43,18 @@ interface AnnouncementBannerProps extends Omit<GetProps<typeof YStack>, "childre
  *
  * Edit ANNOUNCEMENTS above to update content across every screen.
  */
+function buildContextualAnnouncements(ctx?: AnnouncementContext): string[] {
+  const msgs: string[] = [];
+  if (ctx?.matchInfo) msgs.push(ctx.matchInfo);
+  if (ctx?.contestCount && ctx.contestCount > 0) {
+    msgs.push(`you're in ${ctx.contestCount} contest${ctx.contestCount > 1 ? "s" : ""} today — good luck!`);
+  }
+  if (ctx?.streakDays && ctx.streakDays > 0) {
+    msgs.push(`day ${ctx.streakDays} streak — keep it up for bonus coins!`);
+  }
+  return msgs;
+}
+
 export function AnnouncementBanner(props: AnnouncementBannerProps) {
   const [displayedText, setDisplayedText] = useState("");
   const [cursorVisible, setCursorVisible] = useState(true);
@@ -65,9 +85,15 @@ export function AnnouncementBanner(props: AnnouncementBannerProps) {
     };
   }, []);
 
+  // Build combined announcement list: contextual first, then static
+  const contextMsgs = buildContextualAnnouncements(props.context);
+  const allAnnouncements = contextMsgs.length > 0
+    ? [...contextMsgs, ...ANNOUNCEMENTS]
+    : ANNOUNCEMENTS;
+
   // Typing + cycling logic
   useEffect(() => {
-    const text = ANNOUNCEMENTS[announcementIndex] ?? "";
+    const text = allAnnouncements[announcementIndex % allAnnouncements.length] ?? "";
     let charIndex = 0;
     setDisplayedText("");
 
@@ -86,6 +112,7 @@ export function AnnouncementBanner(props: AnnouncementBannerProps) {
 
     typeNext();
     return clearTimers;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [announcementIndex, clearTimers]);
 
   // Railway-station flip transition
@@ -110,7 +137,7 @@ export function AnnouncementBanner(props: AnnouncementBannerProps) {
 
     // Advance index at the midpoint of the flip
     setTimeout(() => {
-      setAnnouncementIndex((i) => (i + 1) % ANNOUNCEMENTS.length);
+      setAnnouncementIndex((i) => (i + 1) % allAnnouncements.length);
     }, FLIP_DURATION);
   };
 

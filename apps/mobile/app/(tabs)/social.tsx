@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text } from "tamagui";
-import { Card, Badge, Button, ModeToggle, AnnouncementBanner, formatUIText, formatBadgeText } from "@draftcrick/ui";
+import { Card, Badge, Button, ModeToggle, AnnouncementBanner, DraftPlayLogo, formatUIText, formatBadgeText } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -238,7 +238,7 @@ export default function SocialScreen() {
                   size={36}
                   color={t.textTertiary}
                 />
-                <Text fontSize={48} marginBottom="$2">🥚</Text>
+                <YStack marginBottom="$2"><DraftPlayLogo size={48} /></YStack>
                 <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
                   {formatUIText("no leagues yet")}
                 </Text>

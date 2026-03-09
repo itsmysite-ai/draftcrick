@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Smart Refresh Architecture is the data pipeline that keeps DraftCrick's sports data fresh. It uses a 3-tier caching strategy with write-through persistence:
+The Smart Refresh Architecture is the data pipeline that keeps DraftPlay's sports data fresh. It uses a 3-tier caching strategy with write-through persistence:
 
 ```
 Client Request
@@ -75,6 +75,11 @@ executeRefresh(sport, trigger)
   ├── 7. upsertPlayers()                [PG write — stable external IDs]
   │       └── Dedup by: normalized name + nationality
   │       └── Stats stored as JSONB: { credits, average, bowlingAverage }
+  │
+  ├── 7.5 linkPlayersToMatches()        [PG write — junction table]
+  │       └── For each match: find players by team name (fuzzy, strips "Men"/"Women")
+  │       └── Bulk insert into playerMatchScores with onConflictDoNothing
+  │       └── Best-effort: failure logged, refresh continues
   │
   ├── 8. fetchTournamentStandings(sport, tournamentNames)  [Gemini Call #3+]
   │       └── Batches: 3 tournaments per Gemini call

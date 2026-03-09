@@ -1,7 +1,7 @@
 import { createAnimations } from "@tamagui/animations-css";
 
 /**
- * tami·draft animations.
+ * draftplay.ai animations.
  * Mode toggle: 0.3s spring easing for pill, 0.4s ease for surfaces.
  * Hatch modal: spring easing for wobble/reveal.
  */

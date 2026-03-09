@@ -15,7 +15,8 @@ import {
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -37,7 +38,7 @@ export default function PlayerScreen() {
   const p = player.data;
   if (!p) return (
     <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center">
-      <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$4">{DesignSystem.emptyState.icon}</Text>
+      <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
       <Text {...textStyles.hint}>{formatUIText("player not found")}</Text>
     </YStack>
   );
@@ -120,7 +121,7 @@ export default function PlayerScreen() {
           ))
         ) : (
           <Card padding="$6" alignItems="center">
-            <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$3">{DesignSystem.emptyState.icon}</Text>
+            <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
             <Text {...textStyles.hint} textAlign="center">
               {formatUIText("no recent performances available")}
             </Text>

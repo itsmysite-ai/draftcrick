@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
+import { users } from "@draftplay/db";
+import { eq } from "drizzle-orm";
 
 export const authRouter = router({
   /**
@@ -25,8 +27,17 @@ export const authRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Creates or updates the local user record linked to Firebase UID
-      // Will be implemented with DB queries in Phase 1
+      // User record is auto-created by auth middleware in index.ts.
+      // syncUser updates the username/displayName chosen during onboarding.
+      await ctx.db
+        .update(users)
+        .set({
+          username: input.username,
+          displayName: input.displayName,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, ctx.user.id));
+
       return {
         success: true,
         userId: ctx.user.id,

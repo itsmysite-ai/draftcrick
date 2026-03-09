@@ -3,8 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: [
-    "@draftcrick/ui",
-    "@draftcrick/shared",
+    "@draftplay/ui",
+    "@draftplay/shared",
     "tamagui",
     "@tamagui/core",
     "@tamagui/config",

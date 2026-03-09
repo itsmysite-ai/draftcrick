@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 
-console.log('🚀 DraftCrick: Index starting...');
+console.log('🚀 DraftPlay: Index starting...');
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

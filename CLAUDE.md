@@ -1,13 +1,13 @@
 # CLAUDE.md (Claude Code reads this automatically)
 
-## Project: DraftCrick
+## Project: DraftPlay
 Fantasy cricket platform — React Native (Expo), Hono + tRPC API, 
 Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 
 ## Key Documentation
 - `/docs/NEW_PLAN.md` — Full development plan (Phase 0-8)
 - `/docs/GEO_IMPLEMENTATION_GUIDE.md` — Geo-location & regional compliance spec
-- `/docs/UI_GUIDE.md` — tami·draft design system guide
+- `/docs/UI_GUIDE.md` — draftplay.ai design system guide
 - `/docs/REDIS_CACHE_ARCHITECTURE.md` — Cache architecture
 - `/docs/SMART_REFRESH_ARCHITECTURE.md` — Smart refresh pipeline (Redis → PG → Gemini)
 - `/docs/LOGGING_GUIDE.md` — Structured logging & distributed tracing guide
@@ -28,7 +28,7 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 ## Conventions
 - Use tRPC for all API endpoints
 - Use Drizzle ORM for all database queries
-- Use Tamagui + tami·draft design system for UI (see /docs/UI_GUIDE.md)
+- Use Tamagui + draftplay.ai design system for UI (see /docs/UI_GUIDE.md)
 - Use Redis for caching (24hr TTL default, see /docs/REDIS_CACHE_ARCHITECTURE.md)
 - Use structured logging with Pino (backend) and the shared logger service (frontend) — see `/docs/LOGGING_GUIDE.md`
 - All new backend modules must use `getLogger("module-name")`, never raw `console.log`
@@ -37,6 +37,35 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 - All new features need Playwright E2E tests
 - Branch naming: `feature/phase-X.Y-description`
 - Commit messages: `feat(phase-2.75): description`
+
+## E2E Testing Infrastructure
+- **Framework:** Playwright, targeting Expo web at `localhost:8081`
+- **Test location:** `tests/e2e/<feature>/<feature>.spec.ts`
+- **Config:** `playwright.config.ts` — loads `.env.test` → `.env.local` → `.env`
+- **Shared helpers:** `tests/e2e/helpers/tamagui.ts` — `forceClickTab()`, `forceClickText()`, `forceClickByTestId()` (required for Tamagui components that don't respond to normal `.click()`)
+- **Auth helpers:** `tests/e2e/auth/auth-helpers.ts` — `clearEmulatorAccounts()`, `createTestAccount()`, `fillAuthForm()`, `submitAuthForm()`
+- **Firebase Auth Emulator:** `firebase.json` defines auth emulator on port 9099. Start with `npx firebase emulators:start --only auth --project demo-draftplay`
+- **Env for tests:** `.env.test` sets `EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST=localhost:9099`
+
+### Writing Tests for New Features
+1. Add `testID` props to new UI elements (renders as `data-testid` on web)
+2. Create `tests/e2e/<feature>/<feature>.spec.ts` and optional `-helpers.ts`
+3. Import shared helpers from `tests/e2e/helpers/tamagui.ts`
+4. Use `forceClickByTestId()` instead of `.click()` for Tamagui pressables
+5. Save screenshots to `/screenshots/<issue>-<description>.png`
+
+### Test Scripts
+| Script | What it does |
+|--------|-------------|
+| `pnpm test:e2e` | All E2E tests |
+| `pnpm test:e2e:auth` | Auth tests only (emulator must be running) |
+| `pnpm test:e2e:no-auth` | All E2E tests except auth |
+| `pnpm test:emulator` | Starts Firebase emulator → runs auth tests → kills emulator |
+| `pnpm test:regression` | **Run before every merge.** Type-check + non-auth E2E + auth E2E (with auto-emulator) |
+
+### When to Run What
+- **Per feature:** Run the relevant feature's tests only (e.g., `pnpm test:e2e:auth` for auth changes)
+- **Major feature batch / pre-deployment:** Run `pnpm test:regression` — full type-check + all E2E suites with auto-emulator. Prints pass/fail summary.
 
 ## Self-Verification Rules (THE RALPH LOOP)
 These rules apply to EVERY task. Never skip them.
@@ -77,27 +106,28 @@ These rules apply to EVERY task. Never skip them.
    - `screenshots/121-onboarding-country-picker.png`
    - `screenshots/121-onboarding-blocked-state-warning.png`
 
-## Phase Status Overview
-All phase details in /docs/NEW_PLAN.md. Geo-compliance in /docs/GEO_IMPLEMENTATION_GUIDE.md.
+## Launch Roadmap (Prioritized for User Release)
+All phase details in /docs/NEW_PLAN.md. Execution prompts in /prompts-for-execution.md.
 
-| Phase | Name | Status | Key Deliverables |
-|-------|------|--------|-----------------|
-| 0 | Foundation & Infrastructure | ✅ COMPLETE | Expo, Hono+tRPC, Drizzle+PG, Redis, Gemini API |
-| 1 | Core Fantasy — Salary Cap | ✅ COMPLETE | Team builder, contests, scoring, wallet |
-| 2 | Draft, Auction & Leagues | ✅ COMPLETE | Draft rooms, auction, league management, 200+ rules |
-| 2.5 | tami·draft Design System | 🔄 IN PROGRESS (27%) | Tamagui migration, 11 screens to migrate |
-| **2.75** | **Data Integration, Schema & Testing** | **🎯 CURRENT** | **Real data, 19 new tables, geo-location foundation, 65 test cases** |
-| 3 | AI & Analytics Engine | ⏳ NEXT | FDR, projections, Guru chat, comparison tool, match previews |
-| 4 | Tournament Mode & Advanced Leagues | ⏳ PLANNED | Season-long leagues, trades, playoffs, chips, commissioner, H2H, geo-verification for paid actions |
-| 5 | Predictions & Social | ⏳ PLANNED | 11 prediction types, league chat, notifications, referrals |
-| 6 | Web, Admin & Corporate | ⏳ PLANNED | Web parity, admin dashboard, ownership stats |
-| 7 | Polish, Testing & Launch | ⏳ PLANNED | Security, VPN detection, geo-compliance audit, PROGA ruling response, beta launch |
-| 8 | Voice, AI Content & Post-Launch | ⏳ FUTURE | Voice commands, AI newsletter, dynamic pricing, cup mode, geo-infrastructure scaling |
+| # | Launch Phase | Status | Key Deliverables |
+|---|-------------|--------|-----------------|
+| — | Phase 0-2: Foundation + Core + Draft | ✅ COMPLETE | Expo, tRPC, Drizzle, Redis, Gemini, team builder, draft, auction, leagues |
+| — | Phase 2.5: draftplay.ai Design System | 🔄 IN PROGRESS (27%) | Tamagui migration, 11 screens remaining |
+| **L1** | **Finish Phase 2.75** | **🎯 CURRENT** | **Testing (65 cases), bug fixes, UI migrations** |
+| L1.5 | Subscription Monetization | ⏳ NEXT | Freemium tiers (Free/Pro/Elite), Razorpay billing, feature gates, paywall UI |
+| L2 | AI Engine (Phase 3 Core) | ⏳ PLANNED | FDR, projected points, Guru chat, Rate My Team (tier-gated) |
+| L3 | Push Notifications | ⏳ PLANNED | FCM, 5 core notification types, preferences |
+| L4 | Tournament Mode Core | ⏳ PLANNED | Season-long leagues, per-match teams, chips, match awards |
+| L5 | Predictions | ⏳ PLANNED | 11 prediction types, AI questions, leaderboard |
+| L6 | Coming Soon + Launch Prep | ⏳ PLANNED | 15 Coming Soon screens for deferred features, polish, beta prep |
+| 🚀 | **BETA LAUNCH** | **Target: May 19** | **500 beta users** |
+| — | Post-Launch Waves 1-3 | ⏳ DEFERRED | Replace Coming Soon screens with real features based on user demand |
 
-## Current Focus: Phase 2.75 (Weeks 12-14)
-- Week 1: Real data integration + tournament schema (19 tables) + geo-location foundation
-- Week 2: Comprehensive testing (65 test cases across 9 areas)
-- Week 3: Bug fixes + polish + screen migrations
+## Current Focus: L1 — Finish Phase 2.75
+- Testing: 65 test cases across 9 areas (auth, team builder, contests, draft, auction, wallet, live, cache, geo)
+- Bug fixes: P0 and P1 from test results
+- UI migrations: Match Center + Team Builder to draftplay.ai
+- Prompts: 10-21 in /prompts-for-execution.md
 
 ## Architecture Decisions Already Made
 - **Geo-compliance:** 3-layer detection (IP + GPS + declaration) → feature gates per regulatory zone
@@ -105,8 +135,9 @@ All phase details in /docs/NEW_PLAN.md. Geo-compliance in /docs/GEO_IMPLEMENTATI
 - **Gemini API routing:** Region-specific Vertex AI endpoints (asia-south1 for India, us-central1 for US, global for batch jobs)
 - **Database:** Single Cloud SQL instance in asia-south1 (Mumbai). Cross-region replica only when US users > 10%.
 - **Redis:** Single Memorystore in asia-south1. No geo-distribution needed.
-- **UI:** Tamagui + tami·draft design system. All new screens must use design system components.
+- **UI:** Tamagui + draftplay.ai design system. All new screens must use design system components.
 - **Caching:** Redis with 24hr default TTL. Graceful fallback to direct Gemini API on cache miss.
+- **Auth:** Firebase Auth client SDK initialized in `apps/mobile/lib/firebase.ts`. Token injected into tRPC via `setTRPCToken()` in `apps/mobile/lib/trpc.ts`. Auth state managed by `AuthProvider`. Root `app/index.tsx` auth-gates: no user → `/auth/login`, authenticated → `/(tabs)`.
 
 ## What NOT to Do
 - Do NOT create separate CSS/JS files — keep everything in single files for components

@@ -30,7 +30,12 @@ export const matches = pgTable(
     playingXiHome: jsonb("playing_xi_home"),
     playingXiAway: jsonb("playing_xi_away"),
     result: text("result"),
+    scoreSummary: text("score_summary"), // e.g. "India 10/0 (0.4 ov)"
     draftEnabled: boolean("draft_enabled").default(false),
+
+    // Fetch tracking
+    lastFetchAction: text("last_fetch_action"), // "new" | "updated"
+    lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
 
     // Smart refresh columns
     tournamentId: uuid("tournament_id").references(() => tournaments.id),

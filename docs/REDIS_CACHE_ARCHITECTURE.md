@@ -157,14 +157,14 @@ REDIS_URL=redis://:password@10.x.x.x:6379
 ### Memorystore Setup:
 ```bash
 # Create Redis instance in GCP
-gcloud redis instances create draftcrick-cache \
+gcloud redis instances create draftplay-cache \
   --size=1 \
   --region=asia-south1 \
   --redis-version=redis_7_0 \
   --tier=basic
 
 # Get connection details
-gcloud redis instances describe draftcrick-cache \
+gcloud redis instances describe draftplay-cache \
   --region=asia-south1
 ```
 

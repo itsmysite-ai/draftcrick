@@ -4,9 +4,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { Card, Button, ModeToggle, AnnouncementBanner, formatUIText } from "@draftcrick/ui";
+import { Card, Button, ModeToggle, AnnouncementBanner, TierBadge, formatUIText, formatBadgeText } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
+import { useAuth } from "../../providers/AuthProvider";
+import { useNotifications } from "../../providers/NotificationProvider";
 
 function SettingRow({
   icon,
@@ -80,11 +82,14 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { mode, toggleMode } = useTheme();
   const theme = useTamaguiTheme();
-  const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false });
-  const isLoggedIn = !wallet.error;
+  const { user, signOut } = useAuth();
+  const isLoggedIn = !!user;
+  const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false, enabled: isLoggedIn });
+  const myTier = trpc.subscription.getMyTier.useQuery(undefined, { retry: false, enabled: isLoggedIn });
+  const { unreadCount } = useNotifications();
 
   return (
-    <YStack flex={1} backgroundColor="$background" paddingTop={insets.top}>
+    <YStack flex={1} backgroundColor="$background" paddingTop={insets.top} testID="profile-screen">
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 20 }}
         showsVerticalScrollIndicator={false}
@@ -112,8 +117,8 @@ export default function ProfileScreen() {
                 color={isLoggedIn ? theme.accentBackground.val : theme.colorMuted.val}
               />
             </YStack>
-            <Text fontFamily="$heading" fontSize={22} color="$color" marginBottom={4}>
-              {isLoggedIn ? "Player" : "Guest User"}
+            <Text fontFamily="$heading" fontSize={22} color="$color" marginBottom={4} testID="profile-username">
+              {isLoggedIn ? (user.displayName || user.username || "Player") : "Guest User"}
             </Text>
             <Text fontFamily="$body" fontSize={14} color="$colorSecondary" marginBottom="$5">
               {isLoggedIn
@@ -125,6 +130,7 @@ export default function ProfileScreen() {
                 variant="primary"
                 size="md"
                 onPress={() => router.push("/auth/login")}
+                testID="profile-signin-btn"
                 iconAfter={
                   <Ionicons
                     name="arrow-forward"
@@ -161,10 +167,10 @@ export default function ProfileScreen() {
                     letterSpacing={0.5}
                     marginBottom={4}
                   >
-                    {formatUIText("Total Balance")}
+                    {formatUIText("Pop Coins")}
                   </Text>
                   <Text fontFamily="$heading" fontSize={28} color="$accentBackground">
-                    ₹{wallet.data.totalBalance.toFixed(2)}
+                    {wallet.data.coinBalance.toLocaleString()} PC
                   </Text>
                 </YStack>
                 <YStack
@@ -189,9 +195,9 @@ export default function ProfileScreen() {
                 gap="$3"
               >
                 {[
-                  { l: "Cash", v: wallet.data.cashBalance, i: "cash-outline" as const },
-                  { l: "Bonus", v: wallet.data.bonusBalance, i: "gift-outline" as const },
-                  { l: "Winnings", v: wallet.data.totalWinnings, i: "trending-up" as const },
+                  { l: "Earned", v: wallet.data.totalEarned, i: "arrow-up-outline" as const },
+                  { l: "Spent", v: wallet.data.totalSpent, i: "arrow-down-outline" as const },
+                  { l: "Won", v: wallet.data.totalWon, i: "trending-up" as const },
                 ].map((x, i) => (
                   <YStack key={i} flex={1} alignItems="center" gap={3}>
                     <Ionicons name={x.i} size={13} color={theme.colorMuted.val} />
@@ -199,10 +205,36 @@ export default function ProfileScreen() {
                       {x.l}
                     </Text>
                     <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
-                      ₹{x.v.toFixed(0)}
+                      {x.v.toLocaleString()}
                     </Text>
                   </YStack>
                 ))}
+              </XStack>
+            </Card>
+          </Animated.View>
+        )}
+
+        {isLoggedIn && myTier.data && (
+          <Animated.View entering={FadeInDown.delay(120).springify()}>
+            <Card
+              pressable
+              onPress={() => router.push("/subscription" as never)}
+              marginBottom="$5"
+              testID="subscription-card"
+            >
+              <XStack justifyContent="space-between" alignItems="center">
+                <YStack gap="$1">
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
+                    {formatBadgeText("subscription")}
+                  </Text>
+                  <Text fontFamily="$heading" fontSize={18} color="$color">
+                    {myTier.data.tier === "free" ? "Free Plan" : myTier.data.tier === "pro" ? "Pro Plan" : "Elite Plan"}
+                  </Text>
+                </YStack>
+                <XStack alignItems="center" gap="$3">
+                  <TierBadge tier={myTier.data.tier} testID="profile-tier-badge" />
+                  <Ionicons name="chevron-forward" size={16} color={theme.colorMuted.val} />
+                </XStack>
               </XStack>
             </Card>
           </Animated.View>
@@ -229,10 +261,17 @@ export default function ProfileScreen() {
               onPress={() => router.push("/wallet" as never)}
             />
             <SettingRow
+              icon="diamond-outline"
+              label={formatUIText("Subscription")}
+              value={myTier.data ? myTier.data.tier.toUpperCase() : undefined}
+              accent={myTier.data?.tier !== "free"}
+              onPress={() => router.push("/subscription" as never)}
+            />
+            <SettingRow
               icon="notifications-outline"
               label={formatUIText("Notifications")}
-              value="On"
-              onPress={() => {}}
+              value={unreadCount > 0 ? `${unreadCount} new` : "On"}
+              onPress={() => router.push("/notifications/inbox" as never)}
             />
             <XStack
               justifyContent="space-between"
@@ -288,6 +327,26 @@ export default function ProfileScreen() {
             ))}
           </XStack>
         </Animated.View>
+
+        {isLoggedIn && (
+          <Animated.View entering={FadeInDown.delay(320).springify()}>
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={async () => {
+                await signOut();
+                router.replace("/auth/login");
+              }}
+              marginTop="$5"
+              testID="sign-out-btn"
+              iconAfter={
+                <Ionicons name="log-out-outline" size={14} color={theme.color.val} />
+              }
+            >
+              {formatUIText("Sign Out")}
+            </Button>
+          </Animated.View>
+        )}
 
         <YStack height={120} />
       </ScrollView>

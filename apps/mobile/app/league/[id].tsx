@@ -1,5 +1,6 @@
 import { FlatList, Alert, Share } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
@@ -9,13 +10,15 @@ import {
   BackButton,
   Button,
   InitialsAvatar,
+  SegmentTab,
   ModeToggle,
   AnnouncementBanner,
   DesignSystem,
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -27,7 +30,9 @@ export default function LeagueDetailScreen() {
   const { user } = useAuth();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
+  const [tab, setTab] = useState<"members" | "standings">("members");
   const { data: league, isLoading, refetch } = trpc.league.getById.useQuery({ id: id! });
+  const standings = trpc.league.memberStandings.useQuery({ leagueId: id! }, { enabled: !!id });
   const startDraftMutation = trpc.league.startDraft.useMutation({ onSuccess: (room) => { const route = room!.type === "auction" ? `/auction/${room!.id}` as const : `/draft/${room!.id}` as const; router.push(route as any); } });
   const leaveMutation = trpc.league.leave.useMutation({ onSuccess: () => router.back() });
   const kickMutation = trpc.league.kickMember.useMutation({ onSuccess: () => refetch() });
@@ -40,7 +45,7 @@ export default function LeagueDetailScreen() {
   );
   if (!league) return (
     <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center">
-      <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$4">{DesignSystem.emptyState.icon}</Text>
+      <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
       <Text {...textStyles.hint}>{formatUIText("league not found")}</Text>
     </YStack>
   );
@@ -48,7 +53,7 @@ export default function LeagueDetailScreen() {
   const myMembership = league.members?.find((m: any) => m.userId === user?.id);
   const isOwner = myMembership?.role === "owner";
   const isAdmin = myMembership?.role === "admin" || isOwner;
-  const shareInvite = () => { Share.share({ message: `${formatUIText("join my draftcrick league")} "${league.name}"! ${formatUIText("invite code")}: ${league.inviteCode}` }); };
+  const shareInvite = () => { Share.share({ message: `${formatUIText("join my draftplay league")} "${league.name}"! ${formatUIText("invite code")}: ${league.inviteCode}` }); };
   const handleStartDraft = (type: "snake_draft" | "auction") => {
     Alert.alert(
       formatUIText(`start ${type === "auction" ? "auction" : "snake draft"}?`),
@@ -65,8 +70,8 @@ export default function LeagueDetailScreen() {
   };
 
   return (
-    <YStack flex={1} backgroundColor="$background">
-      <FlatList data={league.members ?? []} keyExtractor={(item: any) => item.userId} contentContainerStyle={{ padding: 16 }}
+    <YStack flex={1} backgroundColor="$background" testID="league-detail-screen">
+      <FlatList data={tab === "standings" ? (standings.data ?? []) : (league.members ?? [])} keyExtractor={(item: any) => item.userId} contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={<>
           <XStack
             justifyContent="space-between"
@@ -82,7 +87,7 @@ export default function LeagueDetailScreen() {
           </XStack>
           <AnnouncementBanner marginHorizontal={0} />
           <Card padding="$5" marginBottom="$4">
-            <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            <Text testID="league-name" fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
               {league.name}
             </Text>
             <XStack marginTop="$2" gap="$3" flexWrap="wrap">
@@ -101,7 +106,7 @@ export default function LeagueDetailScreen() {
             </Text>
           </Card>
 
-          <Card pressable onPress={shareInvite} marginBottom="$4" padding="$4">
+          <Card testID="league-invite-code" pressable onPress={shareInvite} marginBottom="$4" padding="$4">
             <XStack justifyContent="space-between" alignItems="center">
               <YStack>
                 <Text {...textStyles.hint}>{formatBadgeText("invite code")}</Text>
@@ -118,12 +123,12 @@ export default function LeagueDetailScreen() {
           {isAdmin && (
             <XStack gap="$3" marginBottom="$4">
               {league.format === "draft" && (
-                <Button variant="primary" size="md" flex={1} onPress={() => handleStartDraft("snake_draft")}>
+                <Button testID="league-start-draft-btn" variant="primary" size="md" flex={1} onPress={() => handleStartDraft("snake_draft")}>
                   {formatUIText("start draft")}
                 </Button>
               )}
               {league.format === "auction" && (
-                <Button variant="primary" size="md" flex={1} onPress={() => handleStartDraft("auction")}>
+                <Button testID="league-start-auction-btn" variant="primary" size="md" flex={1} onPress={() => handleStartDraft("auction")}>
                   {formatUIText("start auction")}
                 </Button>
               )}
@@ -133,17 +138,71 @@ export default function LeagueDetailScreen() {
             </XStack>
           )}
 
-          <Button variant="secondary" size="md" marginBottom="$4" onPress={() => router.push(`/league/${id}/trades` as any)}>
+          <Button testID="league-view-trades-btn" variant="secondary" size="md" marginBottom="$4" onPress={() => router.push(`/league/${id}/trades` as any)}>
             {formatUIText("view trades")}
           </Button>
 
-          <Text {...textStyles.sectionHeader} marginBottom="$3">
-            {formatUIText("members")}
-          </Text>
+          {/* Tab switcher: Members / Standings (#8) */}
+          <XStack
+            marginBottom="$3"
+            borderRadius="$3"
+            backgroundColor="$backgroundSurfaceAlt"
+            padding="$1"
+            gap="$1"
+          >
+            {([
+              { key: "members" as const, label: "Members" },
+              { key: "standings" as const, label: "Standings" },
+            ]).map((tb) => (
+              <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
+                <Text fontFamily="$body" fontWeight="600" fontSize={13} color={tab === tb.key ? "$color" : "$colorMuted"}>
+                  {formatUIText(tb.label)}
+                </Text>
+              </SegmentTab>
+            ))}
+          </XStack>
         </>}
-        renderItem={({ item, index }: { item: any; index: number }) => (
+        renderItem={({ item, index }: { item: any; index: number }) => {
+          // Standings tab (#8)
+          if (tab === "standings") {
+            const standingsData = standings.data ?? [];
+            if (index >= standingsData.length) return null;
+            const s = standingsData[index];
+            if (!s) return null;
+            const isMe = s.userId === user?.id;
+            return (
+              <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
+                <Card marginBottom="$2" padding="$4" borderColor={isMe ? "$accentBackground" : "$borderColor"} borderWidth={isMe ? 2 : 1}>
+                  <XStack alignItems="center">
+                    <YStack width={32} alignItems="center">
+                      <Text fontFamily="$mono" fontWeight="800" fontSize={14} color={index === 0 ? "$colorCricket" : index === 1 ? "$colorSecondary" : "$color"}>
+                        #{s.rank}
+                      </Text>
+                    </YStack>
+                    <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
+                      <InitialsAvatar name={s.displayName} playerRole="BAT" ovr={`#${s.rank}`} size={32} />
+                      <YStack flex={1}>
+                        <Text {...textStyles.playerName}>{s.displayName}</Text>
+                        {isMe && <Badge variant="live" size="sm" alignSelf="flex-start">{formatBadgeText("you")}</Badge>}
+                      </YStack>
+                    </XStack>
+                    <YStack alignItems="flex-end">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground">
+                        {s.totalPoints.toFixed(1)}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                        {s.contestsPlayed} contest{s.contestsPlayed !== 1 ? "s" : ""}
+                      </Text>
+                    </YStack>
+                  </XStack>
+                </Card>
+              </Animated.View>
+            );
+          }
+          // Members tab (original)
+          return (
           <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
-            <Card marginBottom="$2" padding="$4">
+            <Card testID={`league-member-${item.userId}`} marginBottom="$2" padding="$4">
               <XStack justifyContent="space-between" alignItems="center">
                 <XStack alignItems="center" gap="$3" flex={1}>
                   <InitialsAvatar
@@ -151,6 +210,7 @@ export default function LeagueDetailScreen() {
                     playerRole="BAT"
                     ovr={0}
                     size={36}
+                    hideBadge
                   />
                   <YStack flex={1}>
                     <Text {...textStyles.playerName}>
@@ -174,7 +234,8 @@ export default function LeagueDetailScreen() {
               </XStack>
             </Card>
           </Animated.View>
-        )}
+          );
+        }}
         ListFooterComponent={!isOwner && myMembership ? (
           <Button variant="danger" size="md" marginTop="$4" onPress={() => Alert.alert(
             formatUIText("leave league?"),

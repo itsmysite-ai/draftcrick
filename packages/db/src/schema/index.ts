@@ -19,3 +19,5 @@ export * from "./awards";
 export * from "./custom-tournaments";
 export * from "./analytics";
 export * from "./guru";
+export * from "./admin-config";
+export * from "./subscriptions";

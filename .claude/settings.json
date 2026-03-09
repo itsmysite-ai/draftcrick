@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(# Check if API server is running on 3001 lsof -i :3001)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}

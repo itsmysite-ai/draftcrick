@@ -3,10 +3,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
-import { BackButton, Button, Card, ModeToggle, formatUIText } from "@draftcrick/ui";
+import { BackButton, Button, Card, ModeToggle, formatUIText } from "@draftplay/ui";
 import { trpc } from "../../../lib/trpc";
 import { useTheme } from "../../../providers/ThemeProvider";
-import { RULE_CATEGORY_LABELS, getRulesByCategory, type RuleCategory } from "@draftcrick/shared";
+import { RULE_CATEGORY_LABELS, getRulesByCategory, type RuleCategory } from "@draftplay/shared";
 
 const CATEGORIES: RuleCategory[] = ["teamComposition", "scoring", "boosters", "transfers", "playoffs", "salary", "autoManagement", "scoringModifiers", "draft", "auction"];
 

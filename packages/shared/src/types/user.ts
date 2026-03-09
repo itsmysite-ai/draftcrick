@@ -32,25 +32,26 @@ export interface UserProfile {
 
 export interface Wallet {
   userId: string;
-  cashBalance: number;
-  bonusBalance: number;
-  totalDeposited: number;
-  totalWithdrawn: number;
-  totalWinnings: number;
+  coinBalance: number;
+  totalEarned: number;
+  totalSpent: number;
+  totalWon: number;
+  lastDailyClaimAt: Date | null;
+  loginStreak: number;
   updatedAt: Date;
 }
 
 export type TransactionType =
-  | "deposit"
-  | "withdrawal"
-  | "entry_fee"
-  | "winnings"
-  | "bonus"
-  | "refund"
-  | "tds";
+  | "daily_claim"
+  | "contest_entry"
+  | "contest_win"
+  | "prediction_win"
+  | "referral_bonus"
+  | "pack_purchase"
+  | "streak_bonus"
+  | "achievement";
 
 export type TransactionStatus =
-  | "pending"
   | "completed"
   | "failed"
   | "reversed";
@@ -62,8 +63,6 @@ export interface Transaction {
   amount: number;
   status: TransactionStatus;
   contestId: string | null;
-  gateway: string | null;
-  gatewayRef: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: Date;
 }

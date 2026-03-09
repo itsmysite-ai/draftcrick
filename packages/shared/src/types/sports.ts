@@ -36,6 +36,8 @@ export interface AITournament {
   imageUrl: string | null;
   /** Source URL from Google Search grounding */
   sourceUrl: string | null;
+  /** Brief 1-line description from Gemini discovery */
+  description: string | null;
 }
 
 /**
@@ -60,6 +62,12 @@ export interface AIMatch {
   status: AIMatchStatus;
   /** Score summary for live/completed matches */
   scoreSummary: string | null;
+  /** Who won the toss */
+  tossWinner: string | null;
+  /** Toss decision: "bat" or "bowl" */
+  tossDecision: string | null;
+  /** Match result summary (e.g., "India won by 6 wickets") */
+  result: string | null;
   /** Source URL from Google Search grounding */
   sourceUrl: string | null;
 }
@@ -76,14 +84,69 @@ export interface AIPlayer {
   nationality: string;
   battingStyle: string | null;
   bowlingStyle: string | null;
-  /** Fantasy credits 7.0-10.0 */
+  /** Raw Gemini fantasy credits 7.0-10.0 (superseded by calculated credits) */
   credits: number | null;
   battingAvg: number | null;
   bowlingAvg: number | null;
+  // --- Extended stats (from enriched Gemini prompt) ---
+  strikeRate: number | null;
+  economyRate: number | null;
+  bowlingStrikeRate: number | null;
+  matchesPlayed: number | null;
+  /** Recent form 1-10 based on last 5 matches */
+  recentForm: number | null;
+  /** Media sentiment/buzz score 1-10 */
+  sentimentScore: number | null;
+  /** "fit" | "doubtful" | "injured" | "recovered" */
+  injuryStatus: string | null;
+  /** 1-sentence form narrative from media */
+  formNote: string | null;
   /** Tournament this player was fetched from */
   tournamentName: string;
   /** Source URL from Google Search grounding */
   sourceUrl: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Player diff types — used by admin approve/reject flow on re-fetch
+// ---------------------------------------------------------------------------
+
+export type PlayerChangeType = "new" | "updated" | "no_change";
+
+export interface PlayerFieldChange {
+  field: string;
+  oldValue: string | number | null;
+  newValue: string | number | null;
+}
+
+export interface PlayerDiffEntry {
+  externalId: string;
+  name: string;
+  team: string;
+  changeType: PlayerChangeType;
+  changes: PlayerFieldChange[];
+  /** Human-readable reason, e.g. "Team: MI → RCB, Credits: 8.5 → 9.0" */
+  reason: string;
+  /** Full proposed data from Gemini (needed to apply if approved) */
+  proposed: {
+    name: string;
+    team: string;
+    role: string;
+    nationality: string;
+    battingStyle: string | null;
+    bowlingStyle: string | null;
+    credits: number | null;
+    battingAvg: number | null;
+    bowlingAvg: number | null;
+    strikeRate: number | null;
+    economyRate: number | null;
+    bowlingStrikeRate: number | null;
+    matchesPlayed: number | null;
+    recentForm: number | null;
+    sentimentScore: number | null;
+    injuryStatus: string | null;
+    formNote: string | null;
+  };
 }
 
 /**

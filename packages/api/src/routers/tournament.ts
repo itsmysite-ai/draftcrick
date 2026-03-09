@@ -1,13 +1,23 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "../trpc";
-
-const NOT_IMPLEMENTED = () => {
-  throw new TRPCError({
-    code: "METHOD_NOT_SUPPORTED",
-    message: "NOT_IMPLEMENTED — wired in Phase 4",
-  });
-};
+import { router, protectedProcedure, adminProcedure } from "../trpc";
+import {
+  createTournamentLeague,
+  getTournamentLeague,
+  listTournamentLeagues,
+  submitTeam,
+  getCurrentSquad,
+  getStandings,
+  getTradesUsed,
+  autoCarryTeams,
+} from "../services/tournament";
+import {
+  activateChip,
+  deactivateChip,
+  getAvailableChips,
+} from "../services/chips";
+import { getAwards } from "../services/awards";
+import { scoreMatchForTournament } from "../services/tournament-scoring";
 
 export const tournamentRouter = router({
   list: protectedProcedure
@@ -19,7 +29,9 @@ export const tournamentRouter = router({
           .optional(),
       })
     )
-    .query(async () => NOT_IMPLEMENTED()),
+    .query(async ({ ctx, input }) => {
+      return listTournamentLeagues(ctx.db, input);
+    }),
 
   create: protectedProcedure
     .input(
@@ -29,11 +41,32 @@ export const tournamentRouter = router({
         mode: z.enum(["salary_cap", "draft", "auction"]),
       })
     )
-    .mutation(async () => NOT_IMPLEMENTED()),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createTournamentLeague(
+          ctx.db,
+          ctx.user.id,
+          input.leagueId,
+          input.tournamentId,
+          input.mode
+        );
+      } catch (err: any) {
+        throw new TRPCError({
+          code: err.message?.includes("owner") ? "FORBIDDEN" : "BAD_REQUEST",
+          message: err.message,
+        });
+      }
+    }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
-    .query(async () => NOT_IMPLEMENTED()),
+    .query(async ({ ctx, input }) => {
+      const tl = await getTournamentLeague(ctx.db, input.id);
+      if (!tl) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Tournament league not found" });
+      }
+      return tl;
+    }),
 
   submitTeam: protectedProcedure
     .input(
@@ -44,7 +77,36 @@ export const tournamentRouter = router({
         playingXi: z.array(z.any()),
       })
     )
-    .mutation(async () => NOT_IMPLEMENTED()),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await submitTeam(
+          ctx.db,
+          ctx.user.id,
+          input.tournamentLeagueId,
+          input.matchId,
+          input.squad,
+          input.playingXi
+        );
+      } catch (err: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+      }
+    }),
+
+  getCurrentSquad: protectedProcedure
+    .input(
+      z.object({
+        tournamentLeagueId: z.string().uuid(),
+        matchId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return getCurrentSquad(
+        ctx.db,
+        ctx.user.id,
+        input.tournamentLeagueId,
+        input.matchId
+      );
+    }),
 
   useChip: protectedProcedure
     .input(
@@ -61,7 +123,65 @@ export const tournamentRouter = router({
         matchId: z.string(),
       })
     )
-    .mutation(async () => NOT_IMPLEMENTED()),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await activateChip(
+          ctx.db,
+          ctx.user.id,
+          input.tournamentLeagueId,
+          input.matchId,
+          input.chipType
+        );
+      } catch (err: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+      }
+    }),
+
+  deactivateChip: protectedProcedure
+    .input(
+      z.object({
+        tournamentLeagueId: z.string().uuid(),
+        matchId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await deactivateChip(
+          ctx.db,
+          ctx.user.id,
+          input.tournamentLeagueId,
+          input.matchId
+        );
+      } catch (err: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+      }
+    }),
+
+  getAvailableChips: protectedProcedure
+    .input(z.object({ tournamentLeagueId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return getAvailableChips(ctx.db, ctx.user.id, input.tournamentLeagueId);
+    }),
+
+  getTradesRemaining: protectedProcedure
+    .input(z.object({ tournamentLeagueId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const tl = await getTournamentLeague(ctx.db, input.tournamentLeagueId);
+      const totalAllowed = tl?.totalTradesAllowed ?? 30;
+      const used = await getTradesUsed(ctx.db, ctx.user.id, input.tournamentLeagueId);
+      return { used, total: totalAllowed, remaining: totalAllowed - used };
+    }),
+
+  getAwards: protectedProcedure
+    .input(
+      z.object({
+        tournamentLeagueId: z.string().uuid(),
+        matchId: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      return getAwards(ctx.db, input.tournamentLeagueId, input.matchId);
+    }),
 
   proposeTrade: protectedProcedure
     .input(
@@ -75,9 +195,46 @@ export const tournamentRouter = router({
         playersRequested: z.array(z.string()).optional(),
       })
     )
-    .mutation(async () => NOT_IMPLEMENTED()),
+    .mutation(async () => {
+      throw new TRPCError({
+        code: "METHOD_NOT_SUPPORTED",
+        message: "Trading is coming soon — available post-launch",
+      });
+    }),
 
   standings: protectedProcedure
     .input(z.object({ tournamentLeagueId: z.string().uuid() }))
-    .query(async () => NOT_IMPLEMENTED()),
+    .query(async ({ ctx, input }) => {
+      return getStandings(ctx.db, input.tournamentLeagueId);
+    }),
+
+  /**
+   * Score a completed match for a tournament league (admin/system).
+   */
+  scoreMatch: adminProcedure
+    .input(
+      z.object({
+        tournamentLeagueId: z.string().uuid(),
+        matchId: z.string(),
+        format: z.string().default("T20"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return scoreMatchForTournament(ctx.db, input.tournamentLeagueId, input.matchId, input.format);
+    }),
+
+  /**
+   * Auto-carry teams for users who didn't submit for an upcoming match (admin/system).
+   */
+  autoCarry: adminProcedure
+    .input(
+      z.object({
+        tournamentLeagueId: z.string().uuid(),
+        matchId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const carried = await autoCarryTeams(ctx.db, input.tournamentLeagueId, input.matchId);
+      return { carried };
+    }),
 });

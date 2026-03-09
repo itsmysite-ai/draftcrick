@@ -1,0 +1,13 @@
+diff --git a/build/fork/getPathFromState-forks.js b/build/fork/getPathFromState-forks.js
+index 1234567..abcdefg 100644
+--- a/build/fork/getPathFromState-forks.js
++++ b/build/fork/getPathFromState-forks.js
+@@ -34,7 +34,7 @@ exports.validatePathConfig = validatePathConfig;
+ function fixCurrentParams(allParams, route, stringify) {
+     // Better handle array params
+     const currentParams = Object.fromEntries(Object.entries(route.params).flatMap(([key, value]) => {
+-        if (key === 'screen' || key === 'params') {
++        if (key === 'screen' || key === 'params' || key === '__EXPO_ROUTER_key') {
+             return [];
+         }
+         return [

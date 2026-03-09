@@ -7,8 +7,8 @@ export * from "./primitives";
 // Cricket components
 export * from "./cricket";
 
-// tami·draft UI Components
+// draftplay.ai UI Components
 export * from "./components";
 
 // Design System Constants
-export { DesignSystem, textStyles, formatUIText, formatBadgeText } from "./constants/designSystem";
+export { DesignSystem, textStyles, formatUIText, formatBadgeText, formatTeamName } from "./constants/designSystem";

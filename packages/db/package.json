@@ -1,5 +1,5 @@
 {
-  "name": "@draftcrick/db",
+  "name": "@draftplay/db",
   "version": "0.0.1",
   "private": true,
   "main": "./src/index.ts",
@@ -12,13 +12,13 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@draftcrick/shared": "workspace:*",
+    "@draftplay/shared": "workspace:*",
     "dotenv": "^17.2.4",
     "drizzle-orm": "^0.38.0",
     "postgres": "^3.4.0"
   },
   "devDependencies": {
-    "@draftcrick/tsconfig": "workspace:*",
+    "@draftplay/tsconfig": "workspace:*",
     "drizzle-kit": "^0.30.0",
     "typescript": "^5.7.0"
   }

@@ -1,12 +1,12 @@
 import { eq, and } from "drizzle-orm";
-import type { Database } from "@draftcrick/db";
+import type { Database } from "@draftplay/db";
 import {
   matches,
   playerMatchScores,
   fantasyTeams,
   contests,
-} from "@draftcrick/db";
-import { calculateFantasyPoints, DEFAULT_T20_SCORING } from "@draftcrick/shared";
+} from "@draftplay/db";
+import { calculateFantasyPoints, DEFAULT_T20_SCORING } from "@draftplay/shared";
 import { updateContestRanks } from "../services/leaderboard";
 
 /**

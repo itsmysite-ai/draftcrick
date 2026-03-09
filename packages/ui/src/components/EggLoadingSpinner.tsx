@@ -8,6 +8,7 @@ import Animated, {
   withSequence,
   Easing,
 } from "react-native-reanimated";
+import { DraftPlayLogo } from "./DraftPlayLogo";
 
 interface EggLoadingSpinnerProps extends Omit<GetProps<typeof YStack>, "children"> {
   size?: number;
@@ -15,40 +16,45 @@ interface EggLoadingSpinnerProps extends Omit<GetProps<typeof YStack>, "children
 }
 
 /**
- * EggLoadingSpinner — Wobbling egg animation
- * The tami·draft loading indicator
+ * LoadingSpinner — Pulsing DraftPlay logo animation
+ * The draftplay.ai loading indicator
  */
 export function EggLoadingSpinner({
   size = 48,
   message = "loading",
   ...props
 }: EggLoadingSpinnerProps) {
-  const rotation = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
 
   useEffect(() => {
-    rotation.value = withRepeat(
+    scale.value = withRepeat(
       withSequence(
-        withTiming(-12, { duration: 300, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }),
-        withTiming(12, { duration: 300, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }),
-        withTiming(-8, { duration: 250, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }),
-        withTiming(8, { duration: 250, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }),
-        withTiming(0, { duration: 200, easing: Easing.bezier(0.34, 1.56, 0.64, 1) })
+        withTiming(1.15, { duration: 600, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
+        withTiming(0.95, { duration: 600, easing: Easing.bezier(0.4, 0, 0.2, 1) })
       ),
       -1,
-      false
+      true
     );
-  }, [rotation]);
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.6, { duration: 600, easing: Easing.bezier(0.4, 0, 0.2, 1) }),
+        withTiming(1, { duration: 600, easing: Easing.bezier(0.4, 0, 0.2, 1) })
+      ),
+      -1,
+      true
+    );
+  }, [scale, opacity]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
   }));
 
   return (
     <YStack alignItems="center" justifyContent="center" gap="$3" {...props}>
       <Animated.View style={animatedStyle}>
-        <Text fontSize={size} lineHeight={size}>
-          🥚
-        </Text>
+        <DraftPlayLogo size={size} />
       </Animated.View>
       {message && (
         <Text fontFamily="$mono" fontSize={11} color="$colorMuted">

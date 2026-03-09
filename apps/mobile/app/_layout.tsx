@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { AuthProvider } from "../providers/AuthProvider";
+import { NotificationProvider } from "../providers/NotificationProvider";
 import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
 import { ColorsLight, FontFamily } from "../lib/design";
@@ -41,6 +42,18 @@ function InnerLayout() {
         <Stack.Screen name="league/[id]/settings" />
         <Stack.Screen name="draft/[id]" />
         <Stack.Screen name="auction/[id]" />
+        <Stack.Screen name="subscription/index" />
+        <Stack.Screen name="notifications/inbox" />
+        <Stack.Screen name="settings/notifications" />
+        <Stack.Screen name="team/rate" />
+        <Stack.Screen name="predictions/index" />
+        <Stack.Screen name="predictions/[matchId]" />
+        <Stack.Screen name="predictions/leaderboard" />
+        <Stack.Screen name="predictions/results/[matchId]" />
+        <Stack.Screen name="tournament/[id]" />
+        <Stack.Screen name="tournament-league/[id]" />
+        <Stack.Screen name="tournament-league/create" />
+        <Stack.Screen name="tournament-league/submit-team" />
       </Stack>
     </>
   );
@@ -95,9 +108,11 @@ export default function RootLayout() {
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ThemeProvider>
-            <InnerLayout />
-          </ThemeProvider>
+          <NotificationProvider>
+            <ThemeProvider>
+              <InnerLayout />
+            </ThemeProvider>
+          </NotificationProvider>
         </AuthProvider>
       </QueryClientProvider>
     </trpc.Provider>

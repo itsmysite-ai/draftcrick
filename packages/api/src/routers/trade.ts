@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { eq, and, desc, or } from "drizzle-orm";
-import { trades, leagueMembers, leagues } from "@draftcrick/db";
+import { trades, leagueMembers, leagues } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 
 export const tradeRouter = router({

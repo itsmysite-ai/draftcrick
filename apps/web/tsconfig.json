@@ -1,5 +1,5 @@
 {
-  "extends": "@draftcrick/tsconfig/nextjs.json",
+  "extends": "@draftplay/tsconfig/nextjs.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]

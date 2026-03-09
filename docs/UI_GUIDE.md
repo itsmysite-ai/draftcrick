@@ -1,8 +1,8 @@
-# 🥚 tami·draft UI System Guide
+# 🥚 draftplay.ai UI System Guide
 
 **Retro-Modern Cricket Fantasy Design System**
 
-This guide shows you how to use the tami·draft design system consistently across all screens in your app.
+This guide shows you how to use the draftplay.ai design system consistently across all screens in your app.
 
 ## Quick Reference
 
@@ -17,7 +17,7 @@ This guide shows you how to use the tami·draft design system consistently acros
 
 ## Components Library
 
-All components are exported from `@draftcrick/ui`:
+All components are exported from `@draftplay/ui`:
 
 ```typescript
 import {
@@ -26,7 +26,7 @@ import {
   Button,
   Badge,
   
-  // tami·draft Components
+  // draftplay.ai Components
   AnnouncementBanner,
   InitialsAvatar,
   StatLabel,
@@ -35,7 +35,7 @@ import {
   SegmentTab,
   ModeToggle,
   EggLoadingSpinner,
-} from "@draftcrick/ui";
+} from "@draftplay/ui";
 ```
 
 ---
@@ -533,7 +533,7 @@ For questions or issues with the design system:
 1. Check this guide first
 2. Review the reference implementation in `ref/tamigui-sports-draft.jsx`
 3. Consult the Tamagui V5 documentation: https://tamagui.dev/
-4. Review the handoff doc: `/Downloads/tami-draft-handoff-v2.docx`
+4. Review the handoff doc: `/Downloads/draftplay-handoff-v2.docx`
 
 ---
 

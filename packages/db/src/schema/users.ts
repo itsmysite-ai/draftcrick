@@ -4,7 +4,6 @@ import {
   text,
   timestamp,
   integer,
-  decimal,
   date,
   jsonb,
   index,
@@ -50,21 +49,12 @@ export const wallets = pgTable("wallets", {
   userId: uuid("user_id")
     .primaryKey()
     .references(() => users.id),
-  cashBalance: decimal("cash_balance", { precision: 12, scale: 2 })
-    .notNull()
-    .default("0.00"),
-  bonusBalance: decimal("bonus_balance", { precision: 12, scale: 2 })
-    .notNull()
-    .default("0.00"),
-  totalDeposited: decimal("total_deposited", { precision: 12, scale: 2 })
-    .notNull()
-    .default("0.00"),
-  totalWithdrawn: decimal("total_withdrawn", { precision: 12, scale: 2 })
-    .notNull()
-    .default("0.00"),
-  totalWinnings: decimal("total_winnings", { precision: 12, scale: 2 })
-    .notNull()
-    .default("0.00"),
+  coinBalance: integer("coin_balance").notNull().default(500),
+  totalEarned: integer("total_earned").notNull().default(0),
+  totalSpent: integer("total_spent").notNull().default(0),
+  totalWon: integer("total_won").notNull().default(0),
+  lastDailyClaimAt: timestamp("last_daily_claim_at", { withTimezone: true }),
+  loginStreak: integer("login_streak").notNull().default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -75,12 +65,10 @@ export const transactions = pgTable("transactions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id),
-  type: text("type").notNull(), // deposit, withdrawal, entry_fee, winnings, bonus, refund, tds
-  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  status: text("status").notNull().default("pending"), // pending, completed, failed, reversed
+  type: text("type").notNull(), // daily_claim, contest_entry, contest_win, prediction_win, referral_bonus, pack_purchase, streak_bonus, achievement
+  amount: integer("amount").notNull(),
+  status: text("status").notNull().default("completed"), // completed, failed, reversed
   contestId: uuid("contest_id"),
-  gateway: text("gateway"),
-  gatewayRef: text("gateway_ref"),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

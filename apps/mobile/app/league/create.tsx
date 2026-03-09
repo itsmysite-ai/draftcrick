@@ -1,5 +1,5 @@
-import { TextInput, ScrollView } from "react-native";
-import { useState } from "react";
+import { TextInput, ScrollView, ActivityIndicator } from "react-native";
+import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
@@ -13,7 +13,7 @@ import {
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -41,9 +41,19 @@ export default function CreateLeagueScreen() {
   const [name, setName] = useState("");
   const [format, setFormat] = useState<LeagueFormat>("salary_cap");
   const [template, setTemplate] = useState<Template>("casual");
-  const [tournament, setTournament] = useState("IPL 2026");
+  const [tournament, setTournament] = useState("");
   const [maxMembers, setMaxMembers] = useState("10");
   const [isPrivate, setIsPrivate] = useState(true);
+
+  const tournamentsQuery = trpc.sports.tournaments.useQuery({ sport: "cricket" });
+  const availableTournaments = tournamentsQuery.data?.tournaments ?? [];
+
+  // Auto-select first tournament when data loads
+  useEffect(() => {
+    if (availableTournaments.length > 0 && !tournament) {
+      setTournament(availableTournaments[0].name);
+    }
+  }, [availableTournaments]);
 
   const createMutation = trpc.league.create.useMutation({
     onSuccess: (league) => { router.replace(`/league/${league!.id}` as any); },
@@ -55,7 +65,7 @@ export default function CreateLeagueScreen() {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} testID="create-league-screen">
       {/* ── Inline Header ── */}
       <XStack
         justifyContent="space-between"
@@ -77,14 +87,49 @@ export default function CreateLeagueScreen() {
       <Text {...textStyles.sectionHeader} marginBottom="$1">
         {formatUIText("league name")}
       </Text>
-      <TextInput value={name} onChangeText={setName} placeholder="e.g. the willow warriors" placeholderTextColor={theme.placeholderColor.val}
+      <TextInput value={name} onChangeText={setName} placeholder="e.g. the willow warriors" placeholderTextColor={theme.placeholderColor.val} testID="league-name-input"
         style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: DesignSystem.radius.lg, padding: 14, fontSize: 16, fontFamily: "DM Sans", borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
 
-      <Text {...textStyles.sectionHeader} marginBottom="$1">
+      <Text {...textStyles.sectionHeader} marginBottom="$2">
         {formatUIText("tournament")}
       </Text>
-      <TextInput value={tournament} onChangeText={setTournament} placeholder="e.g. IPL 2026" placeholderTextColor={theme.placeholderColor.val}
-        style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: DesignSystem.radius.lg, padding: 14, fontSize: 16, fontFamily: "DM Sans", borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }} />
+      {tournamentsQuery.isLoading ? (
+        <YStack alignItems="center" paddingVertical="$4" marginBottom="$5">
+          <ActivityIndicator size="small" color={theme.color.val} />
+          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$2">
+            {formatUIText("loading tournaments...")}
+          </Text>
+        </YStack>
+      ) : availableTournaments.length === 0 ? (
+        <Card padding="$4" marginBottom="$5">
+          <Text fontFamily="$body" fontSize={13} color="$colorMuted" textAlign="center">
+            {formatUIText("no active tournaments available")}
+          </Text>
+        </Card>
+      ) : (
+        <YStack marginBottom="$5">
+          {availableTournaments.map((t) => (
+            <Card
+              key={t.id}
+              pressable
+              marginBottom="$2"
+              padding="$4"
+              borderColor={tournament === t.name ? "$accentBackground" : "$borderColor"}
+              onPress={() => setTournament(t.name)}
+              testID={`tournament-${t.id}`}
+            >
+              <Text fontFamily="$body" fontWeight="700" fontSize={15} color={tournament === t.name ? "$accentBackground" : "$color"}>
+                {t.name}
+              </Text>
+              {t.category && (
+                <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
+                  {t.category}{t.startDate ? ` · ${t.startDate}` : ""}
+                </Text>
+              )}
+            </Card>
+          ))}
+        </YStack>
+      )}
 
       <Text {...textStyles.sectionHeader} marginBottom="$2">
         {formatUIText("format")}
@@ -158,7 +203,7 @@ export default function CreateLeagueScreen() {
         </YStack>
       </XStack>
 
-      <Button variant="primary" size="lg" onPress={handleCreate} disabled={createMutation.isPending || !name.trim()} opacity={!name.trim() ? 0.4 : 1} marginTop="$2">
+      <Button variant="primary" size="lg" onPress={handleCreate} disabled={createMutation.isPending || !name.trim() || !tournament} opacity={!name.trim() || !tournament ? 0.4 : 1} marginTop="$2" testID="create-league-btn">
         {createMutation.isPending ? formatUIText("creating...") : formatUIText("create league")}
       </Button>
 

@@ -17,7 +17,8 @@ import {
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -105,9 +106,7 @@ export default function LeaguesListScreen() {
             </YStack>
           ) : (
             <YStack alignItems="center" marginTop="$8">
-              <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$4">
-                {DesignSystem.emptyState.icon}
-              </Text>
+              <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
               <Text {...textStyles.hint} textAlign="center" lineHeight={20}>
                 {formatUIText("no leagues yet\ncreate or join a league to get started")}
               </Text>

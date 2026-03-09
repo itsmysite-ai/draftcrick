@@ -15,7 +15,7 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "tami\u00B7draft \u2014 Cricket Fantasy Drafting",
+  title: "DraftPlay.ai \u2014 Fantasy Sports Drafting",
   description:
     "Powerful for experts, effortless for everyone. AI-powered fantasy cricket with Comfort Mode accessibility.",
   keywords: [
@@ -26,6 +26,9 @@ export const metadata: Metadata = {
     "cricket",
     "fantasy sports",
   ],
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

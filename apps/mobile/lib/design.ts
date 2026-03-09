@@ -1,5 +1,5 @@
 /**
- * tami·draft Design System — Mobile
+ * draftplay.ai Design System — Mobile
  * Warm off-whites + earthy greens. Retro-modern fusion.
  * Fonts: DM Sans (body) + DM Mono (data/stats).
  */
@@ -19,7 +19,7 @@ export const FontFamily = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Colors — tami·draft dark mode (default for mobile)
+// Colors — draftplay.ai dark mode (default for mobile)
 // ---------------------------------------------------------------------------
 export const Colors = {
   // Backgrounds
@@ -139,7 +139,7 @@ export const Spacing = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Border radii — softer, rounder per tami·draft
+// Border radii — softer, rounder per draftplay.ai
 // ---------------------------------------------------------------------------
 export const Radius = {
   xs: 5,

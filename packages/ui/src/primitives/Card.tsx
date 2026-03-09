@@ -2,7 +2,7 @@ import { styled, YStack } from "tamagui";
 
 export const Card = styled(YStack, {
   backgroundColor: "$backgroundSurface",
-  borderRadius: 16, // 16px - tami·draft card radius
+  borderRadius: 16, // 16px - draftplay.ai card radius
   padding: "$4",
   borderWidth: 1,
   borderColor: "$borderColor",

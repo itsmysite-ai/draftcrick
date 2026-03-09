@@ -1,5 +1,5 @@
-import type { ScoringRules, PlayerMatchScore } from "@draftcrick/shared";
-import { calculateFantasyPoints } from "@draftcrick/shared";
+import type { ScoringRules, PlayerMatchScore } from "@draftplay/shared";
+import { calculateFantasyPoints } from "@draftplay/shared";
 
 /**
  * Calculate fantasy points for a player in a match, applying captain/VC multipliers.

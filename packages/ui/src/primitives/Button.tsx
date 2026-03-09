@@ -1,12 +1,12 @@
 import { styled, Button as TamaguiButton } from "tamagui";
 
 export const Button = styled(TamaguiButton, {
-  borderRadius: 10, // 10px - tami·draft button radius
+  borderRadius: 10, // 10px - draftplay.ai button radius
   fontFamily: "$mono", // DM Mono for all buttons
   fontWeight: "500",
   pressStyle: {
     scale: 0.97,
-    opacity: 0.9,
+    opacity: 0.85,
   },
 
   variants: {
@@ -14,26 +14,47 @@ export const Button = styled(TamaguiButton, {
       primary: {
         backgroundColor: "$accentBackground",
         color: "$accentColor",
+        hoverStyle: {
+          backgroundColor: "$colorAccentHover",
+          scale: 1.02,
+          opacity: 0.92,
+        },
       },
       secondary: {
-        backgroundColor: "$backgroundSurfaceAlt",
-        color: "$colorMuted",
+        backgroundColor: "$backgroundSurface",
+        color: "$color",
+        borderWidth: 1,
+        borderColor: "$borderColor",
         hoverStyle: {
-          backgroundColor: "$accentBackground",
-          color: "$white",
+          backgroundColor: "$backgroundHover",
+          borderColor: "$colorAccent",
+          scale: 1.02,
         },
       },
       accent: {
         backgroundColor: "$accentBackground",
-        color: "$white",
+        color: "$accentColor",
+        hoverStyle: {
+          backgroundColor: "$colorAccentHover",
+          scale: 1.02,
+          opacity: 0.92,
+        },
       },
       danger: {
         backgroundColor: "$error",
-        color: "$white",
+        color: "#FFFFFF",
+        hoverStyle: {
+          opacity: 0.85,
+          scale: 1.02,
+        },
       },
       ghost: {
         backgroundColor: "transparent",
         color: "$color",
+        hoverStyle: {
+          backgroundColor: "$backgroundPress",
+          scale: 1.02,
+        },
       },
     },
     size: {

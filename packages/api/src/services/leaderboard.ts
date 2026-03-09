@@ -1,6 +1,6 @@
 import { eq, desc, sql, and } from "drizzle-orm";
-import type { Database } from "@draftcrick/db";
-import { fantasyTeams, contests, users } from "@draftcrick/db";
+import type { Database } from "@draftplay/db";
+import { fantasyTeams, contests, users } from "@draftplay/db";
 
 export interface LeaderboardEntry {
   rank: number;

@@ -1,4 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+} from "firebase/auth";
+import { auth } from "../lib/firebase";
+import { setTRPCToken } from "../lib/trpc";
 
 interface AuthUser {
   id: string;
@@ -13,6 +20,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   firebaseToken: string | null;
+  error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -22,6 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   firebaseToken: null,
+  error: null,
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
@@ -38,55 +47,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [firebaseToken, setFirebaseToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Firebase Auth onAuthStateChanged listener will be wired here.
-    // When Firebase Auth SDK is configured:
-    //   import { getAuth, onAuthStateChanged } from "firebase/auth";
-    //   const auth = getAuth();
-    //   const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-    //     if (firebaseUser) {
-    //       const token = await firebaseUser.getIdToken();
-    //       setFirebaseToken(token);
-    //       setUser({ id: firebaseUser.uid, ... });
-    //     } else {
-    //       setFirebaseToken(null);
-    //       setUser(null);
-    //     }
-    //     setIsLoading(false);
-    //   });
-    //   return unsubscribe;
-    setIsLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const token = await firebaseUser.getIdToken();
+        setFirebaseToken(token);
+        setTRPCToken(token);
+        setUser({
+          id: firebaseUser.uid,
+          username: firebaseUser.displayName ?? firebaseUser.email?.split("@")[0] ?? "",
+          displayName: firebaseUser.displayName ?? "",
+          avatarUrl: firebaseUser.photoURL,
+          role: "user",
+          email: firebaseUser.email,
+        });
+      } else {
+        setFirebaseToken(null);
+        setTRPCToken(null);
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    // Firebase Auth signInWithEmailAndPassword will be wired here.
-    // import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
-    // const auth = getAuth();
-    // await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged listener above handles state update.
-    setUser(null);
+    setError(null);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (e: any) {
+      setError(e.message ?? "Sign in failed");
+      throw e;
+    }
   };
 
   const signUp = async (email: string, password: string) => {
-    // Firebase Auth createUserWithEmailAndPassword will be wired here.
-    // import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
-    // const auth = getAuth();
-    // await createUserWithEmailAndPassword(auth, email, password);
-    // Then call tRPC syncUser to create PostgreSQL record.
-    setUser(null);
+    setError(null);
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (e: any) {
+      setError(e.message ?? "Sign up failed");
+      throw e;
+    }
   };
 
-  const signOut = async () => {
-    // Firebase Auth signOut will be wired here.
-    // import { getAuth } from "firebase/auth";
-    // await getAuth().signOut();
-    setFirebaseToken(null);
-    setUser(null);
+  const handleSignOut = async () => {
+    setError(null);
+    try {
+      await auth.signOut();
+    } catch (e: any) {
+      setError(e.message ?? "Sign out failed");
+      throw e;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, firebaseToken, signIn, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, firebaseToken, error, signIn, signUp, signOut: handleSignOut }}
+    >
       {children}
     </AuthContext.Provider>
   );

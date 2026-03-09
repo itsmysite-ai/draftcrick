@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
-import { createContestSchema } from "@draftcrick/shared";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { contests, fantasyTeams, wallets, transactions, matches } from "@draftcrick/db";
+import { createContestSchema } from "@draftplay/shared";
+import { eq, and, or, desc, sql } from "drizzle-orm";
+import { contests, fantasyTeams, matches } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { calculatePrizeDistribution } from "../services/settlement";
+import { deductCoins } from "../services/pop-coins";
 import {
   getContestLeaderboard,
   getUserContestPosition,
@@ -37,8 +38,8 @@ export const contestRouter = router({
 
       return result.map((c) => ({
         ...c,
-        entryFee: Number(c.entryFee),
-        prizePool: Number(c.prizePool),
+        entryFee: c.entryFee,
+        prizePool: c.prizePool,
       }));
     }),
 
@@ -59,8 +60,8 @@ export const contestRouter = router({
 
       return {
         ...contest,
-        entryFee: Number(contest.entryFee),
-        prizePool: Number(contest.prizePool),
+        entryFee: contest.entryFee,
+        prizePool: contest.prizePool,
         leaderboard,
       };
     }),
@@ -100,16 +101,16 @@ export const contestRouter = router({
           matchId: input.matchId,
           leagueId: input.leagueId,
           name: input.name,
-          entryFee: String(input.entryFee),
+          entryFee: input.entryFee,
           maxEntries: input.maxEntries,
           contestType: input.contestType,
           isGuaranteed: input.isGuaranteed,
           prizeDistribution,
-          prizePool: String(prizePool),
+          prizePool,
         })
         .returning();
 
-      return { ...contest!, entryFee: Number(contest!.entryFee), prizePool };
+      return { ...contest!, entryFee: contest!.entryFee, prizePool };
     }),
 
   /**
@@ -138,6 +139,18 @@ export const contestRouter = router({
         });
       }
 
+      // Also check match status — block joining if match is live/completed
+      const match = await ctx.db.query.matches.findFirst({
+        where: eq(matches.id, contest.matchId),
+        columns: { id: true, status: true },
+      });
+      if (match && match.status !== "upcoming") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot join contest — match is ${match.status}`,
+        });
+      }
+
       if (contest.currentEntries >= contest.maxEntries) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -157,47 +170,20 @@ export const contestRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
       }
 
-      const entryFee = Number(contest.entryFee);
+      const entryFee = contest.entryFee;
 
-      // Deduct entry fee if applicable
+      // Deduct Pop Coins entry fee if applicable
       if (entryFee > 0) {
-        const wallet = await ctx.db.query.wallets.findFirst({
-          where: eq(wallets.userId, ctx.user.id),
-        });
-
-        const totalBalance = wallet
-          ? Number(wallet.cashBalance) + Number(wallet.bonusBalance)
-          : 0;
-
-        if (totalBalance < entryFee) {
+        try {
+          await deductCoins(ctx.db, ctx.user.id, entryFee, "contest_entry", {
+            contestId: contest.id,
+          });
+        } catch (e: any) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: `Insufficient balance. Need ${entryFee}, have ${totalBalance.toFixed(2)}`,
+            message: e.message,
           });
         }
-
-        // Deduct from bonus first, then cash
-        let remaining = entryFee;
-        const bonusDeduct = Math.min(remaining, Number(wallet!.bonusBalance));
-        remaining -= bonusDeduct;
-        const cashDeduct = remaining;
-
-        await ctx.db
-          .update(wallets)
-          .set({
-            cashBalance: sql`${wallets.cashBalance} - ${String(cashDeduct)}`,
-            bonusBalance: sql`${wallets.bonusBalance} - ${String(bonusDeduct)}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(wallets.userId, ctx.user.id));
-
-        await ctx.db.insert(transactions).values({
-          userId: ctx.user.id,
-          type: "entry_fee",
-          amount: String(entryFee),
-          status: "completed",
-          contestId: contest.id,
-        });
       }
 
       // Increment entry count
@@ -249,16 +235,51 @@ export const contestRouter = router({
         orderBy: [desc(fantasyTeams.createdAt)],
       });
 
-      return teams.map((t) => ({
-        ...t,
-        totalPoints: Number(t.totalPoints),
-        contest: t.contest
-          ? {
-              ...t.contest,
-              entryFee: Number(t.contest.entryFee),
-              prizePool: Number(t.contest.prizePool),
-            }
-          : null,
-      }));
+      // For teams without a contest, look up match data via matchId
+      const matchIds = teams
+        .filter((t) => !t.contest && t.matchId)
+        .map((t) => t.matchId!);
+      const matchLookup = new Map<string, any>();
+      if (matchIds.length > 0) {
+        const matchRows = await ctx.db.query.matches.findMany({
+          where: or(...matchIds.map((id) => {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            return isUuid ? eq(matches.id, id) : eq(matches.externalId, id);
+          })),
+        });
+        for (const m of matchRows) {
+          matchLookup.set(m.id, m);
+          matchLookup.set(m.externalId, m);
+        }
+      }
+
+      // Fetch ranks for teams in contests
+      const rankLookup = new Map<string, { rank: number; totalEntries: number }>();
+      const contestIds = [...new Set(teams.filter((t) => t.contestId).map((t) => t.contestId!))];
+      for (const cid of contestIds) {
+        const leaderboard = await getContestLeaderboard(ctx.db, cid);
+        for (const entry of leaderboard) {
+          rankLookup.set(`${cid}:${entry.userId}`, { rank: entry.rank, totalEntries: leaderboard.length });
+        }
+      }
+
+      return teams.map((t) => {
+        const rankInfo = t.contestId ? rankLookup.get(`${t.contestId}:${ctx.user.id}`) : undefined;
+        return {
+          ...t,
+          totalPoints: Number(t.totalPoints),
+          rank: rankInfo?.rank ?? null,
+          totalEntries: rankInfo?.totalEntries ?? null,
+          contest: t.contest
+            ? {
+                ...t.contest,
+                entryFee: t.contest.entryFee,
+                prizePool: t.contest.prizePool,
+              }
+            : null,
+          // Attach match directly for no-contest teams
+          match: t.contest?.match ?? (t.matchId ? matchLookup.get(t.matchId) ?? null : null),
+        };
+      });
     }),
 });

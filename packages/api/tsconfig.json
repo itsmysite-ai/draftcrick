@@ -1,5 +1,5 @@
 {
-  "extends": "@draftcrick/tsconfig/library.json",
+  "extends": "@draftplay/tsconfig/library.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",

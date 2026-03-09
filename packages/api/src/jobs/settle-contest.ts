@@ -1,6 +1,6 @@
-import type { Database } from "@draftcrick/db";
+import type { Database } from "@draftplay/db";
 import { eq, and } from "drizzle-orm";
-import { contests } from "@draftcrick/db";
+import { contests } from "@draftplay/db";
 import { settleContest } from "../services/settlement";
 
 /**

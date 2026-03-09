@@ -1,14 +1,17 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
-import { eq, ilike, and, desc } from "drizzle-orm";
-import { players, playerMatchScores } from "@draftcrick/db";
+import { eq, ilike, and, or, desc } from "drizzle-orm";
+import { players, playerMatchScores, matches, tournaments } from "@draftplay/db";
 
 export const playerRouter = router({
   /**
    * List all players (for draft/auction rooms)
    */
   list: publicProcedure.query(async ({ ctx }) => {
-    return ctx.db.query.players.findMany({ limit: 200 });
+    return ctx.db.query.players.findMany({
+      where: eq(players.isDisabled, false),
+      limit: 200,
+    });
   }),
 
   /**
@@ -26,7 +29,7 @@ export const playerRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const conditions = [];
+      const conditions = [eq(players.isDisabled, false)];
 
       if (input.query) {
         conditions.push(ilike(players.name, `%${input.query}%`));
@@ -65,17 +68,80 @@ export const playerRouter = router({
     }),
 
   /**
-   * Get players for a specific match (from both teams)
+   * Get players for a specific match (from both teams).
+   * Accepts UUID (DB ID) or string (external/AI ID).
+   * Auto-links players from the players table if no associations exist yet.
    */
   getByMatch: publicProcedure
-    .input(z.object({ matchId: z.string().uuid() }))
+    .input(z.object({ matchId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      const scores = await ctx.db.query.playerMatchScores.findMany({
-        where: eq(playerMatchScores.matchId, input.matchId),
-        with: {
-          player: true,
-        },
+      // Resolve match — could be a UUID (DB ID) or an external/AI ID
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.matchId);
+      const match = await ctx.db.query.matches.findFirst({
+        where: isUuid
+          ? eq(matches.id, input.matchId)
+          : eq(matches.externalId, input.matchId),
       });
-      return scores;
+
+      if (!match) return [];
+
+      let scores = await ctx.db.query.playerMatchScores.findMany({
+        where: eq(playerMatchScores.matchId, match.id),
+        with: { player: true },
+      });
+
+      // Fallback auto-link: if smart refresh hasn't linked players yet,
+      // find them by team name on-demand. Primary linking happens in
+      // executeRefresh → linkPlayersToMatches (step 7.5).
+      if (scores.length === 0) {
+        const stripSuffix = (t: string) => t.replace(/ Men$| Women$/, "");
+        const teamPlayers = await ctx.db.query.players.findMany({
+          where: and(
+            eq(players.isDisabled, false),
+            or(
+              ilike(players.team, `%${stripSuffix(match.teamHome)}%`),
+              ilike(players.team, `%${stripSuffix(match.teamAway)}%`),
+              eq(players.team, match.teamHome),
+              eq(players.team, match.teamAway),
+            ),
+          ),
+        });
+
+        if (teamPlayers.length > 0) {
+          await ctx.db
+            .insert(playerMatchScores)
+            .values(
+              teamPlayers.map((p) => ({
+                playerId: p.id,
+                matchId: match.id,
+                isPlaying: true,
+              }))
+            )
+            .onConflictDoNothing();
+
+          scores = await ctx.db.query.playerMatchScores.findMany({
+            where: eq(playerMatchScores.matchId, match.id),
+            with: { player: true },
+          });
+        }
+      }
+
+      // Filter out disabled players from results
+      const filteredScores = scores.filter((s: any) => !s.player?.isDisabled);
+
+      // Load tournament overseas config if match has a tournament
+      let overseasRule: { enabled: boolean; hostCountry: string } | null = null;
+      if (match.tournamentId) {
+        const tournament = await ctx.db.query.tournaments.findFirst({
+          where: eq(tournaments.id, match.tournamentId),
+          columns: { tournamentRules: true },
+        });
+        const rules = (tournament?.tournamentRules as any) ?? {};
+        if (rules.overseasRule) {
+          overseasRule = rules.overseasRule;
+        }
+      }
+
+      return { players: filteredScores, overseasRule };
     }),
 });

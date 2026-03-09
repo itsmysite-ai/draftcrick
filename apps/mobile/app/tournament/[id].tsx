@@ -22,11 +22,15 @@ import {
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  formatTeamName,
+  CricketBatIcon,
+  CricketBallIcon,
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { useTheme } from "../../providers/ThemeProvider";
 import { trpc } from "../../lib/trpc";
 
-import type { AITeamStanding } from "@draftcrick/shared";
+import type { AITeamStanding } from "@draftplay/shared";
 
 // ─── Types ───────────────────────────────────────────────────────────
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
@@ -72,6 +76,34 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `until ${fmt(end!)}`;
 }
 
+function parseTeamScores(scoreSummary: string | null | undefined) {
+  if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
+  const parts = scoreSummary.split(/\s+vs\s+/i);
+  const extract = (part: string) => {
+    const s = part.match(/(\d+\/\d+)/);
+    const o = part.match(/\(([^)]+)\)/);
+    return { score: s ? s[1] : null, overs: o ? o[1] : null };
+  };
+  const a = parts[0] ? extract(parts[0]) : { score: null, overs: null };
+  const b = parts[1] ? extract(parts[1]) : { score: null, overs: null };
+  return { scoreA: a.score, scoreB: b.score, oversA: a.overs, oversB: b.overs };
+}
+
+function didTeamAWin(result: string | null, teamA: string): boolean | null {
+  if (!result) return null;
+  const r = result.toLowerCase();
+  if (r.includes("no result") || r.includes("tied") || r.includes("draw")) return null;
+  return r.includes(teamA.toLowerCase().slice(0, 4));
+}
+
+function getTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
+  if (!tossWinner || !tossDecision) return null;
+  const winnerChoseBat = tossDecision.toLowerCase().includes("bat");
+  const teamAWonToss = tossWinner.toLowerCase().includes(teamA.toLowerCase().slice(0, 4));
+  if (teamAWonToss) return winnerChoseBat ? "bat" : "bowl";
+  return winnerChoseBat ? "bowl" : "bat";
+}
+
 // ─── TournamentMatchCard ─────────────────────────────────────────────
 function TournamentMatchCard({
   match,
@@ -83,9 +115,13 @@ function TournamentMatchCard({
   onPress: () => void;
 }) {
   const isLive = match.status === "live";
-  const teamA = match.teamA || match.teamHome || "TBA";
-  const teamB = match.teamB || match.teamAway || "TBA";
+  const teamA = formatTeamName(match.teamA || match.teamHome || "TBA");
+  const teamB = formatTeamName(match.teamB || match.teamAway || "TBA");
   const startTime = parseSafeDate(match.date, match.time);
+  const isCompleted = match.status === "completed";
+  const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary);
+  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, teamA);
+  const teamAWon = didTeamAWin(match.result, teamA);
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
@@ -105,10 +141,26 @@ function TournamentMatchCard({
         {/* Teams */}
         <XStack alignItems="center" justifyContent="center" marginBottom="$3">
           <YStack flex={1} alignItems="center" gap={4}>
-            <InitialsAvatar name={teamA} playerRole="BAT" ovr={0} size={42} />
+            <InitialsAvatar
+              name={teamA} playerRole="BAT" ovr={0} size={42}
+              hideBadge={isCompleted ? teamAWon !== true : !isLive || !teamARole}
+              badgeContent={
+                isCompleted && teamAWon === true
+                  ? <Text fontSize={10} lineHeight={14}>🏆</Text>
+                  : isLive && teamARole
+                    ? (teamARole === "bat" ? <CricketBatIcon size={14} /> : <CricketBallIcon size={10} />)
+                    : undefined
+              }
+            />
             <Text {...textStyles.playerName} fontSize={13} numberOfLines={1} textAlign="center">
               {teamA}
             </Text>
+            {scoreA && (
+              <YStack alignItems="center" gap={1}>
+                <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$color">{scoreA}</Text>
+                {oversA && <Text fontFamily="$mono" fontSize={9} color="$colorMuted">({oversA})</Text>}
+              </YStack>
+            )}
           </YStack>
 
           <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
@@ -116,20 +168,50 @@ function TournamentMatchCard({
           </Text>
 
           <YStack flex={1} alignItems="center" gap={4}>
-            <InitialsAvatar name={teamB} playerRole="BOWL" ovr={0} size={42} />
+            <InitialsAvatar
+              name={teamB} playerRole="BOWL" ovr={0} size={42}
+              hideBadge={isCompleted ? teamAWon !== false : !isLive || !teamARole}
+              badgeContent={
+                isCompleted && teamAWon === false
+                  ? <Text fontSize={10} lineHeight={14}>🏆</Text>
+                  : isLive && teamARole
+                    ? (teamARole === "bat" ? <CricketBallIcon size={10} /> : <CricketBatIcon size={14} />)
+                    : undefined
+              }
+            />
             <Text {...textStyles.playerName} fontSize={13} numberOfLines={1} textAlign="center">
               {teamB}
             </Text>
+            {scoreB && (
+              <YStack alignItems="center" gap={1}>
+                <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$color">{scoreB}</Text>
+                {oversB && <Text fontFamily="$mono" fontSize={9} color="$colorMuted">({oversB})</Text>}
+              </YStack>
+            )}
           </YStack>
         </XStack>
 
-        {/* Score summary */}
-        {match.scoreSummary && (
-          <YStack alignItems="center" marginBottom="$2">
-            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$colorCricket">
-              {match.scoreSummary}
+        {/* Result */}
+        {match.result && (
+          <Text fontFamily="$body" fontWeight="700" fontSize={11} color="$accentBackground" textAlign="center" marginBottom="$2">
+            {match.result}
+          </Text>
+        )}
+
+        {/* Toss — smaller when score is showing */}
+        {match.tossWinner && (
+          <XStack alignSelf="center" alignItems="center" gap={6} marginBottom="$2" opacity={match.scoreSummary ? 0.6 : 1}>
+            <Text fontFamily="$mono" fontSize={match.scoreSummary ? 8 : 9} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
+              toss
             </Text>
-          </YStack>
+            <YStack width={2.5} height={2.5} borderRadius={1.25} backgroundColor="$colorMuted" opacity={0.5} />
+            <Text fontFamily="$body" fontSize={match.scoreSummary ? 9 : 11} fontWeight="600" color="$color">
+              {match.tossWinner}
+            </Text>
+            <Text fontFamily="$mono" fontSize={match.scoreSummary ? 8 : 10} fontWeight="500" color="$colorAccent">
+              elected to {match.tossDecision}
+            </Text>
+          </XStack>
         )}
 
         {/* Footer: venue + time */}
@@ -264,13 +346,37 @@ export default function TournamentScreen() {
     staleTime: 5 * 60_000,
   });
 
-  // ── Find tournament + filter matches ──
+  // DB matches for toss/score enrichment
+  const dbLive = trpc.match.live.useQuery(undefined, {
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
+  // ── Find tournament + filter matches (enriched with DB toss/score) ──
   const tournament = (dashboardQuery.data?.tournaments ?? []).find(
     (t: any) => t.name === tournamentName,
   );
-  const tournamentMatches = (dashboardQuery.data?.matches ?? []).filter(
-    (m: any) => (m.tournamentName ?? "") === tournamentName,
-  );
+
+  const dbMatchesRaw = dbLive.data ?? [];
+  const dbLookup = new Map<string, any>();
+  for (const m of dbMatchesRaw) {
+    const key = [m.teamHome, m.teamAway].map((t: string) => t.toLowerCase().trim()).sort().join("|");
+    dbLookup.set(key, m);
+  }
+
+  const tournamentMatches = (dashboardQuery.data?.matches ?? [])
+    .filter((m: any) => (m.tournamentName ?? "") === tournamentName)
+    .map((ai: any) => {
+      const key = [ai.teamA || "", ai.teamB || ""].map((t: string) => t.toLowerCase().trim()).sort().join("|");
+      const db = dbLookup.get(key);
+      return {
+        ...ai,
+        tossWinner: ai.tossWinner || db?.tossWinner || null,
+        tossDecision: ai.tossDecision || db?.tossDecision || null,
+        scoreSummary: ai.scoreSummary || db?.scoreSummary || null,
+        result: ai.result || db?.result || null,
+      };
+    });
 
   // ── Standings query ──
   const standingsQuery = trpc.sports.standings.useQuery(
@@ -358,7 +464,7 @@ export default function TournamentScreen() {
           <ModeToggle mode={mode} onToggle={toggleMode} />
         </XStack>
         <YStack flex={1} justifyContent="center" alignItems="center" gap="$3">
-          <Text fontSize={DesignSystem.emptyState.iconSize}>🏏</Text>
+          <CricketBatIcon size={DesignSystem.emptyState.iconSize} />
           <Text {...textStyles.playerName}>{formatUIText("tournament not found")}</Text>
           <Text {...textStyles.hint}>{formatUIText("this tournament may no longer be active")}</Text>
           <Button variant="primary" size="md" marginTop="$3" onPress={() => router.back()}>
@@ -467,7 +573,7 @@ export default function TournamentScreen() {
           ) : (
             <Animated.View entering={FadeIn.delay(80)}>
               <YStack alignItems="center" gap="$3" paddingVertical="$10">
-                <Text fontSize={DesignSystem.emptyState.iconSize}>🏏</Text>
+                <CricketBatIcon size={DesignSystem.emptyState.iconSize} />
                 <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
                   {formatUIText("no matches scheduled")}
                 </Text>
@@ -502,7 +608,7 @@ export default function TournamentScreen() {
           ) : (
             <Animated.View entering={FadeIn.delay(80)}>
               <YStack alignItems="center" gap="$3" paddingVertical="$10">
-                <Text fontSize={DesignSystem.emptyState.iconSize}>{DesignSystem.emptyState.icon}</Text>
+                <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
                 <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
                   {formatUIText("no standings available")}
                 </Text>

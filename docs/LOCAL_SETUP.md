@@ -1,4 +1,4 @@
-# DraftCrick — Local Development Setup
+# DraftPlay — Local Development Setup
 
 ## Prerequisites
 
@@ -21,8 +21,8 @@ Optional (for full feature set):
 ## 1. Clone & Install
 
 ```bash
-git clone https://github.com/itsmysite-ai/draftcrick.git
-cd draftcrick
+git clone https://github.com/itsmysite-ai/draftplay.git
+cd draftplay
 pnpm install
 ```
 
@@ -42,9 +42,9 @@ Open `.env` and fill in the **required** values:
 
 ```env
 # Database — either local PostgreSQL or GCP Cloud SQL
-DATABASE_URL=postgresql://postgres:password@localhost:5432/draftcrick
+DATABASE_URL=postgresql://postgres:password@localhost:5432/draftplay
 # OR for GCP Cloud SQL:
-# DATABASE_URL=postgresql://postgres:password@YOUR_GCP_IP:5432/draftcrick
+# DATABASE_URL=postgresql://postgres:password@YOUR_GCP_IP:5432/draftplay
 
 # Redis (required for caching - see REDIS_CACHE_ARCHITECTURE.md)
 REDIS_URL=redis://localhost:6379
@@ -91,7 +91,7 @@ RESEND_API_KEY=<resend-key>
 SENTRY_DSN=<sentry-dsn>
 
 # Google Cloud
-GCP_PROJECT_ID=draftcrick-prod
+GCP_PROJECT_ID=draftplay-prod
 GCP_REGION=asia-south1
 ```
 
@@ -107,7 +107,7 @@ brew services start postgresql@15   # macOS
 # or: sudo systemctl start postgresql  # Linux
 
 # Create the database
-createdb draftcrick
+createdb draftplay
 
 # Push the Drizzle schema to your local DB
 pnpm db:push
@@ -122,7 +122,7 @@ If you're using GCP Cloud SQL PostgreSQL:
 
 ```env
 # Update .env with your GCP Cloud SQL IP
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_GCP_IP:5432/draftcrick
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@YOUR_GCP_IP:5432/draftplay
 ```
 
 Then push the schema:
@@ -134,14 +134,14 @@ pnpm db:push
 
 ```bash
 docker run -d \
-  --name draftcrick-postgres \
-  -e POSTGRES_DB=draftcrick \
+  --name draftplay-postgres \
+  -e POSTGRES_DB=draftplay \
   -e POSTGRES_PASSWORD=password \
   -p 5432:5432 \
   postgres:15
 
 docker run -d \
-  --name draftcrick-redis \
+  --name draftplay-redis \
   -p 6379:6379 \
   redis:7-alpine
 ```
@@ -183,18 +183,18 @@ This starts all workspaces in parallel via Turborepo:
 
 ```bash
 # API server only
-pnpm --filter @draftcrick/api dev
+pnpm --filter @draftplay/api dev
 
 # Web app only
-pnpm --filter @draftcrick/web dev
+pnpm --filter @draftplay/web dev
 
 # Mobile app only
-pnpm --filter @draftcrick/mobile dev
+pnpm --filter @draftplay/mobile dev
 ```
 
 ### Mobile app on a device
 
-1. Run `pnpm --filter @draftcrick/mobile dev`
+1. Run `pnpm --filter @draftplay/mobile dev`
 2. Scan the QR code with **Expo Go** (Android) or the Camera app (iOS)
 3. Or press `a` for Android emulator / `i` for iOS simulator
 
@@ -205,7 +205,7 @@ pnpm --filter @draftcrick/mobile dev
 ## 6. Project Structure
 
 ```
-draftcrick/
+draftplay/
 ├── apps/
 │   ├── mobile/                  # Expo SDK 52 + Expo Router
 │   └── web/                     # Next.js 15 (App Router)
@@ -246,9 +246,9 @@ draftcrick/
 ### Filtering to a specific package
 
 ```bash
-pnpm --filter @draftcrick/api dev      # API only
-pnpm --filter @draftcrick/web build    # Build web only
-pnpm --filter @draftcrick/mobile lint  # Lint mobile only
+pnpm --filter @draftplay/api dev      # API only
+pnpm --filter @draftplay/web build    # Build web only
+pnpm --filter @draftplay/mobile lint  # Lint mobile only
 ```
 
 ---
@@ -335,7 +335,7 @@ This usually means database connection failed:
 ### Metro Bundler Cache Issues
 
 ```bash
-pnpm --filter @draftcrick/mobile dev -- --clear
+pnpm --filter @draftplay/mobile dev -- --clear
 ```
 
 ### pnpm Install Fails

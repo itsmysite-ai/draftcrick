@@ -1,4 +1,4 @@
-# DraftCrick — Revised Development Plan (v2 — Final)
+# DraftPlay — Revised Development Plan (v2 — Final)
 
 > **Last Updated:** February 10, 2026  
 > **Architecture:** GCP-native serverless, Redis-cached, Gemini-powered  
@@ -13,14 +13,21 @@
 | **Phase 0: Foundation** | ✅ Complete | 100% | Weeks 1-3 | Monorepo, GCP infra, database, auth |
 | **Phase 1: Core Fantasy** | ✅ Complete | 100% | Weeks 4-7 | Salary cap, live scoring, wallet MVP |
 | **Phase 2: Draft & Leagues** | ✅ Complete | 100% | Weeks 8-11 | Draft rooms, auction, 200+ rules |
-| **Phase 2.5: UI Redesign** | 🔄 In Progress | 27% | Ongoing | tami·draft design system |
-| **Phase 2.75: Data, Tournaments & Testing** | 🔄 In Progress | 35% | Weeks 12-14 | Real data + tournament mode schema + testing |
-| **Phase 3: AI & Analytics Engine** | ⏳ Planned | 40% backend | Weeks 15-19 | Projected points, Guru, comparison, FDR |
-| **Phase 4: Tournament Mode & League Depth** | ⏳ Planned | 0% | Weeks 20-24 | Season-long leagues, trades, playoffs, chips |
-| **Phase 5: Predictions & Social** | ⏳ Planned | 0% | Weeks 25-28 | Prediction leagues, H2H, chat, notifications |
-| **Phase 6: Web, Admin & Corporate** | ⏳ Planned | 0% | Weeks 29-32 | Web parity, admin dashboard, fixture ticker |
-| **Phase 7: Polish, Testing & Launch** | ⏳ Planned | 0% | Weeks 33-36 | Performance, security, beta launch |
-| **Phase 8: Voice & Post-Launch** | ⏳ Planned | 0% | Post-launch | Voice commands, AI newsletter, dynamic pricing |
+| **Phase 2.5: UI Redesign** | 🔄 In Progress | 27% | Ongoing | draftplay.ai design system |
+| **Phase 2.75: Data, Tournaments & Testing** | 🔄 In Progress | 35% | Weeks 12-15 | Real data + tournament mode schema + testing |
+| **L1.5: Subscription Monetization** | ⏳ Next | 0% | Weeks 16-17 | Freemium tiers (Free/Pro/Elite), Razorpay, feature gates |
+| **L2: AI Engine (Phase 3 Core)** | ⏳ Planned | 40% backend | Weeks 18-20 | Projected points, Guru chat, Rate My Team (tier-gated) |
+| **L3: Push Notifications** | ⏳ Planned | 0% | Week 21 | FCM, core notification types |
+| **L4: Tournament Mode Core** | ⏳ Planned | 0% | Weeks 22-23 | Season-long leagues, per-match teams, chips, awards |
+| **L5: Predictions + Awards** | ⏳ Planned | 0% | Week 24 | 11 prediction types, AI questions, leaderboard |
+| **L6: Coming Soon + Launch Prep** | ⏳ Planned | 0% | Week 25 | Coming Soon screens for deferred features, polish |
+| **BETA LAUNCH** | ⏳ Target | — | **Week 26 (May 19)** | **500 beta users** |
+| **Post-Launch: Remaining Phase 3** | ⏳ Deferred | 0% | Weeks 25-26 | Comparison, ownership, previews, planner |
+| **Post-Launch: Phase 4 Advanced** | ⏳ Deferred | 0% | Weeks 27-30 | Trading, waivers, playoffs, commissioner, H2H |
+| **Post-Launch: Phase 5 Social** | ⏳ Deferred | 0% | Weeks 31-34 | Chat, 1v1, referrals, activity feed |
+| **Post-Launch: Phase 6-8** | ⏳ Deferred | 0% | Weeks 35+ | Web, admin, voice, newsletter |
+
+> **See "Launch Roadmap" section at the bottom for full prioritization details and "Coming Soon" strategy.**
 
 ---
 
@@ -48,7 +55,7 @@
 
 ---
 
-## Phase 2.5: tami·draft Design System 🔄 IN PROGRESS
+## Phase 2.5: draftplay.ai Design System 🔄 IN PROGRESS
 
 *(Continuing as-is — remaining screens migrate alongside future phases)*
 
@@ -79,7 +86,7 @@ Before building new features, we need: real data flowing to the UI, the database
 | Player Roster Fetch | ✅ Done | Gemini fetches full squad rosters (name, role, credits, batting/bowling avg) batched 3 tournaments/call. Stored as JSONB stats on players table. |
 | Tournament Standings Fetch | ✅ Done | Gemini fetches points tables (W/L/T/NR/Pts/NRR) batched 3 tournaments/call. Stored as JSONB on tournaments.standings column. |
 | Home Screen — Real Data | ✅ Done | Dashboard wired to `trpc.sports.dashboard`, loading/empty/error states, pull-to-refresh |
-| Tournament Card Component | ✅ Done | `TournamentCard` tami·draft component with badge, date range, match count |
+| Tournament Card Component | ✅ Done | `TournamentCard` draftplay.ai component with badge, date range, match count |
 | Tournament Details Screen | ✅ Done | `/tournament/[id].tsx` with 3 tabs: matches, standings, stats |
 | Standings Tab | ✅ Done | Real points table from `trpc.sports.standings` — columns: #, Team, P, W, L, PTS, NRR. Group headers when applicable. |
 | Stats Tab Enhancement | ✅ Done | Top 5 per role with credits + batting avg + bowling avg |
@@ -104,7 +111,7 @@ Before building new features, we need: real data flowing to the UI, the database
 
 | Task | Description | Time | Status |
 |------|-------------|------|--------|
-| Tournament card component | New tami·draft component for tournament display | 3h | ✅ |
+| Tournament card component | New draftplay.ai component for tournament display | 3h | ✅ |
 | Tournament list on home | Show active tournaments (IPL, World Cup, BBL, etc.) | 2h | ✅ |
 | Tournament filtering | Filter matches by selected tournament | 2h | ✅ |
 | Tournament details screen | `/tournament/[id].tsx` — matches, standings, stats leaders | 3h | ✅ |
@@ -535,7 +542,7 @@ ALTER TABLE matches ADD COLUMN IF NOT EXISTS tournament_id TEXT;
 
 #### 1D. Geo-Location & Regional Compliance Foundation
 
-> **Reference:** [DraftCrick-Geo-Location-Implementation.md](./DraftCrick-Geo-Location-Implementation.md)
+> **Reference:** [DraftPlay-Geo-Location-Implementation.md](./DraftPlay-Geo-Location-Implementation.md)
 
 Build the geo-detection infrastructure now so every future feature can query a user's regulatory zone. India's PROGA 2025 bans all real-money gaming nationwide (Supreme Court ruling pending). We build a dual-mode architecture: `PROGA_ACTIVE` flag toggles the entire app between free-to-play and real-money.
 
@@ -693,8 +700,8 @@ Build the geo-detection infrastructure now so every future feature can query a u
 | Add draft eligibility checks to UI | 2h |
 | Admin endpoint: `admin.tournaments.toggleDraft` | 2h |
 | Final verification: all features work with real data | 4h |
-| Migrate Match Center screen to tami·draft | 6h |
-| Migrate Team Builder screen to tami·draft | 6h |
+| Migrate Match Center screen to draftplay.ai | 6h |
+| Migrate Team Builder screen to draftplay.ai | 6h |
 
 ### Phase 2.75 Success Criteria
 
@@ -712,7 +719,7 @@ Build the geo-detection infrastructure now so every future feature can query a u
 - [ ] Wallet features tested and working
 - [ ] Redis cache tested (hit, miss, expiration, locking)
 - [ ] Zero P0 bugs remaining
-- [ ] Match Center and Team Builder screens migrated to tami·draft
+- [ ] Match Center and Team Builder screens migrated to draftplay.ai
 - [ ] **Geo-detection: IP + GPS + declaration all resolving correctly**
 - [ ] **Feature gates: paid features hidden for `india_free_only` and `international_blocked` zones**
 - [ ] **Gemini API routing to nearest region based on user country**
@@ -724,7 +731,7 @@ Build the geo-detection infrastructure now so every future feature can query a u
 
 **Status:** Planned (40% backend complete)  
 **Duration:** 5 weeks (Weeks 15-19)  
-**Goal:** Build the AI-powered analytics layer that differentiates DraftCrick from every competitor.
+**Goal:** Build the AI-powered analytics layer that differentiates DraftPlay from every competitor.
 
 ### Already Complete (from Phase 1)
 - ✅ Gemini API integration (`services/gemini-sports.ts`)
@@ -1278,7 +1285,7 @@ interface TransferPlan {
 - [ ] Ownership stats updating hourly before match deadlines
 - [ ] Match previews auto-generated 12h before each match
 - [ ] Transfer planner functional with AI suggestions
-- [ ] All analytics screens migrated to tami·draft design system
+- [ ] All analytics screens migrated to draftplay.ai design system
 
 ---
 
@@ -1286,7 +1293,7 @@ interface TransferPlan {
 
 **Status:** Planned  
 **Duration:** 5 weeks (Weeks 20-24)  
-**Goal:** Build the season-long tournament experience that makes DraftCrick a CricBattle competitor, not a Dream11 clone.
+**Goal:** Build the season-long tournament experience that makes DraftPlay a CricBattle competitor, not a Dream11 clone.
 
 **Dependencies:** Phase 2.75 schema must be complete. Phase 3 projections/FDR feed into team management decisions.
 
@@ -2300,7 +2307,7 @@ Add when international user base grows enough to justify the cost and complexity
 | Layer | Technology | Status |
 |-------|-----------|--------|
 | **Mobile** | Expo SDK 52, React Native, Expo Router | ✅ Working |
-| **UI** | Tamagui + tami·draft design system | 🔄 27% migrated |
+| **UI** | Tamagui + draftplay.ai design system | 🔄 27% migrated |
 | **Web** | Next.js 15, App Router | ✅ Setup |
 | **API** | Hono + tRPC | ✅ Working |
 | **Database** | Drizzle ORM + PostgreSQL (Cloud SQL) | ✅ Working |
@@ -2423,20 +2430,257 @@ Tab 5: MORE
 
 ---
 
-## Timeline Summary
+## 🚀 LAUNCH ROADMAP (Prioritized for User Release)
 
-| Phase | Weeks | Dates (Est.) | Key Deliverables |
-|-------|-------|-------------|-----------------|
-| 2.75 | 12-14 | Feb 10 – Mar 2 | Real data, 19 new tables, 51 test cases |
-| 3 | 15-19 | Mar 3 – Apr 6 | FDR, projections, Guru, comparison, previews, planner |
-| 4 | 20-24 | Apr 7 – May 11 | Tournament mode, trades, playoffs, chips, commissioner, H2H, awards |
-| 5 | 25-28 | May 12 – Jun 8 | Predictions (11 types), chat, notifications, social |
-| 6 | 29-32 | Jun 9 – Jul 6 | Web parity, admin, analytics dashboard |
-| 7 | 33-36 | Jul 7 – Aug 3 | Polish, security, testing, beta launch |
-| 8 | 37+ | Aug 2026+ | Voice, newsletter, dynamic pricing, cup mode, streaks |
+> **Last Updated:** March 3, 2026
+> **Goal:** Ship a launchable, sticky product as fast as possible. Prioritize features that differentiate DraftPlay, drive daily engagement, and make users come back every match day.
 
-**Target Beta Launch:** Early August 2026  
-**Target IPL 2027 Readiness:** March 2027
+### Launch Philosophy
+
+Ship the **core engagement loop** first, add depth later:
+
+```
+Match announced → Push notification
+  → Open app → See AI projections → Build/tweak team
+    → Rate My Team → Get grade → Tweak more
+      → Match plays → Live scoring updates
+        → Match ends → Awards + Leaderboard
+          → "Ask Guru: what went wrong?" → Plan next match
+            → Prediction for tomorrow's match
+              → Notification for next match → REPEAT
+```
+
+### Launch Phases (Reordered by Impact)
+
+| # | Launch Phase | What | Why | ~Effort | Status |
+|---|-------------|------|-----|---------|--------|
+| L1 | **Finish Phase 2.75** | Testing, polish, UI migrations | Can't launch broken | 2 weeks | 🔄 IN PROGRESS |
+| L1.5 | **Subscription Monetization** | Freemium tiers (Free/Pro/Elite) + subscription billing | Revenue from day 1, PROGA-safe (no wagering) | 1.5 weeks | ⏳ NEXT |
+| L2 | **AI Engine (Phase 3 Core)** | Projected Points + Guru Chat + Rate My Team | Killer differentiator — gated behind Pro/Elite tiers | 3 weeks | ⏳ PLANNED |
+| L3 | **Push Notifications** | Match reminders, score updates, team alerts | Without this, users forget the app exists | 1 week | ⏳ PLANNED |
+| L4 | **Tournament Mode Core** | Season-long leagues + per-match teams + chips | Makes users come back every match day for 2 months | 2 weeks | ⏳ PLANNED |
+| L5 | **Predictions + Awards** | Quick predictions + match awards | Low-friction daily engagement for casual users | 1 week | ⏳ PLANNED |
+| L6 | **Coming Soon Screens** | UI shells for all deferred features | Show users what's coming, build anticipation | 3 days | ⏳ PLANNED |
+
+**Total to launchable product: ~10.5 weeks**
+
+---
+
+### L1.5: Subscription Monetization — Dual-Model (PROGA-Safe)
+
+**Duration:** 1.5 weeks
+**Goal:** Implement a 3-tier freemium subscription model that generates revenue regardless of PROGA ruling, plus a separate cash contest system that activates only when PROGA lifts. The two revenue streams are **completely independent** — subscription revenue is never at legal risk.
+
+**Why before L2 (AI Engine)?** The AI features (Guru, Projections, Rate My Team) are the premium product. Building the subscription gate first means every AI feature built in L2 automatically has a monetization layer.
+
+#### Monetization Strategy
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  SUBSCRIPTION REVENUE                    │
+│            (Always active, PROGA-independent)            │
+│                                                          │
+│  Free ──→ Pro (₹99/mo) ──→ Elite (₹299/mo)             │
+│  Users pay for AI tools, not for wagering                │
+│  Legal basis: SaaS service fee (like Netflix/Spotify)    │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│              CASH CONTEST REVENUE (future)                │
+│          (Only when PROGA_ACTIVE = false)                 │
+│                                                          │
+│  Separate "Cash Contests" tab (not mixed with free)      │
+│  Real ₹ entry fees → Real ₹ prizes                      │
+│  Uses existing wallet system                             │
+│  Platform rake: 10-15% of entry fees                     │
+│  Legal basis: Game of skill (post-PROGA)                 │
+│  State-level geo-gates still apply (AP/TG/AS/OD banned)  │
+└─────────────────────────────────────────────────────────┘
+
+KEY RULE: These two systems NEVER cross.
+  - Subscription money ≠ contest money
+  - No tokens/points that bridge between them
+  - No "use subscription credits to enter cash contests"
+  - Courts look at substance over form — tokens that convert
+    to cash ARE cash (Varun Gumber v. UT Chandigarh, 2017)
+```
+
+#### Contest Model by PROGA State
+
+| | PROGA ON (current) | PROGA OFF (future) |
+|--|--------------------|--------------------|
+| Free contests | ✅ Open to all tiers | ✅ Open to all tiers |
+| Contest prizes | Points, ranks, badges, leaderboard glory | Points, ranks, badges, leaderboard glory |
+| Cash contests | ❌ Hidden entirely | ✅ Separate tab, real ₹ entry/prizes |
+| Cash contest access | — | All tiers (but Pro/Elite get bonus analytics) |
+| Subscription value | AI tools, unlimited teams, ad-free | AI tools + edge in cash contests |
+| Points/badges redeemable for ₹? | ❌ Never | ❌ Never (kept separate) |
+
+#### Tier Structure
+
+| | FREE (₹0) | PRO (₹99/mo) | ELITE (₹299/mo) |
+|--|-----------|-------------|---------------|
+| Teams per match | 1 | Unlimited | Unlimited |
+| AI Guru questions | 3/day | Unlimited | Priority responses |
+| FDR breakdowns | Basic (overall only) | Full (bat/bowl split) | Full + historical |
+| Projected points | — | ✅ | ✅ + confidence intervals |
+| Rate My Team | — | ✅ | ✅ |
+| Captain picks (AI) | — | ✅ | ✅ |
+| Ads | Shown | Ad-free | Ad-free |
+| Contests (free) | Practice only | All free contests | All free contests |
+| Contests (cash, post-PROGA) | All | All + AI edge tools | All + AI edge tools |
+| Early access | — | — | ✅ New features |
+| Custom analytics | — | — | ✅ Export/share |
+
+#### Free Contest Rewards (PROGA-Safe, Always Active)
+
+Users who win free contests earn non-monetary rewards:
+- **Leaderboard ranks** — global and league-specific
+- **Profile badges** — "Top 100", "Contest Winner", "Hot Streak"
+- **Season trophies** — displayed on profile (cosmetic)
+- **XP points** — level up your profile (no cash value, ever)
+- **Bragging rights** — shareable result cards for social media
+
+These rewards drive engagement and retention without any legal risk.
+
+#### Implementation Tasks
+
+| Task | Description | Time | Status |
+|------|-------------|------|--------|
+| **Database** | | | |
+| `subscriptions` table | id, userId, tier (free/pro/elite), billingCycle, status, expiresAt, paymentProvider, providerSubId | 2h | ⬜ |
+| `subscription_events` table | Audit log: created, renewed, cancelled, upgraded, downgraded, expired | 1h | ⬜ |
+| `user_rewards` table | id, userId, rewardType (badge/trophy/xp), rewardKey, earnedAt, metadata JSONB | 1h | ⬜ |
+| `reward_definitions` table | id, key, name, description, iconUrl, category, tier (which tier can earn) | 1h | ⬜ |
+| Drizzle migration | Generate + apply migration for all new tables | 30m | ⬜ |
+| **API** | | | |
+| `subscription.getMyTier` | Return current tier + expiry + limits remaining | 1h | ⬜ |
+| `subscription.subscribe` | Create/upgrade subscription (payment integration stub) | 2h | ⬜ |
+| `subscription.cancel` | Cancel subscription (keeps tier until expiry) | 1h | ⬜ |
+| Feature gate middleware | `requireTier("pro")` middleware for tRPC routes | 2h | ⬜ |
+| Apply gates to AI routes | Gate Guru (unlimited), projections, Rate My Team, full FDR | 1h | ⬜ |
+| Free tier limits | Track daily Guru questions (3/day), enforce team-per-match limit (1) | 2h | ⬜ |
+| `rewards.myRewards` | Return user's badges, trophies, XP level | 1h | ⬜ |
+| `rewards.awardBadge` | Internal: award badge after contest result (called by scoring engine) | 1h | ⬜ |
+| **Mobile** | | | |
+| Subscription screen | `/subscription/index.tsx` — tier comparison, subscribe button, current plan | 4h | ⬜ |
+| Paywall component | Reusable `<UpgradePrompt tier="pro" feature="projected points" />` | 2h | ⬜ |
+| Tier badge in profile | Show current tier + earned badges/trophies on profile screen | 2h | ⬜ |
+| Gate UI in match center | Show locked features with upgrade CTA | 2h | ⬜ |
+| Gate UI in Guru chat | "3 questions remaining" counter, upgrade prompt at limit | 1h | ⬜ |
+| Contest results with rewards | Show earned badges/XP after contest settles | 2h | ⬜ |
+| **Payment Integration** | | | |
+| Payment provider research | Razorpay (India) vs Stripe (global) — start with Razorpay | 1h | ⬜ |
+| Razorpay subscription API | Create plan, handle webhook for renewal/cancellation | 4h | ⬜ |
+| Receipt/invoice generation | Store payment receipts, show in subscription screen | 2h | ⬜ |
+| **Cash Contest Prep (PROGA OFF — build later, design now)** | | | |
+| Cash contest flag | `PROGA_ACTIVE` toggle hides/shows cash contest tab entirely | 1h | ⬜ |
+| Cash contest UI shell | "Cash Contests" tab — hidden when PROGA active, Coming Soon screen when first enabled | 2h | ⬜ |
+| Wallet integration design | Document how cash entry fees flow through existing wallet system | 1h | ⬜ |
+| **Testing** | | | |
+| Unit tests: tier gates | Verify free user blocked, pro user allowed, elite user allowed | 2h | ⬜ |
+| Unit tests: PROGA flag | Verify cash contests hidden when PROGA_ACTIVE=true | 1h | ⬜ |
+| E2E: subscription flow | Subscribe → verify access → cancel → verify downgrade | 2h | ⬜ |
+| E2E: paywall display | Free user sees upgrade prompt on gated features | 1h | ⬜ |
+| E2E: rewards display | Win contest → badge awarded → visible on profile | 1h | ⬜ |
+
+#### Revenue Model
+
+**Subscription revenue (always active):**
+Assuming 500 beta users (May 2026 launch target):
+- 70% free (350 users) — ad revenue + conversion funnel
+- 20% Pro (100 users) — ₹9,900/mo = ~$118/mo
+- 10% Elite (50 users) — ₹14,950/mo = ~$178/mo
+- **Projected monthly subscription revenue: ~$296/mo from 500 users**
+- **At 10K users (60-day target): ~$5,920/mo**
+
+**Cash contest revenue (post-PROGA, future):**
+- Platform rake: 10-15% of entry fees
+- At 10K users, ~2K active in cash contests: estimated ~$2,000-5,000/mo additional
+- Subscription + cash contests combined: $8K-11K/mo at 10K users
+
+#### Legal Safety Checklist
+
+- [x] Subscription is SaaS — user pays for service access, not for wagering
+- [x] Free contest rewards have NO cash value and NO conversion path to ₹
+- [x] Cash contests are completely separate system, gated by `PROGA_ACTIVE` flag
+- [x] No tokens/points/credits that bridge subscription money ↔ contest wagering
+- [x] State-level geo-gates (AP/TG/AS/OD) apply to cash contests even post-PROGA
+- [x] Existing 3-layer geo-detection (IP+GPS+declaration) gates paid actions
+- [ ] Legal review before enabling cash contests (ToS, RBI compliance, GST on rake)
+
+---
+
+### What Ships vs What's "Coming Soon"
+
+| Feature | Ships in Launch | Coming Soon (UI Only) |
+|---------|----------------|----------------------|
+| AI Projected Points | ✅ Full | — |
+| Cricket Guru Chat | ✅ Full | — |
+| Rate My Team | ✅ Full | — |
+| FDR System | ✅ Full | — |
+| Tournament Mode (create/join/submit) | ✅ Full | — |
+| Chips (Wildcard, Triple Captain, etc.) | ✅ Full | — |
+| Push Notifications (core) | ✅ Full | — |
+| Predictions (11 types) | ✅ Full | — |
+| Match Awards | ✅ Full | — |
+| Player Comparison Tool | — | 🔜 Coming Soon |
+| Ownership Stats & Template Team | — | 🔜 Coming Soon |
+| AI Match Previews | — | 🔜 Coming Soon |
+| Transfer Planner | — | 🔜 Coming Soon |
+| Inter-Team Trading | — | 🔜 Coming Soon |
+| FAAB Waiver System | — | 🔜 Coming Soon |
+| Playoff Brackets | — | 🔜 Coming Soon |
+| Commissioner Tools | — | 🔜 Coming Soon |
+| Custom Tournament Builder | — | 🔜 Coming Soon |
+| H2H League Mode | — | 🔜 Coming Soon |
+| League Chat | — | 🔜 Coming Soon |
+| 1v1 Challenges | — | 🔜 Coming Soon |
+| Referral System | — | 🔜 Coming Soon |
+| Web App | — | 🔜 Coming Soon |
+| Admin Dashboard | — | 🔜 Coming Soon |
+| Voice Commands | — | 🔜 Coming Soon |
+
+### Deferred Features (Post-Launch Phases)
+
+These features get full "Coming Soon" UI screens at launch so users know what to expect. Implement in order of user demand after launch:
+
+**Post-Launch Wave 1 (user demand driven):**
+- Player Comparison Tool + Ownership Stats (Phase 3 remainder)
+- AI Match Previews + Transfer Planner (Phase 3 remainder)
+- Inter-Team Trading + FAAB Waivers (Phase 4 advanced)
+- League Chat + Social Features (Phase 5)
+
+**Post-Launch Wave 2 (scale-driven):**
+- Playoff Brackets + Commissioner Tools (Phase 4 advanced)
+- H2H League Mode + Custom Tournaments (Phase 4 advanced)
+- Web App + Admin Dashboard (Phase 6)
+
+**Post-Launch Wave 3 (polish + growth):**
+- 1v1 Challenges + Referral System (Phase 5)
+- Voice Commands + AI Newsletter (Phase 8)
+- Dynamic Pricing + Cup Mode (Phase 8)
+
+---
+
+## Timeline Summary (Updated for Launch Roadmap)
+
+| Launch Phase | Weeks | Dates (Est.) | Key Deliverables |
+|-------------|-------|-------------|-----------------|
+| L1: Finish 2.75 | 14-15 | Mar 3 – Mar 16 | Testing (65 cases), bug fixes, UI migrations |
+| L1.5: Subscription | 16-17 | Mar 17 – Mar 27 | Freemium tiers, Razorpay billing, feature gates, paywall UI |
+| L2: AI Engine | 18-20 | Mar 28 – Apr 13 | FDR, projected points, Guru chat, Rate My Team (gated by tier) |
+| L3: Push Notifications | 21 | Apr 14 – Apr 20 | FCM setup, core notification types, preferences |
+| L4: Tournament Mode | 22-23 | Apr 21 – May 4 | Season-long leagues, per-match teams, chips, awards |
+| L5: Predictions | 24 | May 5 – May 11 | 11 prediction types, AI questions, leaderboard |
+| L6: Coming Soon + Polish | 25 | May 12 – May 18 | Coming Soon screens, final polish, launch prep |
+| **BETA LAUNCH** | **26** | **May 19, 2026** | **500 beta users target** |
+| Post-Launch Wave 1 | 25-28 | May – Jun 2026 | Comparison, ownership, previews, planner, trading, chat |
+| Post-Launch Wave 2 | 29-32 | Jun – Jul 2026 | Playoffs, commissioner, H2H, web, admin |
+| Post-Launch Wave 3 | 33+ | Jul 2026+ | 1v1, referrals, voice, newsletter, dynamic pricing |
+
+**Target Beta Launch:** May 12, 2026 (9 weeks from now)
+**Target IPL 2027 Readiness:** March 2027 (full feature set)
 
 ---
 
@@ -2466,7 +2710,7 @@ Tab 5: MORE
 ### Developer Docs
 - [Local Setup Guide](./docs/LOCAL_SETUP.md)
 - [Redis Cache Architecture](./docs/REDIS_CACHE_ARCHITECTURE.md)
-- [UI Design System Guide](./TAMI_DRAFT_UI_GUIDE.md)
+- [UI Design System Guide](./UI_GUIDE.md)
 - [Screen Migration Checklist](./SCREEN_MIGRATION_CHECKLIST.md)
 
 ### Code Structure
@@ -2481,4 +2725,4 @@ Tab 5: MORE
 
 **This plan is a living document. Update as we learn and adapt.**
 
-**Status Last Updated:** February 10, 2026, 10:00 AM EST
+**Status Last Updated:** March 3, 2026 — Reorganized around Launch Roadmap (L1-L6)

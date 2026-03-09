@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { YStack, XStack, Text, styled } from "tamagui";
 import { InitialsAvatar } from "./InitialsAvatar";
+import { CricketBatIcon } from "./CricketBatIcon";
+import { DraftPlayLogo } from "./DraftPlayLogo";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
@@ -85,9 +87,7 @@ export function HatchModal({ player, onClose }: HatchModalProps) {
           scale={stage === 3 ? 1.1 : stage >= 4 ? 1 : 1.05}
         >
           {stage < 4 ? (
-            <Text fontSize={64} lineHeight={96}>
-              🥚
-            </Text>
+            <DraftPlayLogo size={64} animate />
           ) : (
             <YStack
               animation="quick"
@@ -161,9 +161,12 @@ export function HatchModal({ player, onClose }: HatchModalProps) {
               borderRadius={8}
               marginBottom="$5"
             >
-              <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorAccent">
-                joined your squad! 🏏
-              </Text>
+              <XStack alignItems="center" gap={4}>
+                <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorAccent">
+                  joined your squad!
+                </Text>
+                <CricketBatIcon size={12} />
+              </XStack>
             </YStack>
 
             {/* Tap to continue */}

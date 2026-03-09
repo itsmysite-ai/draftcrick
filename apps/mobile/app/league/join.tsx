@@ -11,7 +11,8 @@ import {
   DesignSystem,
   textStyles,
   formatUIText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
@@ -29,7 +30,7 @@ export default function JoinLeagueScreen() {
   });
 
   return (
-    <YStack flex={1} backgroundColor="$background">
+    <YStack flex={1} backgroundColor="$background" testID="join-league-screen">
       {/* ── Inline Header ── */}
       <XStack
         justifyContent="space-between"
@@ -46,9 +47,9 @@ export default function JoinLeagueScreen() {
 
       {/* ── Content ── */}
       <YStack flex={1} justifyContent="center" paddingHorizontal="$4">
-        <Text fontSize={DesignSystem.emptyState.iconSize} textAlign="center" marginBottom="$4">
-          {DesignSystem.emptyState.icon}
-        </Text>
+        <YStack alignItems="center" marginBottom="$4">
+          <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
+        </YStack>
         <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" textAlign="center" letterSpacing={-0.5} marginBottom="$2">
           {formatUIText("join a league")}
         </Text>
@@ -59,16 +60,17 @@ export default function JoinLeagueScreen() {
           value={inviteCode}
           onChangeText={setInviteCode}
           placeholder={formatUIText("enter invite code")}
+          testID="invite-code-input"
           placeholderTextColor={theme.placeholderColor.val}
           autoCapitalize="none"
           autoCorrect={false}
           style={{ backgroundColor: theme.backgroundSurface.val, color: theme.color.val, borderRadius: DesignSystem.radius["2xl"], padding: 18, fontSize: 20, textAlign: "center", letterSpacing: 3, fontWeight: "700", fontFamily: "DM Mono", borderWidth: 1, borderColor: theme.borderColor.val, marginBottom: 20 }}
         />
-        <Button variant="primary" size="lg" onPress={() => joinMutation.mutate({ inviteCode: inviteCode.trim() })} disabled={joinMutation.isPending || !inviteCode.trim()} opacity={!inviteCode.trim() ? 0.4 : 1}>
+        <Button variant="primary" size="lg" onPress={() => joinMutation.mutate({ inviteCode: inviteCode.trim() })} disabled={joinMutation.isPending || !inviteCode.trim()} opacity={!inviteCode.trim() ? 0.4 : 1} testID="join-league-btn">
           {joinMutation.isPending ? formatUIText("joining...") : formatUIText("join league")}
         </Button>
         {joinMutation.error && (
-          <Text fontFamily="$body" color="$error" textAlign="center" marginTop="$4" fontSize={14}>{joinMutation.error.message}</Text>
+          <Text fontFamily="$body" color="$error" textAlign="center" marginTop="$4" fontSize={14} testID="join-league-error">{joinMutation.error.message}</Text>
         )}
       </YStack>
     </YStack>

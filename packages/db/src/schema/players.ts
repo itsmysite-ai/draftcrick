@@ -23,6 +23,9 @@ export const players = pgTable("players", {
   nationality: text("nationality"),
   battingStyle: text("batting_style"),
   bowlingStyle: text("bowling_style"),
+  isDisabled: boolean("is_disabled").notNull().default(false),
+  lastFetchAction: text("last_fetch_action"), // "new" | "updated" | "skipped"
+  lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
   stats: jsonb("stats").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

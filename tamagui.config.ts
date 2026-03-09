@@ -1,12 +1,12 @@
 import { createTamagui, createFont } from 'tamagui';
-import { tokens, animations, light, dark } from '@draftcrick/ui';
+import { tokens, animations, light, dark } from '@draftplay/ui';
 
 /**
- * tami·draft — Tamagui Configuration
+ * draftplay.ai — Tamagui Configuration
  * Fonts: DM Sans (body) + DM Mono (data/stats)
  * Theme: warm off-whites + earthy cricket-pitch greens
  *
- * Uses tokens & themes from @draftcrick/ui for consistency
+ * Uses tokens & themes from @draftplay/ui for consistency
  * across mobile, web, and shared UI components.
  */
 

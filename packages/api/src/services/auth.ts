@@ -26,7 +26,7 @@ export async function getFirebaseAuth(): Promise<Auth> {
   if (existing.length > 0) {
     firebaseApp = existing[0]!;
   } else {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
@@ -34,6 +34,9 @@ export async function getFirebaseAuth(): Promise<Auth> {
       firebaseApp = initializeApp({
         credential: cert({ projectId, privateKey, clientEmail } as ServiceAccount),
       });
+    } else if (projectId) {
+      // Emulator or project-ID-only mode (no service account credentials)
+      firebaseApp = initializeApp({ projectId });
     } else {
       // Falls back to GOOGLE_APPLICATION_CREDENTIALS or GCE metadata
       firebaseApp = initializeApp();

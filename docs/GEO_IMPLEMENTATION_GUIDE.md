@@ -1,4 +1,4 @@
-# DraftCrick — Geo-Location & Regional Compliance Implementation Guide
+# DraftPlay — Geo-Location & Regional Compliance Implementation Guide
 
 > **Last Updated:** February 10, 2026  
 > **Status:** Implementation Document  
@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-DraftCrick must handle three geo-location concerns:
+DraftPlay must handle three geo-location concerns:
 
 1. **Regulatory compliance** — India's PROGA 2025 bans all real-money online gaming nationwide (Supreme Court hearing Jan 21, 2026 — ruling pending). Even if PROGA is struck down, individual states (Andhra Pradesh, Telangana, Assam, Odisha, Sikkim, Nagaland) maintain their own bans. International markets have separate rules.
 2. **API routing** — Gemini API requests should route to the nearest Vertex AI region for lowest latency and optional data residency.
@@ -271,7 +271,7 @@ async function getCoarseLocation(): Promise<DeviceLocation | null> {
 **Onboarding Flow:**
 
 ```
-Step 1: Welcome to DraftCrick!
+Step 1: Welcome to DraftPlay!
 Step 2: "Where are you located?"
   → Country dropdown (auto-selected from IP)
   → If India: State dropdown (auto-selected from IP/GPS)
@@ -648,7 +648,7 @@ export const geoRouter = router({
 
 ### 4.1 The Problem
 
-DraftCrick makes Gemini API calls for: FDR calculations, projected points, Guru chat, match previews, prediction questions, Rate My Team, player comparisons, and transfer planner suggestions.
+DraftPlay makes Gemini API calls for: FDR calculations, projected points, Guru chat, match previews, prediction questions, Rate My Team, player comparisons, and transfer planner suggestions.
 
 These requests should route to the nearest Vertex AI region for:
 - **Lower latency** — Mumbai users shouldn't hit US endpoints
@@ -811,7 +811,7 @@ export async function batchGenerateAllProjections(tournamentId: string) {
 ```yaml
 # terraform/cloud-sql.tf (simplified)
 resource "google_sql_database_instance" "primary" {
-  name             = "draftcrick-db"
+  name             = "draftplay-db"
   region           = "asia-south1"
   database_version = "POSTGRES_16"
   
@@ -855,7 +855,7 @@ resource "google_sql_database_instance" "primary" {
 ```yaml
 # terraform/cloud-sql-replica.tf (add when needed)
 resource "google_sql_database_instance" "us_replica" {
-  name                 = "draftcrick-db-us-replica"
+  name                 = "draftplay-db-us-replica"
   region               = "us-central1"
   database_version     = "POSTGRES_16"
   master_instance_name = google_sql_database_instance.primary.name
@@ -898,7 +898,7 @@ export function getDB(userCountry: string, operation: 'read' | 'write') {
 
 **Why:**
 - Redis is used for caching, not persistence — cache misses just hit the DB
-- DraftCrick's Redis stores: API response cache (24hr TTL), rate limiting counters, session tokens, distributed locks
+- DraftPlay's Redis stores: API response cache (24hr TTL), rate limiting counters, session tokens, distributed locks
 - All of these are acceptable to serve from a single region
 - A cache miss for a US user adds ~200ms (Mumbai round-trip) and then caches locally in Cloud Run's in-memory cache
 - Memorystore doesn't support cross-region replication natively
@@ -919,7 +919,7 @@ This gives sub-50ms responses globally for cached data without the operational c
 ```yaml
 # terraform/redis.tf
 resource "google_redis_instance" "cache" {
-  name           = "draftcrick-cache"
+  name           = "draftplay-cache"
   tier           = "STANDARD_HA"      # HA with auto-failover within region
   memory_size_gb = 1
   region         = "asia-south1"

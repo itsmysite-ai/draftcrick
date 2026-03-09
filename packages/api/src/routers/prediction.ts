@@ -1,20 +1,23 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
-import { createPredictionSchema } from "@draftcrick/shared";
+import { createPredictionSchema } from "@draftplay/shared";
 import { eq, and } from "drizzle-orm";
-import { predictions } from "@draftcrick/db";
-
-const NOT_IMPLEMENTED = () => {
-  throw new TRPCError({
-    code: "METHOD_NOT_SUPPORTED",
-    message: "NOT_IMPLEMENTED — wired in Phase 5",
-  });
-};
+import { predictions } from "@draftplay/db";
+import {
+  generateMatchQuestions,
+  getQuestionsByMatch,
+  submitAnswer,
+  getUserAnswers,
+  gradeMatchQuestions,
+  getStandings,
+  getUserStreaks,
+  createQuestion,
+} from "../services/predictions";
 
 export const predictionRouter = router({
   /**
-   * Create a prediction for a match
+   * Create a simple prediction for a match (legacy 5-type system)
    */
   create: protectedProcedure
     .input(createPredictionSchema)
@@ -42,7 +45,7 @@ export const predictionRouter = router({
     }),
 
   /**
-   * Get user's predictions for a match
+   * Get user's simple predictions for a match
    */
   getByMatch: protectedProcedure
     .input(z.object({ matchId: z.string().uuid() }))
@@ -56,17 +59,29 @@ export const predictionRouter = router({
       return result;
     }),
 
-  // --- Phase 5 stubs: Question/Answer system ---
+  // --- Question-based prediction system ---
 
+  /**
+   * Get prediction questions for a match
+   */
   getQuestions: protectedProcedure
     .input(
       z.object({
         matchId: z.string(),
-        tournamentId: z.string().optional(),
+        deadlineType: z.string().optional(),
       })
     )
-    .query(async () => NOT_IMPLEMENTED()),
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getQuestionsByMatch(ctx.db, input.matchId, input.deadlineType);
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message });
+      }
+    }),
 
+  /**
+   * Submit an answer to a prediction question
+   */
   submitAnswer: protectedProcedure
     .input(
       z.object({
@@ -75,8 +90,26 @@ export const predictionRouter = router({
         answer: z.string(),
       })
     )
-    .mutation(async () => NOT_IMPLEMENTED()),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await submitAnswer(
+          ctx.db,
+          ctx.user.id,
+          input.questionId,
+          input.leagueId,
+          input.answer
+        );
+      } catch (err: any) {
+        throw new TRPCError({
+          code: err.message.includes("not found") ? "NOT_FOUND" : "BAD_REQUEST",
+          message: err.message,
+        });
+      }
+    }),
 
+  /**
+   * Get prediction standings for a league
+   */
   getStandings: protectedProcedure
     .input(
       z.object({
@@ -84,8 +117,17 @@ export const predictionRouter = router({
         tournamentId: z.string(),
       })
     )
-    .query(async () => NOT_IMPLEMENTED()),
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getStandings(ctx.db, input.leagueId, input.tournamentId);
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message });
+      }
+    }),
 
+  /**
+   * Create a custom prediction question (admin)
+   */
   createQuestion: protectedProcedure
     .input(
       z.object({
@@ -98,5 +140,104 @@ export const predictionRouter = router({
         pointsValue: z.number().int().optional(),
       })
     )
-    .mutation(async () => NOT_IMPLEMENTED()),
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await createQuestion(
+          ctx.db,
+          input.matchId,
+          input.tournamentId,
+          input.questionText,
+          input.questionType,
+          input.options,
+          input.difficulty,
+          input.pointsValue
+        );
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message });
+      }
+    }),
+
+  // --- New procedures ---
+
+  /**
+   * Generate AI questions for a match
+   */
+  generateQuestions: protectedProcedure
+    .input(
+      z.object({
+        matchId: z.string(),
+        tournamentId: z.string(),
+        teamA: z.string(),
+        teamB: z.string(),
+        format: z.string().default("T20"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await generateMatchQuestions(
+          ctx.db,
+          input.matchId,
+          input.tournamentId,
+          input.teamA,
+          input.teamB,
+          input.format
+        );
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message });
+      }
+    }),
+
+  /**
+   * Grade all questions for a completed match
+   */
+  gradeMatch: protectedProcedure
+    .input(
+      z.object({
+        matchId: z.string(),
+        results: z.record(z.string(), z.string()), // questionId → correctAnswer
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await gradeMatchQuestions(ctx.db, input.matchId, input.results);
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message });
+      }
+    }),
+
+  /**
+   * Get user's answers for a match (with question data)
+   */
+  getUserAnswers: protectedProcedure
+    .input(
+      z.object({
+        matchId: z.string(),
+        leagueId: z.string().uuid(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getUserAnswers(ctx.db, ctx.user.id, input.matchId, input.leagueId);
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message });
+      }
+    }),
+
+  /**
+   * Get user's streak stats
+   */
+  getStreaks: protectedProcedure
+    .input(
+      z.object({
+        leagueId: z.string().uuid(),
+        tournamentId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getUserStreaks(ctx.db, ctx.user.id, input.leagueId, input.tournamentId);
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message });
+      }
+    }),
 });

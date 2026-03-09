@@ -1,10 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
 
+dotenv.config({ path: ".env.test" });
 dotenv.config({ path: ".env.local" });
 dotenv.config({ path: ".env" });
 
-const baseURL = process.env.WEB_URL ?? "http://localhost:3000";
+const baseURL = process.env.EXPO_PUBLIC_WEB_URL ?? "http://localhost:8081";
 
 export default defineConfig({
   testDir: "./tests/e2e",

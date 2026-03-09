@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../trpc";
-import { createLeagueSchema } from "@draftcrick/shared";
-import { LEAGUE_TEMPLATES, FULL_LEAGUE_TEMPLATES } from "@draftcrick/shared";
-import { eq, and, count } from "drizzle-orm";
-import { leagues, leagueMembers, draftRooms } from "@draftcrick/db";
+import { createLeagueSchema } from "@draftplay/shared";
+import { LEAGUE_TEMPLATES, FULL_LEAGUE_TEMPLATES } from "@draftplay/shared";
+import { eq, and, count, desc, sql, inArray } from "drizzle-orm";
+import { leagues, leagueMembers, draftRooms, contests, fantasyTeams, users } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "crypto";
 
@@ -343,6 +343,55 @@ export const leagueRouter = router({
         .returning();
 
       return room;
+    }),
+
+  memberStandings: protectedProcedure
+    .input(z.object({ leagueId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      // Get all league contests
+      const leagueContests = await ctx.db.query.contests.findMany({
+        where: eq(contests.leagueId, input.leagueId),
+      });
+
+      if (leagueContests.length === 0) {
+        // Fall back: get members and return with 0 points
+        const members = await ctx.db.query.leagueMembers.findMany({
+          where: eq(leagueMembers.leagueId, input.leagueId),
+          with: { user: true },
+        });
+        return members.map((m, i) => ({
+          rank: i + 1,
+          userId: m.userId,
+          displayName: m.user?.displayName ?? m.user?.username ?? "Unknown",
+          totalPoints: 0,
+          contestsPlayed: 0,
+        }));
+      }
+
+      const contestIds = leagueContests.map((c) => c.id);
+
+      // Aggregate points per user across all league contests
+      const teamStats = await ctx.db
+        .select({
+          userId: fantasyTeams.userId,
+          displayName: users.displayName,
+          username: users.username,
+          totalPoints: sql<number>`SUM(${fantasyTeams.totalPoints})`.as("totalPoints"),
+          contestsPlayed: sql<number>`COUNT(DISTINCT ${fantasyTeams.contestId})`.as("contestsPlayed"),
+        })
+        .from(fantasyTeams)
+        .innerJoin(users, eq(fantasyTeams.userId, users.id))
+        .where(inArray(fantasyTeams.contestId, contestIds))
+        .groupBy(fantasyTeams.userId, users.displayName, users.username)
+        .orderBy(desc(sql`SUM(${fantasyTeams.totalPoints})`));
+
+      return teamStats.map((s, i) => ({
+        rank: i + 1,
+        userId: s.userId,
+        displayName: s.displayName ?? s.username ?? "Unknown",
+        totalPoints: Number(s.totalPoints),
+        contestsPlayed: Number(s.contestsPlayed),
+      }));
     }),
 
   transferOwnership: protectedProcedure

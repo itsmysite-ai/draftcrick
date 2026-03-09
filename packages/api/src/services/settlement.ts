@@ -1,12 +1,15 @@
 import { eq, and, sql } from "drizzle-orm";
-import type { Database } from "@draftcrick/db";
+import type { Database } from "@draftplay/db";
 import {
   contests,
   fantasyTeams,
-  wallets,
-  transactions,
-} from "@draftcrick/db";
+} from "@draftplay/db";
 import { updateContestRanks } from "./leaderboard";
+import { awardCoins } from "./pop-coins";
+import { sendPushNotification } from "./notifications";
+import { getLogger } from "../lib/logger";
+
+const log = getLogger("settlement");
 
 interface PrizeSlot {
   rank: number;
@@ -53,34 +56,31 @@ export async function settleContest(
 
   let winnersCount = 0;
 
-  // Distribute prizes
+  // Distribute prizes (Pop Coins)
   for (const prize of prizeDistribution) {
     const team = teams.find((t) => t.rank === prize.rank);
     if (!team || prize.amount <= 0) continue;
 
-    // Credit wallet
-    await db
-      .update(wallets)
-      .set({
-        cashBalance: sql`${wallets.cashBalance} + ${String(prize.amount)}`,
-        totalWinnings: sql`${wallets.totalWinnings} + ${String(prize.amount)}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(wallets.userId, team.userId));
-
-    // Create transaction record
-    await db.insert(transactions).values({
-      userId: team.userId,
-      type: "winnings",
-      amount: String(prize.amount),
-      status: "completed",
-      contestId: contestId,
-      metadata: {
-        rank: prize.rank,
-        totalPoints: Number(team.totalPoints),
-        contestName: contest.name,
-      },
+    await awardCoins(db, team.userId, Math.floor(prize.amount), "contest_win", {
+      contestId,
+      rank: prize.rank,
+      totalPoints: Number(team.totalPoints),
+      contestName: contest.name,
     });
+
+    // Send push notification to winner
+    try {
+      await sendPushNotification(
+        db,
+        team.userId,
+        "contest_result",
+        "Contest Win!",
+        `You won ${Math.floor(prize.amount)} PC in ${contest.name} (Rank #${prize.rank})`,
+        { contestId, rank: prize.rank },
+      );
+    } catch {
+      log.warn({ userId: team.userId, contestId }, "Failed to send winner notification");
+    }
 
     winnersCount++;
   }
@@ -101,50 +101,48 @@ export async function settleContest(
 export function calculatePrizeDistribution(
   entryFee: number,
   maxEntries: number,
-  rake = 0.12 // 12% platform fee
+  rake = 0.10 // 10% rake (burned for anti-inflation)
 ): PrizeSlot[] {
   const totalPool = entryFee * maxEntries;
-  const prizePool = totalPool * (1 - rake);
+  const prizePool = Math.floor(totalPool * (1 - rake));
 
   if (maxEntries <= 2) {
-    // H2H
-    return [{ rank: 1, amount: Math.floor(prizePool * 100) / 100 }];
+    return [{ rank: 1, amount: prizePool }];
   }
 
   if (maxEntries <= 10) {
     return [
-      { rank: 1, amount: Math.floor(prizePool * 0.6 * 100) / 100 },
-      { rank: 2, amount: Math.floor(prizePool * 0.25 * 100) / 100 },
-      { rank: 3, amount: Math.floor(prizePool * 0.15 * 100) / 100 },
+      { rank: 1, amount: Math.floor(prizePool * 0.6) },
+      { rank: 2, amount: Math.floor(prizePool * 0.25) },
+      { rank: 3, amount: Math.floor(prizePool * 0.15) },
     ];
   }
 
   if (maxEntries <= 100) {
     return [
-      { rank: 1, amount: Math.floor(prizePool * 0.4 * 100) / 100 },
-      { rank: 2, amount: Math.floor(prizePool * 0.2 * 100) / 100 },
-      { rank: 3, amount: Math.floor(prizePool * 0.12 * 100) / 100 },
-      { rank: 4, amount: Math.floor(prizePool * 0.08 * 100) / 100 },
-      { rank: 5, amount: Math.floor(prizePool * 0.06 * 100) / 100 },
-      { rank: 6, amount: Math.floor(prizePool * 0.05 * 100) / 100 },
-      { rank: 7, amount: Math.floor(prizePool * 0.04 * 100) / 100 },
-      { rank: 8, amount: Math.floor(prizePool * 0.03 * 100) / 100 },
-      { rank: 9, amount: Math.floor(prizePool * 0.01 * 100) / 100 },
-      { rank: 10, amount: Math.floor(prizePool * 0.01 * 100) / 100 },
+      { rank: 1, amount: Math.floor(prizePool * 0.4) },
+      { rank: 2, amount: Math.floor(prizePool * 0.2) },
+      { rank: 3, amount: Math.floor(prizePool * 0.12) },
+      { rank: 4, amount: Math.floor(prizePool * 0.08) },
+      { rank: 5, amount: Math.floor(prizePool * 0.06) },
+      { rank: 6, amount: Math.floor(prizePool * 0.05) },
+      { rank: 7, amount: Math.floor(prizePool * 0.04) },
+      { rank: 8, amount: Math.floor(prizePool * 0.03) },
+      { rank: 9, amount: Math.floor(prizePool * 0.01) },
+      { rank: 10, amount: Math.floor(prizePool * 0.01) },
     ];
   }
 
-  // Large contests — top 10% get prizes
   const winnerCount = Math.max(10, Math.floor(maxEntries * 0.1));
   const slots: PrizeSlot[] = [
-    { rank: 1, amount: Math.floor(prizePool * 0.25 * 100) / 100 },
-    { rank: 2, amount: Math.floor(prizePool * 0.12 * 100) / 100 },
-    { rank: 3, amount: Math.floor(prizePool * 0.08 * 100) / 100 },
+    { rank: 1, amount: Math.floor(prizePool * 0.25) },
+    { rank: 2, amount: Math.floor(prizePool * 0.12) },
+    { rank: 3, amount: Math.floor(prizePool * 0.08) },
   ];
 
-  const remainingPool = prizePool * 0.55;
+  const remainingPool = Math.floor(prizePool * 0.55);
   const remainingSlots = winnerCount - 3;
-  const perSlot = Math.floor((remainingPool / remainingSlots) * 100) / 100;
+  const perSlot = Math.floor(remainingPool / remainingSlots);
 
   for (let i = 4; i <= winnerCount; i++) {
     slots.push({ rank: i, amount: perSlot });

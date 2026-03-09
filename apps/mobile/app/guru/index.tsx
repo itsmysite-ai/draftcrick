@@ -1,22 +1,29 @@
 import { TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, useTheme as useTamaguiTheme } from "tamagui";
 import {
-  Card,
   Badge,
   BackButton,
   Button,
   ModeToggle,
-  AnnouncementBanner,
+  EggLoadingSpinner,
+  CricketBatIcon,
+  Paywall,
+  TierBadge,
   DesignSystem,
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  formatTeamName,
+  DraftPlayLogo,
+} from "@draftplay/ui";
+import { trpc } from "../../lib/trpc";
+import { useNavigationStore } from "../../lib/navigation-store";
 import { useTheme } from "../../providers/ThemeProvider";
+import { usePaywall } from "../../hooks/usePaywall";
 
 interface Message {
   id: string;
@@ -33,9 +40,19 @@ const SUGGESTIONS = [
 
 export default function GuruScreen() {
   const router = useRouter();
+  const navCtx = useNavigationStore((s) => s.matchContext);
+  const params = {
+    matchId: navCtx?.matchId,
+    teamA: navCtx?.teamA,
+    teamB: navCtx?.teamB,
+  };
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
   const { mode, toggleMode } = useTheme();
+  const flatListRef = useRef<FlatList>(null);
+  const { gate, hasAccess, paywallProps } = usePaywall();
+  const [userMessageCount, setUserMessageCount] = useState(0);
+  const FREE_DAILY_LIMIT = 3;
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -45,20 +62,65 @@ export default function GuruScreen() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
+  const sendMutation = trpc.guru.sendMessage.useMutation();
 
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: input.trim() };
-    const guruMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: "guru",
-      content: "i'm not connected to the AI backend yet. once the AI service is integrated, i'll be able to answer your cricket questions with real-time data!",
-    };
+  const sendMessage = useCallback(async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || isSending) return;
 
-    setMessages((prev) => [...prev, userMsg, guruMsg]);
+    // Free tier: gate after daily limit
+    if (!hasAccess("pro") && userMessageCount >= FREE_DAILY_LIMIT) {
+      gate("pro", "Unlimited Guru", "Free users get 3 questions per day. Upgrade for unlimited access.");
+      return;
+    }
+
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: msg };
+    setMessages((prev) => [...prev, userMsg]);
+    setUserMessageCount((c) => c + 1);
     setInput("");
-  };
+    setIsSending(true);
+
+    // Build context from URL params
+    const context: any = {};
+    if (params.matchId && params.teamA && params.teamB) {
+      context.upcomingMatches = [{ id: params.matchId, teamA: params.teamA, teamB: params.teamB, date: "upcoming" }];
+    }
+
+    try {
+      const result = await sendMutation.mutateAsync({
+        conversationId,
+        message: msg,
+        context,
+      });
+
+      if (result.conversationId) {
+        setConversationId(result.conversationId);
+      }
+
+      const guruMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "guru",
+        content: result.response.content,
+      };
+      setMessages((prev) => [...prev, guruMsg]);
+    } catch (error: any) {
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "guru",
+        content: error?.message?.includes("UNAUTHORIZED")
+          ? "you need to be logged in to chat with me. please sign in first!"
+          : "sorry, i'm having a moment. could you try that question again?",
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsSending(false);
+    }
+
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+  }, [input, isSending, conversationId, params, sendMutation, hasAccess, userMessageCount, gate]);
 
   return (
     <KeyboardAvoidingView
@@ -79,10 +141,39 @@ export default function GuruScreen() {
             {formatUIText("cricket guru")}
           </Text>
         </XStack>
-        <ModeToggle mode={mode} onToggle={toggleMode} />
+        <XStack alignItems="center" gap="$2">
+          {!hasAccess("pro") && (
+            <XStack alignItems="center" gap="$1">
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                {Math.max(0, FREE_DAILY_LIMIT - userMessageCount)}/{FREE_DAILY_LIMIT}
+              </Text>
+              <TierBadge tier="pro" size="sm" />
+            </XStack>
+          )}
+          <ModeToggle mode={mode} onToggle={toggleMode} />
+        </XStack>
       </XStack>
-      <AnnouncementBanner />
+
+      {/* Match context banner */}
+      {params.teamA && params.teamB && (
+        <XStack
+          paddingHorizontal="$4"
+          paddingVertical="$2"
+          gap="$2"
+          alignItems="center"
+          backgroundColor="$backgroundSurface"
+          borderBottomWidth={1}
+          borderBottomColor="$borderColor"
+        >
+          <CricketBatIcon size={12} />
+          <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+            {formatUIText(`context: ${formatTeamName(params.teamA ?? "")} vs ${formatTeamName(params.teamB ?? "")}`)}
+          </Text>
+        </XStack>
+      )}
+
       <FlatList
+        ref={flatListRef}
         data={messages}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
@@ -100,7 +191,7 @@ export default function GuruScreen() {
             >
               {item.role === "guru" && (
                 <XStack alignItems="center" gap="$2" marginBottom="$1">
-                  <Text fontSize={14}>{DesignSystem.emptyState.icon}</Text>
+                  <DraftPlayLogo size={14} />
                   <Badge variant="role" size="sm">
                     {formatBadgeText("cricket guru")}
                   </Badge>
@@ -118,7 +209,19 @@ export default function GuruScreen() {
           </Animated.View>
         )}
         contentContainerStyle={{ padding: 16, gap: 12 }}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        testID="guru-messages"
       />
+
+      {/* Typing indicator */}
+      {isSending && (
+        <XStack paddingHorizontal="$4" paddingBottom="$2" gap="$2" alignItems="center">
+          <EggLoadingSpinner size={16} />
+          <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+            {formatUIText("guru is thinking...")}
+          </Text>
+        </XStack>
+      )}
 
       {/* Suggestion chips */}
       {messages.length <= 1 && (
@@ -132,9 +235,10 @@ export default function GuruScreen() {
               paddingVertical="$2"
               borderWidth={1}
               borderColor="$borderColor"
-              onPress={() => setInput(s)}
+              onPress={() => sendMessage(s)}
               cursor="pointer"
               pressStyle={{ scale: 0.97, backgroundColor: "$backgroundSurfaceHover" }}
+              testID={`suggestion-${s.slice(0, 10)}`}
             >
               <Text fontFamily="$body" fontSize={13} color="$colorSecondary">{s}</Text>
             </XStack>
@@ -145,7 +249,7 @@ export default function GuruScreen() {
       {/* Input */}
       <XStack
         padding="$3"
-        paddingBottom="$6"
+        paddingBottom={insets.bottom + 8}
         gap="$2"
         borderTopWidth={1}
         borderTopColor="$borderColor"
@@ -164,19 +268,26 @@ export default function GuruScreen() {
           placeholderTextColor={theme.placeholderColor.val}
           value={input}
           onChangeText={setInput}
-          onSubmitEditing={sendMessage}
+          onSubmitEditing={() => sendMessage()}
           returnKeyType="send"
+          editable={!isSending}
+          testID="guru-input"
         />
         <Button
           variant="primary"
           size="md"
           borderRadius={24}
           paddingHorizontal="$5"
-          onPress={sendMessage}
+          onPress={() => sendMessage()}
+          disabled={isSending || !input.trim()}
+          opacity={isSending || !input.trim() ? 0.5 : 1}
+          testID="guru-send-btn"
         >
           {formatUIText("send")}
         </Button>
       </XStack>
+
+      <Paywall {...paywallProps} />
     </KeyboardAvoidingView>
   );
 }

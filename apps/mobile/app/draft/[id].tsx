@@ -13,24 +13,32 @@ import {
   ModeToggle,
   AnnouncementBanner,
   EggLoadingSpinner,
+  CricketBallIcon,
   DesignSystem,
   textStyles,
   formatUIText,
   formatBadgeText,
-} from "@draftcrick/ui";
+  DraftPlayLogo,
+} from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
-const ROLE_FILTERS: { key: "all" | RoleKey; label: string }[] = [
-  { key: "all", label: "all" },
-  { key: "BAT", label: `${DesignSystem.roles.BAT.emoji} batsmen` },
-  { key: "BOWL", label: `${DesignSystem.roles.BOWL.emoji} bowlers` },
-  { key: "AR", label: `${DesignSystem.roles.AR.emoji} all-round` },
-  { key: "WK", label: `${DesignSystem.roles.WK.emoji} keepers` },
-];
+const ROLE_FILTERS: ("all" | RoleKey)[] = ["all", "BAT", "BOWL", "AR", "WK"];
+
+/** Format raw role enum to display-friendly text */
+function formatRoleDisplay(role: string): string {
+  const r = (role ?? "").toUpperCase();
+  switch (r) {
+    case "BATSMAN": case "BAT": return "Batsman";
+    case "BOWLER": case "BOWL": return "Bowler";
+    case "ALL_ROUNDER": case "ALL-ROUNDER": case "AR": return "All-Rounder";
+    case "WICKET_KEEPER": case "WICKETKEEPER": case "WK": return "Wicket-Keeper";
+    default: return role;
+  }
+}
 
 export default function DraftRoomScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
@@ -90,15 +98,15 @@ export default function DraftRoomScreen() {
   };
 
   return (
-    <YStack flex={1} backgroundColor="$background">
+    <YStack flex={1} backgroundColor="$background" testID="draft-room-screen">
       {/* Header */}
       <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
           <YStack>
-            <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
+            <Text testID="draft-round-info" fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
               {formatUIText("round")} {draftState?.currentRound ?? 0} {formatUIText("of")} {draftState?.maxRounds ?? 0}
             </Text>
-            <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+            <Text testID="draft-turn-status" fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
               {draftState?.status === "waiting"
                 ? formatUIText("waiting to start...")
                 : draftState?.status === "completed"
@@ -111,6 +119,7 @@ export default function DraftRoomScreen() {
           <XStack alignItems="center" gap="$3">
             {countdown !== null && draftState?.status === "in_progress" && (
               <YStack
+                testID="draft-countdown"
                 backgroundColor={countdown <= 10 ? "$error" : "$accentBackground"}
                 borderRadius={DesignSystem.radius.md}
                 paddingHorizontal="$4"
@@ -125,7 +134,7 @@ export default function DraftRoomScreen() {
           </XStack>
         </XStack>
         {draftState?.status === "in_progress" && (
-          <Text fontFamily="$mono" fontSize={13} color="$accentBackground" marginTop="$1">
+          <Text testID="draft-picks-counter" fontFamily="$mono" fontSize={13} color="$accentBackground" marginTop="$1">
             {formatUIText("picks")}: {draftState.totalPicks} / {(draftState.maxRounds ?? 0) * (draftState.pickOrder?.length ?? 0)}
           </Text>
         )}
@@ -136,7 +145,7 @@ export default function DraftRoomScreen() {
       {/* Start button */}
       {draftState?.status === "waiting" && (
         <YStack padding="$4">
-          <Button variant="primary" size="lg" onPress={() => startMutation.mutate({ roomId: roomId! })} disabled={startMutation.isPending}>
+          <Button testID="draft-start-btn" variant="primary" size="lg" onPress={() => startMutation.mutate({ roomId: roomId! })} disabled={startMutation.isPending}>
             {startMutation.isPending ? formatUIText("starting...") : formatUIText("start draft")}
           </Button>
         </YStack>
@@ -146,15 +155,22 @@ export default function DraftRoomScreen() {
       {draftState?.status === "in_progress" && (
         <XStack paddingHorizontal="$4" paddingVertical="$2" gap="$2" flexWrap="wrap">
           {ROLE_FILTERS.map((f) => (
-            <FilterPill key={f.key} active={roleFilter === f.key} onPress={() => setRoleFilter(f.key)}>
-              <Text
-                fontFamily="$body"
-                fontSize={12}
-                fontWeight="500"
-                color={roleFilter === f.key ? "$background" : "$colorSecondary"}
-              >
-                {f.label}
-              </Text>
+            <FilterPill key={f} active={roleFilter === f} onPress={() => setRoleFilter(f)} testID={`draft-filter-${f}`}>
+              <XStack alignItems="center" gap={4}>
+                {f === "BOWL" ? (
+                  <CricketBallIcon size={14} />
+                ) : f !== "all" ? (
+                  <Text fontSize={12}>{DesignSystem.roles[f as RoleKey].emoji}</Text>
+                ) : null}
+                <Text
+                  fontFamily="$body"
+                  fontSize={12}
+                  fontWeight="500"
+                  color={roleFilter === f ? "$background" : "$colorSecondary"}
+                >
+                  {f === "all" ? "all" : DesignSystem.roles[f as RoleKey].name.toLowerCase()}
+                </Text>
+              </XStack>
             </FilterPill>
           ))}
         </XStack>
@@ -162,11 +178,12 @@ export default function DraftRoomScreen() {
 
       <XStack flex={1}>
         {/* Pick Log */}
-        <YStack width="35%" borderRightWidth={1} borderRightColor="$borderColor">
+        <YStack width="40%" borderRightWidth={1} borderRightColor="$borderColor">
           <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
             {formatUIText("pick log")}
           </Text>
           <FlatList
+            testID="draft-pick-log"
             data={[...(picks ?? [])].reverse()}
             keyExtractor={(item: any) => item.id}
             renderItem={({ item, index }: { item: any; index: number }) => (
@@ -199,7 +216,7 @@ export default function DraftRoomScreen() {
 
         {/* Available Players */}
         <YStack flex={1}>
-          <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
+          <Text testID="draft-available-count" {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
             {formatUIText("available players")} ({filteredPlayers.length})
           </Text>
           <FlatList
@@ -230,7 +247,7 @@ export default function DraftRoomScreen() {
                         </Text>
                         <XStack alignItems="center" gap="$2">
                           <Badge variant="role" size="sm">
-                            {formatBadgeText(item.role ?? "")}
+                            {formatRoleDisplay(item.role ?? "")}
                           </Badge>
                           <Text {...textStyles.secondary}>
                             {item.team}
@@ -249,9 +266,7 @@ export default function DraftRoomScreen() {
             )}
             ListEmptyComponent={
               <YStack alignItems="center" paddingVertical="$8">
-                <Text fontSize={DesignSystem.emptyState.iconSize} marginBottom="$4">
-                  {DesignSystem.emptyState.icon}
-                </Text>
+                <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
                 <Text {...textStyles.hint} textAlign="center">
                   {formatUIText("no players available")}
                 </Text>

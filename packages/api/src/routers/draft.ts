@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { eq, and, desc } from "drizzle-orm";
-import { draftRooms, draftPicks, leagueMembers } from "@draftcrick/db";
+import { draftRooms, draftPicks, leagueMembers } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import {
   loadDraftState,

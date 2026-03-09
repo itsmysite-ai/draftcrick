@@ -1,7 +1,7 @@
 import { createTokens } from "tamagui";
 
 /**
- * tami·draft Design Tokens
+ * draftplay.ai Design Tokens
  *
  * Palette: warm off-whites + earthy greens (cricket pitch) in light,
  * deep charcoal-greens in dark. Accent is a rich teal-green.
