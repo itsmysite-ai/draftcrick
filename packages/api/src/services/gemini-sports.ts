@@ -24,7 +24,7 @@ let _ai: any = null;
 async function getAI() {
   if (!_ai) {
     const { GoogleGenAI } = await import("@google/genai");
-    _ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_CLOUD_API_KEY ?? process.env.GEMINI_API_KEY ?? process.env.API_KEY ?? "" });
+    _ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "" });
   }
   return _ai;
 }
@@ -1120,4 +1120,228 @@ export async function fetchTournamentStandings(
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Player enrichment — focused AI pass for form, sentiment, injury data
+// ---------------------------------------------------------------------------
+
+export interface PlayerEnrichmentData {
+  name: string;
+  team: string;
+  recentForm: number | null;
+  sentimentScore: number | null;
+  injuryStatus: string | null;
+  formNote: string | null;
+}
+
+const ENRICHMENT_BATCH_SIZE = 10;
+
+function buildEnrichmentPrompt(
+  players: Array<{ name: string; team: string; role: string }>,
+  tournamentName: string
+): string {
+  const playerList = players.map((p) => `- ${p.name} (${p.team}, ${p.role})`).join("\n");
+
+  return `
+You are a cricket analyst. For each player below, provide their CURRENT form assessment based on the latest matches in "${tournamentName}" (or their most recent competitive cricket if the tournament hasn't started yet).
+
+Players:
+${playerList}
+
+Return data in this EXACT format — one line per player, between markers:
+
+[ENRICHMENT_START]
+${players.map((p) => `${p.name} | ${p.team} | Recent Form (1-10) | Sentiment (1-10) | Injury Status | Form Note`).join("\n")}
+[ENRICHMENT_END]
+
+Field definitions:
+1. Player Name — EXACT name from the list above
+2. Team Name — EXACT team from the list above
+3. Recent Form (1-10) — performance in last 5 matches. 10=exceptional (100+ runs or 3+ wickets consistently), 7=good, 5=average, 3=poor, 1=terrible
+4. Sentiment (1-10) — current media/fan perception. 10=massive positive hype, 7=well-regarded, 5=neutral, 3=under scrutiny, 1=heavy criticism
+5. Injury Status — EXACTLY one of: fit, doubtful, injured, recovered
+6. Form Note — ONE sentence summarizing current form from recent matches/news
+
+IMPORTANT:
+- Use REAL data from recent matches. Do NOT guess or make up statistics.
+- If you cannot find recent data for a player, use 5 for form, 5 for sentiment, "fit" for injury, and note the lack of data.
+- Return EXACTLY ${players.length} lines between the markers.
+`.trim();
+}
+
+function parseEnrichmentResponse(text: string): PlayerEnrichmentData[] {
+  const results: PlayerEnrichmentData[] = [];
+
+  const startIdx = text.indexOf("[ENRICHMENT_START]");
+  const endIdx = text.indexOf("[ENRICHMENT_END]");
+  if (startIdx === -1 || endIdx === -1) {
+    log.warn("Enrichment response missing markers");
+    return results;
+  }
+
+  const block = text.slice(startIdx + "[ENRICHMENT_START]".length, endIdx).trim();
+  const lines = block.split("\n").filter((l) => l.trim().length > 0);
+
+  for (const line of lines) {
+    const parts = line.split("|").map((p) => p.trim());
+    if (parts.length < 6) continue;
+
+    const name = parts[0]!;
+    const team = parts[1]!;
+
+    const formRaw = parseFloat(parts[2] ?? "");
+    const recentForm = !isNaN(formRaw) ? Math.max(1, Math.min(10, formRaw)) : null;
+
+    const sentRaw = parseFloat(parts[3] ?? "");
+    const sentimentScore = !isNaN(sentRaw) ? Math.max(1, Math.min(10, sentRaw)) : null;
+
+    const injuryRaw = (parts[4] ?? "").toLowerCase();
+    const validInjury = ["fit", "doubtful", "injured", "recovered"];
+    const injuryStatus = validInjury.includes(injuryRaw) ? injuryRaw : null;
+
+    const formNote = parts[5] && parts[5] !== "N/A" ? parts[5] : null;
+
+    results.push({ name, team, recentForm, sentimentScore, injuryStatus, formNote });
+  }
+
+  return results;
+}
+
+/**
+ * Enrich players with AI-assessed form, sentiment, injury status, and form notes.
+ * Takes existing player data (name/team/role) and returns enrichment-only fields.
+ * Batches players (10 per call) to stay within token limits.
+ */
+export async function enrichPlayersWithGemini(
+  players: Array<{ name: string; team: string; role: string }>,
+  tournamentName: string
+): Promise<PlayerEnrichmentData[]> {
+  const apiKey = process.env.GEMINI_API_KEY ?? process.env.API_KEY;
+  if (!apiKey) {
+    log.warn("No Gemini API key — skipping enrichment");
+    return [];
+  }
+
+  const ai = await getAI();
+  const model = "gemini-3.1-flash-lite-preview";
+  const allResults: PlayerEnrichmentData[] = [];
+
+  for (let i = 0; i < players.length; i += ENRICHMENT_BATCH_SIZE) {
+    const batch = players.slice(i, i + ENRICHMENT_BATCH_SIZE);
+    const prompt = buildEnrichmentPrompt(batch, tournamentName);
+
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: { tools: [{ googleSearch: {} }] },
+      });
+
+      const text: string = response.text || "";
+      const parsed = parseEnrichmentResponse(text);
+      allResults.push(...parsed);
+
+      log.info(
+        { batchStart: i, batchSize: batch.length, enriched: parsed.length, tournament: tournamentName },
+        "Enrichment batch completed"
+      );
+    } catch (error) {
+      log.warn(
+        { batchStart: i, batchSize: batch.length, error: String(error) },
+        "Enrichment batch failed"
+      );
+    }
+  }
+
+  return allResults;
+}
+
+// ---------------------------------------------------------------------------
+// Nationality resolution — Gemini AI determines player country from name/birthPlace/team
+// ---------------------------------------------------------------------------
+
+export interface NationalityResult {
+  playerName: string;
+  nationality: string;
+}
+
+/**
+ * Use Gemini to resolve nationalities for a batch of cricket players.
+ * Takes player name, birth place (from Cricbuzz), and team name → returns country.
+ * This replaces hardcoded city/state lookup tables with AI-based resolution.
+ */
+export async function resolveNationalitiesWithGemini(
+  players: Array<{ name: string; birthPlace: string | null; team: string }>,
+): Promise<NationalityResult[]> {
+  if (players.length === 0) return [];
+
+  const apiKey = process.env.GEMINI_API_KEY ?? process.env.API_KEY;
+  if (!apiKey) {
+    log.warn("No Gemini API key — skipping nationality resolution");
+    return [];
+  }
+
+  const ai = await getAI();
+  const model = "gemini-3.1-flash-lite-preview";
+  const BATCH_SIZE = 30;
+  const allResults: NationalityResult[] = [];
+
+  for (let i = 0; i < players.length; i += BATCH_SIZE) {
+    const batch = players.slice(i, i + BATCH_SIZE);
+
+    const playerLines = batch.map((p, idx) =>
+      `${idx + 1}. ${p.name} | Birth Place: ${p.birthPlace || "unknown"} | Team: ${p.team}`
+    ).join("\n");
+
+    const prompt = `You are a cricket expert. For each player below, determine their NATIONALITY (the country they represent in international cricket, or their country of origin).
+
+RULES:
+- Return the country name (e.g., "India", "Australia", "England", "South Africa", "Afghanistan", "New Zealand", "West Indies", "Pakistan", "Sri Lanka", "Bangladesh", "Zimbabwe", "Ireland", "Netherlands", "USA", "Nepal", "Oman", "Namibia", "Scotland", "UAE", "Canada")
+- For Caribbean players, use "West Indies"
+- The team name is the franchise/club (e.g., "Mumbai Indians", "Chennai Super Kings") — do NOT use it as nationality
+- Use your knowledge of cricket players to determine the correct country
+- If the birth place is a city/state, infer the country from it
+- If unsure, use "Unknown"
+
+Players:
+${playerLines}
+
+Return ONLY in this exact format, one per line:
+1. Player Name | Country
+2. Player Name | Country
+...`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+      });
+
+      const text: string = response.text || "";
+      const lines = text.split("\n").filter((l: string) => l.trim());
+
+      for (const line of lines) {
+        const match = line.match(/^\d+\.\s*(.+?)\s*\|\s*(.+)$/);
+        if (match) {
+          allResults.push({
+            playerName: match[1]!.trim(),
+            nationality: match[2]!.trim(),
+          });
+        }
+      }
+
+      log.info(
+        { batchStart: i, batchSize: batch.length, resolved: allResults.length },
+        "Nationality resolution batch completed"
+      );
+    } catch (error) {
+      log.warn(
+        { batchStart: i, batchSize: batch.length, error: String(error) },
+        "Nationality resolution batch failed"
+      );
+    }
+  }
+
+  return allResults;
 }

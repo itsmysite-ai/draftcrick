@@ -1,6 +1,6 @@
 import { FlatList, RefreshControl } from "react-native";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useState, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
@@ -9,6 +9,7 @@ import { Text } from "../../components/SportText";
 import { Card, Badge, Button, AnnouncementBanner, DraftPlayLogo, formatUIText, formatBadgeText } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
+import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
 
 function LeagueCard({
@@ -109,12 +110,27 @@ export default function SocialScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useTheme();
+  const { user } = useAuth();
   const {
     data: memberships,
     isLoading,
     refetch,
   } = trpc.league.myLeagues.useQuery(undefined, { retry: false });
+  const myTeamsQuery = trpc.team.myTeams.useQuery(undefined, {
+    enabled: !!user,
+    retry: false,
+  });
   const [refreshing, setRefreshing] = useState(false);
+  const teamCount = myTeamsQuery.data?.length ?? 0;
+  const leagueCount = memberships?.length ?? 0;
+
+  // Refetch when tab gains focus (e.g. after creating a league or building a team)
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      myTeamsQuery.refetch();
+    }, [refetch, myTeamsQuery])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -123,7 +139,7 @@ export default function SocialScreen() {
   };
 
   return (
-    <YStack flex={1} paddingTop={insets.top} backgroundColor="$background">
+    <YStack flex={1} paddingTop={insets.top} backgroundColor="$background" testID="social-screen">
       <XStack
         justifyContent="space-between"
         alignItems="center"
@@ -188,7 +204,24 @@ export default function SocialScreen() {
                 </Button>
               </XStack>
             </Animated.View>
-            {(memberships?.length ?? 0) > 0 && (
+            {leagueCount > 0 && teamCount === 0 && (
+              <Animated.View entering={FadeInDown.delay(60).springify()}>
+                <Card padding="$3" marginBottom="$4" testID="social-build-team-tip">
+                  <XStack alignItems="center" gap="$2" marginBottom="$1">
+                    <YStack width={20} height={20} borderRadius={10} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={10} color="white">!</Text>
+                    </YStack>
+                    <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$accentBackground">
+                      {formatUIText("next step")}
+                    </Text>
+                  </XStack>
+                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                    {formatUIText("tap a league below, find an open contest, and build your first team")}
+                  </Text>
+                </Card>
+              </Animated.View>
+            )}
+            {leagueCount > 0 && (
               <XStack
                 justifyContent="space-between"
                 alignItems="center"
@@ -234,25 +267,67 @@ export default function SocialScreen() {
             </Text>
           ) : (
             <Animated.View entering={FadeIn.delay(100)}>
-              <Card alignItems="center" gap="$3" padding="$8">
-                <Ionicons
-                  name="people-outline"
-                  size={36}
-                  color={t.textTertiary}
-                />
-                <YStack marginBottom="$2"><DraftPlayLogo size={48} /></YStack>
-                <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
-                  {formatUIText("no leagues yet")}
-                </Text>
-                <Text
-                  fontFamily="$mono"
-                  fontSize={11}
-                  textAlign="center"
-                  lineHeight={18}
-                  color="$colorMuted"
-                >
-                  {formatUIText("create a league or join one with an invite code")}
-                </Text>
+              <Card gap="$4" padding="$5">
+                <YStack alignItems="center" gap="$2">
+                  <DraftPlayLogo size={48} />
+                  <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color">
+                    {formatUIText("start your fantasy journey")}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={11} textAlign="center" lineHeight={18} color="$colorMuted">
+                    {formatUIText("leagues are where the fun happens — compete with friends across an entire tournament")}
+                  </Text>
+                </YStack>
+
+                <YStack gap="$3" marginTop="$1">
+                  <XStack alignItems="flex-start" gap="$3">
+                    <YStack width={24} height={24} borderRadius={12} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">1</Text>
+                    </YStack>
+                    <YStack flex={1}>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
+                        {formatUIText("create or join a league")}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted" lineHeight={15}>
+                        {formatUIText("pick a tournament and format — salary cap is great for beginners")}
+                      </Text>
+                    </YStack>
+                  </XStack>
+                  <XStack alignItems="flex-start" gap="$3" opacity={0.5}>
+                    <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">2</Text>
+                    </YStack>
+                    <YStack flex={1}>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
+                        {formatUIText("contests appear each match day")}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted" lineHeight={15}>
+                        {formatUIText("auto-created for every match — no setup needed")}
+                      </Text>
+                    </YStack>
+                  </XStack>
+                  <XStack alignItems="flex-start" gap="$3" opacity={0.5}>
+                    <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">3</Text>
+                    </YStack>
+                    <YStack flex={1}>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
+                        {formatUIText("build your team & compete")}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted" lineHeight={15}>
+                        {formatUIText("pick 11 players within budget — best fantasy team wins")}
+                      </Text>
+                    </YStack>
+                  </XStack>
+                </YStack>
+
+                <XStack gap="$3" marginTop="$1">
+                  <Button flex={1} variant="primary" size="md" onPress={() => router.push("/league/create" as any)} testID="empty-create-league-btn">
+                    {formatUIText("create league")}
+                  </Button>
+                  <Button flex={1} variant="secondary" size="md" onPress={() => router.push("/league/join" as any)} testID="empty-join-league-btn">
+                    {formatUIText("join league")}
+                  </Button>
+                </XStack>
               </Card>
             </Animated.View>
           )

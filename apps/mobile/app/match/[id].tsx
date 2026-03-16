@@ -1,6 +1,6 @@
 import { ScrollView as RNScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
@@ -96,7 +96,6 @@ function ContestOption({
   entry,
   spots,
   highlight,
-  onPress,
   testID,
 }: {
   title: string;
@@ -105,13 +104,10 @@ function ContestOption({
   entry: string;
   spots: string;
   highlight?: boolean;
-  onPress: () => void;
   testID?: string;
 }) {
   return (
     <Card
-      pressable
-      onPress={onPress}
       padding={0}
       overflow="hidden"
       marginBottom="$3"
@@ -119,29 +115,22 @@ function ContestOption({
       borderColor={highlight ? "$colorAccent" : "$borderColor"}
       testID={testID}
     >
-      <XStack
-        justifyContent="space-between"
-        alignItems="center"
-        padding="$4"
-        paddingBottom="$3"
-      >
-        <YStack flex={1} gap={2}>
-          <XStack alignItems="center" gap="$2">
-            <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
-              {formatUIText(title)}
-            </Text>
-            {highlight && (
-              <Badge variant="live" size="sm">{formatBadgeText("popular")}</Badge>
-            )}
-          </XStack>
+      <YStack padding="$4" paddingBottom="$3" gap="$2">
+        <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" numberOfLines={2}>
+          {title}
+        </Text>
+        <XStack alignItems="center" gap="$2">
+          {highlight && (
+            <Badge variant="live" size="sm">{formatBadgeText("popular")}</Badge>
+          )}
           <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
             {formatUIText(subtitle)}
           </Text>
-        </YStack>
-        <Button variant="primary" size="sm" onPress={onPress}>
-          {formatUIText(entry === "free" ? "join free" : `${entry} PC`)}
-        </Button>
-      </XStack>
+          {entry !== "free" && (
+            <Badge variant="default" size="sm">{formatUIText(`${entry} PC`)}</Badge>
+          )}
+        </XStack>
+      </YStack>
 
       {/* Prize + Spots strip */}
       <XStack
@@ -197,7 +186,22 @@ export default function MatchScreen() {
     retry: false,
   });
 
+  // Build team logo lookup from tournament teams data
+  const getTeamLogo = useCallback((teamName: string) => {
+    const key = teamName.toLowerCase();
+    for (const t of dashboardQuery.data?.tournaments ?? []) {
+      for (const team of (t as any).teams ?? []) {
+        if (!team.logo) continue;
+        const n = team.name?.toLowerCase() ?? "";
+        const s = team.shortName?.toLowerCase() ?? "";
+        if (n === key || s === key || key.includes(n) || n.includes(key)) return team.logo;
+      }
+    }
+    return undefined;
+  }, [dashboardQuery.data?.tournaments]);
+
   const [showProjections, setShowProjections] = useState(false);
+  const [showAllProjections, setShowAllProjections] = useState(false);
   const [showH2H, setShowH2H] = useState(false);
   const [showCaptainPicks, setShowCaptainPicks] = useState(false);
   const [showDifferentials, setShowDifferentials] = useState(false);
@@ -207,7 +211,7 @@ export default function MatchScreen() {
   const [showPointsBreakdown, setShowPointsBreakdown] = useState(false);
   const [showValueTracker, setShowValueTracker] = useState(false);
   const [showStatTopFives, setShowStatTopFives] = useState(false);
-  const [statsSortBy, setStatsSortBy] = useState("avgFantasyPoints");
+  const [statsSortBy, setStatsSortBy] = useState("formAvg");
   const setMatchContext = useNavigationStore((s) => s.setMatchContext);
   const { gate, gateFeature, hasAccess, canAccess, paywallProps } = usePaywall();
 
@@ -232,6 +236,7 @@ export default function MatchScreen() {
         tossDecision: rawMatch.tossDecision || db?.tossDecision || null,
         scoreSummary: rawMatch.scoreSummary || db?.scoreSummary || null,
         result: rawMatch.result || db?.result || null,
+        draftEnabled: db?.draftEnabled ?? false,
       };
     }
     if (dbMatchDirect) {
@@ -249,6 +254,7 @@ export default function MatchScreen() {
         result: dbMatchDirect.result || null,
         tossWinner: dbMatchDirect.tossWinner || null,
         tossDecision: dbMatchDirect.tossDecision || null,
+        draftEnabled: dbMatchDirect.draftEnabled ?? false,
         sport,
       };
     }
@@ -292,9 +298,9 @@ export default function MatchScreen() {
     return list
       .map((ps: any) => {
         const p = ps.player ?? ps;
-        return p?.id ? { id: p.id, name: p.name, role: p.role, team: p.team } : null;
+        return p?.id ? { id: p.id, name: p.name, role: p.role, team: p.team, photoUrl: p.photoUrl ?? null } : null;
       })
-      .filter(Boolean) as { id: string; name: string; role: string; team: string }[];
+      .filter(Boolean) as { id: string; name: string; role: string; team: string; photoUrl: string | null }[];
   }, [playersQuery.data]);
 
   const projectionsQuery = trpc.analytics.getPlayerProjections.useQuery(
@@ -302,13 +308,14 @@ export default function MatchScreen() {
     { enabled: showProjections && !!match, staleTime: 60 * 60_000, retry: 1 },
   );
 
-  const topProjections = useMemo(() => {
+  const allSortedProjections = useMemo(() => {
     const players = projectionsQuery.data?.players;
     if (!players || !Array.isArray(players)) return [];
     return [...players]
-      .sort((a: any, b: any) => (b.projectedPoints ?? 0) - (a.projectedPoints ?? 0))
-      .slice(0, 5);
+      .sort((a: any, b: any) => (b.projectedPoints ?? 0) - (a.projectedPoints ?? 0));
   }, [projectionsQuery.data]);
+
+  const topProjections = useMemo(() => allSortedProjections.slice(0, 5), [allSortedProjections]);
 
   // Lazy-loaded AI feature queries (only fetch when user taps)
   const h2hQuery = trpc.analytics.getHeadToHead.useQuery(
@@ -362,6 +369,15 @@ export default function MatchScreen() {
     retry: false,
   });
   const allDbContests = contestsQuery.data ?? [];
+  // Check if user already has a team for this match
+  const myTeamsQuery = trpc.team.myTeams.useQuery(undefined, {
+    enabled: !!user,
+    retry: false,
+  });
+  const myTeamForMatch = useMemo(() => {
+    if (!dbMatchUuid || !myTeamsQuery.data) return null;
+    return (myTeamsQuery.data as any[]).find((t: any) => t.matchId === dbMatchUuid && t.contestId) ?? null;
+  }, [dbMatchUuid, myTeamsQuery.data]);
   // Once match starts, only show contests user joined
   const myContestIds = new Set(
     (myContestsQuery.data ?? []).map((mc: any) => mc.contestId ?? mc.contest?.id).filter(Boolean)
@@ -388,13 +404,20 @@ export default function MatchScreen() {
     { enabled: showStatTopFives && !!tournament, staleTime: 60 * 60_000, retry: 1 },
   );
 
-  const goToTeamCreate = () => {
-    setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
+  // H2H Challenge
+  const createH2H = trpc.contest.create.useMutation({
+    onSuccess: (data: any) => {
+      router.push(`/contest/${data.id}`);
+    },
+  });
+
+  const goToTeamCreate = (contestId?: string) => {
+    setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined, ...(contestId ? { contestId } : {}) });
     router.push("/team/create");
   };
 
   const goToGuru = () => {
-    setMatchContext({ matchId, teamA, teamB });
+    setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
     router.push("/guru");
   };
 
@@ -487,6 +510,7 @@ export default function MatchScreen() {
                   playerRole="BAT"
                   ovr={0}
                   size={48}
+                  imageUrl={getTeamLogo(match?.teamA || match?.teamHome || "")}
                   hideBadge={isCompleted ? teamAWon !== true : !teamARole}
                   badgeContent={
                     isCompleted && teamAWon === true
@@ -511,7 +535,7 @@ export default function MatchScreen() {
                     )}
                   </YStack>
                 )}
-                {fdrQuery.data?.teamA && !isCompleted && !scoreA && (
+                {fdrQuery.data?.teamA && !isCompleted && !scoreA && match?.draftEnabled && (
                   <XStack marginTop={4}>
                     <FDRBadge fdr={fdrQuery.data.teamA.overallFdr} size="sm" showLabel testID="fdr-badge-team-a" />
                   </XStack>
@@ -530,6 +554,7 @@ export default function MatchScreen() {
                   playerRole="BOWL"
                   ovr={0}
                   size={48}
+                  imageUrl={getTeamLogo(match?.teamB || match?.teamAway || "")}
                   hideBadge={isCompleted ? teamAWon !== false : !teamARole}
                   badgeContent={
                     isCompleted && teamAWon === false
@@ -554,7 +579,7 @@ export default function MatchScreen() {
                     )}
                   </YStack>
                 )}
-                {fdrQuery.data?.teamB && !isCompleted && !scoreB && (
+                {fdrQuery.data?.teamB && !isCompleted && !scoreB && match?.draftEnabled && (
                   <XStack marginTop={4}>
                     <FDRBadge fdr={fdrQuery.data.teamB.overallFdr} size="sm" showLabel testID="fdr-badge-team-b" />
                   </XStack>
@@ -599,59 +624,105 @@ export default function MatchScreen() {
           </Card>
         </Animated.View>
 
-        {/* ── Primary CTA — Create Team (hidden once match starts) ── */}
+        {/* ── Primary CTA — Build Team ── */}
         {!isCompleted && !isLive && (
           <Animated.View entering={FadeInDown.delay(50).springify()}>
-            <Button
-              variant="primary"
-              size="lg"
-              marginBottom="$5"
-              onPress={() => goToTeamCreate()}
-              testID="primary-create-team-btn"
-            >
-              {formatUIText("create your team")}
-            </Button>
+            {match?.draftEnabled ? (
+              <YStack gap="$2" marginBottom="$5">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  onPress={() => goToTeamCreate()}
+                  testID="primary-create-team-btn"
+                >
+                  {formatUIText("build team")}
+                </Button>
+                {user && dbMatchUuid && (
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    disabled={createH2H.isPending}
+                    onPress={() => createH2H.mutate({
+                      matchId: dbMatchUuid,
+                      name: `${teamA} vs ${teamB} — H2H`,
+                      entryFee: 0,
+                      maxEntries: 2,
+                      contestType: "h2h",
+                      isGuaranteed: false,
+                      prizeDistribution: [{ rank: 1, amount: 0 }],
+                    })}
+                    testID="challenge-friend-btn"
+                  >
+                    {createH2H.isPending ? formatUIText("creating...") : formatUIText("challenge a friend")}
+                  </Button>
+                )}
+              </YStack>
+            ) : (
+              <Card padding="$3" marginBottom="$5" alignItems="center" borderColor="$borderColor" borderWidth={1}>
+                <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
+                  {formatUIText("draft not open yet")}
+                </Text>
+                <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={2}>
+                  {formatUIText("team creation opens closer to match time")}
+                </Text>
+              </Card>
+            )}
           </Animated.View>
         )}
 
-        {/* ── Contests Section ── */}
-        <Animated.View entering={FadeInDown.delay(100).springify()}>
-          <XStack alignItems="center" gap="$2" marginBottom="$3">
-            <Text fontSize={14}>🏟️</Text>
-            <Text {...textStyles.sectionHeader}>
-              {formatUIText(matchStarted ? "your contests" : "choose a contest")}
-            </Text>
-          </XStack>
+        {/* ── Contests Section (draft open OR match already started so users see their joined contests) ── */}
+        {(match?.draftEnabled || matchStarted) ? (
+          <Animated.View entering={FadeInDown.delay(100).springify()}>
+            <XStack alignItems="center" gap="$2" marginBottom="$3">
+              <Text fontSize={14}>🏟️</Text>
+              <Text {...textStyles.sectionHeader}>
+                {formatUIText(matchStarted ? "your contests" : "choose a contest")}
+              </Text>
+            </XStack>
 
-          {dbContests.length > 0 ? (
-            dbContests.map((contest: any, i: number) => (
-              <ContestOption
-                key={contest.id}
-                title={contest.name}
-                subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
-                prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "glory"}
-                entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
-                spots={`${contest.maxEntries - contest.currentEntries}`}
-                highlight={i === 0}
-                onPress={() => router.push(`/contest/${contest.id}`)}
-                testID={`contest-${i}`}
-              />
-            ))
-          ) : contestsQuery.isLoading ? (
-            <Card padding="$4" marginBottom="$3" alignItems="center">
-              <EggLoadingSpinner size={24} message={formatUIText("loading contests")} />
-            </Card>
-          ) : (
+            {dbContests.length > 0 ? (
+              dbContests.map((contest: any, i: number) => (
+                <ContestOption
+                  key={contest.id}
+                  title={contest.name}
+                  subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
+                  prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "glory"}
+                  entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
+                  spots={`${contest.maxEntries - contest.currentEntries}`}
+                  highlight={i === 0}
+                  testID={`contest-${i}`}
+                />
+              ))
+            ) : contestsQuery.isLoading ? (
+              <Card padding="$4" marginBottom="$3" alignItems="center">
+                <EggLoadingSpinner size={24} message={formatUIText("loading contests")} />
+              </Card>
+            ) : (
+              <Card padding="$4" marginBottom="$3" alignItems="center">
+                <Text {...textStyles.hint} textAlign="center">
+                  {formatUIText(matchStarted ? "you didn't join any contests for this match" : "no contests available for this match")}
+                </Text>
+              </Card>
+            )}
+          </Animated.View>
+        ) : (
+          <Animated.View entering={FadeInDown.delay(100).springify()}>
+            <XStack alignItems="center" gap="$2" marginBottom="$3">
+              <Text fontSize={14}>🏟️</Text>
+              <Text {...textStyles.sectionHeader}>
+                {formatUIText("contests")}
+              </Text>
+            </XStack>
             <Card padding="$4" marginBottom="$3" alignItems="center">
               <Text {...textStyles.hint} textAlign="center">
-                {formatUIText(matchStarted ? "you didn't join any contests for this match" : "no contests available for this match")}
+                {formatUIText("contests will be available once the draft opens")}
               </Text>
             </Card>
-          )}
-        </Animated.View>
+          </Animated.View>
+        )}
 
-        {/* ── FDR / AI Tools — only for upcoming matches (before match starts) ── */}
-        {!matchStarted && (
+        {/* ── FDR / AI Tools — only when draft is open and before match starts ── */}
+        {!matchStarted && match?.draftEnabled && (
           <>
             {/* ── FDR Breakdown (decision support) ── */}
             {fdrQuery.data && (
@@ -732,37 +803,33 @@ export default function MatchScreen() {
                 </XStack>
               </Card>
 
-              {!showProjections ? (
-                <Card pressable padding="$4" marginBottom="$3" testID="projections-card" onPress={() => {
+              <Card pressable padding="$4" marginBottom="$3" testID="projections-card" onPress={() => {
+                if (!showProjections) {
                   if (gateFeature("hasProjectedPoints", "pro", "Projected Points", "AI-powered player point projections for smarter picks")) return;
-                  setShowProjections(true);
-                }}>
-                  <XStack alignItems="center" gap="$2">
-                    <Text fontSize={16}>📈</Text>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" flex={1}>
+                }
+                setShowProjections(!showProjections);
+                if (showProjections) setShowAllProjections(false);
+              }}>
+                <XStack alignItems="center" gap="$3">
+                  <Text fontSize={20}>📈</Text>
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
                       {formatUIText("projected points")}
                     </Text>
-                    {!canAccess("hasProjectedPoints") ? (
-                      <TierBadge tier="pro" size="sm" />
-                    ) : (
-                      <Text fontFamily="$body" fontSize={12} color="$accentBackground" fontWeight="600">
-                        {formatUIText("tap to load →")}
-                      </Text>
-                    )}
-                  </XStack>
-                </Card>
-              ) : (
-                <Card padding="$4" marginBottom="$3" testID="projections-card">
-                  <XStack alignItems="center" gap="$2" marginBottom="$3">
-                    <Text fontSize={16}>📈</Text>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" flex={1}>
-                      {formatUIText("projected points")}
+                    <Text {...textStyles.hint} marginTop={2}>
+                      {formatUIText("ai-estimated fantasy points for each player")}
                     </Text>
-                    {projectionsQuery.isLoading && (
-                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatUIText("generating...")}</Text>
-                    )}
-                  </XStack>
-
+                  </YStack>
+                  {!canAccess("hasProjectedPoints") ? (
+                    <TierBadge tier="pro" size="sm" />
+                  ) : (
+                    <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showProjections ? "▲" : "▼"}</Text>
+                  )}
+                </XStack>
+              </Card>
+              {showProjections && (
+                <Animated.View entering={FadeInDown.springify()}>
+                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
                   {projectionsQuery.isLoading || projectionsQuery.isFetching ? (
                     <YStack alignItems="center" paddingVertical="$3">
                       <EggLoadingSpinner size={24} message={formatUIText("analyzing players via ai")} />
@@ -780,15 +847,27 @@ export default function MatchScreen() {
                     </YStack>
                   ) : topProjections.length > 0 ? (
                     <YStack gap="$1">
-                      {topProjections.map((p: any, i: number) => (
+                      {/* Column header */}
+                      <XStack alignItems="center" paddingVertical="$1" gap="$2" marginBottom="$1">
+                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted" width={28} textAlign="center">#</Text>
+                        <Text fontFamily="$body" fontSize={10} color="$colorMuted" flex={1}>{formatUIText("player")}</Text>
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={40} textAlign="right">{formatUIText("pts")}</Text>
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={50} textAlign="right">{formatUIText("range")}</Text>
+                      </XStack>
+
+                      {(showAllProjections ? allSortedProjections : topProjections).map((p: any, i: number) => (
                         <XStack key={p.playerId || i} alignItems="center" paddingVertical="$1" gap="$2">
-                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={16} textAlign="center">
-                            {p.captainRank <= 3 ? "👑" : `#${p.captainRank}`}
+                          <Text fontFamily="$mono" fontSize={10} color={p.captainRank <= 3 ? "$accentBackground" : "$colorMuted"} width={28} textAlign="center">
+                            {p.captainRank <= 3 ? "🔥" : `#${p.captainRank}`}
                           </Text>
-                          <Text fontFamily="$body" fontSize={12} color="$color" flex={1} numberOfLines={1}>
-                            {p.playerName}
-                          </Text>
-                          <Badge variant="role" size="sm">{formatBadgeText(p.role)}</Badge>
+                          <YStack flex={1}>
+                            <Text fontFamily="$body" fontSize={12} color="$color" numberOfLines={1}>
+                              {p.playerName}
+                            </Text>
+                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                              {formatBadgeText(p.role)}
+                            </Text>
+                          </YStack>
                           <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$accentBackground" width={40} textAlign="right">
                             {Number(p.projectedPoints).toFixed(1)}
                           </Text>
@@ -801,11 +880,23 @@ export default function MatchScreen() {
                           )}
                         </XStack>
                       ))}
-                      <Card pressable padding="$2" marginTop="$2" onPress={() => goToTeamCreate()}>
-                        <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
-                          {formatUIText("view all & build team →")}
-                        </Text>
-                      </Card>
+
+                      <XStack gap="$2" marginTop="$2">
+                        {allSortedProjections.length > 5 && (
+                          <Card pressable padding="$2" flex={1} onPress={() => setShowAllProjections(!showAllProjections)}>
+                            <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
+                              {showAllProjections
+                                ? formatUIText("show top 5")
+                                : formatUIText(`view all ${allSortedProjections.length} players`)}
+                            </Text>
+                          </Card>
+                        )}
+                        <Card pressable padding="$2" flex={1} onPress={() => goToTeamCreate()}>
+                          <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
+                            {formatUIText("build team →")}
+                          </Text>
+                        </Card>
+                      </XStack>
                     </YStack>
                   ) : (
                     <YStack alignItems="center" paddingVertical="$2">
@@ -819,20 +910,21 @@ export default function MatchScreen() {
                       </Card>
                     </YStack>
                   )}
-                </Card>
+                  </Card>
+                </Animated.View>
               )}
             </Animated.View>
 
             {/* ── AI Insights ── */}
             <Animated.View entering={FadeInDown.delay(250).springify()}>
-              <XStack alignItems="center" gap="$2" marginBottom="$3">
+              <XStack alignItems="center" gap="$2" marginBottom="$3" testID="ai-insights-header">
                 <Text fontSize={14}>🔮</Text>
                 <Text {...textStyles.sectionHeader}>{formatUIText("ai insights")}</Text>
               </XStack>
 
               {/* Head to Head — free by default, admin-togglable */}
               {canAccess("hasHeadToHead") && (<>
-              <Card pressable padding="$4" marginBottom="$3" onPress={() => setShowH2H(!showH2H)}>
+              <Card pressable padding="$4" marginBottom="$3" testID="h2h-card" onPress={() => setShowH2H(!showH2H)}>
                 <XStack alignItems="center" gap="$3">
                   <Text fontSize={20}>⚔️</Text>
                   <YStack flex={1}>
@@ -849,7 +941,7 @@ export default function MatchScreen() {
               {showH2H && (
                 <Animated.View entering={FadeInDown.springify()}>
                   <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {h2hQuery.isLoading ? (
+                    {h2hQuery.isLoading || h2hQuery.isFetching ? (
                       <EggLoadingSpinner size={24} message={formatUIText("loading h2h")} />
                     ) : h2hQuery.data ? (
                       <YStack gap="$2">
@@ -882,7 +974,14 @@ export default function MatchScreen() {
                         )}
                       </YStack>
                     ) : (
-                      <Text {...textStyles.hint} textAlign="center">{formatUIText("no data available")}</Text>
+                      <YStack alignItems="center" gap="$2" paddingVertical="$2">
+                        <Text {...textStyles.hint} textAlign="center">{formatUIText("couldn't load head to head data")}</Text>
+                        <Card pressable padding="$2" onPress={() => h2hQuery.refetch()}>
+                          <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
+                            {formatUIText("retry")}
+                          </Text>
+                        </Card>
+                      </YStack>
                     )}
                   </Card>
                 </Animated.View>
@@ -890,7 +989,7 @@ export default function MatchScreen() {
               </>)}
 
               {/* Captain Picks — Pro */}
-              <Card pressable padding="$4" marginBottom="$3" onPress={() => {
+              <Card pressable padding="$4" marginBottom="$3" testID="captain-picks-card" onPress={() => {
                 if (gateFeature("hasCaptainPicks", "pro", "Captain Picks", "AI-recommended captain & vice-captain choices")) return;
                 setShowCaptainPicks(!showCaptainPicks);
               }}>
@@ -920,20 +1019,22 @@ export default function MatchScreen() {
                       <YStack gap="$3">
                         <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("top captain picks (2x)")}</Text>
                         {((captainPicksQuery.data as any).captainPicks ?? []).map((p: any, i: number) => (
-                          <XStack key={i} alignItems="center" gap="$2">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$colorCricket">#{i + 1}</Text>
-                            <YStack flex={1}>
-                              <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
+                          <XStack key={i} alignItems="flex-start" gap="$2">
+                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$colorCricket" marginTop={2}>#{i + 1}</Text>
+                            <YStack flex={1} gap="$1">
+                              <XStack alignItems="center" gap="$2">
+                                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
+                                <Badge variant={p.confidence === "high" ? "live" : p.confidence === "medium" ? "warning" : "default"} size="sm">{p.confidence}</Badge>
+                              </XStack>
                               <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.reason}</Text>
                             </YStack>
-                            <Badge variant={p.confidence === "high" ? "live" : "default"} size="sm">{p.confidence}</Badge>
                           </XStack>
                         ))}
                         <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5} marginTop="$2">{formatBadgeText("top vice-captain picks (1.5x)")}</Text>
                         {((captainPicksQuery.data as any).viceCaptainPicks ?? []).map((p: any, i: number) => (
-                          <XStack key={i} alignItems="center" gap="$2">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground">#{i + 1}</Text>
-                            <YStack flex={1}>
+                          <XStack key={i} alignItems="flex-start" gap="$2">
+                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground" marginTop={2}>#{i + 1}</Text>
+                            <YStack flex={1} gap="$1">
                               <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
                               <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.reason}</Text>
                             </YStack>
@@ -953,7 +1054,7 @@ export default function MatchScreen() {
               )}
 
               {/* Differentials — Pro */}
-              <Card pressable padding="$4" marginBottom="$3" onPress={() => {
+              <Card pressable padding="$4" marginBottom="$3" testID="differentials-card" onPress={() => {
                 if (gateFeature("hasDifferentials", "pro", "Differentials", "Low-ownership high-upside picks for your team")) return;
                 setShowDifferentials(!showDifferentials);
               }}>
@@ -980,18 +1081,18 @@ export default function MatchScreen() {
                     {differentialsQuery.isLoading ? (
                       <EggLoadingSpinner size={24} message={formatUIText("finding differentials")} />
                     ) : differentialsQuery.data ? (
-                      <YStack gap="$2">
+                      <YStack gap="$3">
                         {((differentialsQuery.data as any).picks ?? []).map((p: any, i: number) => (
-                          <XStack key={i} alignItems="center" gap="$2">
-                            <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={28} />
-                            <YStack flex={1}>
-                              <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
+                          <XStack key={i} alignItems="flex-start" gap="$2">
+                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground" marginTop={2}>#{i + 1}</Text>
+                            <YStack flex={1} gap="$1">
+                              <XStack alignItems="center" gap="$2">
+                                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
+                                <Badge variant="role" size="sm">~{p.expectedOwnership}% est. ownership</Badge>
+                              </XStack>
                               <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.upsideReason}</Text>
                             </YStack>
-                            <YStack alignItems="flex-end">
-                              <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$accentBackground">{p.projectedPoints} pts</Text>
-                              <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{p.expectedOwnership}% owned</Text>
-                            </YStack>
+                            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$accentBackground" marginTop={2}>{p.projectedPoints} pts</Text>
                           </XStack>
                         ))}
                       </YStack>
@@ -1003,7 +1104,7 @@ export default function MatchScreen() {
               )}
 
               {/* Playing XI Prediction — Pro */}
-              <Card pressable padding="$4" marginBottom="$3" onPress={() => {
+              <Card pressable padding="$4" marginBottom="$3" testID="playing-xi-card" onPress={() => {
                 if (gateFeature("hasPlayingXI", "pro", "Playing XI", "AI-predicted lineup before toss")) return;
                 setShowPlayingXI(!showPlayingXI);
               }}>
@@ -1064,7 +1165,7 @@ export default function MatchScreen() {
 
               {/* Weather & Pitch — free by default, admin-togglable */}
               {canAccess("hasPitchWeather") && (<>
-              <Card pressable padding="$4" marginBottom="$3" onPress={() => setShowPitchWeather(!showPitchWeather)}>
+              <Card pressable padding="$4" marginBottom="$3" testID="weather-pitch-card" onPress={() => setShowPitchWeather(!showPitchWeather)}>
                 <XStack alignItems="center" gap="$3">
                   <Text fontSize={20}>🌤️</Text>
                   <YStack flex={1}>
@@ -1085,26 +1186,31 @@ export default function MatchScreen() {
                       <EggLoadingSpinner size={24} message={formatUIText("checking conditions")} />
                     ) : pitchWeatherQuery.data ? (
                       <YStack gap="$3">
-                        <XStack gap="$3">
-                          <YStack flex={1} gap="$1">
-                            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("pitch")}</Text>
+                        {/* Pitch */}
+                        <YStack gap="$1">
+                          <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("pitch")}</Text>
+                          <XStack alignItems="center" gap="$2">
                             <Text fontFamily="$body" fontWeight="700" fontSize={13} color="$color">{(pitchWeatherQuery.data as any).pitch?.pitchType}</Text>
-                            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                              Avg 1st: {(pitchWeatherQuery.data as any).pitch?.avgFirstInningsScore} | 2nd: {(pitchWeatherQuery.data as any).pitch?.avgSecondInningsScore}
-                            </Text>
                             <Badge variant="default" size="sm">{(pitchWeatherQuery.data as any).pitch?.paceVsSpinAdvantage}</Badge>
-                          </YStack>
-                          <YStack flex={1} gap="$1">
-                            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("weather")}</Text>
+                          </XStack>
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                            avg 1st innings: {(pitchWeatherQuery.data as any).pitch?.avgFirstInningsScore} · 2nd innings: {(pitchWeatherQuery.data as any).pitch?.avgSecondInningsScore}
+                          </Text>
+                        </YStack>
+
+                        {/* Weather */}
+                        <YStack gap="$1">
+                          <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("weather")}</Text>
+                          <XStack alignItems="center" gap="$2">
                             <Text fontFamily="$body" fontWeight="700" fontSize={13} color="$color">{(pitchWeatherQuery.data as any).weather?.conditions}</Text>
                             <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
                               {(pitchWeatherQuery.data as any).weather?.temperature} · {(pitchWeatherQuery.data as any).weather?.humidity}
                             </Text>
-                            {(pitchWeatherQuery.data as any).weather?.dewFactor && (
-                              <Text fontFamily="$mono" fontSize={10} color="$colorAccent">{(pitchWeatherQuery.data as any).weather.dewFactor}</Text>
-                            )}
-                          </YStack>
-                        </XStack>
+                          </XStack>
+                          {(pitchWeatherQuery.data as any).weather?.dewFactor && (
+                            <Text fontFamily="$mono" fontSize={10} color="$colorAccent">{(pitchWeatherQuery.data as any).weather.dewFactor}</Text>
+                          )}
+                        </YStack>
                         {((pitchWeatherQuery.data as any).fantasyTips ?? []).length > 0 && (
                           <YStack marginTop="$1">
                             <Text fontFamily="$mono" fontSize={9} color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("fantasy tips")}</Text>
@@ -1125,16 +1231,17 @@ export default function MatchScreen() {
           </>
         )}
 
-        {/* ── Stats & Analytics ── */}
+        {/* ── Stats & Analytics (draft open OR match started for post-match analytics) ── */}
+        {(match?.draftEnabled || matchStarted) && (
         <Animated.View entering={FadeInDown.delay(300).springify()}>
-          <XStack alignItems="center" gap="$2" marginBottom="$3" marginTop="$2">
+          <XStack alignItems="center" gap="$2" marginBottom="$3" marginTop="$2" testID="stats-analytics-header">
             <Text fontSize={14}>📊</Text>
             <Text {...textStyles.sectionHeader}>{formatUIText("stats & analytics")}</Text>
           </XStack>
 
           {/* Player Stats Table — Free (basic) / Pro (advanced), admin-togglable */}
           {canAccess("hasPlayerStats") && (<>
-          <Card pressable padding="$4" marginBottom="$3" onPress={() => setShowPlayerStats(!showPlayerStats)}>
+          <Card pressable padding="$4" marginBottom="$3" testID="player-stats-card" onPress={() => setShowPlayerStats(!showPlayerStats)}>
             <XStack alignItems="center" gap="$3">
               <Text fontSize={20}>📋</Text>
               <YStack flex={1}>
@@ -1155,52 +1262,89 @@ export default function MatchScreen() {
                   <EggLoadingSpinner size={24} message={formatUIText("loading stats")} />
                 ) : playerStatsQuery.data && playerStatsQuery.data.length > 0 ? (
                   <YStack gap="$2">
-                    {/* Sort buttons */}
-                    <XStack gap="$2" flexWrap="wrap" marginBottom="$2">
-                      {[
-                        { key: "avgFantasyPoints", label: "FPts" },
-                        { key: "totalRuns", label: "Runs" },
-                        { key: "totalWickets", label: "Wkts" },
-                        { key: "strikeRate", label: "SR" },
-                        { key: "formAvg", label: "Form" },
-                      ].map((opt) => (
-                        <Badge
-                          key={opt.key}
-                          variant={statsSortBy === opt.key ? "live" : "default"}
-                          size="sm"
-                          pressable
-                          onPress={() => setStatsSortBy(opt.key)}
-                        >
-                          {formatBadgeText(opt.label)}
-                        </Badge>
-                      ))}
-                    </XStack>
+                    {/* Sort buttons — adapt based on data source */}
+                    {(() => {
+                      const isProfile = playerStatsQuery.data?.[0]?.source === "profile";
+                      const sortOptions = isProfile
+                        ? [
+                            { key: "formAvg", label: "Form" },
+                            { key: "strikeRate", label: "SR" },
+                            { key: "avgRuns", label: "Bat Avg" },
+                            { key: "economyRate", label: "Econ" },
+                            { key: "matches", label: "Matches" },
+                          ]
+                        : [
+                            { key: "avgFantasyPoints", label: "FPts" },
+                            { key: "totalRuns", label: "Runs" },
+                            { key: "totalWickets", label: "Wkts" },
+                            { key: "strikeRate", label: "SR" },
+                            { key: "formAvg", label: "Form" },
+                          ];
+                      return (
+                        <XStack gap="$2" flexWrap="wrap" marginBottom="$2">
+                          {sortOptions.map((opt) => (
+                            <Badge
+                              key={opt.key}
+                              variant={statsSortBy === opt.key ? "live" : "default"}
+                              size="sm"
+                              pressable
+                              onPress={() => setStatsSortBy(opt.key)}
+                            >
+                              {formatBadgeText(opt.label)}
+                            </Badge>
+                          ))}
+                        </XStack>
+                      );
+                    })()}
                     {/* Player rows */}
-                    {playerStatsQuery.data.slice(0, 10).map((p: any, i: number) => (
-                      <XStack key={p.playerId || i} alignItems="center" paddingVertical="$1" borderBottomWidth={1} borderBottomColor="$borderColor">
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={20}>{i + 1}</Text>
-                        <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={24} />
-                        <YStack flex={1} marginLeft="$2">
-                          <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1}>{p.playerName}</Text>
-                          <XStack gap="$2">
-                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{p.team}</Text>
-                            <Badge variant="default" size="sm">{formatBadgeText(p.role)}</Badge>
-                          </XStack>
-                        </YStack>
-                        <YStack alignItems="flex-end" minWidth={60}>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$accentBackground">
-                            {statsSortBy === "totalRuns" ? p.totalRuns
-                              : statsSortBy === "totalWickets" ? p.totalWickets
-                              : statsSortBy === "strikeRate" ? (p.strikeRate ?? "—")
-                              : statsSortBy === "formAvg" ? (p.formAvg ?? "—")
-                              : p.avgFantasyPoints}
-                          </Text>
-                          <Text fontFamily="$mono" fontSize={8} color="$colorMuted">
-                            {p.matches} {formatUIText("matches")}
-                          </Text>
-                        </YStack>
-                      </XStack>
-                    ))}
+                    {playerStatsQuery.data.slice(0, 15).map((p: any, i: number) => {
+                      const isProfile = p.source === "profile";
+                      const displayValue = (() => {
+                        if (isProfile) {
+                          // Profile stats: show career averages
+                          if (statsSortBy === "strikeRate") return p.strikeRate || "—";
+                          if (statsSortBy === "avgRuns") return p.avgRuns || "—";
+                          if (statsSortBy === "economyRate") return p.economyRate || "—";
+                          if (statsSortBy === "matches") return p.matches || "—";
+                          return p.formAvg || "—"; // default: form
+                        }
+                        // Match stats
+                        if (statsSortBy === "totalRuns") return p.totalRuns;
+                        if (statsSortBy === "totalWickets") return p.totalWickets;
+                        if (statsSortBy === "strikeRate") return p.strikeRate ?? "—";
+                        if (statsSortBy === "formAvg") return p.formAvg ?? "—";
+                        return p.avgFantasyPoints;
+                      })();
+                      const subtitle = isProfile
+                        ? `${p.matches} career matches`
+                        : `${p.matches} matches`;
+
+                      const roleShort = (p.role ?? "").replace("wicket_keeper", "wk").replace("all_rounder", "ar").replace("batsman", "bat").replace("bowler", "bowl");
+
+                      return (
+                        <XStack key={p.playerId || i} alignItems="center" paddingVertical="$2" borderBottomWidth={1} borderBottomColor="$borderColor" gap="$2">
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={18} textAlign="center">{i + 1}</Text>
+                          <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={28} hideBadge imageUrl={playerList.find((pl) => pl.id === p.playerId)?.photoUrl} />
+                          <YStack flex={1}>
+                            <XStack alignItems="center" gap="$1">
+                              <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1} flexShrink={1}>{p.playerName}</Text>
+                              <Text fontFamily="$mono" fontSize={8} color="$colorMuted" textTransform="uppercase">{formatUIText(roleShort)}</Text>
+                            </XStack>
+                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted" numberOfLines={1}>{p.team}</Text>
+                          </YStack>
+                          <YStack alignItems="flex-end" minWidth={50}>
+                            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                              {displayValue}
+                            </Text>
+                            {p.matches > 0 && (
+                              <Text fontFamily="$mono" fontSize={7} color="$colorMuted">
+                                {p.matches} {formatUIText(isProfile ? "career" : "mat")}
+                              </Text>
+                            )}
+                          </YStack>
+                        </XStack>
+                      );
+                    })}
                   </YStack>
                 ) : (
                   <Text {...textStyles.hint} textAlign="center">{formatUIText("no player data available")}</Text>
@@ -1211,7 +1355,7 @@ export default function MatchScreen() {
           </>)}
 
           {/* Player Comparison — Pro */}
-          <Card pressable padding="$4" marginBottom="$3" onPress={() => {
+          <Card pressable padding="$4" marginBottom="$3" testID="compare-players-card" onPress={() => {
             if (gateFeature("hasPlayerCompare", "pro", "Compare Players", "Side-by-side player comparison tool")) return;
             setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
             router.push(`/match/${encodeURIComponent(matchId)}/compare`);
@@ -1235,7 +1379,7 @@ export default function MatchScreen() {
           </Card>
 
           {/* Team Solver — Elite */}
-          <Card pressable padding="$4" marginBottom="$3" onPress={() => {
+          <Card pressable padding="$4" marginBottom="$3" testID="team-solver-card" onPress={() => {
             if (gateFeature("hasTeamSolver", "elite", "Team Solver", "Auto-pick the optimal 11 within your budget")) return;
             setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
             router.push(`/match/${encodeURIComponent(matchId)}/solver`);
@@ -1285,7 +1429,7 @@ export default function MatchScreen() {
                         {pointsBreakdownQuery.data.slice(0, 8).map((p: any, i: number) => (
                           <YStack key={p.playerId || i} paddingBottom="$2" borderBottomWidth={1} borderBottomColor="$borderColor">
                             <XStack alignItems="center" gap="$2" marginBottom="$1">
-                              <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={24} />
+                              <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={24} imageUrl={playerList.find((pl) => pl.id === p.playerId)?.photoUrl} />
                               <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" flex={1} numberOfLines={1}>{p.playerName}</Text>
                               <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground">{p.totalFantasyPoints}</Text>
                             </XStack>
@@ -1309,7 +1453,7 @@ export default function MatchScreen() {
           )}
 
           {/* Value Tracker — Pro */}
-          <Card pressable padding="$4" marginBottom="$3" onPress={() => {
+          <Card pressable padding="$4" marginBottom="$3" testID="value-tracker-card" onPress={() => {
             if (gateFeature("hasValueTracker", "pro", "Value Tracker", "Track player ownership & credit changes")) return;
             setShowValueTracker(!showValueTracker);
           }}>
@@ -1369,7 +1513,7 @@ export default function MatchScreen() {
           {/* Stat Top Fives — Free, admin-togglable */}
           {tournament && canAccess("hasStatTopFives") && (
             <>
-              <Card pressable padding="$4" marginBottom="$3" onPress={() => setShowStatTopFives(!showStatTopFives)}>
+              <Card pressable padding="$4" marginBottom="$3" testID="stat-top-fives-card" onPress={() => setShowStatTopFives(!showStatTopFives)}>
                 <XStack alignItems="center" gap="$3">
                   <Text fontSize={20}>🏅</Text>
                   <YStack flex={1}>
@@ -1426,12 +1570,14 @@ export default function MatchScreen() {
             </>
           )}
         </Animated.View>
+        )}
 
         {/* ── Tournament link (subtle footer) ── */}
         {tournament && (
           <Animated.View entering={FadeInDown.delay(250).springify()}>
             <Card
               pressable
+              testID="tournament-footer-card"
               onPress={() => router.push(`/tournament/${encodeURIComponent(tournament)}`)}
               padding="$3"
               marginTop="$2"

@@ -3,11 +3,13 @@
  * Clear all sports data from PostgreSQL and Redis.
  * Usage: cd packages/api && npx tsx ../../scripts/clear-sports-data.ts
  */
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local", override: true });
+dotenv.config({ override: false });
 import postgres from "postgres";
 import Redis from "ioredis";
 
-const DB_URL = process.env.DATABASE_URL || "postgresql://postgres:Dreamproject@34.57.117.132:5432/draftplay";
+const DB_URL = process.env.DATABASE_URL || "postgresql://chandanreddy@localhost:5432/draftplay_local";
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
 async function tryDelete(sql: any, table: string) {

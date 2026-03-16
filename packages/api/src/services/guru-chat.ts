@@ -29,7 +29,15 @@ export interface GuruMessage {
 }
 
 export interface GuruContext {
-  upcomingMatches?: Array<{ id: string; teamA: string; teamB: string; date: string }>;
+  upcomingMatches?: Array<{
+    id: string;
+    teamA: string;
+    teamB: string;
+    date: string;
+    format?: string;
+    venue?: string;
+    tournament?: string;
+  }>;
   userTeams?: Array<{ leagueName: string; players: string[] }>;
   fdrData?: Array<{ matchId: string; teamA: string; teamAFdr: number; teamB: string; teamBFdr: number }>;
   projections?: Array<{ playerName: string; projected: number; captainRank: number }>;
@@ -50,10 +58,16 @@ function buildSystemPrompt(context: GuruContext): string {
   let contextBlock = "";
 
   if (context.upcomingMatches?.length) {
-    contextBlock += "\n\nUpcoming Matches:\n";
+    contextBlock += "\n\nCurrent match context (CRICKET):\n";
     for (const m of context.upcomingMatches.slice(0, 10)) {
-      contextBlock += `- ${m.teamA} vs ${m.teamB} (${m.date})\n`;
+      contextBlock += `- ${m.teamA} vs ${m.teamB}`;
+      if (m.tournament) contextBlock += ` (${m.tournament})`;
+      if (m.format) contextBlock += ` — ${m.format}`;
+      if (m.venue) contextBlock += ` at ${m.venue}`;
+      if (m.date) contextBlock += ` — ${m.date}`;
+      contextBlock += "\n";
     }
+    contextBlock += "When the user asks about these teams, ALWAYS search for them in the context of cricket and the tournament listed above. For example, if the tournament is Indian Premier League, search for 'RCB vs SRH IPL head to head cricket' not just 'Bengaluru vs Hyderabad'.\n";
   }
 
   if (context.fdrData?.length) {
@@ -77,34 +91,56 @@ function buildSystemPrompt(context: GuruContext): string {
     }
   }
 
-  return `
-You are Cricket Guru, the AI assistant for DraftPlay — a fantasy cricket platform.
+  return `You are Cricket Guru, a chat assistant inside DraftPlay (a fantasy cricket app). You talk like a knowledgeable cricket friend — casual, warm, and direct.
 
-Your personality:
-- Expert cricket analyst with deep knowledge of player stats, match conditions, and fantasy strategy
-- Friendly but direct — give actionable advice, not vague suggestions
-- Use cricket terminology naturally (yorker, powerplay, death overs, etc.)
-- When recommending players, always explain WHY with stats or match context
-- Keep responses concise (2-4 paragraphs max unless asked for detailed analysis)
+OUTPUT FORMAT — THIS IS MANDATORY, NO EXCEPTIONS:
+You MUST write ONLY in plain text paragraphs. Absolutely NO markdown of any kind. That means:
+No # headers. No ** bold **. No * italics *. No - bullet lists. No numbered lists. No tables. No --- dividers. No code blocks. No special formatting whatsoever.
+Just plain sentences in short paragraphs separated by blank lines. This is a mobile chat app — your response appears in a small chat bubble. Write like a text message, not an article.
 
-Your capabilities:
-1. Captain and vice-captain recommendations
-2. Transfer/trade suggestions
-3. Team analysis and rating
-4. Player comparisons
-5. Match previews and predictions
-6. Chip/power-up timing advice (when to use Wildcard, Triple Captain, etc.)
-7. Fixture difficulty analysis
-8. Rule explanations
-9. Injury impact analysis
+RESPONSE LENGTH — MANDATORY:
+Keep every response to 3-5 short paragraphs MAX. Each paragraph should be 1-3 sentences. Get to the point fast. Users are on mobile — they don't want to read essays. If the topic is complex, give the highlights and offer to go deeper if they ask.
 
-Rules:
-- Never recommend specific betting or gambling actions
-- Be honest when you're uncertain — say "based on available data" not "definitely"
-- If asked about a player you don't have data for, say so
-- Respond in the same language the user writes in
-${contextBlock}
-`.trim();
+CONTENT RULES:
+You are a CRICKET expert ONLY. This is a cricket app. "Bengaluru" means RCB, not Bengaluru FC. "Hyderabad" means SRH, not Hyderabad FC. Never discuss football, soccer, or any non-cricket sport.
+Never add disclaimers, caveats, or "note" paragraphs at the end. Just end your response naturally.
+
+WHAT YOU DO:
+Help users understand cricket — match conditions, pitch reports, venue history, head-to-head records, player form and stats, playing style, team matchups, fantasy scoring rules, how DraftPlay features work, cricket terminology and strategy.
+
+WHAT YOU DON'T DO:
+Never make predictions, projections, or build fantasy teams. If asked to build a team, say "check out Build Team on the match page." If asked for captain picks, say "the Captain Picks section on the match page ranks players by projected impact." If asked to project points, say "tap Projected Points on the match page." You can discuss context and form but never say "pick this player" or "he'll score X points."
+
+Never recommend betting. Be honest when uncertain. Respond in the user's language.
+${contextBlock}`.trim();
+}
+
+// ── Strip Markdown (safety net) ──────────────────────────────
+
+function stripMarkdown(text: string): string {
+  return text
+    // Remove headers (# ## ### etc.)
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove bold/italic markers
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    // Remove bullet points (- or * at start of line)
+    .replace(/^[\s]*[-*]\s+/gm, "")
+    // Remove numbered lists (1. 2. etc.)
+    .replace(/^[\s]*\d+\.\s+/gm, "")
+    // Remove markdown tables (lines starting with |)
+    .replace(/^\|.*\|$/gm, "")
+    // Remove table separator rows
+    .replace(/^[\s]*[|:\-]+[\s]*$/gm, "")
+    // Remove code blocks
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    // Remove markdown links [text](url)
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    // Clean up multiple blank lines
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 // ── Rate Limiting ─────────────────────────────────────────────
@@ -209,11 +245,12 @@ export async function sendGuruMessage(
       },
     });
 
-    const responseText =
+    const rawText =
       typeof response.text === "function" ? response.text() : response.text;
+    const responseText = stripMarkdown(rawText ?? "");
     const guruResponse: GuruMessage = {
       role: "guru",
-      content: responseText ?? "I'm having trouble thinking right now. Try asking again!",
+      content: responseText || "I'm having trouble thinking right now. Try asking again!",
       timestamp: new Date().toISOString(),
     };
 

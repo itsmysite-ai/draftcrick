@@ -6,7 +6,7 @@
  * See /docs/SMART_REFRESH_ARCHITECTURE.md for full spec.
  */
 
-import { eq, and, or, ilike, sql } from "drizzle-orm";
+import { eq, and, or, ilike, inArray, sql } from "drizzle-orm";
 import { getDb } from "@draftplay/db";
 import { tournaments, dataRefreshLog, matches, players, playerMatchScores } from "@draftplay/db";
 import type { Database } from "@draftplay/db";
@@ -28,9 +28,24 @@ import {
   type RefreshTrigger,
   type RefreshResult,
 } from "@draftplay/shared";
-import { fetchSportsData, fetchTournamentStandings, discoverTournaments } from "./gemini-sports";
+import { fetchSportsData, fetchTournamentStandings, discoverTournaments, resolveNationalitiesWithGemini } from "./gemini-sports";
+import {
+  fetchDashboardWithFallback,
+  discoverTournamentsWithFallback,
+  fetchStandingsWithFallback,
+  fetchF1StandingsFromJolpica,
+} from "../providers";
 import { acquireRefreshLock, releaseRefreshLock } from "./sports-cache";
+import { getAdminConfig } from "./admin-config";
 import { getLogger } from "../lib/logger";
+
+export type DataSourcePreference = "auto" | "espn" | "jolpica" | "gemini" | "cricbuzz";
+
+export async function getDataSourcePreference(): Promise<DataSourcePreference> {
+  const val = await getAdminConfig<string>("dataSource");
+  if (val === "espn" || val === "jolpica" || val === "gemini" || val === "cricbuzz") return val;
+  return "auto";
+}
 
 const log = getLogger("sports-data");
 
@@ -41,7 +56,9 @@ const log = getLogger("sports-data");
 function normalizeTournamentExternalId(t: AITournament): string {
   return t.name
     .toLowerCase()
+    .replace(/\s*\(postponed\)\s*/gi, " ")
     .replace(/\s*\d{4}(-\d{2,4})?\s*$/, "") // strip trailing year (e.g. "2026", "2025-26")
+    .replace(/,\s*$/, "")                     // strip trailing comma left after year removal
     .trim()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
@@ -207,6 +224,7 @@ export async function getDashboardFromPg(
     imageUrl: null,
     sourceUrl: null,
     description: t.description ?? null,
+    teams: Array.isArray(t.teams) ? (t.teams as AITournament["teams"]) : null,
   }));
 
   const aiMatches: AIMatch[] = pgMatches.map((m) => ({
@@ -300,10 +318,17 @@ export async function upsertTournaments(
   let upserted = 0;
 
   for (const t of aiTournaments) {
-    const externalId = normalizeTournamentExternalId(t);
-    // Strip trailing year from display name for consistency
-    const displayName = t.name.replace(/\s*\d{4}(-\d{2,4})?\s*$/, "").trim();
+    const externalId = t.id && t.id.length > 0
+      ? t.id
+      : normalizeTournamentExternalId(t);
+    // Clean up display name but preserve the year/season suffix so that
+    // multiple editions (e.g. IPL 2026, IPL 2027) coexist as separate rows.
+    const displayName = t.name
+      .replace(/\s*\(Postponed\)\s*/gi, " ")
+      .replace(/,\s*$/, "")
+      .trim();
 
+    // Normal upsert by externalId+sport
     await database
       .insert(tournaments)
       .values({
@@ -361,9 +386,15 @@ export async function upsertMatches(
   const database = db ?? getDb();
   const now = new Date();
 
-  // Build a lookup for tournament name → tournament ID
+  // Build a lookup for tournament externalId → tournament UUID.
+  // Primary linkage is always by externalId (e.g. "cb-9241").
+  // Name-based fallback exists only for non-Cricbuzz providers that don't set tournamentExternalId.
   const pgTournaments = await database
-    .select({ id: tournaments.id, externalId: tournaments.externalId, name: tournaments.name })
+    .select({
+      id: tournaments.id,
+      externalId: tournaments.externalId,
+      name: tournaments.name,
+    })
     .from(tournaments)
     .where(eq(tournaments.sport, sport));
 
@@ -372,6 +403,12 @@ export async function upsertMatches(
 
   const tournamentLookup = new Map<string, string>();
   for (const t of pgTournaments) {
+    // Index by externalId first — this is the authoritative key
+    if (t.externalId) {
+      tournamentLookup.set(t.externalId.toLowerCase(), t.id);
+    }
+    // Name-based keys as fallback (last-write-wins is fine for fallback — the
+    // externalId path should always be used for Cricbuzz matches)
     tournamentLookup.set(t.name.toLowerCase(), t.id);
     tournamentLookup.set(stripYear(t.name), t.id);
   }
@@ -397,7 +434,9 @@ export async function upsertMatches(
       continue;
     }
 
-    const externalId = normalizeMatchExternalId(m);
+    const externalId = m.id && m.id.length > 0
+      ? m.id
+      : normalizeMatchExternalId(m);
 
     // Parse the AI match date+time into a proper timestamp
     let startTime: Date;
@@ -416,7 +455,10 @@ export async function upsertMatches(
       : phase === "post_match" ? "completed"
       : m.status;
     const nextRefresh = calculateNextRefreshAfter(phase, now);
+    // Link by tournament externalId first (authoritative for Cricbuzz matches).
+    // Fall back to name-based lookup only for providers that don't set tournamentExternalId.
     const tournamentId =
+      (m.tournamentExternalId ? tournamentLookup.get(m.tournamentExternalId.toLowerCase()) : null) ??
       tournamentLookup.get(m.tournamentName.toLowerCase()) ??
       tournamentLookup.get(stripYear(m.tournamentName)) ??
       null;
@@ -477,6 +519,25 @@ export async function upsertMatches(
   }
 
   log.info({ sport, total: result.total, new: result.newCount, updated: result.updatedCount, skipped: result.skippedCount }, "Upserted matches");
+
+  // Auto-create contests for leagues tied to tournaments with new matches
+  if (result.newCount > 0) {
+    const tournamentsWithNewMatches = new Set(
+      aiMatches
+        .filter((m) => result.newMatches.includes(`${m.teamA} vs ${m.teamB}`))
+        .map((m) => m.tournamentName)
+    );
+
+    for (const tournamentName of tournamentsWithNewMatches) {
+      try {
+        const { autoCreateContestsForTournament } = await import("../routers/league");
+        await autoCreateContestsForTournament(database, tournamentName);
+      } catch (err) {
+        log.error({ tournament: tournamentName, err }, "Failed to auto-create league contests for new matches");
+      }
+    }
+  }
+
   return result;
 }
 
@@ -516,11 +577,51 @@ export async function upsertPlayers(
     .from(players);
   const existingSet = new Set(existingRows.map((r) => r.externalId));
 
-  // Local deduplication: keep latest entry per externalId
+  // Local deduplication: keep latest entry per externalId.
+  // Prefer provider-assigned IDs (e.g., "cb-576" from Cricbuzz) over name-derived IDs.
   const dedupMap = new Map<string, AIPlayer>();
   for (const p of aiPlayers) {
-    const externalId = normalizePlayerExternalId(p.name, p.nationality);
+    const externalId = p.id && p.id.length > 0
+      ? p.id
+      : normalizePlayerExternalId(p.name, p.nationality);
     dedupMap.set(externalId, p);
+  }
+
+  // Resolve nationalities via Gemini AI for players that need it.
+  // "Needs it" = nationality looks like a raw birth place, franchise name, or is missing.
+  const KNOWN_COUNTRIES = new Set([
+    "india", "australia", "england", "south africa", "new zealand", "west indies",
+    "pakistan", "sri lanka", "bangladesh", "afghanistan", "zimbabwe", "ireland",
+    "scotland", "netherlands", "nepal", "uae", "usa", "canada", "oman", "namibia",
+    "kenya", "unknown",
+  ]);
+  const needsResolution: Array<{ name: string; birthPlace: string | null; team: string }> = [];
+  for (const p of dedupMap.values()) {
+    if (!p.nationality || !KNOWN_COUNTRIES.has(p.nationality.toLowerCase())) {
+      needsResolution.push({ name: p.name, birthPlace: p.nationality || null, team: p.team });
+    }
+  }
+
+  if (needsResolution.length > 0) {
+    log.info({ count: needsResolution.length }, "Resolving nationalities via Gemini");
+    try {
+      const resolved = await resolveNationalitiesWithGemini(needsResolution);
+      // Build a lookup by normalized player name
+      const resolvedMap = new Map<string, string>();
+      for (const r of resolved) {
+        resolvedMap.set(r.playerName.toLowerCase().trim(), r.nationality);
+      }
+      // Apply resolved nationalities back to AIPlayer objects
+      for (const p of dedupMap.values()) {
+        const resolved = resolvedMap.get(p.name.toLowerCase().trim());
+        if (resolved) {
+          p.nationality = resolved;
+        }
+      }
+      log.info({ resolved: resolved.length, needed: needsResolution.length }, "Nationalities resolved via Gemini");
+    } catch (err) {
+      log.warn({ error: err instanceof Error ? err.message : String(err) }, "Gemini nationality resolution failed — using raw values");
+    }
   }
 
   const result: UpsertPlayersResult = {
@@ -554,7 +655,7 @@ export async function upsertPlayers(
     if ((p as any).injuryStatus != null) cleanStats.injuryStatus = (p as any).injuryStatus;
     if ((p as any).formNote != null) cleanStats.formNote = (p as any).formNote;
 
-    // Calculate deterministic credits from stats
+    // Calculate deterministic credits from stats (no recentAvgFP on initial fetch)
     const calculatedCredits = calculatePlayerCredits({
       role: p.role as import("@draftplay/shared").CricketRole,
       battingAvg: p.battingAvg,
@@ -565,9 +666,14 @@ export async function upsertPlayers(
       matchesPlayed: (p as any).matchesPlayed ?? null,
       recentForm: (p as any).recentForm ?? null,
       sentimentScore: (p as any).sentimentScore ?? null,
+      injuryStatus: (p as any).injuryStatus ?? null,
+      recentAvgFP: null,
     });
     cleanStats.calculatedCredits = calculatedCredits;
     cleanStats.credits = calculatedCredits; // active credits (admin override survives via JSONB merge)
+
+    // Only update photoUrl if we have a new one (don't overwrite existing with null)
+    const photoUrl = (p as any).imageUrl ?? null;
 
     await database
       .insert(players)
@@ -579,6 +685,7 @@ export async function upsertPlayers(
         nationality: p.nationality,
         battingStyle: p.battingStyle,
         bowlingStyle: p.bowlingStyle,
+        photoUrl,
         stats: cleanStats,
         lastFetchAction: fetchAction,
         lastFetchedAt: now,
@@ -593,6 +700,8 @@ export async function upsertPlayers(
           nationality: p.nationality,
           battingStyle: p.battingStyle,
           bowlingStyle: p.bowlingStyle,
+          // Only update photo if new value is not null (preserve existing photo)
+          ...(photoUrl ? { photoUrl } : {}),
           // Merge Gemini stats with existing adminCredits (admin override survives refresh)
           stats: sql`jsonb_strip_nulls(
             COALESCE(${players.stats}, '{}'::jsonb)
@@ -616,6 +725,168 @@ export async function upsertPlayers(
   }
 
   log.info({ sport, ...result, newNames: undefined, updatedNames: undefined, skippedNames: undefined }, "Upserted players");
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Player enrichment — Gemini AI pass for form, sentiment, injury data
+// ---------------------------------------------------------------------------
+
+export interface EnrichPlayersResult {
+  total: number;
+  enrichedCount: number;
+  skippedCount: number;
+  enrichedNames: string[];
+}
+
+/**
+ * Enrich existing DB players with Gemini AI form/sentiment/injury data.
+ * Loads players for a match, calls Gemini enrichment, updates JSONB stats,
+ * and recalculates credits with the enriched recentForm/sentimentScore.
+ */
+export async function enrichAndUpdatePlayers(
+  matchId: string,
+  db?: Database
+): Promise<EnrichPlayersResult> {
+  const database = db ?? getDb();
+
+  // Load match + tournament
+  const match = await database.query.matches.findFirst({
+    where: eq(matches.id, matchId),
+  });
+  if (!match) throw new Error(`Match not found: ${matchId}`);
+
+  let tournamentName = match.tournament ?? "Unknown";
+  if (match.tournamentId) {
+    const t = await database.query.tournaments.findFirst({
+      where: eq(tournaments.id, match.tournamentId),
+    });
+    if (t) tournamentName = t.name;
+  }
+
+  // Load players linked to this match
+  const linkedPlayers = await database
+    .select({
+      id: players.id,
+      name: players.name,
+      team: players.team,
+      role: players.role,
+      nationality: players.nationality,
+      battingAvg: sql<number | null>`(${players.stats}->>'average')::numeric`,
+      bowlingAvg: sql<number | null>`(${players.stats}->>'bowlingAverage')::numeric`,
+      strikeRate: sql<number | null>`(${players.stats}->>'strikeRate')::numeric`,
+      economyRate: sql<number | null>`(${players.stats}->>'economyRate')::numeric`,
+      bowlingStrikeRate: sql<number | null>`(${players.stats}->>'bowlingStrikeRate')::numeric`,
+      matchesPlayed: sql<number | null>`(${players.stats}->>'matchesPlayed')::numeric`,
+      externalId: players.externalId,
+    })
+    .from(playerMatchScores)
+    .innerJoin(players, eq(players.id, playerMatchScores.playerId))
+    .where(eq(playerMatchScores.matchId, matchId));
+
+  if (linkedPlayers.length === 0) {
+    log.info({ matchId }, "No linked players to enrich");
+    return { total: 0, enrichedCount: 0, skippedCount: 0, enrichedNames: [] };
+  }
+
+  // Query recent avg fantasy points (last 5 matches per player) for credit calculation
+  const playerIds = linkedPlayers.map((p) => p.id);
+  const recentFPRows = await database
+    .select({
+      playerId: playerMatchScores.playerId,
+      avgFP: sql<number>`AVG(${playerMatchScores.fantasyPoints}::numeric)`.as("avg_fp"),
+    })
+    .from(playerMatchScores)
+    .innerJoin(matches, eq(matches.id, playerMatchScores.matchId))
+    .where(
+      and(
+        inArray(playerMatchScores.playerId, playerIds),
+        sql`${playerMatchScores.fantasyPoints}::numeric > 0`
+      )
+    )
+    .groupBy(playerMatchScores.playerId);
+
+  const recentFPMap = new Map<string, number>();
+  for (const row of recentFPRows) {
+    recentFPMap.set(row.playerId, Number(row.avgFP));
+  }
+
+  // Call Gemini enrichment
+  const { enrichPlayersWithGemini } = await import("./gemini-sports");
+  const enrichmentData = await enrichPlayersWithGemini(
+    linkedPlayers.map((p) => ({ name: p.name, team: p.team, role: p.role })),
+    tournamentName
+  );
+
+  // Build lookup by normalized name for fuzzy matching
+  const enrichmentMap = new Map<string, (typeof enrichmentData)[number]>();
+  for (const e of enrichmentData) {
+    enrichmentMap.set(e.name.toLowerCase().trim(), e);
+  }
+
+  const result: EnrichPlayersResult = {
+    total: linkedPlayers.length,
+    enrichedCount: 0,
+    skippedCount: 0,
+    enrichedNames: [],
+  };
+  const now = new Date();
+
+  for (const player of linkedPlayers) {
+    const enrichment = enrichmentMap.get(player.name.toLowerCase().trim());
+    if (!enrichment || (enrichment.recentForm == null && enrichment.sentimentScore == null && enrichment.injuryStatus == null && enrichment.formNote == null)) {
+      result.skippedCount++;
+      continue;
+    }
+
+    // Build enrichment-only JSONB patch
+    const patch: Record<string, number | string> = {};
+    if (enrichment.recentForm != null) patch.recentForm = enrichment.recentForm;
+    if (enrichment.sentimentScore != null) patch.sentimentScore = enrichment.sentimentScore;
+    if (enrichment.injuryStatus != null) patch.injuryStatus = enrichment.injuryStatus;
+    if (enrichment.formNote != null) patch.formNote = enrichment.formNote;
+
+    // Store recent avg FP in stats for UI display
+    const playerAvgFP = recentFPMap.get(player.id);
+    if (playerAvgFP != null) patch.recentAvgFP = Math.round(playerAvgFP * 10) / 10;
+
+    // Recalculate credits with enriched data + actual recent fantasy points
+    const calculatedCredits = calculatePlayerCredits({
+      role: player.role as import("@draftplay/shared").CricketRole,
+      battingAvg: player.battingAvg != null ? Number(player.battingAvg) : null,
+      strikeRate: player.strikeRate != null ? Number(player.strikeRate) : null,
+      bowlingAvg: player.bowlingAvg != null ? Number(player.bowlingAvg) : null,
+      economyRate: player.economyRate != null ? Number(player.economyRate) : null,
+      bowlingStrikeRate: player.bowlingStrikeRate != null ? Number(player.bowlingStrikeRate) : null,
+      matchesPlayed: player.matchesPlayed != null ? Number(player.matchesPlayed) : null,
+      recentForm: enrichment.recentForm,
+      sentimentScore: enrichment.sentimentScore,
+      injuryStatus: enrichment.injuryStatus,
+      recentAvgFP: recentFPMap.get(player.id) ?? null,
+    });
+    patch.calculatedCredits = calculatedCredits;
+    patch.credits = calculatedCredits;
+
+    // JSONB merge — preserves admin overrides
+    await database
+      .update(players)
+      .set({
+        stats: sql`jsonb_strip_nulls(
+          COALESCE(${players.stats}, '{}'::jsonb)
+          || ${JSON.stringify(patch)}::jsonb
+        )`,
+        updatedAt: now,
+      })
+      .where(eq(players.id, player.id));
+
+    result.enrichedCount++;
+    result.enrichedNames.push(player.name);
+  }
+
+  log.info(
+    { matchId, tournament: tournamentName, ...result, enrichedNames: undefined },
+    "Enriched players with Gemini AI data"
+  );
   return result;
 }
 
@@ -645,10 +916,12 @@ export async function diffPlayers(
   const existingRows = await database.select().from(players);
   const existingMap = new Map(existingRows.map((r) => [r.externalId, r]));
 
-  // Dedup incoming by externalId (same as upsertPlayers)
+  // Dedup incoming by externalId (same logic as upsertPlayers — prefer provider ID)
   const dedupMap = new Map<string, AIPlayer>();
   for (const p of aiPlayers) {
-    const externalId = normalizePlayerExternalId(p.name, p.nationality);
+    const externalId = p.id && p.id.length > 0
+      ? p.id
+      : normalizePlayerExternalId(p.name, p.nationality);
     dedupMap.set(externalId, p);
   }
 
@@ -747,7 +1020,7 @@ export async function applyApprovedPlayers(
   db?: Database
 ): Promise<UpsertPlayersResult> {
   const aiPlayers: AIPlayer[] = approved.map((d) => ({
-    id: "",
+    id: d.externalId,  // Preserve original externalId to avoid duplicates
     name: d.proposed.name,
     team: d.proposed.team,
     role: d.proposed.role as AIPlayer["role"],
@@ -777,36 +1050,56 @@ export async function applyApprovedPlayers(
 // ---------------------------------------------------------------------------
 
 /**
- * Link players to a single match based on team name matching.
- * Finds players whose team matches either teamHome or teamAway
- * (with "Men"/"Women" suffix stripping for fuzzy matching) and creates
- * playerMatchScores entries. Uses onConflictDoNothing for idempotency.
+ * Link players to a single match.
+ *
+ * When `playerExternalIds` are provided (e.g., from Cricbuzz: ["cb-576", "cb-11813"]),
+ * links by exact externalId — no fuzzy matching needed.
+ *
+ * Falls back to team-name ILIKE matching when IDs aren't available.
  */
 export async function linkPlayersToMatch(
   matchId: string,
   teamHome: string,
   teamAway: string,
-  db?: Database
+  db?: Database,
+  playerExternalIds?: string[],
+  /** Maps externalId → team name for this specific match context (e.g., "India" not "Mumbai Indians") */
+  playerTeamMap?: Map<string, string>
 ): Promise<number> {
   const database = db ?? getDb();
 
-  // Strip "Men"/"Women" suffix for fuzzy team matching
-  const stripSuffix = (t: string) => t.replace(/ Men$| Women$/, "");
+  let teamPlayers: { id: string; externalId: string }[];
 
-  const teamPlayers = await database
-    .select({ id: players.id })
-    .from(players)
-    .where(
-      and(
-        eq(players.isDisabled, false),
-        or(
-          ilike(players.team, `%${stripSuffix(teamHome)}%`),
-          ilike(players.team, `%${stripSuffix(teamAway)}%`),
-          eq(players.team, teamHome),
-          eq(players.team, teamAway),
+  if (playerExternalIds && playerExternalIds.length > 0) {
+    // Precise ID-based linking — no fuzzy matching
+    teamPlayers = await database
+      .select({ id: players.id, externalId: players.externalId })
+      .from(players)
+      .where(
+        and(
+          eq(players.isDisabled, false),
+          inArray(players.externalId, playerExternalIds)
         )
-      )
-    );
+      );
+    log.info({ matchId, requestedIds: playerExternalIds.length, foundPlayers: teamPlayers.length }, "Linking players by externalId");
+  } else {
+    // Fallback: fuzzy team-name matching (for Gemini/ESPN where we don't have provider IDs)
+    const stripSuffix = (t: string) => t.replace(/ Men$| Women$/, "");
+    teamPlayers = await database
+      .select({ id: players.id, externalId: players.externalId })
+      .from(players)
+      .where(
+        and(
+          eq(players.isDisabled, false),
+          or(
+            ilike(players.team, `%${stripSuffix(teamHome)}%`),
+            ilike(players.team, `%${stripSuffix(teamAway)}%`),
+            eq(players.team, teamHome),
+            eq(players.team, teamAway),
+          )
+        )
+      );
+  }
 
   if (teamPlayers.length === 0) return 0;
 
@@ -817,9 +1110,30 @@ export async function linkPlayersToMatch(
         playerId: p.id,
         matchId,
         isPlaying: true,
+        team: playerTeamMap?.get(p.externalId) ?? null,
       }))
     )
     .onConflictDoNothing();
+
+  // If we have team mappings and some records already existed (onConflictDoNothing skipped them),
+  // backfill any missing per-match teams
+  if (playerTeamMap && playerTeamMap.size > 0) {
+    for (const tp of teamPlayers) {
+      const matchTeam = playerTeamMap.get(tp.externalId);
+      if (matchTeam) {
+        await database
+          .update(playerMatchScores)
+          .set({ team: matchTeam })
+          .where(
+            and(
+              eq(playerMatchScores.playerId, tp.id),
+              eq(playerMatchScores.matchId, matchId),
+              sql`${playerMatchScores.team} IS NULL`
+            )
+          );
+      }
+    }
+  }
 
   log.info({ matchId, playersLinked: teamPlayers.length }, "Linked players to match");
   return teamPlayers.length;
@@ -946,9 +1260,11 @@ export async function executeDiscovery(
   const logEntryId = logEntries[0]?.id;
 
   try {
-    log.info({ sport }, "Starting tournament discovery");
+    const preference = await getDataSourcePreference();
+    log.info({ sport, preference }, "Starting tournament discovery via provider chain");
 
-    const aiTournaments = await discoverTournaments(sport);
+    const { data: aiTournaments, source } = await discoverTournamentsWithFallback(sport, preference);
+    log.info({ sport, source, count: aiTournaments.length }, "Discovery data received");
     const upserted = await upsertTournaments(sport, aiTournaments, db);
     const tournamentNames = aiTournaments.map((t) => t.name);
 
@@ -1003,7 +1319,8 @@ export async function executeRefresh(
   sport: Sport,
   trigger: RefreshTrigger,
   userId?: string,
-  activeTournaments?: string[]
+  activeTournaments?: string[],
+  seriesHints?: Array<{ name: string; externalId: string }>
 ): Promise<RefreshResult> {
   const lockKey = `dashboard:${sport}`;
   const startTime = Date.now();
@@ -1036,13 +1353,65 @@ export async function executeRefresh(
   const logEntryId = logEntries[0]?.id;
 
   try {
-    log.info({ sport, trigger, activeTournaments }, "Starting Gemini refresh");
+    const preference = await getDataSourcePreference();
+    log.info({ sport, trigger, activeTournaments, preference }, "Starting data refresh via provider chain");
 
-    // Pass active tournaments to Gemini so it only fetches data we need
-    const data = await fetchSportsData(sport, activeTournaments);
+    // Provider chain respects admin preference (auto = full fallback, espn = ESPN only, etc.)
+    const { data, source: dataSource } = await fetchDashboardWithFallback(sport, activeTournaments, preference, seriesHints);
+    log.info({ sport, dataSource, tournaments: data.tournaments.length, matches: data.matches.length }, "Dashboard data received");
 
-    const tournamentsUpserted = await upsertTournaments(sport, data.tournaments, db);
-    const matchesUpserted = await upsertMatches(sport, data.matches, db);
+    // When refreshing for specific active tournaments, filter by externalId (ID-based).
+    // seriesHints carry the authoritative externalIds from the DB.
+    let filteredTournaments = data.tournaments;
+    let filteredMatches = data.matches;
+
+    if (seriesHints && seriesHints.length > 0) {
+      // ID-based filtering — most precise
+      const hintIds = new Set(seriesHints.map(h => h.externalId.toLowerCase()));
+
+      filteredTournaments = data.tournaments.filter(t => hintIds.has(t.id.toLowerCase()));
+      const keptExternalIds = new Set(filteredTournaments.map(t => t.id.toLowerCase()));
+
+      filteredMatches = data.matches.filter(m =>
+        m.tournamentExternalId && keptExternalIds.has(m.tournamentExternalId.toLowerCase())
+      );
+
+      log.info({
+        hintIds: [...hintIds],
+        totalTournaments: data.tournaments.length,
+        filteredTournaments: filteredTournaments.length,
+        totalMatches: data.matches.length,
+        filteredMatches: filteredMatches.length,
+      }, "Filtered dashboard data by externalId hints");
+    } else if (activeTournaments && activeTournaments.length > 0) {
+      // Name-based filtering as fallback (for non-Cricbuzz providers or when no hints available)
+      const activeSet = new Set(activeTournaments.map(n => n.toLowerCase()));
+      const stripYear = (s: string) => s.replace(/\s*\d{4}(-\d{2,4})?\s*$/, "").trim().toLowerCase();
+
+      filteredTournaments = data.tournaments.filter(t => {
+        const name = t.name.replace(/\s*\d{4}(-\d{2,4})?\s*$/, "").replace(/,\s*$/, "").trim().toLowerCase();
+        return activeSet.has(name) || activeSet.has(stripYear(t.name));
+      });
+
+      const keptExternalIds = new Set(filteredTournaments.map(t => t.id.toLowerCase()));
+
+      filteredMatches = data.matches.filter(m => {
+        if (m.tournamentExternalId && keptExternalIds.has(m.tournamentExternalId.toLowerCase())) return true;
+        const mName = m.tournamentName.replace(/\s*\d{4}(-\d{2,4})?\s*$/, "").trim().toLowerCase();
+        return activeSet.has(mName) || activeSet.has(stripYear(m.tournamentName));
+      });
+
+      log.info({
+        activeTournaments,
+        totalTournaments: data.tournaments.length,
+        filteredTournaments: filteredTournaments.length,
+        totalMatches: data.matches.length,
+        filteredMatches: filteredMatches.length,
+      }, "Filtered dashboard data by name (no hints available)");
+    }
+
+    const tournamentsUpserted = await upsertTournaments(sport, filteredTournaments, db);
+    const matchesUpserted = await upsertMatches(sport, filteredMatches, db);
 
     // Only fetch standings for active tournaments (saves API costs)
     // Players are now fetched per-match from admin UI, not during refresh
@@ -1066,9 +1435,19 @@ export async function executeRefresh(
       });
 
       if (startedTournaments.length > 0) {
-        log.info({ sport, tournaments: startedTournaments }, "Fetching standings for started tournaments");
-        const standingsMap = await fetchTournamentStandings(sport, startedTournaments);
-        await updateTournamentStandings(sport, standingsMap, db);
+        log.info({ sport, tournaments: startedTournaments, preference }, "Fetching standings for started tournaments");
+
+        // For F1: always use Jolpica for standings (ESPN doesn't support them).
+        // Jolpica is supplementary — not affected by admin preference unless "gemini" is forced.
+        if (sport === "f1" && preference !== "gemini") {
+          const { data: standingsMap, source: standingsSource } = await fetchF1StandingsFromJolpica(startedTournaments);
+          log.info({ sport, standingsSource }, "F1 standings received from Jolpica");
+          await updateTournamentStandings(sport, standingsMap, db);
+        } else {
+          const { data: standingsMap, source: standingsSource } = await fetchStandingsWithFallback(sport, startedTournaments, preference);
+          log.info({ sport, standingsSource }, "Standings data received");
+          await updateTournamentStandings(sport, standingsMap, db);
+        }
       } else {
         log.info({ sport }, "No tournaments have started yet — skipping standings fetch");
       }

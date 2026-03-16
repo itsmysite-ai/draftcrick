@@ -20,6 +20,9 @@ interface ThemeContextValue {
   toggleMode: () => void;
   sport: Sport;
   setSport: (sport: Sport) => void;
+  /** Sports the user selected during onboarding */
+  availableSports: Sport[];
+  setAvailableSports: (sports: Sport[]) => void;
   t: typeof Colors;
   roles: RoleColorMap;
   /** Tamagui theme name (e.g. "cricket_dark", "f1_light") */
@@ -31,21 +34,31 @@ const STORAGE_KEY_SPORT = "draftplay_sport";
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+const STORAGE_KEY_AVAILABLE_SPORTS = "draftplay_available_sports";
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("light");
+  const [mode, setModeState] = useState<ThemeMode>("dark");
   const [sport, setSportState] = useState<Sport>("cricket");
+  const [availableSports, setAvailableSportsState] = useState<Sport[]>(["cricket", "f1"]);
   const [loaded, setLoaded] = useState(false);
 
   // Load persisted preferences on mount
   useEffect(() => {
     (async () => {
       try {
-        const [savedMode, savedSport] = await Promise.all([
+        const [savedMode, savedSport, savedAvailable] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEY_MODE),
           AsyncStorage.getItem(STORAGE_KEY_SPORT),
+          AsyncStorage.getItem(STORAGE_KEY_AVAILABLE_SPORTS),
         ]);
         if (savedMode === "light" || savedMode === "dark") setModeState(savedMode);
         if (savedSport === "cricket" || savedSport === "f1") setSportState(savedSport as Sport);
+        if (savedAvailable) {
+          try {
+            const parsed = JSON.parse(savedAvailable) as Sport[];
+            if (Array.isArray(parsed) && parsed.length > 0) setAvailableSportsState(parsed);
+          } catch { /* ignore parse errors */ }
+        }
       } catch {
         // Storage unavailable — use defaults
       }
@@ -69,6 +82,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setMode(next);
   };
 
+  const setAvailableSports = (sports: Sport[]) => {
+    setAvailableSportsState(sports);
+    AsyncStorage.setItem(STORAGE_KEY_AVAILABLE_SPORTS, JSON.stringify(sports)).catch(() => {});
+    // If current sport is no longer available, switch to the first available
+    if (!sports.includes(sport) && sports.length > 0) {
+      setSport(sports[0]);
+    }
+  };
+
   // Build Tamagui theme name: for cricket we use the default light/dark,
   // for other sports we use sport_mode sub-themes
   const themeName = sport === "cricket" ? mode : `${sport}_${mode}`;
@@ -76,8 +98,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => {
     const t = getColors(sport, mode) as typeof Colors;
     const roles = getRoleColors(sport, mode);
-    return { mode, setMode, toggleMode, sport, setSport, t, roles, themeName };
-  }, [mode, sport, themeName]);
+    return { mode, setMode, toggleMode, sport, setSport, availableSports, setAvailableSports, t, roles, themeName };
+  }, [mode, sport, availableSports, themeName]);
 
   // Don't render until preferences are loaded to avoid flash
   if (!loaded) return null;

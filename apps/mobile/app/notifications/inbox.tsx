@@ -116,7 +116,7 @@ export default function NotificationInboxScreen() {
               {formatUIText("mark all read")}
             </Text>
           )}
-          <HeaderControls />
+          <HeaderControls hideNotifications />
         </XStack>
       </XStack>
 

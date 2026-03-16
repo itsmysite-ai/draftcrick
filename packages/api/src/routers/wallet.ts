@@ -13,6 +13,9 @@ export const walletRouter = router({
   getBalance: protectedProcedure.query(async ({ ctx }) => {
     const wallet = await getBalance(ctx.db, ctx.user.id);
     const canClaim = canClaimDaily(wallet.lastDailyClaimAt);
+    const tier = await getUserTier(ctx.db, ctx.user.id);
+    const configs = await getTierConfigs();
+    const dailyCoinDrip = configs[tier].features.dailyCoinDrip;
 
     return {
       coinBalance: wallet.coinBalance,
@@ -21,6 +24,7 @@ export const walletRouter = router({
       totalWon: wallet.totalWon,
       canClaimDaily: canClaim,
       currentStreak: wallet.loginStreak,
+      dailyCoinDrip,
     };
   }),
 

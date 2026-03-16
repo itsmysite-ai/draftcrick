@@ -1,4 +1,5 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { Image } from "react-native";
 import { YStack, XStack, type GetProps } from "tamagui";
 import { Text } from "../primitives/SportText";
 
@@ -9,7 +10,7 @@ interface InitialsAvatarProps extends Omit<GetProps<typeof YStack>, "children" |
   playerRole: RoleKey;
   ovr: number | string;
   size?: number;
-  imageUrl?: string; // Future: AI-generated portraits
+  imageUrl?: string | null;
   hideBadge?: boolean;
   /** Custom badge content — replaces the default OVR text badge */
   badgeContent?: ReactNode;
@@ -31,16 +32,20 @@ export function InitialsAvatar({
   ...props
 }: InitialsAvatarProps) {
   const initials = getInitials(name);
+  const [imgError, setImgError] = useState(false);
 
   // Role color tokens based on current mode
   const roleBg = `$role${playerRole}Bg` as const;
   const roleText = `$role${playerRole}Text` as const;
 
+  const showImage = !!imageUrl && !imgError;
+  const radius = Math.round(size * 0.3);
+
   return (
     <YStack
       width={size}
       height={size}
-      borderRadius={Math.round(size * 0.3)} // ~30% for rounded square
+      borderRadius={radius}
       backgroundColor={roleBg as any}
       alignItems="center"
       justifyContent="center"
@@ -48,51 +53,55 @@ export function InitialsAvatar({
       animation="bouncy"
       {...props}
     >
-      {/* Future: Image support */}
-      {imageUrl ? (
+      {showImage ? (
         <YStack
           width="100%"
           height="100%"
-          borderRadius={Math.round(size * 0.3)}
+          borderRadius={radius}
           overflow="hidden"
         >
-          {/* <Image source={{ uri: imageUrl }} style={{ width: "100%", height: "100%" }} /> */}
+          <Image
+            source={{ uri: imageUrl! }}
+            style={{ width: size, height: size }}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
         </YStack>
       ) : (
         <Text
           fontFamily="$mono"
-          fontSize={size * 0.36}
+          fontSize={initials.length > 2 ? size * 0.28 : size * 0.36}
           fontWeight="500"
           color={roleText as any}
-          letterSpacing={1}
-          lineHeight={size * 0.36}
+          letterSpacing={initials.length > 2 ? 0.5 : 1}
+          lineHeight={initials.length > 2 ? size * 0.28 : size * 0.36}
         >
           {initials}
         </Text>
       )}
 
-      {/* Badge — always uses black pill, custom content or default OVR text inside */}
-      {!hideBadge && (
+      {/* Badge — show custom badge content always, but hide default OVR when image is showing */}
+      {!hideBadge && (!showImage || badgeContent) && (
         <XStack
           position="absolute"
-          bottom={-5}
-          right={-5}
+          bottom={size <= 36 ? -3 : -5}
+          right={size <= 36 ? -3 : -5}
           backgroundColor="$color"
-          paddingHorizontal={5}
-          paddingVertical={2}
-          borderRadius={6}
+          paddingHorizontal={size <= 36 ? 3 : 5}
+          paddingVertical={size <= 36 ? 1 : 2}
+          borderRadius={size <= 36 ? 5 : 6}
           alignItems="center"
           justifyContent="center"
-          minWidth={18}
-          minHeight={18}
+          minWidth={size <= 36 ? 16 : 18}
+          minHeight={size <= 36 ? 16 : 18}
         >
           {badgeContent ?? (
             <Text
               fontFamily="$mono"
-              fontSize={9}
+              fontSize={size <= 36 ? 8 : 9}
               fontWeight="700"
               color="$background"
-              lineHeight={16}
+              lineHeight={size <= 36 ? 14 : 16}
             >
               {ovr}
             </Text>
@@ -113,7 +122,10 @@ function getInitials(name: string): string {
   if (parts.length === 0) return "??";
   if (parts.length === 1) {
     const first = parts[0];
-    return first ? first.substring(0, 2).toUpperCase() : "??";
+    if (!first) return "??";
+    // Short abbreviations (RCB, SRH, MI, DC) — show full text
+    if (first.length <= 4) return first.toUpperCase();
+    return first.substring(0, 2).toUpperCase();
   }
   const firstInitial = parts[0]?.[0] ?? "";
   const lastInitial = parts[parts.length - 1]?.[0] ?? "";

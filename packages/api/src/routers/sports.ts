@@ -30,7 +30,10 @@ const log = getLogger("sports-router");
 /** Filter dashboard data to only include admin-visible tournaments and their matches. */
 async function filterActiveTournaments(data: SportsDashboardData): Promise<SportsDashboardData> {
   const activeTournaments = await getVisibleTournamentNames();
-  if (activeTournaments.length === 0) return data; // no filter = show all
+  if (activeTournaments.length === 0) {
+    // No visible tournaments → show nothing (admin hasn't enabled any)
+    return { ...data, tournaments: [], matches: [] };
+  }
 
   const activeLower = activeTournaments.map((t) => t.toLowerCase());
 

@@ -62,3 +62,27 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+/* DraftPlay logo play-bounce animation — subtle press-in */
+@keyframes playBounce {
+  0%, 85% { transform: scale(1) translateX(0); }
+  90% { transform: scale(0.93) translateX(-0.5px); }
+  95% { transform: scale(1) translateX(0); }
+  100% { transform: scale(1) translateX(0); }
+}
+.dp-logo-click-group {
+  animation: playBounce 3s ease-in-out infinite;
+  transform-origin: left center;
+}
+
+/* Landing page responsive */
+.landing-hero-cta { display: flex; gap: 16px; }
+.landing-comparison-cell { padding: 16px 24px; font-size: 14px; }
+
+@media (max-width: 768px) {
+  .landing-subheader { justify-content: center !important; gap: 8px !important; padding: 8px 12px !important; }
+  .landing-subheader-tagline { display: none !important; }
+  .landing-hero-cta { flex-direction: column; align-items: stretch; width: 100%; }
+  .landing-hero-cta a { text-align: center; padding: 14px 24px !important; }
+  .landing-comparison-cell { padding: 12px 8px; font-size: 13px; }
+}

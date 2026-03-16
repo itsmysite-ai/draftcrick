@@ -1,6 +1,6 @@
 import { TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
@@ -31,11 +31,46 @@ interface Message {
   content: string;
 }
 
-const SUGGESTIONS = [
-  "who should i captain for IND vs AUS?",
-  "build me a team under 100 credits",
-  "what does waiver wire mean?",
-  "preview of CSK vs MI",
+/** Typewriter effect — reveals text character by character */
+function TypewriterText({
+  content,
+  onComplete,
+  ...textProps
+}: { content: string; onComplete?: () => void } & Record<string, any>) {
+  const [displayedLength, setDisplayedLength] = useState(0);
+  const contentRef = useRef(content);
+
+  useEffect(() => {
+    contentRef.current = content;
+    setDisplayedLength(0);
+  }, [content]);
+
+  useEffect(() => {
+    if (displayedLength >= contentRef.current.length) {
+      onComplete?.();
+      return;
+    }
+    // Natural typing speed with slight randomness
+    const char = contentRef.current[displayedLength];
+    const base = char === " " ? 18 : char === "\n" ? 80 : char === "." || char === "," || char === "!" || char === "?" ? 60 : 25;
+    const jitter = Math.random() * 15; // slight randomness for natural feel
+    const timer = setTimeout(() => setDisplayedLength((l) => l + 1), base + jitter);
+    return () => clearTimeout(timer);
+  }, [displayedLength, onComplete]);
+
+  return (
+    <Text {...textProps}>
+      {contentRef.current.slice(0, displayedLength)}
+      {displayedLength < contentRef.current.length ? "▍" : ""}
+    </Text>
+  );
+}
+
+const GENERIC_SUGGESTIONS = [
+  "how does the auction draft work?",
+  "what are player credits based on?",
+  "explain the fantasy scoring system",
+  "how do leagues and contests work?",
 ];
 
 export default function GuruScreen() {
@@ -45,9 +80,25 @@ export default function GuruScreen() {
     matchId: navCtx?.matchId,
     teamA: navCtx?.teamA,
     teamB: navCtx?.teamB,
+    format: navCtx?.format,
+    venue: navCtx?.venue,
+    tournament: navCtx?.tournament,
   };
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
+
+  const suggestions = useMemo(() => {
+    if (!params.teamA || !params.teamB) return GENERIC_SUGGESTIONS;
+    const shortA = formatTeamName(params.teamA).split(" ").pop() ?? params.teamA;
+    const shortB = formatTeamName(params.teamB).split(" ").pop() ?? params.teamB;
+    const vs = `${shortA} vs ${shortB}`;
+    return [
+      `tell me about the ${vs} venue — pitch and conditions`,
+      `head-to-head history of ${vs}`,
+      `key players to watch in ${vs}`,
+      `what's the current form of both teams?`,
+    ];
+  }, [params.teamA, params.teamB]);
 
   const flatListRef = useRef<FlatList>(null);
   const { gate, hasAccess, paywallProps } = usePaywall();
@@ -58,12 +109,13 @@ export default function GuruScreen() {
     {
       id: "welcome",
       role: "guru",
-      content: "hi! i'm your cricket guru. ask me anything about fantasy cricket — team picks, rule explanations, match previews, or player comparisons.",
+      content: "hi! i'm your cricket guru. ask me about match conditions, player form, scoring rules, or how features in the app work. for team building and captain picks, check out projected points and captain picks on the match page!",
     },
   ]);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [typingMessageId, setTypingMessageId] = useState<string | null>("welcome");
 
   const sendMutation = trpc.guru.sendMessage.useMutation();
 
@@ -83,10 +135,18 @@ export default function GuruScreen() {
     setInput("");
     setIsSending(true);
 
-    // Build context from URL params
+    // Build context from match params
     const context: any = {};
     if (params.matchId && params.teamA && params.teamB) {
-      context.upcomingMatches = [{ id: params.matchId, teamA: params.teamA, teamB: params.teamB, date: "upcoming" }];
+      context.upcomingMatches = [{
+        id: params.matchId,
+        teamA: params.teamA,
+        teamB: params.teamB,
+        date: "upcoming",
+        ...(params.format && { format: params.format }),
+        ...(params.venue && { venue: params.venue }),
+        ...(params.tournament && { tournament: params.tournament }),
+      }];
     }
 
     try {
@@ -100,20 +160,24 @@ export default function GuruScreen() {
         setConversationId(result.conversationId);
       }
 
+      const guruMsgId = (Date.now() + 1).toString();
       const guruMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: guruMsgId,
         role: "guru",
         content: result.response.content,
       };
+      setTypingMessageId(guruMsgId);
       setMessages((prev) => [...prev, guruMsg]);
     } catch (error: any) {
+      const errMsgId = (Date.now() + 1).toString();
       const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
+        id: errMsgId,
         role: "guru",
         content: error?.message?.includes("UNAUTHORIZED")
           ? "you need to be logged in to chat with me. please sign in first!"
           : "sorry, i'm having a moment. could you try that question again?",
       };
+      setTypingMessageId(errMsgId);
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsSending(false);
@@ -166,8 +230,8 @@ export default function GuruScreen() {
           borderBottomColor="$borderColor"
         >
           <CricketBatIcon size={12} />
-          <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
-            {formatUIText(`context: ${formatTeamName(params.teamA ?? "")} vs ${formatTeamName(params.teamB ?? "")}`)}
+          <Text fontFamily="$mono" fontSize={11} color="$colorMuted" flex={1}>
+            {formatUIText(`${formatTeamName(params.teamA ?? "")} vs ${formatTeamName(params.teamB ?? "")}${params.format ? ` · ${params.format}` : ""}${params.venue ? ` · ${params.venue}` : ""}`)}
           </Text>
         </XStack>
       )}
@@ -197,14 +261,25 @@ export default function GuruScreen() {
                   </Badge>
                 </XStack>
               )}
-              <Text
-                fontFamily="$body"
-                fontSize={15}
-                lineHeight={22}
-                color={item.role === "user" ? "$accentColor" : "$color"}
-              >
-                {item.content}
-              </Text>
+              {item.role === "guru" && item.id === typingMessageId ? (
+                <TypewriterText
+                  content={item.content}
+                  onComplete={() => setTypingMessageId(null)}
+                  fontFamily="$body"
+                  fontSize={15}
+                  lineHeight={22}
+                  color="$color"
+                />
+              ) : (
+                <Text
+                  fontFamily="$body"
+                  fontSize={15}
+                  lineHeight={22}
+                  color={item.role === "user" ? "$accentColor" : "$color"}
+                >
+                  {item.content}
+                </Text>
+              )}
             </YStack>
           </Animated.View>
         )}
@@ -226,7 +301,7 @@ export default function GuruScreen() {
       {/* Suggestion chips */}
       {messages.length <= 1 && (
         <XStack flexWrap="wrap" gap="$2" paddingHorizontal="$4" paddingBottom="$3">
-          {SUGGESTIONS.map((s) => (
+          {suggestions.map((s) => (
             <XStack
               key={s}
               backgroundColor="$backgroundSurface"

@@ -4,39 +4,36 @@
 <style>
   * { margin: 0; padding: 0; }
   body { background: transparent; }
-  .circle {
+  #logo {
     width: 64px;
     height: 64px;
-    border-radius: 50%;
-    background: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
   }
 </style>
 </head>
 <body>
-  <div class="circle" id="favicon">
-    <!-- DraftPlay logo: lowercase d + play triangle sharing vertical bar, with 3D -->
-    <!-- Scaled to fit nicely inside the circle -->
-
-    <!-- Shadow: d bowl -->
-    <div style="position:absolute; left:14.2px; top:24.2px; width:10px; height:20px; border:2.5px solid #2D7A4E; border-right:0; border-top-left-radius:10px; border-bottom-left-radius:10px; border-top-right-radius:0; border-bottom-right-radius:0; opacity:0.5; box-sizing:border-box;"></div>
-    <!-- Shadow: vertical bar -->
-    <div style="position:absolute; left:23.7px; top:11.2px; width:2.5px; height:40px; background:#2D7A4E; opacity:0.5;"></div>
-    <!-- Shadow: play triangle -->
-    <div style="position:absolute; left:26.7px; top:11.2px; width:0; height:0; border-left:13px solid #2D7A4E; border-top:10px solid transparent; border-bottom:10px solid transparent; opacity:0.5;"></div>
-
-    <!-- Main: d bowl -->
-    <div style="position:absolute; left:13px; top:23px; width:10px; height:20px; border:2.5px solid #3D9968; border-right:0; border-top-left-radius:10px; border-bottom-left-radius:10px; border-top-right-radius:0; border-bottom-right-radius:0; box-sizing:border-box;"></div>
-    <!-- Main: vertical bar -->
-    <div style="position:absolute; left:22.5px; top:10px; width:2.5px; height:40px; background:#3D9968;"></div>
-    <!-- Main: play triangle -->
-    <div style="position:absolute; left:25.5px; top:10px; width:0; height:0; border-left:13px solid #3D9968; border-top:10px solid transparent; border-bottom:10px solid transparent;"></div>
-
-    <!-- Highlight: d bowl top edge -->
-    <div style="position:absolute; left:12.6px; top:22.6px; width:10px; height:20px; border:1.2px solid #5BBF8A; border-right:0; border-bottom-color:transparent; border-top-left-radius:10px; border-bottom-left-radius:10px; border-top-right-radius:0; border-bottom-right-radius:0; opacity:0.4; box-sizing:border-box;"></div>
+  <div id="logo">
+    <svg width="64" height="64" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="dp-shadow" x="-10%" y="-10%" width="130%" height="130%">
+          <feDropShadow dx="0.8" dy="1.1" stdDeviation="0.7" flood-color="#1a4a30" flood-opacity="0.45" />
+        </filter>
+      </defs>
+      <g filter="url(#dp-shadow)">
+        <!-- Bowl arc -->
+        <path d="M18.1 17.7 A8.35 8.35 0 0 0 18.1 34.4" stroke="#3D9968" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        <!-- Vertical bar -->
+        <rect x="18.1" y="5.6" width="2.8" height="30.2" fill="#3D9968"/>
+      </g>
+      <g filter="url(#dp-shadow)">
+        <!-- Play triangle -->
+        <polygon points="20.9,5.6 30.26,12.8 20.9,20.0" fill="#3D9968"/>
+      </g>
+      <!-- Highlight -->
+      <path d="M17.8 17.4 A8.35 8.35 0 0 0 9.5 25.4" stroke="#5BBF8A" stroke-width="0.8" fill="none" opacity="0.3" stroke-linecap="round"/>
+    </svg>
   </div>
 </body>
 </html>

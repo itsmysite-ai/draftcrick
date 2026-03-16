@@ -17,6 +17,7 @@ import {
   formatUIText,
   formatBadgeText,
   DraftPlayLogo,
+  formatTeamName,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
@@ -25,15 +26,15 @@ import { HeaderControls } from "../../components/HeaderControls";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
-/** Format raw role enum to display-friendly text */
-function formatRoleDisplay(role: string): string {
-  const r = (role ?? "").toUpperCase();
+/** Format raw role enum to compact badge text */
+function formatRoleShort(role: string): string {
+  const r = (role ?? "").toUpperCase().replace(/[\s-]/g, "_");
   switch (r) {
-    case "BATSMAN": case "BAT": return "Batsman";
-    case "BOWLER": case "BOWL": return "Bowler";
-    case "ALL_ROUNDER": case "ALL-ROUNDER": case "AR": return "All-Rounder";
-    case "WICKET_KEEPER": case "WICKETKEEPER": case "WK": return "Wicket-Keeper";
-    default: return role;
+    case "BATSMAN": case "BAT": return "BAT";
+    case "BOWLER": case "BOWL": return "BOWL";
+    case "ALL_ROUNDER": case "ALLROUNDER": case "AR": return "AR";
+    case "WICKET_KEEPER": case "WICKETKEEPER": case "WK": return "WK";
+    default: return role.substring(0, 4).toUpperCase();
   }
 }
 
@@ -150,17 +151,18 @@ export default function AuctionRoomScreen() {
               playerRole={((currentPlayer as any).role ?? "BAT").toUpperCase() as RoleKey}
               ovr={(currentPlayer as any).credits ?? 80}
               size={46}
+              imageUrl={(currentPlayer as any).photoUrl}
             />
             <YStack flex={1}>
               <Text testID="auction-current-name" {...textStyles.playerName} fontSize={18}>
                 {(currentPlayer as any).name}
               </Text>
               <XStack alignItems="center" gap="$2" marginTop={2}>
-                <Badge variant="role" size="sm">
-                  {formatRoleDisplay((currentPlayer as any).role ?? "")}
+                <Badge variant="default" size="sm">
+                  {formatRoleShort((currentPlayer as any).role ?? "")}
                 </Badge>
-                <Text {...textStyles.secondary}>
-                  {(currentPlayer as any).team}
+                <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                  {formatTeamName((currentPlayer as any).team)}
                 </Text>
               </XStack>
             </YStack>
@@ -237,17 +239,18 @@ export default function AuctionRoomScreen() {
                       playerRole={((item.role ?? "BAT").toUpperCase()) as RoleKey}
                       ovr={item.credits ?? 80}
                       size={32}
+                      imageUrl={(item as any).photoUrl}
                     />
                     <YStack flex={1}>
                       <Text {...textStyles.playerName} fontSize={13} numberOfLines={1}>
                         {item.name}
                       </Text>
                       <XStack alignItems="center" gap="$1">
-                        <Badge variant="role" size="sm">
-                          {formatRoleDisplay(item.role ?? "")}
+                        <Badge variant="default" size="sm">
+                          {formatRoleShort(item.role ?? "")}
                         </Badge>
-                        <Text {...textStyles.secondary}>
-                          {item.team}
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                          {formatTeamName(item.team)}
                         </Text>
                       </XStack>
                     </YStack>
@@ -287,7 +290,7 @@ export default function AuctionRoomScreen() {
                   <Text {...textStyles.playerName} fontSize={12} numberOfLines={1}>
                     {(player as any)?.name ?? formatUIText("unknown")}
                   </Text>
-                  <StatLabel label={formatUIText("cr")} value={item.amount} />
+                  <StatLabel label={formatUIText("credits")} value={item.amount} />
                 </Card>
               );
             }}

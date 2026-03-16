@@ -46,6 +46,7 @@ export const playerMatchScores = pgTable(
     matchId: uuid("match_id")
       .notNull()
       .references(() => matches.id),
+    team: text("team"), // per-match team (e.g., "India" for internationals, "Mumbai Indians" for IPL)
     runs: integer("runs").notNull().default(0),
     ballsFaced: integer("balls_faced").notNull().default(0),
     fours: integer("fours").notNull().default(0),

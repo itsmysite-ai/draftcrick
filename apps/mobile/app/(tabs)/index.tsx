@@ -1,6 +1,6 @@
-import { ScrollView as RNScrollView, RefreshControl } from "react-native";
-import { useRouter } from "expo-router";
-import { useState, useCallback } from "react";
+import { ScrollView as RNScrollView, RefreshControl, ScrollView } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useState, useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import {
@@ -81,10 +81,12 @@ function FeaturedMatchCard({
   match,
   onPress,
   sport = "cricket",
+  getTeamLogo,
 }: {
   match: any;
   onPress: () => void;
   sport?: string;
+  getTeamLogo?: (name: string) => string | undefined;
 }) {
   const isCricket = sport === "cricket";
   const teamA = formatTeamName(match.teamA || match.teamHome || "TBA");
@@ -112,6 +114,7 @@ function FeaturedMatchCard({
           <YStack flex={1} alignItems="center" gap={4}>
             <InitialsAvatar
               name={teamA} playerRole={(isCricket ? "BAT" : "DRV") as any} ovr={0} size={42}
+              imageUrl={getTeamLogo?.(match.teamA || match.teamHome || "")}
               hideBadge={isCompleted ? teamAWon !== true : isCricket ? (!isLive || !teamARole) : true}
               badgeContent={
                 isCompleted && teamAWon === true
@@ -146,6 +149,7 @@ function FeaturedMatchCard({
           <YStack flex={1} alignItems="center" gap={4}>
             <InitialsAvatar
               name={teamB} playerRole={(isCricket ? "BOWL" : "CON") as any} ovr={0} size={42}
+              imageUrl={getTeamLogo?.(match.teamB || match.teamAway || "")}
               hideBadge={isCompleted ? teamAWon !== false : isCricket ? (!isLive || !teamARole) : true}
               badgeContent={
                 isCompleted && teamAWon === false
@@ -190,11 +194,21 @@ function FeaturedMatchCard({
           </XStack>
         )}
 
-        {match.venue && (
-          <Text {...textStyles.hint} textAlign="center" marginTop="$2" fontSize={10} numberOfLines={1}>
-            {match.venue}
+        {/* Date & Venue — match the match center gold standard */}
+        <YStack alignItems="center" gap={2} marginTop="$2">
+          <Text fontFamily="$mono" fontSize={11} fontWeight="500" color="$accentBackground">
+            {match.date
+              ? new Date(`${match.date} ${(match.time ?? "").replace(/\s+[A-Z]{2,4}$/, "")}`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+                + " · "
+                + new Date(`${match.date} ${(match.time ?? "").replace(/\s+[A-Z]{2,4}$/, "")}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+              : match.time || ""}
           </Text>
-        )}
+          {match.venue && (
+            <Text {...textStyles.hint} fontSize={10} numberOfLines={2}>
+              {match.venue}
+            </Text>
+          )}
+        </YStack>
       </YStack>
 
       {/* CTA strip */}
@@ -207,17 +221,30 @@ function FeaturedMatchCard({
         borderTopWidth={1}
         borderTopColor="$borderColor"
       >
-        <YStack gap={1}>
-          <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorAccent">
-            {formatUIText(isCricket ? "mega contest" : "grand prix contest")}
-          </Text>
-          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-            {formatUIText(isCricket ? "free entry · win prizes" : "free entry · build your grid")}
-          </Text>
-        </YStack>
-        <Button variant="primary" size="sm" onPress={onPress} testID="featured-create-team-btn">
-          {formatUIText(isCricket ? "create team" : "build grid")}
-        </Button>
+        {match.draftEnabled ? (
+          <>
+            <YStack gap={1}>
+              <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorAccent">
+                {formatUIText(isCricket ? "mega contest" : "grand prix contest")}
+              </Text>
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                {formatUIText(isCricket ? "free entry · win prizes" : "free entry · build your grid")}
+              </Text>
+            </YStack>
+            <Button variant="primary" size="sm" onPress={onPress} testID="featured-create-team-btn">
+              {formatUIText(isCricket ? "create team" : "build grid")}
+            </Button>
+          </>
+        ) : (
+          <YStack flex={1} alignItems="center" gap={1}>
+            <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
+              {formatUIText("draft not open yet")}
+            </Text>
+            <Button variant="secondary" size="sm" onPress={onPress} testID="featured-view-match-btn" marginTop={4}>
+              {formatUIText("view match")}
+            </Button>
+          </YStack>
+        )}
       </XStack>
     </Card>
   );
@@ -247,6 +274,110 @@ function StatCard({
         {value}
       </Text>
     </Card>
+  );
+}
+
+// ─── Highlights Horizontal Scroll ────────────────────────────────────
+function HighlightsSection({
+  tournaments,
+  sport,
+  walletData,
+}: {
+  tournaments: any[];
+  sport: string;
+  walletData?: { canClaimDaily?: boolean; currentStreak?: number } | null;
+}) {
+  const router = useRouter();
+
+  // Active tournament (first one, typically IPL)
+  const activeTournament = tournaments[0];
+
+  const cards = useMemo(() => {
+    const items: { key: string; icon: string; title: string; subtitle: string; onPress: () => void; accent?: string; preserveCase?: boolean }[] = [];
+
+    // Daily coins — streak retention driver
+    const streak = walletData?.currentStreak ?? 0;
+    const canClaim = walletData?.canClaimDaily ?? false;
+    items.push({
+      key: "daily-coins",
+      icon: "🍿",
+      title: canClaim ? "claim daily coins" : `day ${streak} streak`,
+      subtitle: canClaim ? `day ${streak + 1} — tap to claim!` : "come back tomorrow!",
+      onPress: () => router.push("/wallet" as any),
+      accent: canClaim ? "$colorSuccess" : undefined,
+    });
+
+    // Tournament standings card
+    if (activeTournament) {
+      const fullName: string = activeTournament.name || "Tournament";
+      items.push({
+        key: "standings",
+        icon: "🏆",
+        title: fullName.replace(/\s*\d{4}\s*$/, "").trim(),
+        subtitle: "points table & standings",
+        onPress: () => router.push(`/tournament/${encodeURIComponent(fullName)}`),
+        accent: "$colorCricket",
+        preserveCase: true,
+      });
+    }
+
+    // Rate my team — Pro upsell, unique to DraftPlay
+    items.push({
+      key: "rate-team",
+      icon: "📊",
+      title: "rate my team",
+      subtitle: "get a grade",
+      onPress: () => router.push("/team/rate" as any),
+    });
+
+    // All tournaments — deduplicate by name, link to match center
+    const uniqueNames = new Set(tournaments.map((t: any) => t.name));
+    if (uniqueNames.size > 1) {
+      items.push({
+        key: "tournaments",
+        icon: "📋",
+        title: "all tournaments",
+        subtitle: `${uniqueNames.size} active`,
+        onPress: () => router.push("/(tabs)/live" as any),
+      });
+    }
+
+    return items;
+  }, [activeTournament, tournaments, router, walletData]);
+
+  if (cards.length === 0) return null;
+
+  return (
+    <Animated.View entering={FadeInDown.delay(90).springify()}>
+      <Text {...textStyles.sectionHeader} marginTop="$4" marginBottom="$2">
+        {formatUIText("highlights")}
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 10, paddingRight: 20 }}
+      >
+        {cards.map((card) => (
+          <Card
+            key={card.key}
+            pressable
+            onPress={card.onPress}
+            padding="$3"
+            width={140}
+            gap="$2"
+            testID={`highlight-${card.key}`}
+          >
+            <Text fontSize={24}>{card.icon}</Text>
+            <Text fontFamily="$mono" fontWeight="600" fontSize={11} color={(card.accent ?? "$color") as any} numberOfLines={2} lineHeight={16}>
+              {card.preserveCase ? card.title : formatUIText(card.title)}
+            </Text>
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted" numberOfLines={2} lineHeight={14}>
+              {formatUIText(card.subtitle)}
+            </Text>
+          </Card>
+        ))}
+      </ScrollView>
+    </Animated.View>
   );
 }
 
@@ -293,10 +424,6 @@ export default function HomeScreen() {
     retry: false,
   });
 
-  const unreadQuery = trpc.notification.getUnreadCount.useQuery(undefined, {
-    enabled: !!user,
-    retry: false,
-  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -309,6 +436,14 @@ export default function HomeScreen() {
     ]);
     setRefreshing(false);
   }, [dashboardQuery, dbLive, profileQuery, walletQuery, myTeamsQuery]);
+
+  // Refetch key queries when tab gains focus (e.g. after creating a league)
+  useFocusEffect(
+    useCallback(() => {
+      myLeaguesQuery.refetch();
+      myTeamsQuery.refetch();
+    }, [myLeaguesQuery, myTeamsQuery])
+  );
 
   // ── Derived data ──
   // Build DB lookup for toss/score enrichment
@@ -324,22 +459,55 @@ export default function HomeScreen() {
     const db = dbLookup.get(key);
     return {
       ...ai,
+      dbId: db?.id || null,
       tossWinner: ai.tossWinner || db?.tossWinner || null,
       tossDecision: ai.tossDecision || db?.tossDecision || null,
       scoreSummary: ai.scoreSummary || db?.scoreSummary || null,
       result: ai.result || db?.result || null,
+      draftEnabled: db?.draftEnabled ?? false,
     };
   });
-  const upcomingMatches = allMatches.filter(
-    (m: any) => m.status === "upcoming" || m.status === "live"
-  );
+  const upcomingMatches = allMatches
+    .filter((m: any) => m.status === "upcoming" || m.status === "live")
+    .sort((a: any, b: any) => {
+      // Live matches first, then sort by date ascending
+      if (a.status === "live" && b.status !== "live") return -1;
+      if (b.status === "live" && a.status !== "live") return 1;
+      const getTime = (m: any) => {
+        if (!m.date) return 0;
+        const cleanTime = (m.time ?? "").replace(/\s+[A-Z]{2,4}$/, "");
+        const parsed = new Date(`${m.date} ${cleanTime}`);
+        return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+      };
+      return getTime(a) - getTime(b);
+    });
   const nextMatch = upcomingMatches[0] ?? null;
   const otherMatches = upcomingMatches.slice(1, 4);
+  const activeTournaments = dashboardQuery.data?.tournaments ?? [];
+
+  // Build team logo lookup from tournament teams data
+  const teamLogoMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of dashboardQuery.data?.tournaments ?? []) {
+      for (const team of (t as any).teams ?? []) {
+        if (team.logo) {
+          map.set(team.name?.toLowerCase(), team.logo);
+          if (team.shortName) map.set(team.shortName.toLowerCase(), team.logo);
+        }
+      }
+    }
+    return map;
+  }, [dashboardQuery.data?.tournaments]);
+
+  const getTeamLogo = useCallback((teamName: string) => {
+    const key = teamName.toLowerCase();
+    return teamLogoMap.get(key) ?? [...teamLogoMap.entries()].find(([k]) => key.includes(k) || k.includes(key))?.[1] ?? undefined;
+  }, [teamLogoMap]);
 
   const teamCount = myTeamsQuery.data?.length ?? 0;
   const leagueCount = myLeaguesQuery.data?.length ?? 0;
   const balance = walletQuery.data?.coinBalance ?? 0;
-  const unread = unreadQuery.data ?? 0;
+
   const displayName = profileQuery.data?.displayName || user?.email?.split("@")[0] || "player";
 
   // ── Loading ──
@@ -374,22 +542,7 @@ export default function HomeScreen() {
             </Text>
           </YStack>
 
-          <XStack alignItems="center" gap="$3">
-            {unread > 0 && (
-              <Card
-                pressable
-                onPress={() => router.push("/settings/notifications")}
-                padding="$1"
-                paddingHorizontal="$2"
-              >
-                <XStack alignItems="center" gap={4}>
-                  <Text fontSize={12}>🔔</Text>
-                  <Badge variant="live" size="sm">{unread}</Badge>
-                </XStack>
-              </Card>
-            )}
-            <HeaderControls />
-          </XStack>
+          <HeaderControls />
         </XStack>
       </Animated.View>
 
@@ -410,10 +563,137 @@ export default function HomeScreen() {
         {user && (
           <Animated.View entering={FadeInDown.delay(0).springify()}>
             <XStack gap="$2" marginBottom="$4">
-              <StatCard label="teams" value={teamCount} icon="👥" onPress={() => router.push("/team/create")} />
-              <StatCard label="leagues" value={leagueCount} icon="🏟️" onPress={() => router.push("/(tabs)/contests")} />
-              <StatCard label="pop coins" value={`${balance} PC`} icon="💰" onPress={() => router.push("/wallet")} />
+              <StatCard label="teams" value={teamCount} icon="👥" onPress={() => router.push("/(tabs)/contests")} />
+              <StatCard label="leagues" value={leagueCount} icon="🏟️" onPress={() => router.push("/(tabs)/social")} />
+              <StatCard label="pop coins" value={`${balance} PC`} icon="🍿" onPress={() => router.push("/wallet")} />
             </XStack>
+          </Animated.View>
+        )}
+
+        {/* ── Progressive Onboarding — adapts to user stage ── */}
+        {user && leagueCount === 0 && teamCount === 0 && (
+          <Animated.View entering={FadeInDown.delay(30).springify()}>
+            <Card padding="$4" marginBottom="$4" testID="how-it-works-card">
+              <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" marginBottom="$3">
+                {formatUIText("how it works")}
+              </Text>
+              <YStack gap="$3">
+                <XStack alignItems="flex-start" gap="$3">
+                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">1</Text>
+                  </YStack>
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
+                      {formatUIText("create or join a league")}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                      {formatUIText("pick a tournament (ipl, world cup, etc.), invite friends with a code")}
+                    </Text>
+                  </YStack>
+                </XStack>
+                <XStack alignItems="flex-start" gap="$3">
+                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">2</Text>
+                  </YStack>
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
+                      {formatUIText("contests appear each match day")}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
+                      {formatUIText("auto-created for every match in your tournament — no setup needed")}
+                    </Text>
+                  </YStack>
+                </XStack>
+                <XStack alignItems="flex-start" gap="$3">
+                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">3</Text>
+                  </YStack>
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
+                      {formatUIText("build your team & compete")}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
+                      {formatUIText("pick 11 players within budget — best fantasy team wins")}
+                    </Text>
+                  </YStack>
+                </XStack>
+              </YStack>
+              <Button variant="primary" size="md" marginTop="$3" onPress={() => router.push("/league/create" as any)} testID="how-it-works-get-started-btn">
+                {formatUIText("create a league")}
+              </Button>
+            </Card>
+          </Animated.View>
+        )}
+        {user && leagueCount > 0 && teamCount === 0 && (
+          <Animated.View entering={FadeInDown.delay(30).springify()}>
+            <Card padding="$4" marginBottom="$4" testID="onboard-build-team-card">
+              <XStack alignItems="center" gap="$3" marginBottom="$3">
+                <YStack width={24} height={24} borderRadius={12} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">2</Text>
+                </YStack>
+                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
+                  {formatUIText("next: build your team")}
+                </Text>
+              </XStack>
+              {nextMatch ? (
+                <YStack gap="$2">
+                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                    {formatUIText(nextMatch.draftEnabled
+                      ? "your league has an open contest — pick 11 players within budget. your team earns points based on real match performance."
+                      : "your next contest opens closer to match time. we'll notify you when it's ready."
+                    )}
+                  </Text>
+                  <Card padding="$3" marginTop="$1">
+                    <XStack justifyContent="space-between" alignItems="center">
+                      <YStack flex={1} gap={2}>
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
+                          {formatBadgeText(nextMatch.tournamentName || nextMatch.tournament || "upcoming")}
+                        </Text>
+                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                          {formatTeamName(nextMatch.teamA || nextMatch.teamHome || "TBA")} {formatUIText("vs")} {formatTeamName(nextMatch.teamB || nextMatch.teamAway || "TBA")}
+                        </Text>
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                          {formatBadgeText(nextMatch.format || "T20")} · {formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
+                        </Text>
+                      </YStack>
+                      <Badge variant={nextMatch.draftEnabled ? "live" : "default"} size="sm">
+                        {nextMatch.draftEnabled ? formatBadgeText("open") : formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
+                      </Badge>
+                    </XStack>
+                  </Card>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    marginTop="$1"
+                    onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.dbId || nextMatch.id)}`)}
+                    testID="onboard-go-to-match-btn"
+                  >
+                    {formatUIText(nextMatch.draftEnabled ? "create team" : "view match")}
+                  </Button>
+                </YStack>
+              ) : (
+                <YStack gap="$2">
+                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                    {formatUIText("no upcoming matches right now. contests will appear automatically when matches are scheduled.")}
+                  </Text>
+                  <Button variant="secondary" size="md" marginTop="$1" onPress={() => router.push("/(tabs)/social")} testID="onboard-go-to-league-btn">
+                    {formatUIText("view my leagues")}
+                  </Button>
+                </YStack>
+              )}
+            </Card>
+          </Animated.View>
+        )}
+        {user && leagueCount > 0 && teamCount > 0 && nextMatch && !nextMatch.draftEnabled && (
+          <Animated.View entering={FadeInDown.delay(30).springify()}>
+            <Card padding="$4" marginBottom="$4" testID="onboard-next-match-card">
+              <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$accentBackground" marginBottom="$1">
+                {formatUIText("you're all set")}
+              </Text>
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                {formatUIText("drafts open closer to match time. we'll notify you when it's time to pick your team.")}
+              </Text>
+            </Card>
           </Animated.View>
         )}
 
@@ -423,15 +703,21 @@ export default function HomeScreen() {
             <Text {...textStyles.sectionHeader} marginBottom="$2">
               {formatUIText(nextMatch.status === "live"
                 ? "live now — join the action"
-                : sport === "f1" ? "next race — build your grid" : "next match — create your team")}
+                : nextMatch.draftEnabled
+                  ? (sport === "f1" ? "next race — build your grid" : "next match — create your team")
+                  : (sport === "f1" ? "next race" : "next match"))}
             </Text>
             <FeaturedMatchCard
               match={nextMatch}
               sport={sport}
-              onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.id)}`)}
+              getTeamLogo={getTeamLogo}
+              onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.dbId || nextMatch.id)}`)}
             />
           </Animated.View>
         )}
+
+        {/* ── Highlights — daily coins, standings, rate my team ── */}
+        <HighlightsSection tournaments={activeTournaments} sport={sport} walletData={walletQuery.data} />
 
         {/* ── More Matches — each with play button ── */}
         {otherMatches.length > 0 && (
@@ -440,108 +726,98 @@ export default function HomeScreen() {
               <Text {...textStyles.sectionHeader}>
                 {formatUIText(sport === "f1" ? "more races" : "more matches")}
               </Text>
-              <Button size="sm" variant="secondary" onPress={() => router.push("/(tabs)/contests")}>
+              <Button size="sm" variant="secondary" onPress={() => router.push("/(tabs)/live")}>
                 {formatUIText("see all")}
               </Button>
             </XStack>
-            <Card>
+            <YStack gap="$3">
               {otherMatches.map((m: any, i: number) => {
                 const tA = formatTeamName(m.teamA || m.teamHome || "TBA");
                 const tB = formatTeamName(m.teamB || m.teamAway || "TBA");
                 const startTime = parseSafeDate(m.date, m.time);
-                const isLast = i === otherMatches.length - 1;
+                const isLive = m.status === "live";
                 return (
-                  <XStack
+                  <Card
                     key={m.id}
-                    pressStyle={{ opacity: 0.7 }}
-                    onPress={() => router.push(`/match/${encodeURIComponent(m.id)}`)}
-                    justifyContent="space-between"
-                    alignItems="center"
-                    paddingVertical="$3"
-                    paddingHorizontal="$4"
-                    borderBottomWidth={isLast ? 0 : 1}
-                    borderBottomColor="$borderColor"
-                    cursor="pointer"
+                    pressable
+                    live={isLive}
+                    onPress={() => router.push(`/match/${encodeURIComponent(m.dbId || m.id)}`)}
+                    padding="$4"
                     testID={`upcoming-match-${i}`}
                   >
-                    <YStack flex={1} gap={2}>
-                      <Text fontFamily="$body" fontWeight="500" fontSize={13} color="$color" numberOfLines={1}>
-                        {tA} {formatUIText("vs")} {tB}
+                    {/* Header: tournament + status */}
+                    <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
+                        {formatBadgeText(m.tournamentName || m.tournament || (sport === "f1" ? "formula 1" : "cricket"))}
                       </Text>
-                      <XStack alignItems="center" gap="$2">
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                          {formatBadgeText(m.format || (sport === "f1" ? "Race" : "T20"))}
+                      <Badge variant={isLive ? "live" : "default"} size="sm">
+                        {isLive ? formatBadgeText("live") : formatBadgeText(m.status || "upcoming")}
+                      </Badge>
+                    </XStack>
+
+                    {/* Teams with avatars */}
+                    <XStack alignItems="center" justifyContent="center" marginBottom="$3">
+                      <YStack flex={1} alignItems="center" gap={4}>
+                        <InitialsAvatar
+                          name={tA} playerRole="BAT" ovr={0} size={36}
+                          imageUrl={getTeamLogo?.(m.teamA || m.teamHome || "")}
+                          hideBadge
+                        />
+                        <Text {...textStyles.playerName} fontSize={11} numberOfLines={1} textAlign="center">
+                          {tA}
                         </Text>
-                        <Badge variant="default" size="sm">
-                          {formatCountdown(startTime)}
-                        </Badge>
-                      </XStack>
-                    </YStack>
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onPress={() => router.push(`/match/${encodeURIComponent(m.id)}`)}
-                      testID={`play-match-btn-${i}`}
+                      </YStack>
+
+                      <YStack alignItems="center">
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                          {formatUIText("vs")}
+                        </Text>
+                        {m.format && (
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatBadgeText(m.format)}
+                          </Text>
+                        )}
+                      </YStack>
+
+                      <YStack flex={1} alignItems="center" gap={4}>
+                        <InitialsAvatar
+                          name={tB} playerRole="BOWL" ovr={0} size={36}
+                          imageUrl={getTeamLogo?.(m.teamB || m.teamAway || "")}
+                          hideBadge
+                        />
+                        <Text {...textStyles.playerName} fontSize={11} numberOfLines={1} textAlign="center">
+                          {tB}
+                        </Text>
+                      </YStack>
+                    </XStack>
+
+                    {/* Footer: date/venue */}
+                    <XStack
+                      alignItems="center"
+                      paddingTop="$2"
+                      borderTopWidth={1}
+                      borderTopColor="$borderColor"
                     >
-                      {formatUIText("play")}
-                    </Button>
-                  </XStack>
+                      <YStack flex={1} gap={2}>
+                        <Text {...textStyles.hint}>
+                          {m.date
+                            ? new Date(`${m.date} ${(m.time ?? "").replace(/\s+[A-Z]{2,4}$/, "")}`).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
+                            : formatCountdown(startTime)}
+                        </Text>
+                        {m.venue && (
+                          <Text {...textStyles.hint} fontSize={10} numberOfLines={2}>
+                            {m.venue}
+                          </Text>
+                        )}
+                      </YStack>
+                    </XStack>
+                  </Card>
                 );
               })}
-            </Card>
+            </YStack>
           </Animated.View>
         )}
 
-        {/* ── Quick Actions — Predictions, Guru, Tournaments ── */}
-        <Animated.View entering={FadeInDown.delay(180).springify()}>
-          <Text {...textStyles.sectionHeader} marginTop="$5" marginBottom="$2">
-            {formatUIText("explore")}
-          </Text>
-          <XStack gap="$2" marginBottom="$4">
-            <Card
-              pressable
-              flex={1}
-              padding="$3"
-              alignItems="center"
-              gap="$2"
-              onPress={() => router.push("/predictions" as any)}
-              testID="nav-predictions"
-            >
-              <Text fontSize={24}>🎯</Text>
-              <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$color">
-                {formatUIText("predictions")}
-              </Text>
-            </Card>
-            <Card
-              pressable
-              flex={1}
-              padding="$3"
-              alignItems="center"
-              gap="$2"
-              onPress={() => router.push("/guru")}
-              testID="nav-guru"
-            >
-              <Text fontSize={24}>{sport === "f1" ? "🏎️" : "🏏"}</Text>
-              <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$color">
-                {formatUIText(sport === "f1" ? "paddock guru" : "cricket guru")}
-              </Text>
-            </Card>
-            <Card
-              pressable
-              flex={1}
-              padding="$3"
-              alignItems="center"
-              gap="$2"
-              onPress={() => router.push("/notifications/inbox" as any)}
-              testID="nav-notifications"
-            >
-              <Text fontSize={24}>🔔</Text>
-              <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$color">
-                {formatUIText("inbox")}
-              </Text>
-            </Card>
-          </XStack>
-        </Animated.View>
 
         {/* ── Empty state ── */}
         {upcomingMatches.length === 0 && (

@@ -15,19 +15,25 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DraftPlay.ai \u2014 Fantasy Sports Drafting",
+  title: "DraftPlay.ai \u2014 Fantasy Gaming. Not Gambling.",
   description:
-    "Powerful for experts, effortless for everyone. AI-powered fantasy cricket with Comfort Mode accessibility.",
+    "All Thrill. Pure Skill. The fantasy sports platform where your knowledge wins \u2014 not your wallet. No deposits. No withdrawals. Legal everywhere.",
   keywords: [
+    "fantasy sports",
     "fantasy cricket",
+    "fantasy gaming",
+    "no gambling",
     "IPL",
     "draft",
     "auction",
     "cricket",
-    "fantasy sports",
+    "skill based gaming",
   ],
   icons: {
-    icon: "/favicon.png",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
   },
 };
 

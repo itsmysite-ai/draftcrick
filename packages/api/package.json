@@ -19,6 +19,7 @@
     "@trpc/client": "^11.0.0-rc.0",
     "@trpc/server": "^11.0.0-rc.0",
     "bullmq": "^5.30.0",
+    "cheerio": "^1.2.0",
     "dotenv": "^17.2.4",
     "firebase-admin": "^13.0.0",
     "hono": "^4.6.0",

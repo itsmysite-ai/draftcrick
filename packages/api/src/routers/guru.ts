@@ -15,7 +15,7 @@ export const guruRouter = router({
    */
   getUsageToday: protectedProcedure.query(async ({ ctx }) => {
     const configs = await getTierConfigs();
-    const tier = ctx.tier ?? "free";
+    const tier = ctx.tier ?? "basic";
     const limit = configs[tier].features.guruQuestionsPerDay;
 
     const todayStart = new Date();
@@ -53,6 +53,9 @@ export const guruRouter = router({
                   teamA: z.string(),
                   teamB: z.string(),
                   date: z.string(),
+                  format: z.string().optional(),
+                  venue: z.string().optional(),
+                  tournament: z.string().optional(),
                 })
               )
               .optional(),
@@ -95,7 +98,7 @@ export const guruRouter = router({
       // Only enforce limit for new conversations (continuing existing ones is always allowed)
       if (!input.conversationId) {
         const configs = await getTierConfigs();
-        const tier = ctx.tier ?? "free";
+        const tier = ctx.tier ?? "basic";
         const dailyLimit = configs[tier].features.guruQuestionsPerDay;
 
         if (dailyLimit !== null) {

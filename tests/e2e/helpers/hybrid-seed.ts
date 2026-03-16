@@ -18,7 +18,7 @@ import {
   createTestAccount,
   fillAuthForm,
   submitAuthForm,
-} from "../auth/auth-helpers";
+} from "./auth-helpers";
 
 export { clearEmulatorAccounts, trpcAuthQuery, trpcAuthMutate, unwrap };
 
@@ -65,10 +65,14 @@ export async function seedLeagueWith2Members(
   };
 }
 
-/** Fund a user's wallet via API. */
-export async function fundWallet(token: string, amount: number): Promise<void> {
-  const res = await trpcAuthMutate("wallet.deposit", { amount }, token);
-  if (res.status !== 200) throw new Error(`Deposit failed: ${res.status}`);
+/** Fund a user's wallet by triggering auto-creation (500 signup bonus) + daily claim. */
+export async function fundWallet(token: string, _amount?: number): Promise<void> {
+  // getBalance auto-creates wallet with 500 Pop Coins signup bonus
+  const balRes = await trpcAuthQuery("wallet.getBalance", undefined, token);
+  if (balRes.status !== 200) throw new Error(`getBalance failed: ${balRes.status}`);
+
+  // Also claim daily reward for extra coins (ignore if already claimed)
+  await trpcAuthMutate("wallet.claimDaily", undefined, token).catch(() => {});
 }
 
 /** Create a contest for a match and return IDs. */
@@ -77,12 +81,12 @@ export async function seedContestForMatch(
   opts?: { entryFee?: number; maxEntries?: number }
 ): Promise<{ contestId: string; matchId: string; playerIds: string[] }> {
   // Get an upcoming match (contest.create requires status=upcoming)
-  const matchRes = await trpcAuthQuery("match.list", { status: "upcoming" });
+  const matchRes = await trpcAuthQuery("match.live", undefined, token);
   const matchData = unwrap(matchRes);
-  // match.list returns {matches: [...]} or directly an array
-  const matchList = Array.isArray(matchData) ? matchData : matchData?.matches;
-  if (!matchList?.length) throw new Error("No upcoming matches found — seed data first");
-  const matchId = matchList[0].id;
+  const matchList = Array.isArray(matchData) ? matchData : matchData?.matches ?? [];
+  const upcomingMatch = matchList.find((m: any) => m.status === "upcoming") ?? matchList[0];
+  if (!upcomingMatch) throw new Error("No upcoming matches found — seed data first");
+  const matchId = upcomingMatch.id;
 
   // Get player IDs for this match
   const playerRes = await trpcAuthQuery("player.list");
@@ -95,7 +99,7 @@ export async function seedContestForMatch(
   const contestRes = await trpcAuthMutate(
     "contest.create",
     {
-      name: `E2E Contest ${Date.now()}`,
+      name: `IPL Daily Fantasy`,
       matchId,
       entryFee,
       maxEntries,
@@ -216,6 +220,7 @@ export async function seedTeamForContest(
   const teamRes = await trpcAuthMutate(
     "team.create",
     {
+      matchId,
       contestId,
       players: selected,
       captainId: selected[0].playerId,

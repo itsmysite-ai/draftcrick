@@ -6,15 +6,16 @@ import { trpc } from "@/lib/trpc";
 import { DataTable } from "../_components/DataTable";
 
 export default function TournamentsPage() {
+  const utils = trpc.useUtils();
   const tournaments = trpc.admin.tournaments.list.useQuery();
   const toggleVisible = trpc.admin.tournaments.toggleVisible.useMutation({
-    onSuccess: () => tournaments.refetch(),
+    onSuccess: () => utils.admin.tournaments.list.invalidate(),
   });
   const [sport, setSport] = useState<"cricket" | "f1">("cricket");
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const discover = trpc.admin.tournaments.discover.useMutation({
     onSuccess: (data) => {
-      tournaments.refetch();
+      utils.admin.tournaments.list.invalidate();
       setSuccessMsg(`Discovered ${data.discovered} tournament${data.discovered !== 1 ? "s" : ""}: ${data.tournaments.join(", ")}`);
       setTimeout(() => setSuccessMsg(null), 8000);
     },

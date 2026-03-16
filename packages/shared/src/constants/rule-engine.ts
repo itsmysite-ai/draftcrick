@@ -443,7 +443,20 @@ export function mergeWithDefaults(
 
 // ── Helpers ──
 
-function setNestedValue(
+export function getNestedValue(
+  obj: Record<string, unknown>,
+  path: string
+): unknown {
+  const parts = path.split(".");
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current == null || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+export function setNestedValue(
   obj: Record<string, unknown>,
   path: string,
   value: unknown

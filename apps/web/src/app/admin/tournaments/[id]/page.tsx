@@ -106,6 +106,14 @@ function MatchPlayerPanel({ matchId, matchStatus, onClose }: { matchId: string; 
     },
   });
 
+  const enrichPlayers = trpc.admin.matches.enrichPlayers.useMutation({
+    onSuccess: (data: any) => {
+      utils.admin.matches.getPlayers.invalidate({ matchId });
+      alert(`Enriched ${data.enriched} of ${data.total} players`);
+    },
+    onError: (err) => alert(`Enrich failed: ${err.message}`),
+  });
+
   const [refreshingPlayerId, setRefreshingPlayerId] = useState<string | null>(null);
 
   const refreshPlayer = trpc.admin.matches.refreshPlayer.useMutation({
@@ -181,33 +189,40 @@ function MatchPlayerPanel({ matchId, matchStatus, onClose }: { matchId: string; 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Players ({playerData.length})</span>
-          {isCompleted ? (
-            <span style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic" }}>Match completed — read only</span>
-          ) : (
-            <>
-              <button
-                onClick={() => fetchPlayers.mutate({ matchId })}
-                disabled={fetchPlayers.isPending}
-                style={{
-                  padding: "4px 10px", backgroundColor: "var(--amber)", color: "#fff", border: "none",
-                  borderRadius: 4, fontSize: 11, fontWeight: 600,
-                  cursor: fetchPlayers.isPending ? "not-allowed" : "pointer",
-                  opacity: fetchPlayers.isPending ? 0.7 : 1,
-                }}
-              >
-                {fetchPlayers.isPending ? "Fetching..." : "Fetch Players"}
-              </button>
-              <button
-                onClick={() => setShowAddPanel(!showAddPanel)}
-                style={{
-                  padding: "4px 10px", backgroundColor: "transparent", color: "var(--accent)",
-                  border: "1px solid var(--accent)", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                }}
-              >
-                + Add Player
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => fetchPlayers.mutate({ matchId })}
+            disabled={fetchPlayers.isPending}
+            style={{
+              padding: "4px 10px", backgroundColor: "var(--amber)", color: "#fff", border: "none",
+              borderRadius: 4, fontSize: 11, fontWeight: 600,
+              cursor: fetchPlayers.isPending ? "not-allowed" : "pointer",
+              opacity: fetchPlayers.isPending ? 0.7 : 1,
+            }}
+          >
+            {fetchPlayers.isPending ? "Fetching..." : "Fetch Players"}
+          </button>
+          <button
+            onClick={() => enrichPlayers.mutate({ matchId })}
+            disabled={enrichPlayers.isPending || playerData.length === 0}
+            title={playerData.length === 0 ? "Fetch players first" : "AI-enrich form, sentiment, injury data"}
+            style={{
+              padding: "4px 10px", backgroundColor: "var(--accent)", color: "#fff", border: "none",
+              borderRadius: 4, fontSize: 11, fontWeight: 600,
+              cursor: enrichPlayers.isPending || playerData.length === 0 ? "not-allowed" : "pointer",
+              opacity: enrichPlayers.isPending || playerData.length === 0 ? 0.7 : 1,
+            }}
+          >
+            {enrichPlayers.isPending ? "Enriching..." : "Enrich Players"}
+          </button>
+          <button
+            onClick={() => setShowAddPanel(!showAddPanel)}
+            style={{
+              padding: "4px 10px", backgroundColor: "transparent", color: "var(--accent)",
+              border: "1px solid var(--accent)", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            + Add Player
+          </button>
         </div>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 14 }}>
           &times;
@@ -351,7 +366,7 @@ function MatchPlayerPanel({ matchId, matchStatus, onClose }: { matchId: string; 
       )}
 
       {/* Add player search panel */}
-      {showAddPanel && !isCompleted && (
+      {showAddPanel && (
         <div style={{ marginBottom: 10, padding: "8px 12px", backgroundColor: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }}>
           <input
             placeholder="Search player to add..."
@@ -388,7 +403,7 @@ function MatchPlayerPanel({ matchId, matchStatus, onClose }: { matchId: string; 
         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Loading...</div>
       ) : playerData.length === 0 ? (
         <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-          No players linked.{!isCompleted && ' Click "Fetch Players" to fetch from Gemini.'}
+          No players linked. Click "Fetch Players" to fetch player data.
         </div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -401,12 +416,13 @@ function MatchPlayerPanel({ matchId, matchStatus, onClose }: { matchId: string; 
               <th style={miniTh}>Bowl Avg</th>
               <th style={miniTh}>SR</th>
               <th style={miniTh}>Econ</th>
+              <th style={miniTh}>Avg FP</th>
               <th style={miniTh}>Form</th>
               <th style={miniTh}>Buzz</th>
               <th style={miniTh}>Credits</th>
               <th style={miniTh}>Injury</th>
               <th style={miniTh}>Status</th>
-              {!isCompleted && <th style={miniTh}>Actions</th>}
+              <th style={miniTh}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -437,6 +453,7 @@ function MatchPlayerPanel({ matchId, matchStatus, onClose }: { matchId: string; 
                   <td style={{ ...miniTd, fontFamily: "var(--font-data)" }}>{stats.bowlingAverage ?? "—"}</td>
                   <td style={{ ...miniTd, fontFamily: "var(--font-data)" }}>{stats.strikeRate ?? "—"}</td>
                   <td style={{ ...miniTd, fontFamily: "var(--font-data)" }}>{stats.economyRate ?? "—"}</td>
+                  <td style={{ ...miniTd, fontFamily: "var(--font-data)", fontWeight: 600, color: stats.recentAvgFP ? "var(--accent)" : "var(--text-muted)" }}>{stats.recentAvgFP ?? "—"}</td>
                   <td style={{ ...miniTd, fontWeight: 600, color: formColor }}>{formScore ?? "—"}</td>
                   <td style={{ ...miniTd, fontWeight: 600, color: sentColor }}>{sentScore ?? "—"}</td>
                   <td style={{ ...miniTd, fontFamily: "var(--font-data)" }}>
@@ -455,39 +472,37 @@ function MatchPlayerPanel({ matchId, matchStatus, onClose }: { matchId: string; 
                       {p.isDisabled ? "Off" : "On"}
                     </span>
                   </td>
-                  {!isCompleted && (
-                    <td style={miniTd}>
-                      <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
-                        <button
-                          onClick={() => {
-                            setRefreshingPlayerId(p.id);
-                            refreshPlayer.mutate({ matchId, playerId: p.id });
-                          }}
-                          disabled={refreshingPlayerId === p.id}
-                          style={{
-                            fontSize: 10, padding: "2px 6px", cursor: refreshingPlayerId === p.id ? "not-allowed" : "pointer",
-                            background: "none", border: "1px solid var(--blue, #3b82f6)", borderRadius: 3,
-                            color: "var(--blue, #3b82f6)", opacity: refreshingPlayerId === p.id ? 0.6 : 1,
-                          }}
-                          title="Refresh this player's stats from Gemini"
-                        >
-                          {refreshingPlayerId === p.id ? "↻..." : "↻"}
-                        </button>
-                        <button
-                          onClick={() => toggleDisabled.mutate({ playerId: p.id })}
-                          style={{ fontSize: 10, padding: "2px 6px", cursor: "pointer", background: "none", border: "1px solid var(--border)", borderRadius: 3, color: p.isDisabled ? "var(--accent)" : "var(--amber)" }}
-                        >
-                          {p.isDisabled ? "Enable" : "Disable"}
-                        </button>
-                        <button
-                          onClick={() => removeFromMatch.mutate({ playerId: p.id, matchId })}
-                          style={{ fontSize: 10, padding: "2px 6px", cursor: "pointer", background: "none", border: "1px solid var(--red)", borderRadius: 3, color: "var(--red)" }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </td>
-                  )}
+                  <td style={miniTd}>
+                    <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => {
+                          setRefreshingPlayerId(p.id);
+                          refreshPlayer.mutate({ matchId, playerId: p.id });
+                        }}
+                        disabled={refreshingPlayerId === p.id}
+                        style={{
+                          fontSize: 10, padding: "2px 6px", cursor: refreshingPlayerId === p.id ? "not-allowed" : "pointer",
+                          background: "none", border: "1px solid var(--blue, #3b82f6)", borderRadius: 3,
+                          color: "var(--blue, #3b82f6)", opacity: refreshingPlayerId === p.id ? 0.6 : 1,
+                        }}
+                        title="Refresh this player's stats"
+                      >
+                        {refreshingPlayerId === p.id ? "↻..." : "↻"}
+                      </button>
+                      <button
+                        onClick={() => toggleDisabled.mutate({ playerId: p.id })}
+                        style={{ fontSize: 10, padding: "2px 6px", cursor: "pointer", background: "none", border: "1px solid var(--border)", borderRadius: 3, color: p.isDisabled ? "var(--accent)" : "var(--amber)" }}
+                      >
+                        {p.isDisabled ? "Enable" : "Disable"}
+                      </button>
+                      <button
+                        onClick={() => removeFromMatch.mutate({ playerId: p.id, matchId })}
+                        style={{ fontSize: 10, padding: "2px 6px", cursor: "pointer", background: "none", border: "1px solid var(--red)", borderRadius: 3, color: "var(--red)" }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -518,6 +533,7 @@ export default function TournamentDetailPage() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
 
+  const utils = trpc.useUtils();
   const tournament = trpc.admin.tournaments.getById.useQuery({ tournamentId: id });
   const matchesList = trpc.admin.matches.list.useQuery({
     tournamentId: id,
@@ -532,16 +548,16 @@ export default function TournamentDetailPage() {
   });
   const forceRefresh = trpc.admin.tournaments.forceRefresh.useMutation({
     onSuccess: () => {
-      tournament.refetch();
-      matchesList.refetch();
-      playersList.refetch();
+      utils.admin.tournaments.getById.invalidate({ tournamentId: id });
+      utils.admin.matches.list.invalidate({ tournamentId: id });
+      utils.admin.tournaments.getPlayers.invalidate({ tournamentId: id });
     },
   });
   const toggleVisible = trpc.admin.tournaments.toggleVisible.useMutation({
-    onSuccess: () => tournament.refetch(),
+    onSuccess: () => utils.admin.tournaments.getById.invalidate({ tournamentId: id }),
   });
   const refreshMatches = trpc.admin.tournaments.refreshMatches.useMutation({
-    onSuccess: () => matchesList.refetch(),
+    onSuccess: () => utils.admin.matches.list.invalidate({ tournamentId: id }),
   });
   const [refreshingMatchId, setRefreshingMatchId] = useState<string | null>(null);
   const [matchRefreshResult, setMatchRefreshResult] = useState<{ matchId: string; changes: string[]; unchanged: boolean } | null>(null);
@@ -550,17 +566,20 @@ export default function TournamentDetailPage() {
       setRefreshingMatchId(null);
       setMatchRefreshResult({ matchId: data.id, changes: data.changes, unchanged: data.unchanged });
       setTimeout(() => setMatchRefreshResult(null), 6000);
-      matchesList.refetch();
+      utils.admin.matches.list.invalidate({ tournamentId: id });
     },
     onError: () => { setRefreshingMatchId(null); },
   });
   const refreshStandings = trpc.admin.tournaments.refreshStandings.useMutation({
-    onSuccess: () => tournament.refetch(),
+    onSuccess: () => utils.admin.tournaments.getById.invalidate({ tournamentId: id }),
+  });
+  const fetchTeamLogos = trpc.admin.tournaments.fetchTeamLogos.useMutation({
+    onSuccess: () => utils.admin.tournaments.getById.invalidate({ tournamentId: id }),
   });
   const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const updateRules = trpc.admin.tournaments.updateRules.useMutation({
-    onSuccess: () => tournament.refetch(),
+    onSuccess: () => utils.admin.tournaments.getById.invalidate({ tournamentId: id }),
   });
   const deleteTournament = trpc.admin.tournaments.delete.useMutation({
     onSuccess: () => {
@@ -610,7 +629,7 @@ export default function TournamentDetailPage() {
           {t.description && (
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0 0" }}>{t.description}</p>
           )}
-          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "center" }}>
             {t.category && (
               <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, backgroundColor: "rgba(94,93,90,0.1)", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase" }}>
                 {t.category}
@@ -620,6 +639,23 @@ export default function TournamentDetailPage() {
               {t.startDate ?? "?"} &mdash; {t.endDate ?? "?"}
             </span>
           </div>
+          {/* Team logos */}
+          {(t.teams as any[])?.length > 0 && (
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+              {(t.teams as any[]).map((team: any) => (
+                <div key={team.name} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px 2px 2px", backgroundColor: "var(--bg-surface)", borderRadius: 6, border: "1px solid var(--border)" }}>
+                  {team.logo ? (
+                    <img src={team.logo} alt={team.name} style={{ width: 20, height: 20, borderRadius: 4, objectFit: "contain" }} />
+                  ) : (
+                    <div style={{ width: 20, height: 20, borderRadius: 4, backgroundColor: "var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "var(--text-muted)" }}>
+                      {team.shortName || team.name.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 500 }}>{team.shortName || team.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
@@ -643,6 +679,18 @@ export default function TournamentDetailPage() {
             }}
           >
             {forceRefresh.isPending ? "Refreshing..." : "Refresh All"}
+          </button>
+          <button
+            onClick={() => fetchTeamLogos.mutate({ tournamentId: id })}
+            disabled={fetchTeamLogos.isPending}
+            style={{
+              padding: "6px 14px", backgroundColor: "#6366f1", color: "#fff", border: "none",
+              borderRadius: 6, fontSize: 12, fontWeight: 600,
+              cursor: fetchTeamLogos.isPending ? "not-allowed" : "pointer",
+              opacity: fetchTeamLogos.isPending ? 0.7 : 1,
+            }}
+          >
+            {fetchTeamLogos.isPending ? "Fetching..." : "Fetch Team Logos"}
           </button>
           <button
             onClick={() => setShowDeleteConfirm(true)}
@@ -689,6 +737,24 @@ export default function TournamentDetailPage() {
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Team logos result */}
+      {fetchTeamLogos.isSuccess && (
+        <div style={{ padding: "8px 16px", marginBottom: 12, borderRadius: 6, backgroundColor: "rgba(34,197,94,0.08)", fontSize: 12, color: "#22c55e" }}>
+          Fetched logos for {fetchTeamLogos.data.updated} teams
+          {fetchTeamLogos.data.teams.map((t: any) => (
+            <span key={t.name} style={{ marginLeft: 8 }}>
+              {t.logo && <img src={t.logo} alt={t.name} style={{ width: 20, height: 20, borderRadius: 4, verticalAlign: "middle", marginRight: 4 }} />}
+              {t.name}
+            </span>
+          ))}
+        </div>
+      )}
+      {fetchTeamLogos.isError && (
+        <div style={{ padding: "8px 16px", marginBottom: 12, borderRadius: 6, backgroundColor: "rgba(229,72,77,0.08)", fontSize: 12, color: "var(--red)" }}>
+          Failed to fetch team logos: {fetchTeamLogos.error.message}
         </div>
       )}
 
@@ -747,7 +813,7 @@ export default function TournamentDetailPage() {
           {matchesList.isLoading ? (
             <div style={{ padding: 20, color: "var(--text-muted)", fontSize: 13 }}>Loading matches...</div>
           ) : matchData.length === 0 ? (
-            <div style={{ padding: 20, color: "var(--text-muted)", fontSize: 13 }}>No matches found. Click &quot;Refresh Matches&quot; to fetch from Gemini.</div>
+            <div style={{ padding: 20, color: "var(--text-muted)", fontSize: 13 }}>No matches found. Click &quot;Refresh Matches&quot; to fetch match data.</div>
           ) : (
             <>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -824,7 +890,7 @@ export default function TournamentDetailPage() {
                                 color: refreshingMatchId === row.id ? "var(--amber)" : "var(--blue, #3b82f6)",
                                 opacity: refreshingMatchId === row.id ? 0.7 : 1,
                               }}
-                              title="Refresh this match's status, score & result from Gemini"
+                              title="Refresh this match's status, score & result"
                             >
                               {refreshingMatchId === row.id ? "Refreshing..." : "Refresh"}
                             </button>

@@ -10,7 +10,7 @@
 import { getLogger } from "../lib/logger";
 import { createGeminiClientGlobal } from "./gemini-client";
 import { getFromHotCache, setHotCache } from "./sports-cache";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Database } from "@draftplay/db";
 
 const log = getLogger("projection-engine");
@@ -311,11 +311,26 @@ export async function getProjectionsForMatch(
     return cached;
   }
 
-  // 2. PostgreSQL
-  const { playerProjections } = await import("@draftplay/db");
+  // 2. PostgreSQL (join with players table to get names and roles)
+  const { playerProjections, players: playersTable } = await import("@draftplay/db");
   const rows = await db
-    .select()
+    .select({
+      id: playerProjections.id,
+      playerId: playerProjections.playerId,
+      matchId: playerProjections.matchId,
+      projectedPoints: playerProjections.projectedPoints,
+      confidenceLow: playerProjections.confidenceLow,
+      confidenceHigh: playerProjections.confidenceHigh,
+      breakdown: playerProjections.breakdown,
+      factors: playerProjections.factors,
+      captainRank: playerProjections.captainRank,
+      differentialScore: playerProjections.differentialScore,
+      generatedAt: playerProjections.generatedAt,
+      playerName: playersTable.name,
+      playerRole: playersTable.role,
+    })
     .from(playerProjections)
+    .leftJoin(playersTable, sql`${playersTable.id}::text = ${playerProjections.playerId}`)
     .where(eq(playerProjections.matchId, matchId));
 
   if (rows.length > 0) {
@@ -325,9 +340,9 @@ export async function getProjectionsForMatch(
       teamB,
       players: rows.map((r) => ({
         playerId: r.playerId,
-        playerName: r.playerId,
+        playerName: r.playerName ?? r.playerId,
         matchId: r.matchId,
-        role: "",
+        role: r.playerRole ?? "",
         projectedPoints: parseFloat(r.projectedPoints),
         confidenceLow: parseFloat(r.confidenceLow ?? "0"),
         confidenceHigh: parseFloat(r.confidenceHigh ?? "0"),

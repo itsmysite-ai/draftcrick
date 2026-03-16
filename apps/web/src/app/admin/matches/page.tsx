@@ -66,6 +66,7 @@ export default function MatchesPage() {
                 {row.teamHome ?? "TBD"} vs {row.teamAway ?? "TBD"}
               </Link>
             ),
+            sortValue: (row: any) => `${row.teamHome ?? ""} vs ${row.teamAway ?? ""}`,
           },
           {
             key: "status",
@@ -108,9 +109,24 @@ export default function MatchesPage() {
               ),
           },
           {
+            key: "draftEnabled",
+            header: "Draft",
+            width: "70px",
+            render: (row: any) => (
+              <span style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: row.draftEnabled ? "#22c55e" : "var(--text-muted)",
+              }}>
+                {row.draftEnabled ? "ON" : "OFF"}
+              </span>
+            ),
+          },
+          {
             key: "matchPhase",
             header: "Phase",
             width: "140px",
+            sortable: false,
             render: (row: any) => (
               <select
                 value={row.matchPhase}
@@ -129,6 +145,7 @@ export default function MatchesPage() {
             key: "startTime",
             header: "Start",
             render: (row: any) => row.startTime ? new Date(row.startTime).toLocaleString() : "-",
+            sortValue: (row: any) => row.startTime ? new Date(row.startTime).getTime() : null,
           },
         ]}
       />

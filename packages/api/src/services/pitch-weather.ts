@@ -13,7 +13,7 @@ import { getFromHotCache, setHotCache } from "./sports-cache";
 
 const log = getLogger("pitch-weather");
 
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-3.1-flash-lite-preview";
 const PITCH_WEATHER_CACHE_TTL = 3600; // 1 hour
 
 // ── Types ────────────────────────────────────────────────────

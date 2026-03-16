@@ -229,14 +229,29 @@ export const formatUIText = (text: string): string => {
  * Utility to format role/badge text with uppercase rule
  */
 export const formatBadgeText = (text: string): string => {
-  return text.toUpperCase();
+  return text.replace(/_/g, " ").toUpperCase();
 };
 
 /**
- * Strip "Men" / "Women" suffix from team names for display.
- * The tournament name already indicates the gender category,
- * so "India Men" becomes "India", "England Women" becomes "England".
+ * Strip "Men" / "Women" suffix and abbreviate long franchise names.
+ * "India Men" → "India", "Royal Challengers Bengaluru" → "Royal Challengers Beng."
+ * Keeps city-based short names intact ("Mumbai Indians" stays as-is).
  */
+const TEAM_ABBREVIATIONS: Record<string, string> = {
+  "Royal Challengers Bengaluru": "RCB",
+  "Royal Challengers Bangalore": "RCB",
+  "Sunrisers Hyderabad": "SRH",
+  "Chennai Super Kings": "CSK",
+  "Mumbai Indians": "MI",
+  "Kolkata Knight Riders": "KKR",
+  "Rajasthan Royals": "RR",
+  "Delhi Capitals": "DC",
+  "Punjab Kings": "PBKS",
+  "Lucknow Super Giants": "LSG",
+  "Gujarat Titans": "GT",
+};
+
 export const formatTeamName = (name: string): string => {
-  return name.replace(/ Men$| Women$/, "");
+  const cleaned = name.replace(/ Men$| Women$/, "");
+  return TEAM_ABBREVIATIONS[cleaned] ?? cleaned;
 };

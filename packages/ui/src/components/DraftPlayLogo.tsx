@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import { YStack, View } from "tamagui";
 import Animated, {
   useSharedValue,
@@ -18,8 +19,12 @@ interface DraftPlayLogoProps {
 
 /**
  * DraftPlayLogo — Lowercase mirrored d + P sharing one vertical bar.
- * 3D effect with shadow layers and highlight overlays.
- * Optional play-bounce animation on the triangle.
+ * Subtle 3D depth with shadow/highlight layers.
+ * Optional play-bounce animation — shadow tri + main tri + highlight
+ * all animate together so the click feels natural.
+ *
+ * On web: renders an inline SVG for pixel-perfect rendering.
+ * On native: renders using Views + border tricks.
  */
 export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }: DraftPlayLogoProps) {
   const sw = Math.max(2, size * 0.07);
@@ -34,12 +39,12 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
   const barX = markL + bowlW;
   const bowlT = markT + stemH - bowlH;
 
-  // Shadow offset for 3D depth
-  const sh = Math.max(1, size * 0.03);
+  // Shadow offset for 3D depth — subtle
+  const sh = Math.max(0.6, size * 0.02);
   const shadowColor = "#2D7A4E";
   const highlightColor = "#5BBF8A";
 
-  // Play click animation — press-in then snap-out, like tapping a play button
+  // Play click animation — subtle press-in then snap-out
   const triScale = useSharedValue(1);
   const triTranslateX = useSharedValue(0);
 
@@ -47,20 +52,20 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
     if (!animate) return;
     triScale.value = withRepeat(
       withSequence(
-        withDelay(1800,
-          withTiming(0.82, { duration: 100, easing: Easing.in(Easing.ease) })  // press in
+        withDelay(2200,
+          withTiming(0.93, { duration: 120, easing: Easing.in(Easing.ease) })
         ),
-        withTiming(1, { duration: 150, easing: Easing.out(Easing.ease) }),     // release back
+        withTiming(1, { duration: 180, easing: Easing.out(Easing.ease) }),
       ),
       -1,
       false
     );
     triTranslateX.value = withRepeat(
       withSequence(
-        withDelay(1800,
-          withTiming(-size * 0.015, { duration: 100, easing: Easing.in(Easing.ease) })  // nudge left
+        withDelay(2200,
+          withTiming(-size * 0.008, { duration: 120, easing: Easing.in(Easing.ease) })
         ),
-        withTiming(0, { duration: 150, easing: Easing.out(Easing.ease) }),               // release back
+        withTiming(0, { duration: 180, easing: Easing.out(Easing.ease) }),
       ),
       -1,
       false
@@ -74,6 +79,62 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
     ],
   }));
 
+  // ── Web: inject CSS animation for play-bounce (once) ──
+  const injectedRef = useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== "web" || injectedRef.current) return;
+    injectedRef.current = true;
+    if (typeof document !== "undefined" && !document.getElementById("dp-logo-anim")) {
+      const style = document.createElement("style");
+      style.id = "dp-logo-anim";
+      style.textContent = `
+        @keyframes dpPlayBounce {
+          0%, 85% { transform: scale(1) translateX(0); }
+          90% { transform: scale(0.93) translateX(-0.5px); }
+          95% { transform: scale(1) translateX(0); }
+          100% { transform: scale(1) translateX(0); }
+        }
+        .dp-logo-click-group {
+          animation: dpPlayBounce 3s ease-in-out infinite;
+          transform-origin: left center;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  // ── Web: SVG rendering for pixel-perfect logo ──
+  if (Platform.OS === "web") {
+    return (
+      <YStack width={size} height={size} alignItems="center" justifyContent="center" testID="draftplay-logo">
+        {/* @ts-ignore — inline SVG works on web but RN types don't know about it */}
+        <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="dp-shadow" x="-10%" y="-10%" width="130%" height="130%">
+              <feDropShadow dx="0.8" dy="1.1" stdDeviation="0.7" floodColor="#1a4a30" floodOpacity="0.45" />
+            </filter>
+          </defs>
+
+          <g filter="url(#dp-shadow)">
+            {/* Bowl arc */}
+            <path d="M18.1 17.7 A8.35 8.35 0 0 0 18.1 34.4" stroke={color} strokeWidth="2.8" fill="none" strokeLinecap="round"/>
+            {/* Vertical bar — extends past arc endpoints to cover round caps */}
+            <rect x="18.1" y="5.6" width="2.8" height="30.2" fill={color}/>
+          </g>
+
+          {/* Play triangle — animated */}
+          <g className={animate ? "dp-logo-click-group" : undefined} filter="url(#dp-shadow)">
+            <polygon points="20.9,5.6 30.26,12.8 20.9,20.0" fill={color}/>
+          </g>
+
+          {/* Highlight: top half of bowl arc */}
+          <path d="M17.8 17.4 A8.35 8.35 0 0 0 9.5 25.4" stroke={highlightColor} strokeWidth="0.8" fill="none" opacity="0.3" strokeLinecap="round"/>
+        </svg>
+      </YStack>
+    );
+  }
+
+  // ── Native: View-based rendering ──
   const playTriangle = (
     <View
       width={0}
@@ -99,14 +160,14 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
       borderTopColor="transparent"
       borderBottomColor="transparent"
       borderRightColor="transparent"
-      opacity={0.5}
+      opacity={0.15}
     />
   );
 
   return (
     <YStack width={size} height={size} alignItems="center" justifyContent="center" overflow="visible" testID="draftplay-logo">
 
-      {/* ── SHADOW LAYER ── */}
+      {/* ── SHADOW LAYER — subtle depth ── */}
 
       <View
         position="absolute"
@@ -121,7 +182,7 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
         borderWidth={sw}
         borderColor={shadowColor}
         borderRightWidth={0}
-        opacity={0.5}
+        opacity={0.15}
       />
 
       <View
@@ -131,27 +192,37 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
         width={sw}
         height={stemH}
         backgroundColor={shadowColor}
-        opacity={0.5}
+        opacity={0.15}
       />
 
-      {/* Shadow: play triangle (animated if animate=true) */}
+      {/* Shadow + Main play triangle — animate together */}
       {animate ? (
         <Animated.View
           style={[
             {
               position: "absolute",
-              left: barX + sw * 1.0 + sh,
-              top: markT + sh,
+              left: barX + sw * 1.0,
+              top: markT,
             },
             playAnimStyle,
           ]}
         >
-          {playTriangleShadow}
+          {/* Shadow triangle offset behind */}
+          <View position="absolute" left={sh} top={sh}>
+            {playTriangleShadow}
+          </View>
+          {/* Main triangle */}
+          {playTriangle}
         </Animated.View>
       ) : (
-        <View position="absolute" left={barX + sw * 1.0 + sh} top={markT + sh}>
-          {playTriangleShadow}
-        </View>
+        <>
+          <View position="absolute" left={barX + sw * 1.0 + sh} top={markT + sh}>
+            {playTriangleShadow}
+          </View>
+          <View position="absolute" left={barX + sw * 1.0} top={markT}>
+            {playTriangle}
+          </View>
+        </>
       )}
 
       {/* ── MAIN LAYER ── */}
@@ -180,27 +251,7 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
         backgroundColor={color}
       />
 
-      {/* Play triangle (animated if animate=true) */}
-      {animate ? (
-        <Animated.View
-          style={[
-            {
-              position: "absolute",
-              left: barX + sw * 1.0,
-              top: markT,
-            },
-            playAnimStyle,
-          ]}
-        >
-          {playTriangle}
-        </Animated.View>
-      ) : (
-        <View position="absolute" left={barX + sw * 1.0} top={markT}>
-          {playTriangle}
-        </View>
-      )}
-
-      {/* ── HIGHLIGHT LAYER ── */}
+      {/* ── HIGHLIGHT LAYER — subtle shine ── */}
 
       <View
         position="absolute"
@@ -212,11 +263,11 @@ export function DraftPlayLogo({ size = 40, color = "#3D9968", animate = false }:
         borderBottomLeftRadius={bowlH / 2}
         borderTopRightRadius={0}
         borderBottomRightRadius={0}
-        borderWidth={Math.max(1, sw * 0.5)}
+        borderWidth={Math.max(1, sw * 0.4)}
         borderColor={highlightColor}
         borderRightWidth={0}
         borderBottomColor="transparent"
-        opacity={0.4}
+        opacity={0.2}
       />
 
     </YStack>

@@ -11,6 +11,8 @@ export interface PlayerCompareProfile {
   team: string;
   role: string;
   matches: number;
+  /** "match" = from playerMatchScores, "profile" = from Gemini player profile */
+  source: "match" | "profile";
   // Batting
   avgRuns: number;
   strikeRate: number;
@@ -33,6 +35,7 @@ export interface PlayerCompareProfile {
 
 /**
  * Compare 2-3 players side by side.
+ * Uses real match data when available, falls back to Gemini profile stats.
  */
 export async function comparePlayers(
   db: NodePgDatabase<any>,
@@ -40,7 +43,7 @@ export async function comparePlayers(
 ): Promise<PlayerCompareProfile[]> {
   if (playerIds.length < 2 || playerIds.length > 3) return [];
 
-  const cacheKey = `player-compare:${[...playerIds].sort().join(",")}`;
+  const cacheKey = `player-compare:v2:${[...playerIds].sort().join(",")}`;
   const cached = await getFromHotCache<PlayerCompareProfile[]>(cacheKey);
   if (cached) return cached;
 
@@ -54,15 +57,49 @@ export async function comparePlayers(
 
     if (playerRecords.length < 2) return [];
 
-    const scores = await db
+    const allScores = await db
       .select()
       .from(playerMatchScores)
       .where(inArray(playerMatchScores.playerId, playerIds));
 
-    const result: PlayerCompareProfile[] = playerRecords.map((p) => {
-      const pScores = scores.filter((s) => s.playerId === p.id);
-      const matchCount = pScores.length;
+    // Filter out placeholder rows (linked but no actual match data)
+    const realScores = allScores.filter((s) =>
+      (s.runs ?? 0) > 0 || (s.wickets ?? 0) > 0 || (s.ballsFaced ?? 0) > 0 ||
+      (s.catches ?? 0) > 0 || Number(s.fantasyPoints ?? 0) > 0 || Number(s.oversBowled ?? 0) > 0
+    );
 
+    const result: PlayerCompareProfile[] = playerRecords.map((p) => {
+      const pScores = realScores.filter((s) => s.playerId === p.id);
+      const gs = (p.stats as any) ?? {};
+
+      if (pScores.length === 0) {
+        // No real match data — use Gemini profile stats
+        return {
+          playerId: p.id,
+          name: p.name,
+          team: p.team,
+          role: p.role ?? "unknown",
+          source: "profile" as const,
+          matches: gs.matchesPlayed ?? 0,
+          avgRuns: round(gs.average ?? 0),
+          strikeRate: round(gs.strikeRate ?? 0),
+          highScore: 0,
+          fifties: 0,
+          hundreds: 0,
+          avgWickets: round(gs.bowlingAverage ?? 0),
+          economyRate: round(gs.economyRate ?? 0),
+          bestBowling: 0,
+          threeWicketHauls: 0,
+          totalCatches: 0,
+          avgFantasyPoints: round(gs.recentForm ?? 0),
+          bestFantasyPoints: 0,
+          formLast3: round(gs.recentForm ?? 0),
+          consistency: 0,
+        };
+      }
+
+      // Real match data
+      const matchCount = pScores.length;
       const totalRuns = pScores.reduce((s, sc) => s + (sc.runs ?? 0), 0);
       const totalBalls = pScores.reduce((s, sc) => s + (sc.ballsFaced ?? 0), 0);
       const totalWickets = pScores.reduce((s, sc) => s + (sc.wickets ?? 0), 0);
@@ -73,7 +110,6 @@ export async function comparePlayers(
       const totalFP = fps.reduce((s, v) => s + v, 0);
       const avgFP = matchCount > 0 ? totalFP / matchCount : 0;
 
-      // Consistency = std deviation of fantasy points (lower = more consistent)
       const variance = matchCount > 0
         ? fps.reduce((s, v) => s + (v - avgFP) ** 2, 0) / matchCount
         : 0;
@@ -88,6 +124,7 @@ export async function comparePlayers(
         name: p.name,
         team: p.team,
         role: p.role ?? "unknown",
+        source: "match" as const,
         matches: matchCount,
         avgRuns: matchCount > 0 ? round(totalRuns / matchCount) : 0,
         strikeRate: totalBalls > 0 ? round((totalRuns / totalBalls) * 100) : 0,

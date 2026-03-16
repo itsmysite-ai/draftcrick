@@ -1,5 +1,5 @@
 /**
- * usePaywall — manages paywall state + 1-click upgrade flow.
+ * usePaywall — manages paywall state + 1-click upgrade flow + Day Pass purchase.
  *
  * Usage:
  *   const { gate, paywallProps } = usePaywall();
@@ -22,15 +22,17 @@ interface PaywallState {
   requiredTier: "pro" | "elite";
   featureName: string;
   description?: string;
+  showDayPassOption: boolean;
 }
 
 export function usePaywall() {
-  const { tier, hasTier, canAccess, refetch } = useSubscription();
+  const { tier, hasTier, canAccess, refetch, dayPassActive } = useSubscription();
 
   const [state, setState] = useState<PaywallState>({
     visible: false,
     requiredTier: "pro",
     featureName: "",
+    showDayPassOption: false,
   });
 
   const subscribeMutation = trpc.subscription.subscribe.useMutation({
@@ -38,8 +40,12 @@ export function usePaywall() {
       refetch();
       setState((s) => ({ ...s, visible: false }));
     },
-    onError: () => {
-      // Error is handled by the paywall UI — mutation state tracks it
+  });
+
+  const dayPassMutation = trpc.subscription.purchaseDayPass.useMutation({
+    onSuccess: () => {
+      refetch();
+      setState((s) => ({ ...s, visible: false }));
     },
   });
 
@@ -50,10 +56,16 @@ export function usePaywall() {
   const gate = useCallback(
     (requiredTier: "pro" | "elite", featureName: string, description?: string): boolean => {
       if (hasTier(requiredTier)) return false;
-      setState({ visible: true, requiredTier, featureName, description });
+      setState({
+        visible: true,
+        requiredTier,
+        featureName,
+        description,
+        showDayPassOption: !dayPassActive, // only show Day Pass if not already active
+      });
       return true;
     },
-    [hasTier],
+    [hasTier, dayPassActive],
   );
 
   /**
@@ -62,10 +74,16 @@ export function usePaywall() {
   const gateFeature = useCallback(
     (feature: keyof TierFeatures, fallbackTier: "pro" | "elite", featureName: string, description?: string): boolean => {
       if (canAccess(feature)) return false;
-      setState({ visible: true, requiredTier: fallbackTier, featureName, description });
+      setState({
+        visible: true,
+        requiredTier: fallbackTier,
+        featureName,
+        description,
+        showDayPassOption: !dayPassActive,
+      });
       return true;
     },
-    [canAccess],
+    [canAccess, dayPassActive],
   );
 
   /** Check access without showing paywall */
@@ -82,12 +100,18 @@ export function usePaywall() {
     subscribeMutation.mutate({ tier: state.requiredTier });
   }, [state.requiredTier, subscribeMutation]);
 
+  const purchaseDayPass = useCallback(() => {
+    dayPassMutation.mutate();
+  }, [dayPassMutation]);
+
   const paywallProps = {
     visible: state.visible,
     requiredTier: state.requiredTier,
     featureName: state.featureName,
     description: state.description,
+    showDayPassOption: state.showDayPassOption,
     onUpgrade: upgrade,
+    onDayPass: purchaseDayPass,
     onDismiss: dismiss,
   };
 
@@ -99,5 +123,6 @@ export function usePaywall() {
     canAccess,
     paywallProps,
     isUpgrading: subscribeMutation.isPending,
+    isDayPassPurchasing: dayPassMutation.isPending,
   };
 }

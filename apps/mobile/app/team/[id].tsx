@@ -21,6 +21,18 @@ import {
 import { trpc } from "../../lib/trpc";
 import { HeaderControls } from "../../components/HeaderControls";
 
+function formatRoleShort(role?: string): string {
+  if (!role) return "";
+  const r = role.toUpperCase().replace(/[\s-]/g, "_");
+  switch (r) {
+    case "BATSMAN": case "BAT": return "BAT";
+    case "BOWLER": case "BOWL": return "BOWL";
+    case "ALL_ROUNDER": case "ALLROUNDER": case "AR": return "AR";
+    case "WICKET_KEEPER": case "WICKETKEEPER": case "WK": return "WK";
+    default: return role.substring(0, 4).toUpperCase();
+  }
+}
+
 export default function TeamDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -152,7 +164,7 @@ export default function TeamDetailScreen() {
             <Animated.View key={p.id || i} entering={FadeInDown.delay(i * 30).springify()}>
               <Card marginBottom="$1" padding="$3">
                 <XStack alignItems="center">
-                  <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={0} size={32} />
+                  <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={0} size={32} imageUrl={p.photoUrl} />
                   <YStack flex={1} marginLeft="$2">
                     <XStack alignItems="center" gap="$1">
                       <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
@@ -162,9 +174,8 @@ export default function TeamDetailScreen() {
                       {p.isViceCaptain && <Badge variant="role" size="sm">VC</Badge>}
                     </XStack>
                     <XStack alignItems="center" gap="$1">
-                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.team}</Text>
-                      <Badge variant="default" size="sm">{formatBadgeText(p.role)}</Badge>
-                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.credits} cr</Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{formatTeamName(p.team)}</Text>
+                      <Badge variant="default" size="sm">{formatRoleShort(p.role)}</Badge>
                     </XStack>
                   </YStack>
                   <YStack alignItems="flex-end">
@@ -181,7 +192,7 @@ export default function TeamDetailScreen() {
                       </>
                     ) : (
                       <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$colorMuted">
-                        {p.credits} cr
+                        {p.credits} credits
                       </Text>
                     )}
                   </YStack>

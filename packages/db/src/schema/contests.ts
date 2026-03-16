@@ -90,6 +90,7 @@ export const fantasyTeams = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
+    name: text("name"),
     contestId: uuid("contest_id")
       .references(() => contests.id),
     matchId: text("match_id"),

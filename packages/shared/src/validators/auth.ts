@@ -27,5 +27,16 @@ export const updatePreferencesSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
 });
 
+/**
+ * Schema for saving user preferences (onboarding + settings).
+ */
+export const userPreferencesSchema = z.object({
+  sports: z.array(z.enum(["cricket", "f1"])).min(1),
+  preferredFormat: z.enum(["salary_cap", "draft", "prediction"]).nullable(),
+  country: z.string().nullable(),
+  state: z.string().nullable(),
+});
+
 export type SyncUserInput = z.infer<typeof syncUserSchema>;
 export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
+export type UserPreferences = z.infer<typeof userPreferencesSchema>;

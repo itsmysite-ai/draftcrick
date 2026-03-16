@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { DraftPlayLogoSVG } from "@/components/DraftPlayLogoSVG";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: "~" },
@@ -16,6 +17,8 @@ const NAV_ITEMS = [
   { href: "/admin/users", label: "Users", icon: "U" },
   { href: "/admin/system", label: "System", icon: "S" },
   { href: "/admin/revenue", label: "Revenue", icon: "$" },
+  { href: "/admin/pricing-calculator", label: "Pricing Calc", icon: "%" },
+  { href: "/admin/docs", label: "Docs", icon: "?" },
 ];
 
 export function AdminSidebar() {
@@ -34,7 +37,10 @@ export function AdminSidebar() {
       }}
     >
       <div style={{ padding: "0 16px 16px", borderBottom: "1px solid var(--border)" }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700 }}>DraftPlay Admin</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <DraftPlayLogoSVG size={24} animate={false} />
+          <h2 style={{ fontSize: 16, fontWeight: 700 }}>DraftPlay Admin</h2>
+        </div>
         <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
           {user?.email}
         </p>

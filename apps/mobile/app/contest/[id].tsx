@@ -89,15 +89,28 @@ export default function ContestDetailScreen() {
   const myContests = trpc.contest.myContests.useQuery(undefined, { retry: false });
   const myPosition = trpc.contest.myPosition.useQuery({ contestId: id! }, { enabled: !!id && !!user });
   const myTeam = trpc.team.getByContest.useQuery({ contestId: id! }, { enabled: !!id && !!user });
+  const myAllTeams = trpc.team.myTeams.useQuery(undefined, { enabled: !!user, retry: false });
+  const swapMutation = trpc.team.swapTeam.useMutation({
+    onSuccess: () => {
+      contest.refetch(); myTeam.refetch(); myContests.refetch(); myAllTeams.refetch(); standings.refetch();
+      setShowSwap(false);
+    },
+  });
+  const [showSwap, setShowSwap] = useState(false);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([contest.refetch(), standings.refetch(), myContests.refetch(), myPosition.refetch(), myTeam.refetch()]);
+    await Promise.all([contest.refetch(), standings.refetch(), myContests.refetch(), myPosition.refetch(), myTeam.refetch(), myAllTeams.refetch()]);
     setRefreshing(false);
-  }, [contest, standings, myContests, myPosition, myTeam]);
+  }, [contest, standings, myContests, myPosition, myTeam, myAllTeams]);
 
   const c = contest.data;
   const match = c?.match;
+
+  // Other teams for this match the user can swap to
+  const swappableTeams = (myAllTeams.data ?? []).filter(
+    (t: any) => t.matchId === match?.id && t.contestId !== id
+  );
 
   // Countdown timer for pre-match (#3)
   useEffect(() => {
@@ -254,13 +267,7 @@ export default function ContestDetailScreen() {
                 </Text>
               </YStack>
               {hasJoined && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id }); router.push("/team/create"); } }}
-                >
-                  {formatUIText("edit team")}
-                </Button>
+                <Badge variant="role" size="sm">{formatBadgeText("joined")}</Badge>
               )}
             </XStack>
           </Card>
@@ -411,7 +418,7 @@ export default function ContestDetailScreen() {
               return (
                 <Card key={p.id || i} marginBottom="$1" padding="$3">
                   <XStack alignItems="center">
-                    <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={hasScores ? (p.fantasyPoints ?? 0).toFixed(0) : 0} size={28} hideBadge={!hasScores} />
+                    <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={hasScores ? (p.fantasyPoints ?? 0).toFixed(0) : 0} size={28} hideBadge={!hasScores} imageUrl={p.photoUrl} />
                     <YStack flex={1} marginLeft="$2">
                       <XStack alignItems="center" gap="$1">
                         <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
@@ -481,12 +488,46 @@ export default function ContestDetailScreen() {
       {/* Status-Aware Action Section */}
       <YStack paddingHorizontal="$4" marginBottom="$4">
         {isOpen && match?.status !== "completed" && match?.status !== "live" && (
-          hasJoined ? (
-            <Button variant="secondary" size="lg" testID="join-contest-btn" disabled opacity={0.7}>
-              {formatUIText("joined")} {"\u2713"}
-            </Button>
+          !match?.draftEnabled ? (
+            <Card padding="$3" alignItems="center" borderColor="$borderColor" borderWidth={1}>
+              <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
+                {formatUIText("draft not open yet — check back closer to match time")}
+              </Text>
+            </Card>
+          ) : hasJoined ? (
+            isH2H && c.currentEntries < c.maxEntries ? (
+              <Card padding="$4" alignItems="center" borderColor="$colorAccent" borderWidth={1} gap="$2">
+                <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$color">
+                  {formatUIText("waiting for opponent")}
+                </Text>
+                <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                  {formatUIText("share this challenge with a friend")}
+                </Text>
+                <XStack gap="$2" marginTop="$1">
+                  <Button variant="primary" size="md" flex={1} onPress={() => {
+                    const link = `draftplay://contest/${c.id}`;
+                    RNShare.share({ message: `I challenged you to a Head-to-Head fantasy duel on DraftPlay! Join here: ${link}` });
+                  }} testID="share-challenge-btn">
+                    {formatUIText("share challenge")}
+                  </Button>
+                  <Button variant="secondary" size="md" onPress={() => {
+                    Clipboard.setString(`draftplay://contest/${c.id}`);
+                  }} testID="copy-link-btn">
+                    {formatUIText("copy link")}
+                  </Button>
+                </XStack>
+              </Card>
+            ) : swappableTeams.length > 0 ? (
+              <Button variant={showSwap ? "secondary" : "primary"} size="lg" onPress={() => setShowSwap(!showSwap)} testID="swap-team-btn">
+                {formatUIText(showSwap ? "cancel swap" : "swap team")}
+              </Button>
+            ) : (
+              <Button variant="secondary" size="lg" testID="join-contest-btn" disabled opacity={0.7}>
+                {formatUIText("joined")} {"\u2713"}
+              </Button>
+            )
           ) : (
-            <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id }); router.push("/team/create"); } }} testID="join-contest-btn">
+            <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="join-contest-btn">
               {c.entryFee === 0 ? formatUIText("join free") : `${formatUIText("join")} ${c.entryFee} PC`}
             </Button>
           )
@@ -518,6 +559,41 @@ export default function ContestDetailScreen() {
           </Card>
         )}
       </YStack>
+
+      {/* Swap Team Picker */}
+      {showSwap && swappableTeams.length > 0 && (
+        <Animated.View entering={FadeInDown.springify()}>
+          <YStack paddingHorizontal="$4" marginBottom="$4" gap="$2">
+            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+              {formatUIText("pick a team to use in this contest")}
+            </Text>
+            {swappableTeams.map((team: any) => (
+              <Card
+                key={team.id}
+                pressable
+                padding="$3"
+                borderColor="$borderColor"
+                borderWidth={1}
+                onPress={() => swapMutation.mutate({ contestId: id!, newTeamId: team.id })}
+              >
+                <XStack justifyContent="space-between" alignItems="center">
+                  <YStack flex={1} gap={2}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
+                      {team.name}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                      {Number(team.creditsUsed).toFixed(1)} {formatUIText("credits")} · {Array.isArray(team.players) ? team.players.length : 0} {formatUIText("players")}
+                    </Text>
+                  </YStack>
+                  <Button variant="primary" size="sm" disabled={swapMutation.isPending} onPress={() => swapMutation.mutate({ contestId: id!, newTeamId: team.id })}>
+                    {swapMutation.isPending ? formatUIText("swapping...") : formatUIText("use this team")}
+                  </Button>
+                </XStack>
+              </Card>
+            ))}
+          </YStack>
+        </Animated.View>
+      )}
 
       {/* Prize Distribution */}
       {c.prizePool > 0 && c.prizeDistribution && Array.isArray(c.prizeDistribution) && (c.prizeDistribution as Array<{ rank: number; amount: number }>).length > 0 && (
@@ -669,7 +745,7 @@ export default function ContestDetailScreen() {
               <XStack flexWrap="wrap" gap="$2">
                 {teamPlayers.map((p: any, i: number) => (
                   <XStack key={p.id || i} alignItems="center" gap={4} minWidth="45%" paddingVertical={2}>
-                    <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={0} size={22} hideBadge />
+                    <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={0} size={22} hideBadge imageUrl={p.photoUrl} />
                     <Text fontFamily="$body" fontSize={11} color="$color" numberOfLines={1} flex={1}>
                       {p.name}
                     </Text>

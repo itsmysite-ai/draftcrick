@@ -1,4 +1,4 @@
-import { TextInput, Pressable } from "react-native";
+import { TextInput, Pressable, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -61,6 +61,18 @@ export default function RegisterScreen() {
     }
   };
 
+  const handleSocialSignUp = () => {
+    if (!ageConfirmed || !termsAccepted) {
+      Alert.alert(
+        "one more step",
+        "please confirm your age and accept the terms of service to continue.",
+        [{ text: "ok" }]
+      );
+      return;
+    }
+    // TODO: implement Google/Apple sign-in
+  };
+
   return (
     <YStack flex={1} backgroundColor="$background">
       {/* ── Inline Header ── */}
@@ -85,9 +97,25 @@ export default function RegisterScreen() {
         <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
           {formatUIText("create account")}
         </Text>
-        <Text fontFamily="$body" fontSize={15} color="$colorMuted" marginBottom="$8">
+        <Text fontFamily="$body" fontSize={15} color="$colorMuted" marginBottom="$4">
           {formatUIText("join thousands of fantasy cricket players")}
         </Text>
+
+        {/* Free trial banner */}
+        <XStack
+          backgroundColor="$accentBackground"
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          borderRadius="$3"
+          alignItems="center"
+          justifyContent="center"
+          marginBottom="$6"
+          gap="$2"
+        >
+          <Text fontFamily="$mono" fontWeight="700" fontSize={11} color="white">
+            {formatUIText("start with a 7-day free trial — no credit card needed")}
+          </Text>
+        </XStack>
 
         {displayError && (
           <Text
@@ -119,6 +147,7 @@ export default function RegisterScreen() {
               fontSize: 16,
               borderWidth: 1,
               borderColor: theme.borderColor.val,
+              outlineColor: "#3D9968",
             }}
           />
           <YStack>
@@ -138,6 +167,7 @@ export default function RegisterScreen() {
                 fontSize: 16,
                 borderWidth: 1,
                 borderColor: theme.borderColor.val,
+                outlineColor: "#3D9968",
               }}
             />
             <Pressable
@@ -245,10 +275,10 @@ export default function RegisterScreen() {
           </XStack>
 
           <XStack gap="$3">
-            <Button variant="secondary" size="md" flex={1} disabled={!ageConfirmed || !termsAccepted} opacity={!ageConfirmed || !termsAccepted ? 0.4 : 1}>
+            <Button variant="secondary" size="md" flex={1} onPress={handleSocialSignUp} disabled={isSubmitting}>
               {formatUIText("google")}
             </Button>
-            <Button variant="secondary" size="md" flex={1} disabled={!ageConfirmed || !termsAccepted} opacity={!ageConfirmed || !termsAccepted ? 0.4 : 1}>
+            <Button variant="secondary" size="md" flex={1} onPress={handleSocialSignUp} disabled={isSubmitting}>
               {formatUIText("apple")}
             </Button>
           </XStack>

@@ -271,7 +271,7 @@ export default function WalletScreen() {
                 {formatUIText("tomorrow")}: {" "}
               </Text>
               <Text fontFamily="$mono" fontSize={11} fontWeight="700" color="$accentBackground">
-                +{Math.round(50 * (1 + w.currentStreak * 0.1))} PC
+                +{Math.round((w.dailyCoinDrip ?? 10) * (1 + w.currentStreak * 0.1))} PC
               </Text>
             </XStack>
           )}
@@ -284,7 +284,7 @@ export default function WalletScreen() {
           {formatUIText("ways to earn")}
         </Text>
         {[
-          { label: "daily claim", amount: "50-200 PC/day" },
+          { label: "daily claim", amount: "10-100 PC/day" },
           { label: "win contests", amount: "prize pool share" },
           { label: "correct predictions", amount: "10-50 PC each" },
           { label: "refer friends", amount: "200 PC per referral" },

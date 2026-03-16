@@ -72,8 +72,13 @@ export async function setPaymentMode(
   log.info({ mode, adminUserId }, "Payment mode updated");
 }
 
-/** Get Razorpay plan ID for a subscription tier. */
+/** Get Razorpay plan ID for a subscription tier (yearly plans). */
 function getPlanId(tier: SubscriptionTier): string {
+  if (tier === "basic") {
+    const planId = process.env.RAZORPAY_PLAN_BASIC;
+    if (!planId) throw new Error("RAZORPAY_PLAN_BASIC env var not set");
+    return planId;
+  }
   if (tier === "pro") {
     const planId = process.env.RAZORPAY_PLAN_PRO;
     if (!planId) throw new Error("RAZORPAY_PLAN_PRO env var not set");
@@ -142,11 +147,12 @@ export async function createRazorpaySubscription(
 
   const rpSub = await rz.subscriptions.create({
     plan_id: planId,
-    total_count: 12, // 12 billing cycles (1 year)
+    total_count: 10, // 10 yearly cycles (auto-renew)
     customer_notify: 1,
     notes: {
       draftplay_user_id: userId,
       tier,
+      billing_cycle: "yearly",
     },
   });
 
@@ -169,6 +175,37 @@ export async function createRazorpaySubscription(
   return {
     razorpaySubscriptionId: rpSub.id,
     shortUrl: rpSub.short_url,
+  };
+}
+
+/**
+ * Create a Razorpay order for Day Pass (one-time payment, not subscription).
+ * Returns the order ID for checkout.
+ */
+export async function createDayPassOrder(
+  db: Database,
+  userId: string,
+  email: string | null
+): Promise<{ orderId: string; checkoutUrl: string }> {
+  const { DAY_PASS_CONFIG } = await import("@draftplay/shared");
+  const rz = getRazorpay();
+
+  const order = await rz.orders.create({
+    amount: DAY_PASS_CONFIG.priceINR, // paise
+    currency: "INR",
+    receipt: `daypass_${userId.slice(0, 8)}_${Date.now()}`,
+    notes: {
+      draftplay_user_id: userId,
+      type: "day_pass",
+      duration_hours: String(DAY_PASS_CONFIG.durationHours),
+    },
+  });
+
+  log.info({ userId, orderId: order.id }, "Day Pass Razorpay order created");
+
+  return {
+    orderId: order.id,
+    checkoutUrl: order.short_url ?? "",
   };
 }
 

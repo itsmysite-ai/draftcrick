@@ -2,7 +2,7 @@ import {
   FlatList, RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown, FadeIn, useSharedValue, useAnimatedStyle,
@@ -111,10 +111,12 @@ function LiveMatchCard({
   match,
   index,
   onPress,
+  getTeamLogo,
 }: {
   match: any;
   index: number;
   onPress: () => void;
+  getTeamLogo?: (name: string) => string | undefined;
 }) {
   const isLive = match.status === "live";
   const isCompleted = match.status === "completed";
@@ -148,6 +150,7 @@ function LiveMatchCard({
           <YStack flex={1} alignItems="center" gap={6}>
             <InitialsAvatar
               name={teamA} playerRole="BAT" ovr={0} size={48}
+              imageUrl={getTeamLogo?.(match.teamA || match.teamHome || "")}
               hideBadge={isCompleted ? teamAWon !== true : !isLive || !teamARole}
               badgeContent={
                 isCompleted && teamAWon === true
@@ -184,6 +187,7 @@ function LiveMatchCard({
           <YStack flex={1} alignItems="center" gap={6}>
             <InitialsAvatar
               name={teamB} playerRole="BOWL" ovr={0} size={48}
+              imageUrl={getTeamLogo?.(match.teamB || match.teamAway || "")}
               hideBadge={isCompleted ? teamAWon !== false : !isLive || !teamARole}
               badgeContent={
                 isCompleted && teamAWon === false
@@ -243,7 +247,7 @@ function LiveMatchCard({
                 : match.time || match.venue || ""}
             </Text>
             {match.venue && match.date && (
-              <Text {...textStyles.hint} fontSize={10} numberOfLines={1}>
+              <Text {...textStyles.hint} fontSize={10} numberOfLines={2}>
                 {match.venue}
               </Text>
             )}
@@ -337,9 +341,41 @@ export default function LiveScreen() {
           sourceUrl: null,
         }));
 
-  const liveMatches = allMatches.filter((m: any) => m.status === "live");
-  const upcomingMatches = allMatches.filter((m: any) => m.status === "upcoming");
-  const completedMatches = allMatches.filter((m: any) => m.status === "completed");
+  // Build team logo lookup from tournament teams data
+  const teamLogoMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of aiData.data?.tournaments ?? []) {
+      for (const team of (t as any).teams ?? []) {
+        if (team.logo) {
+          map.set(team.name?.toLowerCase(), team.logo);
+          if (team.shortName) map.set(team.shortName.toLowerCase(), team.logo);
+        }
+      }
+    }
+    return map;
+  }, [aiData.data?.tournaments]);
+
+  const getTeamLogo = useCallback((teamName: string) => {
+    const key = teamName.toLowerCase();
+    return teamLogoMap.get(key) ?? [...teamLogoMap.entries()].find(([k]) => key.includes(k) || k.includes(key))?.[1] ?? undefined;
+  }, [teamLogoMap]);
+
+  const sortByDate = (a: any, b: any) => {
+    const getTime = (m: any) => {
+      if (m.startTime) return new Date(m.startTime).getTime();
+      if (m.date) {
+        const cleanTime = (m.time ?? "").replace(/\s+[A-Z]{2,4}$/, "");
+        const parsed = new Date(`${m.date} ${cleanTime}`);
+        return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+      }
+      return 0;
+    };
+    return getTime(a) - getTime(b);
+  };
+
+  const liveMatches = allMatches.filter((m: any) => m.status === "live").sort(sortByDate);
+  const upcomingMatches = allMatches.filter((m: any) => m.status === "upcoming").sort(sortByDate);
+  const completedMatches = allMatches.filter((m: any) => m.status === "completed").sort((a: any, b: any) => -sortByDate(a, b));
 
   // Build list with section headers
   const data: any[] = [];
@@ -479,6 +515,7 @@ export default function LiveScreen() {
               <LiveMatchCard
                 match={item}
                 index={index}
+                getTeamLogo={getTeamLogo}
                 onPress={() => {
                   if (item.id.startsWith("ai-")) {
                     router.push("/(tabs)/contests");

@@ -1,16 +1,205 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../trpc";
-import { createLeagueSchema } from "@draftplay/shared";
+import { createLeagueSchema, DEFAULT_TIER_CONFIGS } from "@draftplay/shared";
 import { LEAGUE_TEMPLATES, FULL_LEAGUE_TEMPLATES } from "@draftplay/shared";
-import { eq, and, count, desc, sql, inArray } from "drizzle-orm";
-import { leagues, leagueMembers, draftRooms, contests, fantasyTeams, users } from "@draftplay/db";
+import { eq, and, count, desc, sql, inArray, ilike, ne } from "drizzle-orm";
+import { leagues, leagueMembers, draftRooms, contests, fantasyTeams, users, matches } from "@draftplay/db";
+import type { Database } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "crypto";
+import { getUserTier } from "../services/subscription";
+import { getLogger } from "../lib/logger";
+
+const log = getLogger("league");
+
+// ─── Auto-Contest Creation ─────────────────────────────────────────────────
+
+/**
+ * Auto-create contests for a league based on its tournament's matches.
+ * - For salary_cap: creates a private contest per upcoming match
+ * - For draft/auction: same, but members' drafted squads auto-score
+ * - Skips matches that already have a contest in this league
+ * - Returns count of contests created
+ */
+export async function autoCreateContestsForLeague(
+  db: Database,
+  leagueId: string,
+  tournament: string,
+  maxMembers: number,
+): Promise<number> {
+  // Find all upcoming/live matches for this tournament
+  const tournamentMatches = await db
+    .select({ id: matches.id, teamHome: matches.teamHome, teamAway: matches.teamAway, format: matches.format, draftEnabled: matches.draftEnabled, startTime: matches.startTime })
+    .from(matches)
+    .where(
+      and(
+        ilike(matches.tournament, tournament),
+        inArray(matches.status, ["upcoming", "live"]),
+      )
+    );
+
+  if (tournamentMatches.length === 0) {
+    log.info({ leagueId, tournament }, "No upcoming matches found for auto-contest creation");
+    return 0;
+  }
+
+  // Find matches that already have contests in this league
+  const existingContests = await db
+    .select({ matchId: contests.matchId })
+    .from(contests)
+    .where(eq(contests.leagueId, leagueId));
+  const existingMatchIds = new Set(existingContests.map((c) => c.matchId));
+
+  // Create contests for matches that don't have one yet
+  const newMatches = tournamentMatches.filter((m) => !existingMatchIds.has(m.id));
+  if (newMatches.length === 0) {
+    log.info({ leagueId, tournament }, "All matches already have contests");
+    return 0;
+  }
+
+  const contestValues = newMatches.map((m) => ({
+    matchId: m.id,
+    leagueId,
+    name: `${m.teamHome} vs ${m.teamAway}`,
+    entryFee: 0,
+    prizePool: 0,
+    maxEntries: maxMembers,
+    contestType: "private" as const,
+    isGuaranteed: false,
+    prizeDistribution: [] as { rank: number; amount: number }[],
+    status: m.draftEnabled ? "open" as const : "upcoming" as const,
+  }));
+
+  await db.insert(contests).values(contestValues);
+
+  log.info({ leagueId, tournament, created: contestValues.length }, "Auto-created league contests");
+  return contestValues.length;
+}
+
+/**
+ * Auto-create contests for ALL active leagues tied to a tournament.
+ * Called after new matches are discovered during sports-data refresh.
+ */
+export async function autoCreateContestsForTournament(
+  db: Database,
+  tournament: string,
+): Promise<number> {
+  // Find all active leagues for this tournament
+  const activeLeagues = await db
+    .select({ id: leagues.id, tournament: leagues.tournament, maxMembers: leagues.maxMembers })
+    .from(leagues)
+    .where(
+      and(
+        ilike(leagues.tournament, tournament),
+        eq(leagues.status, "active"),
+      )
+    );
+
+  let totalCreated = 0;
+  for (const league of activeLeagues) {
+    const created = await autoCreateContestsForLeague(db, league.id, league.tournament, league.maxMembers);
+    totalCreated += created;
+  }
+
+  if (totalCreated > 0) {
+    log.info({ tournament, leagues: activeLeagues.length, contestsCreated: totalCreated }, "Auto-created contests for tournament leagues");
+  }
+  return totalCreated;
+}
+
+// ─── AI League Name Generator ──────────────────────────────────────────────
+
+async function generateLeagueNameWithAI(
+  format: string,
+  template: string,
+  tournament: string,
+): Promise<string[]> {
+  const { GoogleGenAI } = await import("@google/genai");
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "",
+  });
+
+  const formatDesc = format === "salary_cap" ? "salary cap fantasy (pick players within a budget)"
+    : format === "draft" ? "snake draft (take turns picking)"
+    : format === "auction" ? "auction (bid on players in real-time)"
+    : "prediction (predict match outcomes)";
+  const templateDesc = template === "casual" ? "casual/fun" : template === "competitive" ? "competitive" : "hardcore pro";
+
+  const prompt = `Generate 5 creative fantasy cricket league names for a "${tournament}" ${formatDesc} league (${templateDesc} vibe).
+
+CRITICAL RULES:
+- Each name MUST reference "${tournament}" or cricket in a meaningful way
+- Names should feel like they belong to this specific tournament, not generic
+- Mix styles: 2 tournament-specific puns, 1 cricket jargon reference, 1 format-specific, 1 creative/funny
+- 2-5 words each, catchy and memorable
+- If IPL: reference auction dynamics, franchise culture, Indian cricket venues, IPL-specific terms (orange cap, purple cap, impact player, strategic timeout, retention, mega auction)
+- If Champions Trophy/World Cup: reference knockout stages, group stages, ICC, host country
+- NO generic names like "Fantasy League" or "Cricket Club"
+
+Return ONLY a JSON array of 5 strings:`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: prompt,
+  });
+
+  const text = response.text?.trim() ?? "";
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) {
+    throw new Error(`Gemini returned unparseable response: ${text.slice(0, 200)}`);
+  }
+
+  const names = JSON.parse(match[0]) as string[];
+  const valid = names.filter((n) => typeof n === "string" && n.length > 0 && n.length <= 60);
+  if (valid.length < 3) {
+    throw new Error(`Gemini returned too few valid names (${valid.length})`);
+  }
+  return valid;
+}
+
+async function ensureUniqueName(db: any, name: string): Promise<string> {
+  const existing = await db
+    .select({ id: leagues.id })
+    .from(leagues)
+    .where(ilike(leagues.name, name))
+    .limit(1);
+
+  if (existing.length === 0) return name;
+
+  // Append a random 3-digit suffix to make it unique
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const suffix = Math.floor(Math.random() * 900) + 100;
+    const candidate = `${name} #${suffix}`;
+    const check = await db
+      .select({ id: leagues.id })
+      .from(leagues)
+      .where(ilike(leagues.name, candidate))
+      .limit(1);
+    if (check.length === 0) return candidate;
+  }
+
+  // Ultimate fallback
+  return `${name} #${Date.now() % 10000}`;
+}
 
 export const leagueRouter = router({
   create: protectedProcedure
     .input(createLeagueSchema)
     .mutation(async ({ ctx, input }) => {
+      // Check league count limit based on user's tier
+      const tier = await getUserTier(ctx.db, ctx.user.id);
+      const tierConfig = DEFAULT_TIER_CONFIGS[tier];
+      const [ownedCount] = await ctx.db
+        .select({ count: count() })
+        .from(leagues)
+        .where(eq(leagues.ownerId, ctx.user.id));
+      if (ownedCount && ownedCount.count >= tierConfig.features.maxLeagues) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `You've reached the ${tierConfig.features.maxLeagues} league limit for ${tierConfig.name} tier. Upgrade to create more leagues.`,
+        });
+      }
+
       const inviteCode = randomBytes(6).toString("hex");
 
       let templateRules: Record<string, unknown> = {};
@@ -45,7 +234,40 @@ export const leagueRouter = router({
         role: "owner",
       });
 
+      // Auto-create contests for salary_cap leagues immediately
+      if (input.format === "salary_cap") {
+        try {
+          const created = await autoCreateContestsForLeague(
+            ctx.db,
+            league!.id,
+            input.tournament,
+            input.maxMembers,
+          );
+          log.info({ leagueId: league!.id, contestsCreated: created }, "Auto-created contests on league creation");
+        } catch (err) {
+          // Non-fatal — league is created, contests can be created later
+          log.error({ leagueId: league!.id, err }, "Failed to auto-create contests");
+        }
+      }
+
       return league;
+    }),
+
+  generateName: protectedProcedure
+    .input(z.object({
+      format: z.string(),
+      template: z.string(),
+      tournament: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const names = await generateLeagueNameWithAI(input.format, input.template, input.tournament);
+      // Ensure all returned names are unique in DB
+      const uniqueNames: string[] = [];
+      for (const name of names) {
+        const unique = await ensureUniqueName(ctx.db, name);
+        uniqueNames.push(unique);
+      }
+      return { names: uniqueNames };
     }),
 
   join: protectedProcedure
@@ -342,6 +564,21 @@ export const leagueRouter = router({
         })
         .returning();
 
+      // Auto-create contests for draft/auction leagues when draft starts
+      if (league) {
+        try {
+          const created = await autoCreateContestsForLeague(
+            ctx.db,
+            input.leagueId,
+            league.tournament,
+            league.maxMembers,
+          );
+          log.info({ leagueId: input.leagueId, contestsCreated: created }, "Auto-created contests on draft start");
+        } catch (err) {
+          log.error({ leagueId: input.leagueId, err }, "Failed to auto-create contests on draft start");
+        }
+      }
+
       return room;
     }),
 
@@ -391,6 +628,41 @@ export const leagueRouter = router({
         displayName: s.displayName ?? s.username ?? "Unknown",
         totalPoints: Number(s.totalPoints),
         contestsPlayed: Number(s.contestsPlayed),
+      }));
+    }),
+
+  leagueContests: protectedProcedure
+    .input(z.object({ leagueId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const leagueContestRows = await ctx.db.query.contests.findMany({
+        where: eq(contests.leagueId, input.leagueId),
+        with: { match: true },
+        orderBy: (c, { desc: d }) => [d(c.createdAt)],
+      });
+
+      return leagueContestRows.map((c) => ({
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        entryFee: c.entryFee,
+        prizePool: c.prizePool,
+        currentEntries: c.currentEntries,
+        maxEntries: c.maxEntries,
+        contestType: c.contestType,
+        match: c.match
+          ? {
+              id: c.match.id,
+              teamHome: c.match.teamHome,
+              teamAway: c.match.teamAway,
+              startTime: c.match.startTime,
+              status: c.match.status,
+              venue: c.match.venue,
+              format: c.match.format,
+              result: c.match.result,
+              scoreSummary: c.match.scoreSummary,
+              draftEnabled: c.match.draftEnabled,
+            }
+          : null,
       }));
     }),
 

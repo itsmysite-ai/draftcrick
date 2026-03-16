@@ -3,17 +3,41 @@ import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { AuthProvider } from "../providers/AuthProvider";
+import { AuthProvider, useAuth } from "../providers/AuthProvider";
 import { NotificationProvider } from "../providers/NotificationProvider";
 import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
 import { ColorsLight, FontFamily } from "../lib/design";
+
+/** Syncs user preferences from the API into ThemeProvider on mount */
+function PreferenceSyncer() {
+  const { setAvailableSports, setSport, sport } = useTheme();
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+  const { data: prefs } = trpc.auth.getPreferences.useQuery(undefined, {
+    staleTime: 60_000 * 5, // 5 min cache
+    enabled: isLoggedIn,
+  });
+
+  useEffect(() => {
+    if (prefs?.sports && prefs.sports.length > 0) {
+      const sports = prefs.sports as ("cricket" | "f1")[];
+      setAvailableSports(sports);
+      if (!sports.includes(sport as any)) {
+        setSport(sports[0]);
+      }
+    }
+  }, [prefs]);
+
+  return null;
+}
 
 function InnerLayout() {
   const { t, mode } = useTheme();
 
   return (
     <>
+      <PreferenceSyncer />
       <StatusBar style={mode === "light" ? "dark" : "light"} />
       <Stack
         screenOptions={{
@@ -45,6 +69,8 @@ function InnerLayout() {
         <Stack.Screen name="subscription/index" />
         <Stack.Screen name="notifications/inbox" />
         <Stack.Screen name="settings/notifications" />
+        <Stack.Screen name="settings/sports" />
+        <Stack.Screen name="settings/location" />
         <Stack.Screen name="team/rate" />
         <Stack.Screen name="predictions/index" />
         <Stack.Screen name="predictions/[matchId]" />

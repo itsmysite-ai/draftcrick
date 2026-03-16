@@ -4,30 +4,27 @@ import { ScrollView } from "react-native";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
 import {
-  Card,
   Button,
   AnnouncementBanner,
-  DesignSystem,
   formatUIText,
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { HeaderControls } from "../../components/HeaderControls";
+import { useTheme } from "../../providers/ThemeProvider";
 import { trpc } from "../../lib/trpc";
 import { COUNTRIES, INDIA_STATES } from "@draftplay/shared";
 
-const TEAMS = ["CSK", "MI", "RCB", "KKR", "DC", "SRH", "PBKS", "GT", "LSG", "RR"];
-const FORMATS = [
-  { key: "salary_cap", label: "salary cap", desc: "build teams within a budget" },
-  { key: "draft", label: "draft", desc: "take turns picking players" },
-  { key: "prediction", label: "prediction", desc: "predict match outcomes" },
+const SPORTS = [
+  { key: "cricket", label: "cricket", icon: "\u{1F3CF}" },
+  { key: "f1", label: "formula 1", icon: "\u{1F3CE}\uFE0F" },
 ];
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
+  const { setAvailableSports, setSport } = useTheme();
   const [step, setStep] = useState(0);
-  const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null);
-  const [preferredFormat, setPreferredFormat] = useState<string | null>(null);
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
 
   // Location declaration state
   const [selectedCountry, setSelectedCountry] = useState<string>("IN");
@@ -37,19 +34,21 @@ export default function OnboardingScreen() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  const updateDeclaration = trpc.geo.updateDeclaration.useMutation();
+  const savePreferences = trpc.auth.savePreferences.useMutation();
   const acceptTermsMutation = trpc.auth.acceptTerms.useMutation();
 
-  const handleLocationNext = async () => {
-    await updateDeclaration.mutateAsync({
-      country: selectedCountry,
-      state: selectedState ?? undefined,
-    });
+  const handleComplete = async () => {
+    const sports = selectedSports as ("cricket" | "f1")[];
     await acceptTermsMutation.mutateAsync();
-    setStep(2);
-  };
-
-  const handleComplete = () => {
+    await savePreferences.mutateAsync({
+      sports,
+      preferredFormat: null,
+      country: selectedCountry,
+      state: selectedState,
+    });
+    // Update theme provider so dropdown reflects selection immediately
+    setAvailableSports(sports);
+    setSport(sports[0] as any);
     router.replace("/(tabs)");
   };
 
@@ -63,17 +62,19 @@ export default function OnboardingScreen() {
       ? `${selectedStateName}, India`
       : selectedCountryName;
 
+  const isSaving = acceptTermsMutation.isPending || savePreferences.isPending;
+
   return (
     <YStack flex={1} backgroundColor="$background" paddingHorizontal="$6" paddingTop={60} testID="onboarding-screen">
       <XStack justifyContent="space-between" alignItems="center" marginBottom={40}>
         <XStack flex={1} />
         <XStack justifyContent="center" gap="$2" flex={2}>
-          {[0, 1, 2].map((i) => (
+          {[0, 1].map((i) => (
             <YStack key={i} width={step >= i ? 24 : 8} height={8} borderRadius={4} backgroundColor={step >= i ? "$accentBackground" : "$borderColor"} />
           ))}
         </XStack>
         <XStack flex={1} justifyContent="flex-end">
-          <HeaderControls />
+          <HeaderControls hideSport />
         </XStack>
       </XStack>
 
@@ -85,35 +86,47 @@ export default function OnboardingScreen() {
             <DraftPlayLogo size={48} animate />
           </YStack>
           <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
-            {formatUIText("pick your team")}
+            {formatUIText("pick your sports")}
           </Text>
           <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">
-            {formatUIText("who do you support?")}
+            {formatUIText("what do you follow?")}
           </Text>
-          <XStack flexWrap="wrap" gap="$3">
-            {TEAMS.map((team) => (
-              <XStack
-                key={team}
-                borderRadius="$round"
-                paddingHorizontal="$5"
-                paddingVertical="$3"
-                borderWidth={1}
-                backgroundColor={favoriteTeam === team ? "$colorAccentLight" : "$backgroundSurface"}
-                borderColor={favoriteTeam === team ? "$accentBackground" : "$borderColor"}
-                onPress={() => setFavoriteTeam(team)}
-                cursor="pointer"
-                pressStyle={{ scale: 0.96, opacity: 0.9 }}
-                hoverStyle={{ backgroundColor: "$backgroundSurfaceHover" }}
-                testID={`team-pill-${team}`}
-              >
-                <Text fontFamily="$mono" fontWeight="600" fontSize={15} color={favoriteTeam === team ? "$accentBackground" : "$color"}>
-                  {team}
-                </Text>
-              </XStack>
-            ))}
-          </XStack>
+          <YStack gap="$3">
+            {SPORTS.map((sport) => {
+              const selected = selectedSports.includes(sport.key);
+              return (
+                <XStack
+                  key={sport.key}
+                  borderRadius={12}
+                  paddingHorizontal="$5"
+                  paddingVertical="$4"
+                  borderWidth={1}
+                  backgroundColor={selected ? "$colorAccentLight" : "$backgroundSurface"}
+                  borderColor={selected ? "$accentBackground" : "$borderColor"}
+                  onPress={() =>
+                    setSelectedSports((prev) =>
+                      prev.includes(sport.key)
+                        ? prev.filter((s) => s !== sport.key)
+                        : [...prev, sport.key]
+                    )
+                  }
+                  cursor="pointer"
+                  pressStyle={{ scale: 0.97, opacity: 0.9 }}
+                  hoverStyle={{ backgroundColor: "$backgroundSurfaceHover" }}
+                  alignItems="center"
+                  gap="$3"
+                  testID={`sport-pill-${sport.key}`}
+                >
+                  <Text fontSize={24}>{sport.icon}</Text>
+                  <Text fontFamily="$mono" fontWeight="600" fontSize={16} color={selected ? "$accentBackground" : "$color"}>
+                    {sport.label}
+                  </Text>
+                </XStack>
+              );
+            })}
+          </YStack>
           <YStack marginTop="auto" marginBottom={32}>
-            <Button variant="primary" size="lg" disabled={!favoriteTeam} opacity={!favoriteTeam ? 0.4 : 1} onPress={() => setStep(1)} testID="onboarding-next-btn">
+            <Button variant="primary" size="lg" disabled={selectedSports.length === 0} disabledStyle={{ opacity: 0.5 }} onPress={() => setStep(1)} testID="onboarding-next-btn">
               {formatUIText("next")}
             </Button>
           </YStack>
@@ -317,52 +330,13 @@ export default function OnboardingScreen() {
                 !ageConfirmed ||
                 !termsAccepted ||
                 (selectedCountry === "IN" && !selectedState) ||
-                updateDeclaration.isPending
+                isSaving
               }
-              opacity={
-                !confirmLocation || !confirmUpdate || !ageConfirmed || !termsAccepted || (selectedCountry === "IN" && !selectedState)
-                  ? 0.4
-                  : 1
-              }
-              onPress={handleLocationNext}
-              testID="onboarding-location-next-btn"
+              disabledStyle={{ opacity: 0.5 }}
+              onPress={handleComplete}
+              testID="onboarding-complete-btn"
             >
-              {formatUIText(updateDeclaration.isPending ? "saving..." : "next")}
-            </Button>
-          </YStack>
-        </YStack>
-      )}
-
-      {step === 2 && (
-        <YStack flex={1}>
-          <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
-            {formatUIText("choose your style")}
-          </Text>
-          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">
-            {formatUIText("how do you want to play?")}
-          </Text>
-          <YStack gap="$3">
-            {FORMATS.map((f) => (
-              <Card
-                key={f.key}
-                pressable
-                padding="$5"
-                borderColor={preferredFormat === f.key ? "$accentBackground" : "$borderColor"}
-                onPress={() => setPreferredFormat(f.key)}
-                testID={`format-card-${f.key}`}
-              >
-                <Text fontFamily="$mono" fontWeight="500" fontSize={17} color={preferredFormat === f.key ? "$accentBackground" : "$color"} letterSpacing={-0.5}>
-                  {f.label}
-                </Text>
-                <Text fontFamily="$body" fontSize={13} color="$colorSecondary" marginTop={2}>
-                  {f.desc}
-                </Text>
-              </Card>
-            ))}
-          </YStack>
-          <YStack marginTop="auto" marginBottom={32}>
-            <Button variant="primary" size="lg" disabled={!preferredFormat} opacity={!preferredFormat ? 0.4 : 1} onPress={handleComplete} testID="onboarding-complete-btn">
-              {formatUIText("let's go")}
+              {formatUIText(isSaving ? "saving..." : "let's go")}
             </Button>
           </YStack>
         </YStack>

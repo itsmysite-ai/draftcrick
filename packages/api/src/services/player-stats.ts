@@ -11,6 +11,8 @@ export interface PlayerStatRow {
   team: string;
   role: string;
   matches: number;
+  /** "match" = from playerMatchScores, "profile" = from Gemini player profile */
+  source: "match" | "profile";
   // Batting
   totalRuns: number;
   avgRuns: number;
@@ -37,7 +39,12 @@ export interface PlayerStatRow {
 
 /**
  * Get aggregated player stats for a match (all players from both teams).
- * Uses playerMatchScores for historical data.
+ *
+ * Two data sources:
+ * 1. playerMatchScores — real match performance data (runs, wickets, etc.)
+ *    Only used when rows have actual scoring data (not just linked placeholders).
+ * 2. players.stats JSON — Gemini-sourced career/profile stats (battingAvg, SR, etc.)
+ *    Used as fallback when no real match data exists (pre-match scenario).
  */
 export async function getPlayerStatsForMatch(
   db: NodePgDatabase<any>,
@@ -47,7 +54,7 @@ export async function getPlayerStatsForMatch(
   sortBy: string = "avgFantasyPoints",
   sortDir: "asc" | "desc" = "desc",
 ): Promise<PlayerStatRow[]> {
-  const cacheKey = `player-stats:${teamA}:${teamB}:${sortBy}:${sortDir}`;
+  const cacheKey = `player-stats:v2:${teamA}:${teamB}:${sortBy}:${sortDir}`;
   const cached = await getFromHotCache<PlayerStatRow[]>(cacheKey);
   if (cached) return cached;
 
@@ -66,34 +73,57 @@ export async function getPlayerStatsForMatch(
 
     const playerIds = teamPlayers.map((p) => p.id);
 
-    // Get all match scores for these players
-    const scores = await db
+    // Get match scores — only rows with actual performance data
+    const allScores = await db
       .select()
       .from(playerMatchScores)
       .where(inArray(playerMatchScores.playerId, playerIds));
+
+    // Filter out placeholder rows (linked but no actual match data yet)
+    const realScores = allScores.filter((s) =>
+      (s.runs ?? 0) > 0 || (s.wickets ?? 0) > 0 || (s.ballsFaced ?? 0) > 0 ||
+      (s.catches ?? 0) > 0 || Number(s.fantasyPoints ?? 0) > 0 || Number(s.oversBowled ?? 0) > 0
+    );
 
     // Aggregate per player
     const statsMap = new Map<string, PlayerStatRow>();
 
     for (const p of teamPlayers) {
-      const playerScores = scores.filter((s) => s.playerId === p.id);
+      const playerScores = realScores.filter((s) => s.playerId === p.id);
+      const gs = (p.stats as any) ?? {};
+
       if (playerScores.length === 0) {
+        // No real match data — use Gemini profile stats
+        // Field mapping: stats JSON uses "average" (batting), "bowlingAverage", "strikeRate", "economyRate"
         statsMap.set(p.id, {
           playerId: p.id,
           playerName: p.name,
           team: p.team,
           role: p.role ?? "unknown",
-          matches: 0,
-          totalRuns: 0, avgRuns: 0, highScore: 0,
-          totalFours: 0, totalSixes: 0, strikeRate: 0,
-          totalWickets: 0, avgWickets: 0, bestBowling: 0, economyRate: 0,
-          totalCatches: 0, totalStumpings: 0, totalRunOuts: 0,
-          totalFantasyPoints: 0, avgFantasyPoints: 0, bestFantasyPoints: 0,
-          formAvg: 0,
+          source: "profile",
+          matches: gs.matchesPlayed ?? 0,
+          totalRuns: 0,
+          avgRuns: round(gs.average ?? 0),
+          highScore: 0,
+          totalFours: 0,
+          totalSixes: 0,
+          strikeRate: round(gs.strikeRate ?? 0),
+          totalWickets: 0,
+          avgWickets: round(gs.bowlingAverage ?? 0),
+          bestBowling: 0,
+          economyRate: round(gs.economyRate ?? 0),
+          totalCatches: 0,
+          totalStumpings: 0,
+          totalRunOuts: 0,
+          totalFantasyPoints: 0,
+          avgFantasyPoints: round(gs.recentForm ?? 0),
+          bestFantasyPoints: 0,
+          formAvg: round(gs.recentForm ?? 0),
         });
         continue;
       }
 
+      // Real match data — aggregate from playerMatchScores
       const matchCount = playerScores.length;
       const totalRuns = playerScores.reduce((s, sc) => s + (sc.runs ?? 0), 0);
       const totalBallsFaced = playerScores.reduce((s, sc) => s + (sc.ballsFaced ?? 0), 0);
@@ -119,6 +149,7 @@ export async function getPlayerStatsForMatch(
         playerName: p.name,
         team: p.team,
         role: p.role ?? "unknown",
+        source: "match",
         matches: matchCount,
         totalRuns,
         avgRuns: matchCount > 0 ? round(totalRuns / matchCount) : 0,

@@ -1,23 +1,28 @@
 /**
- * Subscription types — 3-tier freemium model (Free / Pro / Elite).
+ * Subscription types — 3-tier paid model (Basic / Pro / Elite) + Day Pass.
  * SaaS revenue stream, completely independent from contest wallet.
+ *
+ * All tiers are paid (yearly billing). No free tier.
+ * Day Pass = 24hr Elite access via one-time payment.
  *
  * Tier configs below are hardcoded defaults. Admin can override
  * features and pricing per tier via admin_config ("subscription_tiers" key).
  * The service merges admin overrides on top of these defaults.
  */
 
-export type SubscriptionTier = "free" | "pro" | "elite";
-export type SubscriptionStatus = "active" | "cancelled" | "expired" | "past_due";
+export type SubscriptionTier = "basic" | "pro" | "elite";
+export type SubscriptionStatus = "active" | "cancelled" | "expired" | "past_due" | "trialing";
 
 /** Feature flags per tier — every flag is admin-togglable via admin portal */
 export interface TierFeatures {
-  teamsPerMatch: number | null;       // null = unlimited
-  guruQuestionsPerDay: number | null; // null = unlimited
+  teamsPerMatch: number;              // max teams per match (basic=1, pro=3, elite=5)
+  guruQuestionsPerDay: number;        // AI Guru daily limit (basic=5, pro=25, elite=100)
+  maxLeagues: number;                 // max leagues user can create/own (basic=3, pro=10, elite=50)
   fdrLevel: "basic" | "full" | "full_historical";
   hasProjectedPoints: boolean;
   hasConfidence: boolean;
   hasRateMyTeam: boolean;
+  rateMyTeamPerDay: number;           // Rate My Team daily limit (basic=0, pro=10, elite=50)
   hasCaptainPicks: boolean;
   hasDifferentials: boolean;          // Low-ownership high-upside picks
   hasPlayingXI: boolean;              // AI-predicted playing XI
@@ -25,11 +30,13 @@ export interface TierFeatures {
   hasHeadToHead: boolean;             // Historical head-to-head
   isAdFree: boolean;
   guruPriority: boolean;
-  dailyCoinDrip: number;              // Pop Coins per daily claim: free=50, pro=100, elite=200
-  // New analytics features
-  hasPlayerStats: boolean;            // Player stats tables (basic=free, advanced=pro)
+  dailyCoinDrip: number;              // Pop Coins per daily claim: basic=10, pro=50, elite=100
+  // Analytics features
+  hasPlayerStats: boolean;            // Player stats tables (basic=basic, advanced=pro)
   hasPlayerCompare: boolean;          // Side-by-side player comparison
+  playerComparesPerDay: number;       // Player compare daily limit (basic=0, pro=3, elite=25)
   hasTeamSolver: boolean;             // Auto-pick optimal team
+  teamSolverPerDay: number;           // Team solver daily limit (basic=0, pro=0, elite=20)
   hasPointsBreakdown: boolean;        // Detailed fantasy points breakdown
   hasValueTracker: boolean;           // Price/credit change tracking
   hasStatTopFives: boolean;           // Tournament stat leaderboards
@@ -38,66 +45,94 @@ export interface TierFeatures {
 export interface TierConfig {
   id: SubscriptionTier;
   name: string;
-  priceMonthly: number;    // INR: 0, 99, 299 (admin-editable)
-  priceInPaise: number;     // 0, 9900, 29900 (admin-editable)
+  priceYearlyINR: number;    // INR in paise: 28900, 88900, 189900 (admin-editable)
+  priceYearlyUSD: number;    // USD in cents: 599, 1999, 4999 (admin-editable)
+  hasFreeTrial: boolean;      // whether tier offers a free trial (Basic = yes)
+  freeTrialDays: number;      // trial duration in days (Basic = 7)
   features: TierFeatures;
   displayFeatures: string[]; // human-readable list for subscription screen
 }
 
+/** Day Pass configuration — 24hr Elite access via one-time payment */
+export interface DayPassConfig {
+  priceINR: number;       // paise (6900 = ₹69)
+  priceUSD: number;       // cents (299 = $2.99)
+  durationHours: number;  // 24
+  effectiveTier: SubscriptionTier; // "elite"
+}
+
+export const DAY_PASS_CONFIG: DayPassConfig = {
+  priceINR: 6900,
+  priceUSD: 299,
+  durationHours: 24,
+  effectiveTier: "elite",
+};
+
 /** Default tier configs — admin overrides merge on top of these */
 export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
-  free: {
-    id: "free",
-    name: "Free",
-    priceMonthly: 0,
-    priceInPaise: 0,
+  basic: {
+    id: "basic",
+    name: "Basic",
+    priceYearlyINR: 28900,   // ₹289/yr
+    priceYearlyUSD: 599,     // $5.99/yr
+    hasFreeTrial: true,
+    freeTrialDays: 7,
     features: {
       teamsPerMatch: 1,
-      guruQuestionsPerDay: 3,
+      guruQuestionsPerDay: 5,
+      maxLeagues: 3,
       fdrLevel: "basic",
       hasProjectedPoints: false,
       hasConfidence: false,
       hasRateMyTeam: false,
+      rateMyTeamPerDay: 0,
       hasCaptainPicks: false,
       hasDifferentials: false,
       hasPlayingXI: false,
-      hasPitchWeather: true,       // free for all
-      hasHeadToHead: true,         // free for all
-      isAdFree: false,
+      hasPitchWeather: true,
+      hasHeadToHead: true,
+      isAdFree: true,            // all paid tiers are ad-free
       guruPriority: false,
-      dailyCoinDrip: 50,
-      hasPlayerStats: true,        // basic stats only (SR/economy hidden)
+      dailyCoinDrip: 10,
+      hasPlayerStats: true,       // basic stats only (SR/economy hidden)
       hasPlayerCompare: false,
+      playerComparesPerDay: 0,
       hasTeamSolver: false,
-      hasPointsBreakdown: true,    // transparency for all
+      teamSolverPerDay: 0,
+      hasPointsBreakdown: true,
       hasValueTracker: false,
-      hasStatTopFives: true,       // engagement for all
+      hasStatTopFives: true,
     },
     displayFeatures: [
       "1 team per match",
-      "3 AI Guru questions per day",
+      "5 AI Guru questions per day",
+      "3 leagues max",
       "Basic FDR overview",
-      "Free contests & leaderboards",
       "Head-to-head stats",
       "Weather & pitch reports",
       "Player stats (basic)",
       "Fantasy points breakdown",
-      "Tournament stat leaderboards",
-      "50 Pop Coins daily",
+      "Ad-free experience",
+      "20 Pop Coins daily",
+      "7-day free trial",
     ],
   },
   pro: {
     id: "pro",
     name: "Pro",
-    priceMonthly: 99,
-    priceInPaise: 9900,
+    priceYearlyINR: 88900,   // ₹889/yr
+    priceYearlyUSD: 1999,    // $19.99/yr
+    hasFreeTrial: false,
+    freeTrialDays: 0,
     features: {
-      teamsPerMatch: null,
-      guruQuestionsPerDay: null,
+      teamsPerMatch: 3,
+      guruQuestionsPerDay: 25,
+      maxLeagues: 10,
       fdrLevel: "full",
       hasProjectedPoints: true,
       hasConfidence: false,
       hasRateMyTeam: true,
+      rateMyTeamPerDay: 10,
       hasCaptainPicks: true,
       hasDifferentials: true,
       hasPlayingXI: true,
@@ -105,43 +140,49 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       hasHeadToHead: true,
       isAdFree: true,
       guruPriority: false,
-      dailyCoinDrip: 100,
-      hasPlayerStats: true,        // full stats with SR, economy, form
+      dailyCoinDrip: 50,
+      hasPlayerStats: true,
       hasPlayerCompare: true,
+      playerComparesPerDay: 3,
       hasTeamSolver: false,
+      teamSolverPerDay: 0,
       hasPointsBreakdown: true,
       hasValueTracker: true,
       hasStatTopFives: true,
     },
     displayFeatures: [
-      "Everything in Free",
-      "Unlimited teams per match",
-      "Unlimited AI Guru questions",
+      "Everything in Basic",
+      "3 teams per match",
+      "25 AI Guru questions per day",
+      "10 leagues",
       "Full FDR breakdowns (bat/bowl)",
       "AI Projected points",
-      "Rate My Team grading",
+      "Rate My Team (10/day)",
       "AI Captain & VC picks",
       "Differential picks (low-owned gems)",
       "AI Playing XI prediction",
       "Player stats (advanced: SR, economy, form)",
-      "Player comparison tool",
+      "Player comparison (3/day)",
       "Value & ownership tracker",
-      "Ad-free experience",
       "100 Pop Coins daily",
     ],
   },
   elite: {
     id: "elite",
     name: "Elite",
-    priceMonthly: 299,
-    priceInPaise: 29900,
+    priceYearlyINR: 189900,  // ₹1,899/yr
+    priceYearlyUSD: 4999,    // $49.99/yr
+    hasFreeTrial: false,
+    freeTrialDays: 0,
     features: {
-      teamsPerMatch: null,
-      guruQuestionsPerDay: null,
+      teamsPerMatch: 5,
+      guruQuestionsPerDay: 100,
+      maxLeagues: 50,
       fdrLevel: "full_historical",
       hasProjectedPoints: true,
       hasConfidence: true,
       hasRateMyTeam: true,
+      rateMyTeamPerDay: 50,
       hasCaptainPicks: true,
       hasDifferentials: true,
       hasPlayingXI: true,
@@ -149,33 +190,49 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       hasHeadToHead: true,
       isAdFree: true,
       guruPriority: true,
-      dailyCoinDrip: 200,
+      dailyCoinDrip: 100,
       hasPlayerStats: true,
       hasPlayerCompare: true,
-      hasTeamSolver: true,        // Elite exclusive
+      playerComparesPerDay: 25,
+      hasTeamSolver: true,
+      teamSolverPerDay: 20,
       hasPointsBreakdown: true,
       hasValueTracker: true,
       hasStatTopFives: true,
     },
     displayFeatures: [
       "Everything in Pro",
+      "5 teams per match",
+      "100 AI Guru questions per day",
+      "50 leagues",
       "FDR with historical trends",
       "Projected points + confidence intervals",
+      "Rate My Team (50/day)",
       "Priority Guru responses",
-      "AI Team Solver (auto-pick optimal 11)",
+      "AI Team Solver (20/day)",
+      "Player comparison (25/day)",
       "200 Pop Coins daily",
       "Early access to new features",
     ],
   },
 };
 
-/** Check if tier A >= tier B in hierarchy (free < pro < elite) */
+/** Check if tier A >= tier B in hierarchy (basic < pro < elite) */
 export function tierAtLeast(
   userTier: SubscriptionTier,
   requiredTier: SubscriptionTier
 ): boolean {
-  const order: Record<SubscriptionTier, number> = { free: 0, pro: 1, elite: 2 };
+  const order: Record<SubscriptionTier, number> = { basic: 0, pro: 1, elite: 2 };
   return order[userTier] >= order[requiredTier];
+}
+
+/** Get the effective tier considering Day Pass overlay */
+export function getEffectiveTier(
+  baseTier: SubscriptionTier,
+  dayPassActive: boolean
+): SubscriptionTier {
+  if (dayPassActive) return DAY_PASS_CONFIG.effectiveTier;
+  return baseTier;
 }
 
 /** Promo code discount types */

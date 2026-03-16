@@ -8,6 +8,9 @@ import type { Sport, PlayerRole } from "./match";
 // Re-export Sport from match.ts — single source of truth
 export type { Sport } from "./match";
 
+/** Data source that provided this data */
+export type DataSourceType = "espn" | "jolpica" | "gemini" | "cricbuzz" | "manual";
+
 /** Category of a tournament (maps to how it's badged in the UI) */
 export type TournamentCategory =
   | "international"
@@ -24,6 +27,12 @@ export type AIMatchStatus = "upcoming" | "live" | "completed" | "delayed" | "aba
  * A tournament fetched via Gemini AI + Google Search grounding.
  * Sport-agnostic — works for cricket, football, etc.
  */
+export interface AITournamentTeam {
+  name: string;
+  shortName?: string;
+  logo?: string | null;
+}
+
 export interface AITournament {
   id: string;
   name: string;
@@ -38,6 +47,8 @@ export interface AITournament {
   sourceUrl: string | null;
   /** Brief 1-line description from Gemini discovery */
   description: string | null;
+  /** Teams in this tournament with optional logos */
+  teams?: AITournamentTeam[] | null;
 }
 
 /**
@@ -53,6 +64,8 @@ export interface AIMatch {
   format: string;
   /** The tournament this match belongs to */
   tournamentName: string;
+  /** External ID of the tournament (e.g. "cb-9241") for precise linking */
+  tournamentExternalId?: string;
   /** Display-ready time string (e.g., "11:00 AM IST") */
   time: string;
   /** Display-ready date string (e.g., "Feb 10, 2026") */
@@ -105,6 +118,8 @@ export interface AIPlayer {
   tournamentName: string;
   /** Source URL from Google Search grounding */
   sourceUrl: string | null;
+  /** Player photo URL (from Cricbuzz og:image or other source) */
+  imageUrl?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +161,7 @@ export interface PlayerDiffEntry {
     sentimentScore: number | null;
     injuryStatus: string | null;
     formNote: string | null;
+    imageUrl?: string | null;
   };
 }
 

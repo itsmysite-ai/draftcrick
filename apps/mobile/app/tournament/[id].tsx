@@ -109,10 +109,12 @@ function TournamentMatchCard({
   match,
   index,
   onPress,
+  getTeamLogo,
 }: {
   match: any;
   index: number;
   onPress: () => void;
+  getTeamLogo?: (name: string) => string | undefined;
 }) {
   const isLive = match.status === "live";
   const teamA = formatTeamName(match.teamA || match.teamHome || "TBA");
@@ -143,6 +145,7 @@ function TournamentMatchCard({
           <YStack flex={1} alignItems="center" gap={4}>
             <InitialsAvatar
               name={teamA} playerRole="BAT" ovr={0} size={42}
+              imageUrl={getTeamLogo?.(match.teamA || match.teamHome || "")}
               hideBadge={isCompleted ? teamAWon !== true : !isLive || !teamARole}
               badgeContent={
                 isCompleted && teamAWon === true
@@ -170,6 +173,7 @@ function TournamentMatchCard({
           <YStack flex={1} alignItems="center" gap={4}>
             <InitialsAvatar
               name={teamB} playerRole="BOWL" ovr={0} size={42}
+              imageUrl={getTeamLogo?.(match.teamB || match.teamAway || "")}
               hideBadge={isCompleted ? teamAWon !== false : !isLive || !teamARole}
               badgeContent={
                 isCompleted && teamAWon === false
@@ -222,7 +226,7 @@ function TournamentMatchCard({
           borderTopWidth={1}
           borderTopColor="$borderColor"
         >
-          <Text {...textStyles.hint} flex={1} numberOfLines={1}>
+          <Text {...textStyles.hint} flex={1} numberOfLines={2}>
             {match.venue || match.time || ""}
           </Text>
           <Text {...textStyles.hint}>
@@ -327,7 +331,7 @@ function StandingsTable({ standings }: { standings: AITeamStanding[] }) {
 
 // ─── Main ────────────────────────────────────────────────────────────
 export default function TournamentScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const tournamentName = decodeURIComponent(id ?? "");
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -335,7 +339,8 @@ export default function TournamentScreen() {
 
   const { sport } = useSport();
 
-  const [detailTab, setDetailTab] = useState<DetailTab>("matches");
+  const initialTab: DetailTab = (tab === "standings" || tab === "stats") ? tab : "matches";
+  const [detailTab, setDetailTab] = useState<DetailTab>(initialTab);
   const [refreshing, setRefreshing] = useState(false);
 
   // ── tRPC queries ──
@@ -357,6 +362,18 @@ export default function TournamentScreen() {
   const tournament = (dashboardQuery.data?.tournaments ?? []).find(
     (t: any) => t.name === tournamentName,
   );
+
+  // Build team logo lookup from this tournament's teams data
+  const getTeamLogo = useCallback((teamName: string) => {
+    const key = teamName.toLowerCase();
+    for (const team of (tournament as any)?.teams ?? []) {
+      if (!team.logo) continue;
+      const n = team.name?.toLowerCase() ?? "";
+      const s = team.shortName?.toLowerCase() ?? "";
+      if (n === key || s === key || key.includes(n) || n.includes(key)) return team.logo;
+    }
+    return undefined;
+  }, [tournament]);
 
   const dbMatchesRaw = dbLive.data ?? [];
   const dbLookup = new Map<string, any>();
@@ -417,6 +434,7 @@ export default function TournamentScreen() {
           credits: (stats.credits as number) ?? 8,
           battingAvg: (stats.average as number) ?? null,
           bowlingAvg: (stats.bowlingAverage as number) ?? null,
+          photoUrl: (p.photoUrl as string) ?? null,
         };
       });
     // Top 5 per role
@@ -566,6 +584,7 @@ export default function TournamentScreen() {
                 key={m.id}
                 match={m}
                 index={i}
+                getTeamLogo={getTeamLogo}
                 onPress={() => {
                   router.push(`/match/${encodeURIComponent(m.id)}`);
                 }}
@@ -657,7 +676,7 @@ export default function TournamentScreen() {
                           <Text fontFamily="$mono" fontSize={11} color="$colorMuted" width={16} textAlign="center">
                             {i + 1}
                           </Text>
-                          <InitialsAvatar name={p.name} playerRole={p.role} ovr={p.credits * 10} size={36} />
+                          <InitialsAvatar name={p.name} playerRole={p.role} ovr={p.credits * 10} size={36} imageUrl={p.photoUrl} />
                           <YStack flex={1}>
                             <Text {...textStyles.playerName} fontSize={13}>
                               {p.name}
@@ -680,7 +699,7 @@ export default function TournamentScreen() {
                             <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorCricket">
                               {p.credits.toFixed(1)}
                             </Text>
-                            <Text {...textStyles.hint}>{formatUIText("cr")}</Text>
+                            <Text {...textStyles.hint}>{formatUIText("credits")}</Text>
                           </YStack>
                         </XStack>
                       </Card>

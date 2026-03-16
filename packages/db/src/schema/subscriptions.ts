@@ -26,17 +26,25 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => users.id)
       .unique(),
-    tier: text("tier").notNull().default("free"), // free, pro, elite
-    status: text("status").notNull().default("active"), // active, cancelled, expired, past_due
+    tier: text("tier").notNull().default("basic"), // basic, pro, elite
+    status: text("status").notNull().default("active"), // active, cancelled, expired, past_due, trialing
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }), // null for free tier
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    billingCycle: text("billing_cycle").notNull().default("yearly"), // yearly
+    currency: text("currency").notNull().default("INR"), // INR, USD
     razorpaySubscriptionId: text("razorpay_subscription_id"),
     razorpayCustomerId: text("razorpay_customer_id"),
     priceInPaise: decimal("price_in_paise", { precision: 10, scale: 0 }), // actual price paid (after discount)
+    priceUsdCents: integer("price_usd_cents"), // USD price in cents (if USD billing)
     promoCodeId: uuid("promo_code_id"), // FK to promo_codes if a code was applied
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }), // free trial expiry (Basic 7-day)
+    // Day Pass fields — 24hr Elite access overlay
+    dayPassActive: boolean("day_pass_active").notNull().default(false),
+    dayPassExpiresAt: timestamp("day_pass_expires_at", { withTimezone: true }),
+    dayPassRazorpayPaymentId: text("day_pass_razorpay_payment_id"),
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -48,6 +56,7 @@ export const subscriptions = pgTable(
   (table) => [
     index("idx_subscriptions_user").on(table.userId),
     index("idx_subscriptions_status").on(table.status),
+    index("idx_subscriptions_daypass").on(table.dayPassActive, table.dayPassExpiresAt),
   ]
 );
 

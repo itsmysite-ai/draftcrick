@@ -130,7 +130,7 @@ export const playerRouter = router({
       const filteredScores = scores.filter((s: any) => !s.player?.isDisabled);
 
       // Load tournament overseas config if match has a tournament
-      let overseasRule: { enabled: boolean; hostCountry: string } | null = null;
+      let overseasRule: { enabled: boolean; hostCountry: string; maxOverseas: number } | null = null;
       if (match.tournamentId) {
         const tournament = await ctx.db.query.tournaments.findFirst({
           where: eq(tournaments.id, match.tournamentId),
@@ -138,7 +138,10 @@ export const playerRouter = router({
         });
         const rules = (tournament?.tournamentRules as any) ?? {};
         if (rules.overseasRule) {
-          overseasRule = rules.overseasRule;
+          overseasRule = {
+            ...rules.overseasRule,
+            maxOverseas: rules.maxOverseas ?? 4,
+          };
         }
       }
 

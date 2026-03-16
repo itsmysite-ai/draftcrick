@@ -11,6 +11,16 @@
 
 import { create } from "zustand";
 
+export interface SolverPick {
+  playerId: string;
+  name: string;
+  team: string;
+  role: string;
+  credits: number;
+  isCaptain: boolean;
+  isViceCaptain: boolean;
+}
+
 export interface MatchNavContext {
   matchId: string;
   contestId?: string;
@@ -19,6 +29,7 @@ export interface MatchNavContext {
   format?: string;
   venue?: string;
   tournament?: string;
+  solverPicks?: SolverPick[];
 }
 
 interface NavigationStore {

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
-const DEFAULT_DIR = "tests/e2e/functional/screenshots";
+const DEFAULT_DIR = "tests/e2e/cricket-story/screenshots";
 
 /**
  * Returns the correct path for a screenshot.

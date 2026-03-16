@@ -68,7 +68,7 @@ export default function PlayerScreen() {
 
       {/* Player Profile */}
       <YStack padding="$5" alignItems="center">
-        <InitialsAvatar name={p.name} playerRole={roleKey} ovr={Math.round(credits * 10)} size={64} />
+        <InitialsAvatar name={p.name} playerRole={roleKey} ovr={Math.round(credits * 10)} size={64} imageUrl={p.photoUrl} />
         <Text fontFamily="$mono" fontWeight="700" fontSize={20} color="$color" marginTop="$3">
           {p.name}
         </Text>

@@ -68,7 +68,7 @@ export async function createGeminiClient(userCountry: string) {
     return new GoogleGenAI({ vertexai: true, project, location: region });
   }
 
-  const apiKey = process.env.GOOGLE_CLOUD_API_KEY ?? process.env.GEMINI_API_KEY ?? process.env.API_KEY ?? "";
+  const apiKey = process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "";
   return new GoogleGenAI({ apiKey });
 }
 
@@ -84,7 +84,7 @@ export async function createGeminiClientGlobal() {
     return new GoogleGenAI({ vertexai: true, project, location: "global" });
   }
 
-  const apiKey = process.env.GOOGLE_CLOUD_API_KEY ?? process.env.GEMINI_API_KEY ?? process.env.API_KEY ?? "";
+  const apiKey = process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "";
   return new GoogleGenAI({ apiKey });
 }
 

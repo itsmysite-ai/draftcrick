@@ -42,15 +42,17 @@ const toggleBtnStyle = (active: boolean): React.CSSProperties => ({
   color: active ? "#fff" : "var(--text-secondary)",
 });
 
-const TIER_IDS = ["free", "pro", "elite"] as const;
+const TIER_IDS = ["basic", "pro", "elite"] as const;
 
 interface TierFeatureForm {
-  teamsPerMatch: number | null;
-  guruQuestionsPerDay: number | null;
+  teamsPerMatch: number;
+  guruQuestionsPerDay: number;
+  maxLeagues: number;
   fdrLevel: "basic" | "full" | "full_historical";
   hasProjectedPoints: boolean;
   hasConfidence: boolean;
   hasRateMyTeam: boolean;
+  rateMyTeamPerDay: number;
   hasCaptainPicks: boolean;
   hasDifferentials: boolean;
   hasPlayingXI: boolean;
@@ -61,15 +63,19 @@ interface TierFeatureForm {
   dailyCoinDrip: number;
   hasPlayerStats: boolean;
   hasPlayerCompare: boolean;
+  playerComparesPerDay: number;
   hasTeamSolver: boolean;
+  teamSolverPerDay: number;
   hasPointsBreakdown: boolean;
   hasValueTracker: boolean;
   hasStatTopFives: boolean;
 }
 
 interface TierForm {
-  priceMonthly: number;
-  priceInPaise: number;
+  priceYearlyINR: number;
+  priceYearlyUSD: number;
+  hasFreeTrial: boolean;
+  freeTrialDays: number;
   features: TierFeatureForm;
   displayFeatures: string[];
 }
@@ -77,10 +83,12 @@ interface TierForm {
 const FEATURE_LABELS: Record<keyof TierFeatureForm, string> = {
   teamsPerMatch: "Teams Per Match",
   guruQuestionsPerDay: "Guru Questions / Day",
+  maxLeagues: "Max Leagues",
   fdrLevel: "FDR Level",
   hasProjectedPoints: "Projected Points",
   hasConfidence: "Confidence Intervals",
   hasRateMyTeam: "Rate My Team",
+  rateMyTeamPerDay: "Rate My Team / Day",
   hasCaptainPicks: "AI Captain Picks",
   hasDifferentials: "Differentials",
   hasPlayingXI: "Playing XI Prediction",
@@ -91,7 +99,9 @@ const FEATURE_LABELS: Record<keyof TierFeatureForm, string> = {
   dailyCoinDrip: "Daily Pop Coins",
   hasPlayerStats: "Player Stats Tables",
   hasPlayerCompare: "Player Comparison",
+  playerComparesPerDay: "Player Compares / Day",
   hasTeamSolver: "Team Solver (Auto-Pick)",
+  teamSolverPerDay: "Team Solver / Day",
   hasPointsBreakdown: "Points Breakdown",
   hasValueTracker: "Value Tracker",
   hasStatTopFives: "Stat Top Fives",
@@ -112,8 +122,10 @@ export function TierConfigEditor() {
       for (const tier of TIER_IDS) {
         const c = configs.data[tier];
         initial[tier] = {
-          priceMonthly: c.priceMonthly,
-          priceInPaise: c.priceInPaise,
+          priceYearlyINR: (c as any).priceYearlyINR ?? 0,
+          priceYearlyUSD: (c as any).priceYearlyUSD ?? 0,
+          hasFreeTrial: (c as any).hasFreeTrial ?? false,
+          freeTrialDays: (c as any).freeTrialDays ?? 0,
           features: { ...c.features },
           displayFeatures: [...c.displayFeatures],
         };
@@ -140,8 +152,10 @@ export function TierConfigEditor() {
     const tiers: Record<string, any> = {};
     for (const tier of TIER_IDS) {
       tiers[tier] = {
-        priceMonthly: forms[tier].priceMonthly,
-        priceInPaise: forms[tier].priceInPaise,
+        priceYearlyINR: forms[tier].priceYearlyINR,
+        priceYearlyUSD: forms[tier].priceYearlyUSD,
+        hasFreeTrial: forms[tier].hasFreeTrial,
+        freeTrialDays: forms[tier].freeTrialDays,
         features: forms[tier].features,
         displayFeatures: forms[tier].displayFeatures,
       };
@@ -190,34 +204,69 @@ export function TierConfigEditor() {
                 fontSize: 18,
                 fontWeight: 700,
                 marginBottom: 16,
-                color: tier === "free" ? "var(--text-secondary)" : tier === "pro" ? "var(--accent)" : "var(--amber)",
+                color: tier === "basic" ? "var(--text-secondary)" : tier === "pro" ? "var(--accent)" : "var(--amber)",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}>
                 {tier}
               </h3>
 
-              {/* Pricing */}
+              {/* Pricing — Yearly */}
               <h4 style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase" }}>
-                Pricing
+                Yearly Pricing
               </h4>
               <div style={rowStyle}>
-                <span>Monthly (INR)</span>
+                <span>INR (₹/yr)</span>
                 <input
                   type="number"
                   min={0}
-                  value={form.priceMonthly}
+                  value={Math.round(form.priceYearlyINR / 100)}
                   onChange={(e) => {
                     const v = Number(e.target.value);
-                    updateTier(tier, { priceMonthly: v, priceInPaise: v * 100 });
+                    updateTier(tier, { priceYearlyINR: v * 100 });
                   }}
                   style={inputStyle}
-                  disabled={tier === "free"}
                 />
               </div>
               <div style={{ ...rowStyle, color: "var(--text-muted)", fontSize: 12 }}>
-                <span>Price in Paise</span>
-                <span style={{ fontFamily: "var(--font-data)" }}>{form.priceInPaise}</span>
+                <span>Paise</span>
+                <span style={{ fontFamily: "var(--font-data)" }}>{form.priceYearlyINR}</span>
+              </div>
+              <div style={rowStyle}>
+                <span>USD ($/yr)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={(form.priceYearlyUSD / 100).toFixed(2)}
+                  onChange={(e) => {
+                    const v = Math.round(Number(e.target.value) * 100);
+                    updateTier(tier, { priceYearlyUSD: v });
+                  }}
+                  style={inputStyle}
+                />
+              </div>
+              <div style={rowStyle}>
+                <span>Free Trial</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button
+                    onClick={() => updateTier(tier, { hasFreeTrial: !form.hasFreeTrial })}
+                    style={toggleBtnStyle(form.hasFreeTrial)}
+                  >
+                    {form.hasFreeTrial ? "ON" : "OFF"}
+                  </button>
+                  {form.hasFreeTrial && (
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={form.freeTrialDays}
+                      onChange={(e) => updateTier(tier, { freeTrialDays: Number(e.target.value) || 7 })}
+                      style={{ ...inputStyle, width: 50 }}
+                    />
+                  )}
+                  {form.hasFreeTrial && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>days</span>}
+                </div>
               </div>
 
               {/* Feature Toggles */}
@@ -258,26 +307,17 @@ export function TierConfigEditor() {
                   );
                 }
 
-                // Numeric (nullable) — teamsPerMatch, guruQuestionsPerDay
+                // Numeric — teamsPerMatch, guruQuestionsPerDay, limits
                 return (
                   <div key={key} style={rowStyle}>
                     <span>{FEATURE_LABELS[key]}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <input
-                        type="number"
-                        min={0}
-                        value={value === null ? "" : value as number}
-                        placeholder="∞"
-                        onChange={(e) => {
-                          const v = e.target.value === "" ? null : Number(e.target.value);
-                          updateFeature(tier, key, v);
-                        }}
-                        style={{ ...inputStyle, width: 60 }}
-                      />
-                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        {value === null ? "unlimited" : ""}
-                      </span>
-                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      value={value as number}
+                      onChange={(e) => updateFeature(tier, key, Number(e.target.value) || 0)}
+                      style={{ ...inputStyle, width: 60 }}
+                    />
                   </div>
                 );
               })}

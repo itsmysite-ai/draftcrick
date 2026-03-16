@@ -5,6 +5,7 @@ import { CRICKET_ROLES, F1_ROLES } from "../types/roles";
 const ALL_ROLES = [...CRICKET_ROLES, ...F1_ROLES] as const;
 
 export const createTeamSchema = z.object({
+  name: z.string().min(1).max(30).optional(),
   contestId: z.string().uuid().optional(),
   matchId: z.string().optional(),
   players: z

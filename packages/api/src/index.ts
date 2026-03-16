@@ -149,7 +149,7 @@ app.use("/trpc/*", async (c) => {
     try {
       tier = await getUserTier(db, user.id);
     } catch {
-      tier = "free"; // graceful fallback
+      tier = "basic"; // graceful fallback
     }
   }
 

@@ -13,7 +13,7 @@ import { getFromHotCache, setHotCache } from "./sports-cache";
 
 const log = getLogger("head-to-head");
 
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-3.1-flash-lite-preview";
 const H2H_CACHE_TTL = 21600; // 6 hours — historical data changes slowly
 
 // ── Types ────────────────────────────────────────────────────

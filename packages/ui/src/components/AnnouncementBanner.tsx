@@ -14,11 +14,12 @@ import Animated, {
 // ─────────────────────────────────────────────────────────────────────────────
 const SPORT_ANNOUNCEMENTS = {
   cricket: [
-    "t20 world cup fantasy is live — draft your dream xi now",
-    "auction draft mode: bid on players in real-time",
+    "ipl fantasy is live — draft your dream xi now",
+    "challenge a friend to a head-to-head duel from the match center",
     "pro tip: diversify picks across roles for higher points",
-    "league trades: swap players with friends in your league",
-    "coming soon: head-to-head contests with friends",
+    "create a league and invite friends to compete all season",
+    "coming soon: snake draft — take turns picking players for the season",
+    "coming soon: auction mode — bid on players in real-time",
   ],
   f1: [
     "f1 fantasy is here — build your dream grid now",
@@ -26,6 +27,7 @@ const SPORT_ANNOUNCEMENTS = {
     "pro tip: fastest lap bonus can swing your points",
     "race weekend scoring: qualifying + sprint + race",
     "coming soon: constructor championship leagues",
+    "coming soon: customize league rules — scoring, strategy & more",
   ],
 };
 

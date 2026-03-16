@@ -70,7 +70,7 @@ export const middleware = t.middleware;
  * Use for features like unlimited guru, projected points, rate my team, etc.
  */
 export const proProcedure = protectedProcedure.use(({ ctx, next }) => {
-  const tier = ctx.tier ?? "free";
+  const tier = ctx.tier ?? "basic";
   if (tier !== "pro" && tier !== "elite") {
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -91,7 +91,7 @@ export const proProcedure = protectedProcedure.use(({ ctx, next }) => {
  * Use for premium features like confidence intervals, priority guru, etc.
  */
 export const eliteProcedure = protectedProcedure.use(({ ctx, next }) => {
-  const tier = ctx.tier ?? "free";
+  const tier = ctx.tier ?? "basic";
   if (tier !== "elite") {
     throw new TRPCError({
       code: "FORBIDDEN",

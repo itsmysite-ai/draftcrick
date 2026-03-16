@@ -19,6 +19,7 @@ import {
   renewSubscription,
   handlePaymentFailed,
   handleExternalCancellation,
+  activateDayPassFromWebhook,
 } from "../services/subscription";
 import { getLogger } from "../lib/logger";
 
@@ -75,6 +76,16 @@ razorpayWebhook.post("/", async (c) => {
         const rpSubId = payload.payload?.subscription?.entity?.id;
         if (rpSubId) {
           await handleExternalCancellation(db, rpSubId, eventId);
+        }
+        break;
+      }
+
+      case "payment.captured": {
+        // Day Pass one-time payments
+        const payment = payload.payload?.payment?.entity;
+        const notes = payment?.notes;
+        if (notes?.type === "day_pass" && notes?.draftplay_user_id) {
+          await activateDayPassFromWebhook(db, notes.draftplay_user_id, payment.id);
         }
         break;
       }

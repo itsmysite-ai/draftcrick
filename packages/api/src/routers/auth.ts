@@ -11,6 +11,7 @@ import {
 import { eq } from "drizzle-orm";
 import { getFirebaseAuth } from "../services/auth";
 import { getLogger } from "../lib/logger";
+import { userPreferencesSchema } from "@draftplay/shared";
 
 const logger = getLogger("auth");
 
@@ -72,19 +73,43 @@ export const authRouter = router({
   }),
 
   /**
-   * Update user preferences
+   * Save user preferences (sports, format, location).
+   * Called from onboarding and settings.
    */
-  updatePreferences: protectedProcedure
-    .input(
-      z.object({
-        preferredLang: z.string().optional(),
-        displayName: z.string().min(1).max(50).optional(),
-      })
-    )
+  savePreferences: protectedProcedure
+    .input(userPreferencesSchema)
     .mutation(async ({ ctx, input }) => {
-      // Will update user preferences in DB
+      try {
+        await ctx.db
+          .update(users)
+          .set({
+            preferences: input,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, ctx.user.id));
+        logger.info({ userId: ctx.user.id }, "Preferences saved");
+      } catch (err: any) {
+        // Column may not exist yet if migration hasn't run — log but don't fail
+        logger.warn({ userId: ctx.user.id, err: err.message }, "Failed to save preferences (migration may be pending)");
+      }
       return { success: true };
     }),
+
+  /**
+   * Get user preferences.
+   */
+  getPreferences: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const row = await ctx.db.query.users.findFirst({
+        where: eq(users.id, ctx.user.id),
+        columns: { preferences: true },
+      });
+      return row?.preferences ?? null;
+    } catch {
+      // Column may not exist yet if migration hasn't run
+      return null;
+    }
+  }),
 
   /**
    * Record age confirmation + terms acceptance (called at registration).

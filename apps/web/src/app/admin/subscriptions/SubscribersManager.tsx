@@ -49,7 +49,7 @@ export function SubscribersManager() {
   const [overrideForm, setOverrideForm] = useState<{
     userId: string;
     username: string;
-    tier: "free" | "pro" | "elite";
+    tier: "basic" | "pro" | "elite";
     reason: string;
   } | null>(null);
 
@@ -62,12 +62,14 @@ export function SubscribersManager() {
     <div>
       {/* Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <StatsCard label="Active Basic" value={activeByTier("basic")} icon="B" />
         <StatsCard label="Active Pro" value={activeByTier("pro")} icon="P" />
         <StatsCard label="Active Elite" value={activeByTier("elite")} icon="E" />
         <StatsCard
           label="Total Subscriptions"
           value={metricData.reduce((sum: number, m: any) => sum + m.count, 0)}
         />
+        <StatsCard label="Active Day Passes" value={(metrics.data as any)?.activeDayPasses ?? 0} icon="⚡" />
         <StatsCard label="Promo Redemptions" value={metrics.data?.totalPromoRedemptions ?? 0} />
       </div>
 
@@ -80,6 +82,7 @@ export function SubscribersManager() {
         >
           <option value="">All Statuses</option>
           <option value="active">Active</option>
+          <option value="trialing">Trialing</option>
           <option value="cancelled">Cancelled</option>
           <option value="expired">Expired</option>
           <option value="past_due">Past Due</option>
@@ -91,6 +94,7 @@ export function SubscribersManager() {
           style={{ ...selectStyle, width: 130 }}
         >
           <option value="">All Tiers</option>
+          <option value="basic">Basic</option>
           <option value="pro">Pro</option>
           <option value="elite">Elite</option>
         </select>
@@ -179,7 +183,7 @@ export function SubscribersManager() {
                   setOverrideForm({
                     userId: row.userId,
                     username: row.user?.username ?? row.userId,
-                    tier: row.tier as "free" | "pro" | "elite",
+                    tier: row.tier as "basic" | "pro" | "elite",
                     reason: "",
                   })
                 }
@@ -239,7 +243,7 @@ export function SubscribersManager() {
                 onChange={(e) => setOverrideForm({ ...overrideForm, tier: e.target.value as any })}
                 style={{ ...selectStyle, width: "100%" }}
               >
-                <option value="free">Free</option>
+                <option value="basic">Basic</option>
                 <option value="pro">Pro</option>
                 <option value="elite">Elite</option>
               </select>

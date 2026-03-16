@@ -1,6 +1,6 @@
-import { ScrollView, Alert, Platform } from "react-native";
-import { useRouter } from "expo-router";
-import { useState, useMemo } from "react";
+import { ScrollView, Alert, Platform, TextInput } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
@@ -26,16 +26,45 @@ import { HeaderControls } from "../../components/HeaderControls";
 
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
 
+// ── Fun team name generator (mirrors backend logic) ──
+const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
+const ADJECTIVES = ["Royal","Super","Mighty","Thunder","Golden","Blazing","Savage","Electric","Cosmic","Fearless","Turbo","Phantom","Storm","Iron","Shadow","Mega","Wild","Raging","Supreme","Ultra","Mad","Flying","Atomic","Dynamic","Epic","Rebel","Wicked","Bold","Stealth","Hyper","Furious","Mystic","Lethal","Daring","Fiery","Neon","Frost","Crimson","Lucky"];
+const ANIMALS = ["Wolves","Panthers","Lions","Hawks","Vipers","Stallions","Raptors","Dragons","Scorpions","Falcons","Eagles","Rhinos","Jaguars","Cobras","Sharks","Tigers","Phoenixes","Bulls","Crows","Leopards","Hornets"];
+const CRICKET = ["Strikers","Warriors","Titans","Knights","Gladiators","Legends","Chargers","Spartans","Mavericks","Rovers","Crushers","Blasters","Challengers","Hurricanes","Vikings","Ninjas","Avengers","Raiders","Sixers","Spinners"];
+const CITIES = ["Mumbai","Delhi","Bangalore","Chennai","Kolkata","Hyderabad","Jaipur","Lucknow","Pune","Ahmedabad"];
+const SUFFIXES = ["United","XI","FC","Army","Squad","Clan","Empire","Force","Legion","Brigade","Crew"];
+const FUNNY = ["No Ball Nightmares","Duck Dynasty XI","Boundary Bandits","Wicket Wizards","Spin to Win","Six Machine","Stump Mic Legends","Sledge Hammers","Night Watchmen","Free Hit Frenzy","Powerplay Pirates","Sweep Shot Society","Googly Gang","Reverse Swing Rebels","Last Over Legends","Hat Trick Heroes"];
+const TEAM_SHORT: Record<string, string> = {
+  "chennai super kings": "Chennai", "mumbai indians": "Mumbai", "royal challengers bengaluru": "Bengaluru",
+  "kolkata knight riders": "Kolkata", "sunrisers hyderabad": "Hyderabad", "rajasthan royals": "Rajasthan",
+  "delhi capitals": "Delhi", "punjab kings": "Punjab", "lucknow super giants": "Lucknow", "gujarat titans": "Gujarat",
+};
+function generateTeamName(teamA?: string, teamB?: string): string {
+  const getCity = (t: string) => TEAM_SHORT[t.toLowerCase()] ?? t.split(" ")[0] ?? t;
+  const cities = [teamA, teamB].filter(Boolean).map((t) => getCity(t!));
+  if (cities.length > 0 && Math.random() < 0.5) {
+    const city = pick(cities);
+    return pick([() => `${city} ${pick(CRICKET)}`, () => `${city} ${pick(ANIMALS)}`, () => `${pick(ADJECTIVES)} ${city} ${pick(SUFFIXES)}`])();
+  }
+  return pick([
+    () => `${pick(ADJECTIVES)} ${pick(ANIMALS)}`, () => `${pick(ADJECTIVES)} ${pick(CRICKET)}`,
+    () => `${pick(CITIES)} ${pick(CRICKET)}`, () => `${pick(CITIES)} ${pick(ANIMALS)}`,
+    () => `${pick(ADJECTIVES)} ${pick(ANIMALS)} ${pick(SUFFIXES)}`, () => pick(FUNNY),
+  ])();
+}
+
 const MAX_BUDGET = 100;
 const TEAM_SIZE = 11;
 const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = { wicket_keeper: { min: 1, max: 4, label: "WK" }, batsman: { min: 1, max: 6, label: "BAT" }, all_rounder: { min: 1, max: 6, label: "AR" }, bowler: { min: 1, max: 6, label: "BOWL" } };
 const TABS = [{ key: "wicket_keeper", label: "WK" }, { key: "batsman", label: "BAT" }, { key: "all_rounder", label: "AR" }, { key: "bowler", label: "BOWL" }] as const;
-type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number };
+type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number; photoUrl?: string | null };
 
 export default function TeamBuilderScreen() {
   const navCtx = useNavigationStore((s) => s.matchContext);
-  const matchId = navCtx?.matchId;
-  const contestId = navCtx?.contestId;
+  const params = useLocalSearchParams<{ matchId?: string; contestId?: string }>();
+  // Prefer Zustand store context, fall back to URL search params
+  const matchId = navCtx?.matchId || params.matchId;
+  const contestId = navCtx?.contestId || params.contestId;
   const teamA = navCtx?.teamA;
   const teamB = navCtx?.teamB;
   const format = navCtx?.format;
@@ -49,13 +78,43 @@ export default function TeamBuilderScreen() {
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
   const [step, setStep] = useState<"pick" | "captain">("pick");
+  const [teamName, setTeamName] = useState(() => generateTeamName(navCtx?.teamA, navCtx?.teamB));
+  const solverApplied = useRef(false);
+
+  // Pre-populate from solver picks if available
+  useEffect(() => {
+    if (solverApplied.current) return;
+    const picks = navCtx?.solverPicks;
+    if (!picks || picks.length === 0) return;
+    solverApplied.current = true;
+
+    const preSelected: SelectedPlayer[] = picks.map((p) => ({
+      playerId: p.playerId,
+      role: p.role,
+      name: p.name,
+      team: p.team,
+      credits: p.credits,
+    }));
+    setSelectedPlayers(preSelected);
+
+    const cap = picks.find((p) => p.isCaptain);
+    const vc = picks.find((p) => p.isViceCaptain);
+    if (cap) setCaptainId(cap.playerId);
+    if (vc) setViceCaptainId(vc.playerId);
+
+    // Skip to captain step since all 11 are picked
+    if (picks.length === 11 && cap && vc) {
+      setStep("captain");
+    }
+  }, [navCtx?.solverPicks]);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertType, setAlertType] = useState<"error" | "success">("error");
   const [sortBy, setSortBy] = useState<"credits" | "projected">("credits");
   const matchPlayers = trpc.player.getByMatch.useQuery({ matchId: matchId! }, { enabled: !!matchId });
-  const navigateAfterCreate = () => {
-    if (contestId) {
-      router.replace(`/contest/${contestId}`);
+  const navigateAfterCreate = (linkedContestId?: string | null) => {
+    const cId = linkedContestId || contestId;
+    if (cId) {
+      router.replace(`/contest/${cId}`);
     } else if (matchId) {
       router.replace(`/match/${matchId}`);
     } else {
@@ -63,13 +122,23 @@ export default function TeamBuilderScreen() {
     }
   };
   const createTeam = trpc.team.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      const navContestId = data?.relevantContestId || data?.contestId;
+      const wasLinked = !!data?.contestId;
+      const title = `${teamName.trim() || "team"} created!`;
+      const message = wasLinked
+        ? "your team has been entered into the contest."
+        : "you can swap this team into your contest from the contest page.";
       if (Platform.OS === "web") {
         setAlertType("success");
-        setAlertMessage(formatUIText("team created successfully!"));
-        setTimeout(navigateAfterCreate, 1500);
+        setAlertMessage(formatUIText(`${title} ${message}`));
+        setTimeout(() => navigateAfterCreate(navContestId), 800);
       } else {
-        Alert.alert(formatUIText("team created!"), formatUIText("your team has been created successfully."), [{ text: formatUIText("ok"), onPress: navigateAfterCreate }]);
+        Alert.alert(
+          formatUIText(title),
+          formatUIText(message),
+          [{ text: formatUIText(navContestId ? "view contest" : "ok"), onPress: () => navigateAfterCreate(navContestId) }],
+        );
       }
     },
     onError: (error) => { showAlert(formatUIText("error"), error.message); },
@@ -95,8 +164,8 @@ export default function TeamBuilderScreen() {
   const playersByRole = useMemo(() => {
     const list = (matchPlayers.data as any)?.players ?? matchPlayers.data ?? [];
     if (!Array.isArray(list) || list.length === 0) return {};
-    const grouped: Record<string, Array<{ id: string; name: string; team: string; role: string; credits: number; nationality: string; formNote: string | null }>> = {};
-    for (const ps of list) { const player = ps.player; if (!player) continue; const role = player.role; if (!grouped[role]) grouped[role] = []; const s = (player.stats as Record<string, unknown>) ?? {}; const credits = (s.adminCredits as number) ?? (s.calculatedCredits as number) ?? (s.geminiCredits as number) ?? (s.credits as number) ?? 8.0; const formNote = (s.formNote as string) ?? null; grouped[role].push({ id: player.id, name: player.name, team: player.team, role: player.role, credits, nationality: player.nationality ?? "", formNote }); }
+    const grouped: Record<string, Array<{ id: string; name: string; team: string; role: string; credits: number; nationality: string; formNote: string | null; photoUrl: string | null }>> = {};
+    for (const ps of list) { const player = ps.player; if (!player) continue; const role = player.role; if (!grouped[role]) grouped[role] = []; const s = (player.stats as Record<string, unknown>) ?? {}; const credits = (s.adminCredits as number) ?? (s.calculatedCredits as number) ?? (s.geminiCredits as number) ?? (s.credits as number) ?? 8.0; const formNote = (s.formNote as string) ?? null; grouped[role].push({ id: player.id, name: player.name, team: player.team, role: player.role, credits, nationality: player.nationality ?? "", formNote, photoUrl: player.photoUrl ?? null }); }
     for (const role of Object.keys(grouped)) grouped[role]!.sort((a, b) => b.credits - a.credits);
     return grouped;
   }, [matchPlayers.data]);
@@ -150,16 +219,16 @@ export default function TeamBuilderScreen() {
   const currentRoleLimit = ROLE_LIMITS[selectedTab];
   const canSelectMore = selectedPlayers.length < TEAM_SIZE;
 
-  function togglePlayer(player: { id: string; name: string; team: string; role: string; credits: number }) {
+  function togglePlayer(player: { id: string; name: string; team: string; role: string; credits: number; photoUrl?: string | null }) {
     if (selectedIds.has(player.id)) { setSelectedPlayers((prev) => prev.filter((p) => p.playerId !== player.id)); if (captainId === player.id) setCaptainId(null); if (viceCaptainId === player.id) setViceCaptainId(null); return; }
     if (!canSelectMore) { showAlert(formatUIText("team full"), formatUIText(`you've already selected ${TEAM_SIZE} players`)); return; }
     const roleCount = roleCounts[player.role] ?? 0; const limit = ROLE_LIMITS[player.role]; if (limit && roleCount >= limit.max) { showAlert(formatUIText("role limit"), formatUIText(`max ${limit.max} ${limit.label} players allowed`)); return; }
     if (player.credits > creditsRemaining) { showAlert(formatUIText("budget exceeded"), `${player.name} ${formatUIText("costs")} ${player.credits} ${formatUIText("credits, but you only have")} ${creditsRemaining.toFixed(1)} ${formatUIText("remaining")}`); return; }
     const playerTeamCount = teamCounts[player.team] ?? 0; if (playerTeamCount >= 7) { showAlert(formatUIText("team limit"), formatUIText(`max 7 players from ${player.team}`)); return; }
-    setSelectedPlayers((prev) => [...prev, { playerId: player.id, role: player.role, name: player.name, team: player.team, credits: player.credits }]);
+    setSelectedPlayers((prev) => [...prev, { playerId: player.id, role: player.role, name: player.name, team: player.team, credits: player.credits, photoUrl: player.photoUrl }]);
   }
   function handleContinue() { for (const [role, limits] of Object.entries(ROLE_LIMITS)) { const count = roleCounts[role] ?? 0; if (count < limits.min) { showAlert(formatUIText("missing roles"), formatUIText(`need at least ${limits.min} ${limits.label} player(s), have ${count}`)); return; } } setStep("captain"); }
-  function handleSubmit() { if (!captainId || !viceCaptainId) { showAlert(formatUIText("select captain & vc"), formatUIText("please select both captain and vice-captain")); return; } if (captainId === viceCaptainId) { showAlert(formatUIText("invalid"), formatUIText("captain and vice-captain must be different")); return; } createTeam.mutate({ ...(contestId ? { contestId } : {}), matchId: matchId || undefined, players: selectedPlayers.map((p) => ({ playerId: p.playerId, role: p.role as "batsman" | "bowler" | "all_rounder" | "wicket_keeper" })), captainId, viceCaptainId }); }
+  function handleSubmit() { if (!captainId || !viceCaptainId) { showAlert(formatUIText("select captain & vc"), formatUIText("please select both captain and vice-captain")); return; } if (captainId === viceCaptainId) { showAlert(formatUIText("invalid"), formatUIText("captain and vice-captain must be different")); return; } createTeam.mutate({ ...(contestId ? { contestId } : {}), name: teamName.trim() || undefined, matchId: matchId || undefined, players: selectedPlayers.map((p) => ({ playerId: p.playerId, role: p.role as "batsman" | "bowler" | "all_rounder" | "wicket_keeper" })), captainId, viceCaptainId }); }
 
   if (matchPlayers.isLoading) return (
     <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center" gap="$3">
@@ -199,13 +268,40 @@ export default function TeamBuilderScreen() {
 
         {AlertBanner}
 
-        <YStack backgroundColor="$backgroundSurface" padding="$4">
-          <Text fontFamily="$mono" fontWeight="500" fontSize={15} color="$color" letterSpacing={-0.5}>
-            {formatUIText("select captain & vice-captain")}
-          </Text>
-          <Text fontFamily="$body" fontSize={12} color="$colorCricket" marginTop="$1">
-            {formatUIText("captain gets 2x points, vc gets 1.5x")}
-          </Text>
+        <YStack backgroundColor="$backgroundSurface" padding="$4" gap="$3">
+          {/* Team Name Input */}
+          <YStack>
+            <Text fontFamily="$mono" fontWeight="500" fontSize={11} color="$colorMuted" marginBottom="$1" letterSpacing={0.5}>
+              {formatUIText("team name")}
+            </Text>
+            <TextInput
+              value={teamName}
+              onChangeText={setTeamName}
+              placeholder="e.g. Dream XI, Virat's Army..."
+              placeholderTextColor={theme.colorMuted?.val}
+              maxLength={30}
+              style={{
+                fontFamily: "monospace",
+                fontSize: 14,
+                fontWeight: "600",
+                color: theme.color?.val,
+                backgroundColor: theme.background?.val,
+                borderWidth: 1,
+                borderColor: theme.borderColor?.val,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+            />
+          </YStack>
+          <YStack>
+            <Text fontFamily="$mono" fontWeight="500" fontSize={15} color="$color" letterSpacing={-0.5}>
+              {formatUIText("select captain & vice-captain")}
+            </Text>
+            <Text fontFamily="$body" fontSize={12} color="$colorCricket" marginTop="$1">
+              {formatUIText("captain gets 2x points, vc gets 1.5x")}
+            </Text>
+          </YStack>
         </YStack>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12 }}>
           {selectedPlayers.map((player, i) => {
@@ -220,6 +316,7 @@ export default function TeamBuilderScreen() {
                         playerRole={(({ batsman: "BAT", bowler: "BOWL", all_rounder: "AR", wicket_keeper: "WK" } as Record<string, RoleKey>)[player.role] ?? "BAT")}
                         ovr={Math.round(player.credits * 10)}
                         size={32}
+                        imageUrl={player.photoUrl}
                       />
                       <YStack flex={1}>
                         <Text {...textStyles.playerName}>{player.name}</Text>
@@ -365,6 +462,7 @@ export default function TeamBuilderScreen() {
                     playerRole={(({ batsman: "BAT", bowler: "BOWL", all_rounder: "AR", wicket_keeper: "WK" } as Record<string, RoleKey>)[player.role] ?? "BAT")}
                     ovr={Math.round(player.credits * 10)}
                     size={32}
+                    imageUrl={player.photoUrl}
                   />
                   <YStack flex={1} marginLeft="$2">
                     <XStack alignItems="center" gap="$1">
@@ -377,7 +475,7 @@ export default function TeamBuilderScreen() {
                       {player.team}{overseasRule?.enabled && player.nationality && player.nationality !== overseasRule.hostCountry ? ` · ${formatUIText("overseas")}` : ""}
                     </Text>
                     {player.formNote && (
-                      <Text fontFamily="$body" fontSize={9} color="$accentBackground" opacity={0.6} marginTop={2} numberOfLines={3} lineHeight={12}>
+                      <Text fontFamily="$body" fontSize={9} color="$accentBackground" opacity={0.6} marginTop={2} numberOfLines={3}>
                         {player.formNote}
                       </Text>
                     )}
@@ -396,7 +494,7 @@ export default function TeamBuilderScreen() {
                     <Text fontFamily="$mono" fontWeight="700" fontSize={16} color={isSelected ? "$accentBackground" : "$color"}>
                       {player.credits.toFixed(1)}
                     </Text>
-                    <Text {...textStyles.hint}>{formatUIText("cr")}</Text>
+                    <Text {...textStyles.hint}>{formatUIText("credits")}</Text>
                   </YStack>
                   <YStack width={24} height={24} borderRadius={12} borderWidth={2} borderColor={isSelected ? "$accentBackground" : "$borderColor"} backgroundColor={isSelected ? "$accentBackground" : "transparent"} alignItems="center" justifyContent="center">
                     {isSelected && <Text color="$accentColor" fontSize={14} fontWeight="700">✓</Text>}

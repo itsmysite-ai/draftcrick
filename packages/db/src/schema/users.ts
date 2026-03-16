@@ -24,6 +24,12 @@ export const users = pgTable("users", {
   preferredLang: text("preferred_lang").notNull().default("en"),
   ageConfirmed: boolean("age_confirmed").notNull().default(false),
   termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
+  preferences: jsonb("preferences").$type<{
+    sports: string[];
+    preferredFormat: string | null;
+    country: string | null;
+    state: string | null;
+  }>(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

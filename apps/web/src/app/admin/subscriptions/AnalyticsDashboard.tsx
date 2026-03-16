@@ -3,6 +3,7 @@
 import React from "react";
 import { trpc } from "@/lib/trpc";
 import { StatsCard } from "../_components/StatsCard";
+import { DataTable } from "../_components/DataTable";
 
 const sectionStyle: React.CSSProperties = {
   padding: 20,
@@ -33,29 +34,6 @@ const gridStyle = (cols: number): React.CSSProperties => ({
   marginBottom: 20,
 });
 
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 13,
-  fontFamily: "var(--font-data)",
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "8px 12px",
-  fontWeight: 600,
-  fontSize: 11,
-  color: "var(--text-muted)",
-  borderBottom: "1px solid var(--border)",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  borderBottom: "1px solid var(--border)",
-  color: "var(--text-primary)",
-};
 
 const badgeStyle = (color: string): React.CSSProperties => ({
   display: "inline-block",
@@ -139,16 +117,17 @@ export function AnalyticsDashboard() {
       {/* Overview */}
       <div style={gridStyle(5)}>
         <StatsCard label="Total Users" value={overview.totalUsers} />
-        <StatsCard label="Free Users" value={overview.freeUsers} />
+        <StatsCard label="Basic Users" value={(overview as any).basicUsers ?? 0} />
         <StatsCard label="Pro Users" value={overview.proUsers} icon="💎" />
         <StatsCard label="Elite Users" value={overview.eliteUsers} icon="👑" />
-        <StatsCard label="Conversion Rate" value={`${overview.conversionRate}%`} />
+        <StatsCard label="Total Paid" value={(overview as any).totalPaidUsers ?? (overview.proUsers + overview.eliteUsers)} />
       </div>
 
-      <div style={gridStyle(3)}>
-        <StatsCard label="Monthly Recurring Revenue" value={overview.mrrDisplay} icon="💰" />
+      <div style={gridStyle(4)}>
+        <StatsCard label="Annual Recurring Revenue" value={(overview as any).arrDisplay ?? overview.mrrDisplay} icon="💰" />
         <StatsCard label="ARPU (paid users)" value={`₹${overview.arpu}`} />
-        <StatsCard label="Total Paid" value={overview.proUsers + overview.eliteUsers} />
+        <StatsCard label="Day Pass Purchases" value={(overview as any).dayPassPurchases ?? 0} icon="⚡" />
+        <StatsCard label="Day Pass Revenue" value={(overview as any).dayPassRevenueDisplay ?? "₹0"} icon="🎫" />
       </div>
 
       {/* Conversion Funnel */}
@@ -156,13 +135,13 @@ export function AnalyticsDashboard() {
         <div style={headingStyle}>Conversion Funnel</div>
         <div style={gridStyle(4)}>
           <div>
-            <div style={subheadingStyle}>Free → Pro</div>
-            <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-data)" }}>{conversion.freeToPro}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{conversion.freeToProRate}% of all users</div>
+            <div style={subheadingStyle}>Basic → Pro</div>
+            <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-data)" }}>{(conversion as any).basicToPro ?? conversion.freeToPro}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{(conversion as any).basicToProRate ?? conversion.freeToProRate}% of basic users</div>
           </div>
           <div>
-            <div style={subheadingStyle}>Free → Elite</div>
-            <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-data)" }}>{conversion.freeToElite}</div>
+            <div style={subheadingStyle}>Basic → Elite</div>
+            <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "var(--font-data)" }}>{(conversion as any).basicToElite ?? conversion.freeToElite}</div>
           </div>
           <div>
             <div style={subheadingStyle}>Pro → Elite</div>
@@ -216,36 +195,37 @@ export function AnalyticsDashboard() {
       <div style={sectionStyle}>
         <div style={headingStyle}>Monthly Trends (Last 6 Months)</div>
         {trendRows.length > 0 ? (
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Month</th>
-                <th style={thStyle}>New Subs</th>
-                <th style={thStyle}>Upgrades</th>
-                <th style={thStyle}>Cancellations</th>
-                <th style={thStyle}>Payment Failures</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trendRows.map((row) => (
-                <tr key={row.month}>
-                  <td style={tdStyle}>{row.month}</td>
-                  <td style={tdStyle}>
-                    <span style={badgeStyle("green")}>{row.created}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={badgeStyle("blue")}>{row.upgraded}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={badgeStyle("red")}>{row.cancelled}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={badgeStyle("yellow")}>{row.payment_failed}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            columns={[
+              { key: "month", header: "Month" },
+              {
+                key: "created",
+                header: "New Subs",
+                render: (row: any) => <span style={badgeStyle("green")}>{row.created}</span>,
+                sortValue: (row: any) => row.created,
+              },
+              {
+                key: "upgraded",
+                header: "Upgrades",
+                render: (row: any) => <span style={badgeStyle("blue")}>{row.upgraded}</span>,
+                sortValue: (row: any) => row.upgraded,
+              },
+              {
+                key: "cancelled",
+                header: "Cancellations",
+                render: (row: any) => <span style={badgeStyle("red")}>{row.cancelled}</span>,
+                sortValue: (row: any) => row.cancelled,
+              },
+              {
+                key: "payment_failed",
+                header: "Payment Failures",
+                render: (row: any) => <span style={badgeStyle("yellow")}>{row.payment_failed}</span>,
+                sortValue: (row: any) => row.payment_failed,
+              },
+            ]}
+            data={trendRows}
+            defaultSort={{ key: "month", dir: "desc" }}
+          />
         ) : (
           <div style={{ color: "var(--text-muted)", fontSize: 13 }}>No subscription events yet</div>
         )}
@@ -263,50 +243,62 @@ export function AnalyticsDashboard() {
       <div style={sectionStyle}>
         <div style={headingStyle}>Promo Code Performance</div>
         {promoROI.length > 0 ? (
-          <div style={{ overflowX: "auto" }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Code</th>
-                  <th style={thStyle}>Influencer</th>
-                  <th style={thStyle}>Type</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Redemptions</th>
-                  <th style={thStyle}>Unique Users</th>
-                  <th style={thStyle}>Discount Given</th>
-                  <th style={thStyle}>Commission Owed</th>
-                  <th style={thStyle}>Retained</th>
-                  <th style={thStyle}>Retention %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {promoROI.map((p: any) => (
-                  <tr key={p.code}>
-                    <td style={{ ...tdStyle, fontWeight: 600 }}>{p.code}</td>
-                    <td style={tdStyle}>{p.influencer ?? "—"}</td>
-                    <td style={tdStyle}>{p.discountType}</td>
-                    <td style={tdStyle}>
-                      <span style={badgeStyle(p.isActive ? "green" : "red")}>
-                        {p.isActive ? "active" : "inactive"}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      {p.totalRedemptions}{p.maxRedemptions ? ` / ${p.maxRedemptions}` : ""}
-                    </td>
-                    <td style={tdStyle}>{p.uniqueUsers}</td>
-                    <td style={tdStyle}>{formatPaise(p.totalDiscountGivenPaise)}</td>
-                    <td style={tdStyle}>{formatPaise(p.totalCommissionPaise)}</td>
-                    <td style={tdStyle}>{p.retainedUsers}</td>
-                    <td style={tdStyle}>
-                      <span style={badgeStyle(p.retentionRate >= 50 ? "green" : p.retentionRate >= 25 ? "yellow" : "red")}>
-                        {p.retentionRate}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={[
+              {
+                key: "code",
+                header: "Code",
+                render: (row: any) => <span style={{ fontWeight: 600 }}>{row.code}</span>,
+              },
+              {
+                key: "influencer",
+                header: "Influencer",
+                render: (row: any) => row.influencer ?? "—",
+              },
+              { key: "discountType", header: "Type" },
+              {
+                key: "isActive",
+                header: "Status",
+                render: (row: any) => (
+                  <span style={badgeStyle(row.isActive ? "green" : "red")}>
+                    {row.isActive ? "active" : "inactive"}
+                  </span>
+                ),
+              },
+              {
+                key: "totalRedemptions",
+                header: "Redemptions",
+                render: (row: any) => `${row.totalRedemptions}${row.maxRedemptions ? ` / ${row.maxRedemptions}` : ""}`,
+                sortValue: (row: any) => row.totalRedemptions,
+              },
+              { key: "uniqueUsers", header: "Unique Users" },
+              {
+                key: "totalDiscountGivenPaise",
+                header: "Discount Given",
+                render: (row: any) => formatPaise(row.totalDiscountGivenPaise),
+                sortValue: (row: any) => row.totalDiscountGivenPaise,
+              },
+              {
+                key: "totalCommissionPaise",
+                header: "Commission Owed",
+                render: (row: any) => formatPaise(row.totalCommissionPaise),
+                sortValue: (row: any) => row.totalCommissionPaise,
+              },
+              { key: "retainedUsers", header: "Retained" },
+              {
+                key: "retentionRate",
+                header: "Retention %",
+                render: (row: any) => (
+                  <span style={badgeStyle(row.retentionRate >= 50 ? "green" : row.retentionRate >= 25 ? "yellow" : "red")}>
+                    {row.retentionRate}%
+                  </span>
+                ),
+                sortValue: (row: any) => row.retentionRate,
+              },
+            ]}
+            data={promoROI}
+            defaultSort={{ key: "totalRedemptions", dir: "desc" }}
+          />
         ) : (
           <div style={{ color: "var(--text-muted)", fontSize: 13 }}>No promo codes created yet</div>
         )}

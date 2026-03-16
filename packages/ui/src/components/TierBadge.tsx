@@ -2,19 +2,20 @@ import { XStack } from "tamagui";
 import { Text } from "../primitives/SportText";
 
 const TIER_STYLES = {
-  free: { bg: "$colorMuted", text: "$background", label: "FREE" },
+  basic: { bg: "$colorAccentLight", text: "$color", label: "BASIC" },
   pro: { bg: "$accentBackground", text: "#ffffff", label: "PRO" },
   elite: { bg: "#D4A017", text: "#1a1a1a", label: "ELITE" },
+  day_pass: { bg: "#8B5CF6", text: "#ffffff", label: "DAY PASS" },
 } as const;
 
 interface TierBadgeProps {
-  tier: "free" | "pro" | "elite";
+  tier: "basic" | "pro" | "elite" | "day_pass";
   size?: "sm" | "md";
   testID?: string;
 }
 
 export function TierBadge({ tier, size = "md", testID }: TierBadgeProps) {
-  const config = TIER_STYLES[tier] ?? TIER_STYLES.free;
+  const config = TIER_STYLES[tier] ?? TIER_STYLES.basic;
   const fontSize = size === "sm" ? 8 : 10;
   const px = size === "sm" ? "$1" : "$2";
   const py = size === "sm" ? 1 : 3;

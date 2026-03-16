@@ -50,7 +50,7 @@ export const analyticsRouter = router({
 
       if (!fdr) return fdr;
 
-      const userTier = (ctx.tier ?? "free") as SubscriptionTier;
+      const userTier = (ctx.tier ?? "basic") as SubscriptionTier;
 
       // Free: overall FDR only. Pro: + batting/bowling. Elite: + factors.
       return {
@@ -90,7 +90,7 @@ export const analyticsRouter = router({
         .where(eq(fixtureDifficulty.teamId, input.teamId))
         .limit(input.limit);
 
-      const userTier = (ctx.tier ?? "free") as SubscriptionTier;
+      const userTier = (ctx.tier ?? "basic") as SubscriptionTier;
 
       return rows.map((r) => ({
         matchId: r.matchId,
@@ -117,7 +117,7 @@ export const analyticsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const userTier = (ctx.tier ?? "free") as SubscriptionTier;
+      const userTier = (ctx.tier ?? "basic") as SubscriptionTier;
       const cacheKey = `fdr-ticker:${input.tournament}:${userTier}`;
       const cached = await getFromHotCache<any[]>(cacheKey);
       if (cached) return cached;
@@ -193,7 +193,7 @@ export const analyticsRouter = router({
       if (!projections) return projections;
 
       // Strip confidence intervals for non-Elite users
-      const userTier = (ctx.tier ?? "free") as SubscriptionTier;
+      const userTier = (ctx.tier ?? "basic") as SubscriptionTier;
       if (!tierAtLeast(userTier, "elite")) {
         return {
           ...projections,
@@ -390,7 +390,7 @@ export const analyticsRouter = router({
         input.tournament, input.sortBy, input.sortDir
       );
 
-      const userTier = (ctx.tier ?? "free") as SubscriptionTier;
+      const userTier = (ctx.tier ?? "basic") as SubscriptionTier;
 
       // Free: basic stats only. Pro+: full stats including form, SR, economy
       if (!tierAtLeast(userTier, "pro")) {
@@ -438,13 +438,27 @@ export const analyticsRouter = router({
             role: z.string(),
             credits: z.number(),
             projectedPoints: z.number(),
+            nationality: z.string().optional(),
           })
         ),
+        preferences: z.object({
+          playStyle: z.enum(["balanced", "batting_heavy", "bowling_heavy"]),
+          riskLevel: z.enum(["safe", "moderate", "risky"]),
+          budgetStrategy: z.enum(["stars", "value", "mixed"]),
+          captainStyle: z.enum(["safe_captain", "differential"]),
+          teamBias: z.string().optional(),
+          preferredCaptainId: z.string().optional(),
+        }).optional(),
+        overseasRule: z.object({
+          enabled: z.boolean(),
+          hostCountry: z.string(),
+          maxOverseas: z.number(),
+        }).optional(),
       })
     )
     .query(async ({ ctx, input }) => {
       return solveOptimalTeam(
-        ctx.db, input.matchId, input.teamA, input.teamB, input.players
+        ctx.db, input.matchId, input.teamA, input.teamB, input.players, input.preferences, input.overseasRule
       );
     }),
 

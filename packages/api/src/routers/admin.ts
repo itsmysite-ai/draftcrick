@@ -17,27 +17,40 @@ import {
   transactions,
   dataRefreshLog,
   adminConfig,
+  getDb,
 } from "@draftplay/db";
-import { eq, desc, sql, and, ilike, count, inArray } from "drizzle-orm";
+import { eq, desc, asc, sql, and, ilike, count, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   setAdminConfig,
+  getAdminConfig,
   getEffectiveTeamRules,
   getVisibleTournamentNames,
   invalidateAdminConfigCache,
   getFeatureFlags,
 } from "../services/admin-config";
 import { invalidateHotCache } from "../services/sports-cache";
-import { executeRefresh, executeDiscovery, upsertPlayers, linkPlayersToMatch, upsertMatches, updateTournamentStandings, diffPlayers, applyApprovedPlayers } from "../services/sports-data";
+import { executeRefresh, executeDiscovery, upsertPlayers, linkPlayersToMatch, upsertMatches, upsertTournaments, updateTournamentStandings, diffPlayers, applyApprovedPlayers, getDataSourcePreference, enrichAndUpdatePlayers } from "../services/sports-data";
 import { getDashboardFromPg } from "../services/sports-data";
-import { fetchPlayersByTeams, fetchSinglePlayer, fetchSingleMatchStatus, fetchTournamentStandings, fetchSportsData } from "../services/gemini-sports";
+// All data fetching now goes through provider chain — no direct gemini-sports imports needed
+import { ESPNProvider } from "../providers/espn";
+import {
+  fetchStandingsWithFallback,
+  fetchDashboardWithFallback,
+  fetchMatchStatusWithFallback,
+  fetchPlayersWithFallback,
+  fetchSinglePlayerWithFallback,
+} from "../providers";
 import { normalizePlayerExternalId } from "../services/sports-data";
+import { resolveNationalitiesWithGemini } from "../services/gemini-sports";
+import { calculatePlayerCredits } from "../services/credits-engine";
 import type { PlayerDiffEntry } from "@draftplay/shared";
 import { getLogger } from "../lib/logger";
 import type { Sport } from "@draftplay/shared";
 import { determineMatchPhase, calculateNextRefreshAfter, calculateFantasyPoints, DEFAULT_T20_SCORING } from "@draftplay/shared";
 import { lockMatchContests, processScoreUpdate, completeMatch } from "../jobs/score-updater";
 import { settleMatchContests } from "../jobs/settle-contest";
+import { onPhaseTransition } from "../services/match-lifecycle";
 
 const log = getLogger("admin-router");
 
@@ -71,11 +84,13 @@ const tournamentsRouter = router({
 
       // Auto-hydrate: when toggling ON, fetch matches/players/standings in background
       if (input.visible) {
+        const seriesHints = updated.externalId ? [{ name: updated.name, externalId: updated.externalId }] : undefined;
         executeRefresh(
           (updated.sport as Sport) ?? "cricket",
           "manual",
           undefined,
-          [updated.name]
+          [updated.name],
+          seriesHints
         ).catch((err) => {
           log.error({ tournamentId: input.tournamentId, error: String(err) },
             "Background hydration failed after visibility toggle");
@@ -113,16 +128,26 @@ const tournamentsRouter = router({
       offset: z.number().min(0).default(0),
     }))
     .query(async ({ ctx, input }) => {
-      // Step 1: Get unique player IDs linked to matches in this tournament
-      const linkedPlayerIds = await ctx.db
-        .select({ playerId: playerMatchScores.playerId })
+      // Step 1: Get unique player IDs and their per-match team for this tournament
+      // Use the per-match team from playerMatchScores (first non-null match)
+      const linkedPlayers = await ctx.db
+        .select({
+          playerId: playerMatchScores.playerId,
+          matchTeam: sql<string>`MAX(${playerMatchScores.team})`.as("match_team"),
+        })
         .from(playerMatchScores)
         .innerJoin(matches, eq(matches.id, playerMatchScores.matchId))
         .where(eq(matches.tournamentId, input.tournamentId))
         .groupBy(playerMatchScores.playerId);
 
-      const playerIds = linkedPlayerIds.map((r) => r.playerId);
+      const playerIds = linkedPlayers.map((r) => r.playerId);
       if (playerIds.length === 0) return [];
+
+      // Build a map of playerId → per-match team
+      const matchTeamMap = new Map<string, string>();
+      for (const lp of linkedPlayers) {
+        if (lp.matchTeam) matchTeamMap.set(lp.playerId, lp.matchTeam);
+      }
 
       // Step 2: Get player details
       const conditions: any[] = [inArray(players.id, playerIds)];
@@ -133,6 +158,7 @@ const tournamentsRouter = router({
       const rows = await ctx.db
         .select({
           id: players.id,
+          externalId: players.externalId,
           name: players.name,
           team: players.team,
           role: players.role,
@@ -145,7 +171,11 @@ const tournamentsRouter = router({
         .limit(input.limit)
         .offset(input.offset);
 
-      return rows;
+      // Override global team with per-match team where available
+      return rows.map(r => ({
+        ...r,
+        team: matchTeamMap.get(r.id) ?? r.team,
+      }));
     }),
 
   updateRules: adminProcedure
@@ -189,11 +219,13 @@ const tournamentsRouter = router({
       if (!tournament) throw new TRPCError({ code: "NOT_FOUND", message: "Tournament not found" });
 
       await invalidateHotCache("dashboard:");
+      const seriesHints = tournament.externalId ? [{ name: tournament.name, externalId: tournament.externalId }] : undefined;
       const result = await executeRefresh(
         (tournament.sport as Sport) ?? "cricket",
         "manual",
         undefined,
-        [tournament.name]
+        [tournament.name],
+        seriesHints
       );
 
       return { refreshed: result.refreshed, tournament: tournament.name };
@@ -208,7 +240,9 @@ const tournamentsRouter = router({
       if (!tournament) throw new TRPCError({ code: "NOT_FOUND", message: "Tournament not found" });
 
       const sport = (tournament.sport as Sport) ?? "cricket";
-      const standingsMap = await fetchTournamentStandings(sport, [tournament.name]);
+      const preference = await getDataSourcePreference();
+      const { data: standingsMap, source } = await fetchStandingsWithFallback(sport, [tournament.name], preference);
+      log.info({ tournamentId: input.tournamentId, source, preference }, "Standings fetched via provider chain");
       const result = await updateTournamentStandings(sport, standingsMap, ctx.db);
 
       await invalidateHotCache("dashboard:");
@@ -231,8 +265,42 @@ const tournamentsRouter = router({
       if (!tournament) throw new TRPCError({ code: "NOT_FOUND", message: "Tournament not found" });
 
       const sport = (tournament.sport as Sport) ?? "cricket";
-      const data = await fetchSportsData(sport, [tournament.name]);
-      const result = await upsertMatches(sport, data.matches, ctx.db);
+      const preference = await getDataSourcePreference();
+      // Pass externalId as a series hint for precise resolution (avoids name collisions between tournament editions)
+      const seriesHints = tournament.externalId ? [{ name: tournament.name, externalId: tournament.externalId }] : undefined;
+      const { data, source } = await fetchDashboardWithFallback(sport, [tournament.name], preference, seriesHints);
+      log.info({ tournamentId: input.tournamentId, source, preference, matches: data.matches.length, tournaments: data.tournaments.length }, "Matches fetched via provider chain");
+
+      // Filter to only this tournament's data — purely by externalId (ID-based, never name-based)
+      const tournamentExternalId = tournament.externalId?.toLowerCase();
+
+      const filteredTournaments = tournamentExternalId
+        ? data.tournaments.filter(t => t.id.toLowerCase() === tournamentExternalId)
+        : data.tournaments; // no externalId = can't filter, keep all (shouldn't happen for Cricbuzz)
+
+      const keptExternalIds = new Set(filteredTournaments.map(t => t.id.toLowerCase()));
+
+      const filteredMatches = tournamentExternalId
+        ? data.matches.filter(m =>
+            m.tournamentExternalId?.toLowerCase() === tournamentExternalId ||
+            (m.tournamentExternalId && keptExternalIds.has(m.tournamentExternalId.toLowerCase()))
+          )
+        : data.matches;
+
+      log.info({
+        tournamentId: input.tournamentId,
+        totalMatches: data.matches.length,
+        filteredMatches: filteredMatches.length,
+        totalTournaments: data.tournaments.length,
+        filteredTournaments: filteredTournaments.length,
+      }, "Filtered dashboard data to target tournament");
+
+      // Upsert only the target tournament's data
+      if (filteredTournaments.length > 0) {
+        await upsertTournaments(sport, filteredTournaments, ctx.db);
+      }
+
+      const result = await upsertMatches(sport, filteredMatches, ctx.db);
 
       await invalidateHotCache("dashboard:");
       log.info({ tournamentId: input.tournamentId, ...result, newMatches: undefined, updatedMatches: undefined }, "Matches refreshed");
@@ -277,6 +345,51 @@ const tournamentsRouter = router({
 
       return { deleted: true, name: tournament.name };
     }),
+
+  fetchTeamLogos: adminProcedure
+    .input(z.object({ tournamentId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const tournament = await ctx.db.query.tournaments.findFirst({
+        where: eq(tournaments.id, input.tournamentId),
+      });
+      if (!tournament) throw new TRPCError({ code: "NOT_FOUND", message: "Tournament not found" });
+
+      // Extract seriesId from externalId (e.g., "cb-9241" → 9241)
+      const cbMatch = tournament.externalId?.match(/^cb-(\d+)$/);
+      if (!cbMatch) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Tournament has no Cricbuzz series ID" });
+      }
+      const seriesId = parseInt(cbMatch[1]!, 10);
+      const seriesSlug = tournament.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+      const { fetchSeriesTeamLogos } = await import("../providers/cricbuzz/cricbuzz-client");
+      const teamInfos = await fetchSeriesTeamLogos(seriesId, seriesSlug);
+
+      if (teamInfos.length === 0) {
+        return { updated: 0, teams: [] };
+      }
+
+      // Build teams JSONB: merge with existing teams data if any
+      const existingTeams = (tournament.teams as any[]) ?? [];
+      const existingMap = new Map(existingTeams.map(t => [t.name?.toLowerCase(), t]));
+
+      const mergedTeams = teamInfos.map(t => ({
+        name: t.name,
+        shortName: t.shortName,
+        logo: t.logoUrl,
+        ...((existingMap.get(t.name.toLowerCase()) as any) ?? {}),
+        // Overwrite logo if we got a new one
+        ...(t.logoUrl ? { logo: t.logoUrl } : {}),
+      }));
+
+      await ctx.db
+        .update(tournaments)
+        .set({ teams: mergedTeams, updatedAt: new Date() })
+        .where(eq(tournaments.id, input.tournamentId));
+
+      log.info({ tournamentId: input.tournamentId, teams: mergedTeams.length }, "Updated tournament team logos");
+      return { updated: mergedTeams.length, teams: mergedTeams };
+    }),
 });
 
 const matchesRouter = router({
@@ -305,6 +418,30 @@ const matchesRouter = router({
       return rows;
     }),
 
+  getById: adminProcedure
+    .input(z.object({ matchId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const match = await ctx.db.query.matches.findFirst({
+        where: eq(matches.id, input.matchId),
+      });
+      if (!match) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
+
+      // Get tournament info
+      let tournamentName: string | null = null;
+      let tournamentExternalId: string | null = null;
+      if (match.tournamentId) {
+        const t = await ctx.db.query.tournaments.findFirst({
+          where: eq(tournaments.id, match.tournamentId),
+        });
+        if (t) {
+          tournamentName = t.name;
+          tournamentExternalId = t.externalId ?? null;
+        }
+      }
+
+      return { ...match, tournamentName, tournamentExternalId };
+    }),
+
   fetchPlayers: adminProcedure
     .input(z.object({ matchId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -313,13 +450,17 @@ const matchesRouter = router({
       });
       if (!match) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
 
-      // Get tournament name for context in Gemini prompt
+      // Get tournament name and externalId for precise series resolution
       let tournamentName = match.tournament ?? "Unknown";
+      let tournamentExternalId: string | undefined;
       if (match.tournamentId) {
         const t = await ctx.db.query.tournaments.findFirst({
           where: eq(tournaments.id, match.tournamentId),
         });
-        if (t) tournamentName = t.name;
+        if (t) {
+          tournamentName = t.name;
+          tournamentExternalId = t.externalId ?? undefined;
+        }
       }
 
       const sport = (match.sport as Sport) ?? "cricket";
@@ -338,23 +479,47 @@ const matchesRouter = router({
       const existingNames = existingPlayers.map((p) => p.name);
       const hasExisting = existingNames.length > 0;
 
-      log.info({ matchId: input.matchId, teams: teamList, tournament: tournamentName, existingCount: existingNames.length }, "Fetching players for match");
-      const aiPlayers = await fetchPlayersByTeams(sport, teamList, tournamentName, hasExisting ? existingNames : undefined);
+      const preference = await getDataSourcePreference();
+      const matchContext = match.startTime ? { startTime: new Date(match.startTime), format: match.format ?? undefined } : undefined;
+      log.info({ matchId: input.matchId, teams: teamList, tournament: tournamentName, tournamentExternalId, existingCount: existingNames.length, preference }, "Fetching players for match via provider chain");
+      const { data: aiPlayers, source: playerSource } = await fetchPlayersWithFallback(sport, teamList, tournamentName, hasExisting ? existingNames : undefined, preference, matchContext, tournamentExternalId);
+      log.info({ matchId: input.matchId, playerSource, count: aiPlayers.length }, "Players fetched via provider chain");
 
       if (aiPlayers.length === 0) {
         return { mode: "auto" as const, fetched: 0, new: 0, updated: 0, skipped: 0, newNames: [] as string[], updatedNames: [] as string[], skippedNames: [] as string[], diffs: [] as PlayerDiffEntry[] };
       }
 
+      // Collect provider external IDs for precise linking (e.g., "cb-576" from Cricbuzz)
+      const playerExternalIds = aiPlayers
+        .map(p => p.id)
+        .filter(id => id && id.length > 0);
+
+      // Build per-match team mapping: externalId → team name from this fetch context
+      const playerTeamMap = new Map<string, string>();
+      for (const p of aiPlayers) {
+        const eid = p.id && p.id.length > 0
+          ? p.id
+          : normalizePlayerExternalId(p.name, p.nationality);
+        if (p.team) playerTeamMap.set(eid, p.team);
+      }
+
       // First fetch (no existing players): auto-apply immediately
       if (!hasExisting) {
         const result = await upsertPlayers(sport, aiPlayers);
-        await linkPlayersToMatch(input.matchId, match.teamHome, match.teamAway);
+        await linkPlayersToMatch(
+          input.matchId, match.teamHome, match.teamAway,
+          undefined, // use default db
+          playerExternalIds.length > 0 ? playerExternalIds : undefined,
+          playerTeamMap
+        );
         return {
           mode: "auto" as const,
+          source: playerSource,
           fetched: aiPlayers.length,
           new: result.newCount,
           updated: result.updatedCount,
           skipped: result.skippedCount,
+          linked: playerExternalIds.length,
           newNames: result.newNames,
           updatedNames: result.updatedNames,
           skippedNames: result.skippedNames,
@@ -420,7 +585,13 @@ const matchesRouter = router({
 
       const sport = (match.sport as Sport) ?? "cricket";
       const result = await applyApprovedPlayers(sport, input.approved as PlayerDiffEntry[]);
-      await linkPlayersToMatch(input.matchId, match.teamHome, match.teamAway);
+
+      // Build per-match team mapping from approved diffs
+      const teamMap = new Map<string, string>();
+      for (const d of input.approved) {
+        if (d.team) teamMap.set(d.externalId, d.team);
+      }
+      await linkPlayersToMatch(input.matchId, match.teamHome, match.teamAway, undefined, undefined, teamMap);
 
       log.info({ matchId: input.matchId, approved: input.approved.length, ...result }, "Applied approved player changes");
       return result;
@@ -453,10 +624,12 @@ const matchesRouter = router({
       }
 
       const sport = (match.sport as Sport) ?? "cricket";
-      const aiPlayer = await fetchSinglePlayer(sport, player.name, player.team ?? "Unknown", tournamentName);
+      const preference = await getDataSourcePreference();
+      const { data: aiPlayer, source: playerSource } = await fetchSinglePlayerWithFallback(sport, player.name, player.team ?? "Unknown", tournamentName, preference);
+      log.info({ playerId: input.playerId, playerSource, preference }, "Single player fetched via provider chain");
 
       if (!aiPlayer) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not fetch player data from Gemini" });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not fetch player data from provider chain" });
       }
 
       // Diff the single player against existing DB
@@ -475,6 +648,21 @@ const matchesRouter = router({
       };
     }),
 
+  enrichPlayers: adminProcedure
+    .input(z.object({ matchId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const match = await ctx.db.query.matches.findFirst({
+        where: eq(matches.id, input.matchId),
+      });
+      if (!match) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
+
+      log.info({ matchId: input.matchId }, "Starting AI enrichment for match players");
+      const result = await enrichAndUpdatePlayers(input.matchId);
+      log.info({ matchId: input.matchId, ...result, enrichedNames: undefined }, "AI enrichment complete");
+
+      return result;
+    }),
+
   getPlayers: adminProcedure
     .input(z.object({ matchId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
@@ -482,7 +670,7 @@ const matchesRouter = router({
         .select({
           id: players.id,
           name: players.name,
-          team: players.team,
+          team: sql<string>`COALESCE(${playerMatchScores.team}, ${players.team})`.as("team"),
           role: players.role,
           nationality: players.nationality,
           battingStyle: players.battingStyle,
@@ -519,6 +707,16 @@ const matchesRouter = router({
   updatePhase: adminProcedure
     .input(z.object({ matchId: z.string().uuid(), phase: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Get current phase before updating
+      const current = await ctx.db.query.matches.findFirst({
+        where: eq(matches.id, input.matchId),
+        columns: { matchPhase: true },
+      });
+      if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
+
+      const fromPhase = current.matchPhase ?? "idle";
+
+      // Update the phase
       const [updated] = await ctx.db
         .update(matches)
         .set({ matchPhase: input.phase })
@@ -526,7 +724,20 @@ const matchesRouter = router({
         .returning();
 
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
-      return updated;
+
+      // Fire lifecycle automation for phase transition
+      let lifecycle: { actions: string[] } = { actions: [] };
+      if (fromPhase !== input.phase) {
+        try {
+          lifecycle = await onPhaseTransition(ctx.db, input.matchId, fromPhase, input.phase);
+          log.info({ matchId: input.matchId, fromPhase, toPhase: input.phase, actions: lifecycle.actions }, "Phase transition automation executed");
+        } catch (err) {
+          log.error({ matchId: input.matchId, fromPhase, toPhase: input.phase, error: err instanceof Error ? err.message : String(err) }, "Phase transition automation failed");
+          // Don't throw — phase was already updated, automation failure is non-blocking
+        }
+      }
+
+      return { ...updated, lifecycleActions: lifecycle.actions };
     }),
 
   refreshMatch: adminProcedure
@@ -537,12 +748,16 @@ const matchesRouter = router({
       });
       if (!match) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
 
-      // Fetch latest status from Gemini (pass current score to prevent stale data)
+      // Fetch latest status via provider chain (pass current score to prevent stale data)
       const tournamentName = match.tournament ?? "Unknown";
-      const geminiUpdate = await fetchSingleMatchStatus(
-        match.teamHome, match.teamAway, tournamentName, match.format, match.startTime,
-        match.scoreSummary
+      const sport = (match.sport as Sport) ?? "cricket";
+      const preference = await getDataSourcePreference();
+      const { data: providerUpdate, source: matchSource } = await fetchMatchStatusWithFallback(
+        sport, match.teamHome, match.teamAway, tournamentName, match.format, match.startTime,
+        match.scoreSummary ?? undefined, preference
       );
+      log.info({ matchId: input.matchId, matchSource, preference }, "Match status fetched via provider chain");
+      const geminiUpdate = providerUpdate;
 
       const now = new Date();
       const changes: string[] = [];
@@ -899,6 +1114,8 @@ const playersRouter = router({
         search: z.string().optional(),
         team: z.string().optional(),
         role: z.string().optional(),
+        sortBy: z.enum(["name", "team", "role", "nationality", "credits"]).optional(),
+        sortDir: z.enum(["asc", "desc"]).optional(),
         limit: z.number().min(1).max(100).default(50),
         offset: z.number().min(0).default(0),
       })
@@ -909,13 +1126,53 @@ const playersRouter = router({
       if (input.team) conditions.push(eq(players.team, input.team));
       if (input.role) conditions.push(eq(players.role, input.role));
 
+      const dirFn = input.sortDir === "desc" ? desc : asc;
+      const columnMap: Record<string, any> = {
+        name: players.name,
+        team: players.team,
+        role: players.role,
+        nationality: players.nationality,
+        credits: sql`COALESCE((stats->>'adminCredits')::numeric, (stats->>'calculatedCredits')::numeric, (stats->>'credits')::numeric, 0)`,
+      };
+      const orderCol = columnMap[input.sortBy ?? "name"] ?? players.name;
+
       const rows = await ctx.db
         .select()
         .from(players)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(players.name)
+        .orderBy(dirFn(orderCol))
         .limit(input.limit)
         .offset(input.offset);
+
+      // Overlay per-match team from most recent match score
+      if (rows.length > 0) {
+        const playerIds = rows.map((r) => r.id);
+        const matchTeams = await ctx.db
+          .select({
+            playerId: playerMatchScores.playerId,
+            matchTeam: sql<string>`(
+              SELECT pms2.team FROM player_match_scores pms2
+              INNER JOIN matches m ON m.id = pms2.match_id
+              WHERE pms2.player_id = ${playerMatchScores.playerId}
+                AND pms2.team IS NOT NULL
+              ORDER BY m.start_time DESC NULLS LAST
+              LIMIT 1
+            )`.as("match_team"),
+          })
+          .from(playerMatchScores)
+          .where(inArray(playerMatchScores.playerId, playerIds))
+          .groupBy(playerMatchScores.playerId);
+
+        const teamMap = new Map<string, string>();
+        for (const mt of matchTeams) {
+          if (mt.matchTeam) teamMap.set(mt.playerId, mt.matchTeam);
+        }
+
+        return rows.map((r) => ({
+          ...r,
+          team: teamMap.get(r.id) ?? r.team,
+        }));
+      }
 
       return rows;
     }),
@@ -947,6 +1204,129 @@ const playersRouter = router({
         .returning();
 
       return updated;
+    }),
+
+  recalculateAllCredits: adminProcedure
+    .mutation(async ({ ctx }) => {
+      log.info("Recalculating credits for all players with new formula");
+
+      // Fetch all players
+      const allPlayers = await ctx.db.select().from(players);
+      let updated = 0;
+      let skipped = 0;
+
+      for (const player of allPlayers) {
+        const stats = (player.stats as Record<string, unknown>) ?? {};
+
+        // Skip players with admin override — those are manually set
+        if (stats.adminCredits != null) {
+          skipped++;
+          continue;
+        }
+
+        const role = player.role as import("@draftplay/shared").CricketRole;
+        const newCredits = calculatePlayerCredits({
+          role,
+          battingAvg: (stats.average as number) ?? null,
+          strikeRate: (stats.strikeRate as number) ?? null,
+          bowlingAvg: (stats.bowlingAverage as number) ?? null,
+          economyRate: (stats.economyRate as number) ?? null,
+          bowlingStrikeRate: (stats.bowlingStrikeRate as number) ?? null,
+          matchesPlayed: (stats.matchesPlayed as number) ?? null,
+          recentForm: (stats.recentForm as number) ?? null,
+          sentimentScore: (stats.sentimentScore as number) ?? null,
+          injuryStatus: (stats.injuryStatus as string) ?? null,
+          recentAvgFP: (stats.recentAvgFP as number) ?? null,
+        });
+
+        stats.calculatedCredits = newCredits;
+        stats.credits = newCredits;
+
+        await ctx.db
+          .update(players)
+          .set({ stats, updatedAt: new Date() })
+          .where(eq(players.id, player.id));
+
+        updated++;
+      }
+
+      log.info({ updated, skipped, total: allPlayers.length }, "Credit recalculation complete");
+      return { updated, skipped, total: allPlayers.length };
+    }),
+
+  fixAllNationalities: adminProcedure
+    .mutation(async ({ ctx }) => {
+      log.info("Fixing nationalities for all players via Gemini AI");
+
+      const KNOWN_COUNTRIES = new Set([
+        "india", "australia", "england", "south africa", "new zealand", "west indies",
+        "pakistan", "sri lanka", "bangladesh", "afghanistan", "zimbabwe", "ireland",
+        "scotland", "netherlands", "nepal", "uae", "usa", "canada", "oman", "namibia",
+        "kenya",
+      ]);
+
+      const allPlayers = await ctx.db.select().from(players);
+      const needsFix = allPlayers.filter(p =>
+        !p.nationality || !KNOWN_COUNTRIES.has(p.nationality.toLowerCase())
+      );
+
+      if (needsFix.length === 0) {
+        return { updated: 0, total: allPlayers.length, message: "All nationalities already resolved" };
+      }
+
+      const toResolve = needsFix.map(p => ({
+        name: p.name,
+        birthPlace: p.nationality || null,
+        team: p.team || "",
+      }));
+
+      const resolved = await resolveNationalitiesWithGemini(toResolve);
+      const resolvedMap = new Map<string, string>();
+      for (const r of resolved) {
+        resolvedMap.set(r.playerName.toLowerCase().trim(), r.nationality);
+      }
+
+      let updated = 0;
+      for (const player of needsFix) {
+        const newNationality = resolvedMap.get(player.name.toLowerCase().trim());
+        if (newNationality && newNationality !== "Unknown" && newNationality !== player.nationality) {
+          await ctx.db
+            .update(players)
+            .set({ nationality: newNationality, updatedAt: new Date() })
+            .where(eq(players.id, player.id));
+          updated++;
+          log.info({ player: player.name, from: player.nationality, to: newNationality }, "Fixed nationality");
+        }
+      }
+
+      log.info({ updated, needsFix: needsFix.length, total: allPlayers.length }, "Nationality fix complete");
+      return { updated, needsFix: needsFix.length, total: allPlayers.length };
+    }),
+
+  fixNationality: adminProcedure
+    .input(z.object({ playerId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const player = await ctx.db.query.players.findFirst({
+        where: eq(players.id, input.playerId),
+      });
+      if (!player) throw new TRPCError({ code: "NOT_FOUND", message: "Player not found" });
+
+      const resolved = await resolveNationalitiesWithGemini([
+        { name: player.name, birthPlace: player.nationality || null, team: player.team || "" },
+      ]);
+
+      if (resolved.length === 0 || resolved[0]!.nationality === "Unknown") {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Gemini could not determine nationality" });
+      }
+
+      const newNationality = resolved[0]!.nationality;
+      await ctx.db
+        .update(players)
+        .set({ nationality: newNationality, updatedAt: new Date() })
+        .where(eq(players.id, input.playerId));
+
+      log.info({ player: player.name, from: player.nationality, to: newNationality }, "Fixed single player nationality via Gemini");
+      return { name: player.name, nationality: newNationality };
     }),
 
   toggleDisabled: adminProcedure
@@ -1036,6 +1416,198 @@ const playersRouter = router({
 
       log.info({ playerId: created!.id, name: input.name }, "Player created by admin");
       return created;
+    }),
+
+  getById: adminProcedure
+    .input(z.object({ playerId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const player = await ctx.db.query.players.findFirst({
+        where: eq(players.id, input.playerId),
+      });
+      if (!player) throw new TRPCError({ code: "NOT_FOUND", message: "Player not found" });
+
+      // Get match history with scores
+      const matchHistory = await ctx.db
+        .select({
+          matchId: playerMatchScores.matchId,
+          team: playerMatchScores.team,
+          runs: playerMatchScores.runs,
+          ballsFaced: playerMatchScores.ballsFaced,
+          fours: playerMatchScores.fours,
+          sixes: playerMatchScores.sixes,
+          wickets: playerMatchScores.wickets,
+          oversBowled: playerMatchScores.oversBowled,
+          runsConceded: playerMatchScores.runsConceded,
+          maidens: playerMatchScores.maidens,
+          catches: playerMatchScores.catches,
+          stumpings: playerMatchScores.stumpings,
+          runOuts: playerMatchScores.runOuts,
+          fantasyPoints: playerMatchScores.fantasyPoints,
+          isPlaying: playerMatchScores.isPlaying,
+          matchName: sql<string>`(SELECT CONCAT(m.team_home, ' vs ', m.team_away) FROM matches m WHERE m.id = ${playerMatchScores.matchId})`.as("match_name"),
+          matchDate: sql<string>`(SELECT m.start_time FROM matches m WHERE m.id = ${playerMatchScores.matchId})`.as("match_date"),
+          matchFormat: sql<string>`(SELECT m.format FROM matches m WHERE m.id = ${playerMatchScores.matchId})`.as("match_format"),
+          tournamentName: sql<string>`(SELECT t.name FROM matches m INNER JOIN tournaments t ON t.id = m.tournament_id WHERE m.id = ${playerMatchScores.matchId})`.as("tournament_name"),
+        })
+        .from(playerMatchScores)
+        .where(eq(playerMatchScores.playerId, input.playerId))
+        .orderBy(desc(sql`(SELECT m.start_time FROM matches m WHERE m.id = ${playerMatchScores.matchId})`))
+        .limit(50);
+
+      return { ...player, matchHistory };
+    }),
+
+  refetchFromCricbuzz: adminProcedure
+    .input(z.object({
+      playerId: z.string().uuid(),
+      teamName: z.string().optional(),
+      tournamentName: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const player = await ctx.db.query.players.findFirst({
+        where: eq(players.id, input.playerId),
+      });
+      if (!player) throw new TRPCError({ code: "NOT_FOUND", message: "Player not found" });
+
+      const teamName = input.teamName || player.team;
+      const tournamentName = input.tournamentName || "Indian Premier League";
+
+      log.info({ playerId: input.playerId, name: player.name, team: teamName }, "Admin refetch player from Cricbuzz");
+
+      try {
+        const result = await fetchSinglePlayerWithFallback(
+          "cricket" as Sport,
+          player.name,
+          teamName,
+          tournamentName
+        );
+
+        if (!result.data) {
+          throw new TRPCError({ code: "NOT_FOUND", message: `Player "${player.name}" not found on Cricbuzz for team "${teamName}"` });
+        }
+
+        const ai = result.data;
+
+        // Resolve nationality via Gemini if it looks like a raw birth place
+        const KNOWN_COUNTRIES = new Set([
+          "india", "australia", "england", "south africa", "new zealand", "west indies",
+          "pakistan", "sri lanka", "bangladesh", "afghanistan", "zimbabwe", "ireland",
+          "scotland", "netherlands", "nepal", "uae", "usa", "canada", "oman", "namibia",
+          "kenya",
+        ]);
+        if (!ai.nationality || !KNOWN_COUNTRIES.has(ai.nationality.toLowerCase())) {
+          try {
+            const resolved = await resolveNationalitiesWithGemini([
+              { name: ai.name, birthPlace: ai.nationality || null, team: teamName },
+            ]);
+            if (resolved.length > 0 && resolved[0]!.nationality !== "Unknown") {
+              ai.nationality = resolved[0]!.nationality;
+            }
+          } catch (err) {
+            log.warn({ player: ai.name, error: String(err) }, "Gemini nationality resolution failed for single player");
+          }
+        }
+
+        // Build updated stats — merge with existing to preserve admin overrides
+        const existingStats = (player.stats as Record<string, any>) ?? {};
+        const newStats: Record<string, any> = { ...existingStats };
+
+        if (ai.battingAvg != null) newStats.average = ai.battingAvg;
+        if (ai.bowlingAvg != null) newStats.bowlingAverage = ai.bowlingAvg;
+        if (ai.strikeRate != null) newStats.strikeRate = ai.strikeRate;
+        if (ai.economyRate != null) newStats.economyRate = ai.economyRate;
+        if (ai.bowlingStrikeRate != null) newStats.bowlingStrikeRate = ai.bowlingStrikeRate;
+        if (ai.matchesPlayed != null) newStats.matchesPlayed = ai.matchesPlayed;
+        if (ai.recentForm != null) newStats.recentForm = ai.recentForm;
+        if (ai.sentimentScore != null) newStats.sentimentScore = ai.sentimentScore;
+        if (ai.injuryStatus != null) newStats.injuryStatus = ai.injuryStatus;
+        if (ai.formNote != null) newStats.formNote = ai.formNote;
+
+        // Recalculate credits (preserve admin override)
+        if (newStats.adminCredits == null) {
+          const calculatedCredits = calculatePlayerCredits({
+            role: ai.role as import("@draftplay/shared").CricketRole,
+            battingAvg: ai.battingAvg,
+            strikeRate: ai.strikeRate ?? null,
+            bowlingAvg: ai.bowlingAvg,
+            economyRate: ai.economyRate ?? null,
+            bowlingStrikeRate: ai.bowlingStrikeRate ?? null,
+            matchesPlayed: ai.matchesPlayed ?? null,
+            recentForm: ai.recentForm ?? null,
+            sentimentScore: ai.sentimentScore ?? null,
+            injuryStatus: ai.injuryStatus ?? null,
+            recentAvgFP: null,
+          });
+          newStats.calculatedCredits = calculatedCredits;
+          newStats.credits = calculatedCredits;
+        }
+
+        const [updated] = await ctx.db
+          .update(players)
+          .set({
+            name: ai.name || player.name,
+            role: ai.role || player.role,
+            nationality: ai.nationality || player.nationality,
+            battingStyle: ai.battingStyle || player.battingStyle,
+            bowlingStyle: ai.bowlingStyle || player.bowlingStyle,
+            // Only update photo if we got a new one (preserve existing)
+            ...(ai.imageUrl ? { photoUrl: ai.imageUrl } : {}),
+            stats: newStats,
+            lastFetchAction: "updated",
+            lastFetchedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(players.id, input.playerId))
+          .returning();
+
+        log.info({ playerId: input.playerId, source: result.source }, "Player refetched from Cricbuzz");
+        return { player: updated, source: result.source };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        log.error({ playerId: input.playerId, error: String(error) }, "Failed to refetch player");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message || "Failed to refetch player" });
+      }
+    }),
+
+  updatePlayer: adminProcedure
+    .input(z.object({
+      playerId: z.string().uuid(),
+      name: z.string().min(1).optional(),
+      team: z.string().min(1).optional(),
+      role: z.enum(["batsman", "bowler", "all_rounder", "wicket_keeper"]).optional(),
+      nationality: z.string().min(1).optional(),
+      battingStyle: z.string().nullable().optional(),
+      bowlingStyle: z.string().nullable().optional(),
+      stats: z.record(z.any()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const player = await ctx.db.query.players.findFirst({
+        where: eq(players.id, input.playerId),
+      });
+      if (!player) throw new TRPCError({ code: "NOT_FOUND", message: "Player not found" });
+
+      const updates: Record<string, any> = { updatedAt: new Date() };
+      if (input.name !== undefined) updates.name = input.name;
+      if (input.team !== undefined) updates.team = input.team;
+      if (input.role !== undefined) updates.role = input.role;
+      if (input.nationality !== undefined) updates.nationality = input.nationality;
+      if (input.battingStyle !== undefined) updates.battingStyle = input.battingStyle;
+      if (input.bowlingStyle !== undefined) updates.bowlingStyle = input.bowlingStyle;
+
+      if (input.stats !== undefined) {
+        // Merge with existing stats (preserve fields not being updated)
+        const existingStats = (player.stats as Record<string, any>) ?? {};
+        updates.stats = { ...existingStats, ...input.stats };
+      }
+
+      const [updated] = await ctx.db
+        .update(players)
+        .set(updates)
+        .where(eq(players.id, input.playerId))
+        .returning();
+
+      log.info({ playerId: input.playerId, fields: Object.keys(updates) }, "Player updated by admin");
+      return updated;
     }),
 });
 
@@ -1229,15 +1801,75 @@ const systemRouter = router({
 
       // Admin can do unfiltered refresh to discover ALL tournaments from Gemini
       let filter: string[] | undefined;
+      let seriesHints: Array<{ name: string; externalId: string }> | undefined;
       if (!input.unfiltered) {
         const activeFilter = await getVisibleTournamentNames();
         filter = activeFilter.length > 0 ? activeFilter : undefined;
+
+        // Build seriesHints from visible tournaments with externalIds
+        if (filter) {
+          const db = getDb();
+          const visibleTournaments = await db.query.tournaments.findMany({
+            where: and(eq(tournaments.isVisible, true), eq(tournaments.sport, sport)),
+            columns: { name: true, externalId: true },
+          });
+          seriesHints = visibleTournaments
+            .filter(t => t.externalId)
+            .map(t => ({ name: t.name, externalId: t.externalId! }));
+        }
       }
 
       await invalidateHotCache(`dashboard:${sport}`);
-      const result = await executeRefresh(sport, "manual", undefined, filter);
+      const result = await executeRefresh(sport, "manual", undefined, filter, seriesHints);
 
       return { refreshed: result.refreshed };
+    }),
+
+  // Data source preference (auto | espn | gemini)
+  getDataSource: adminProcedure.query(async () => {
+    const val = await getAdminConfig("dataSource");
+    return { dataSource: val ?? "auto" };
+  }),
+
+  setDataSource: adminProcedure
+    .input(z.object({ dataSource: z.enum(["auto", "espn", "jolpica", "gemini", "cricbuzz"]) }))
+    .mutation(async ({ input }) => {
+      await setAdminConfig("dataSource", input.dataSource);
+      log.info({ dataSource: input.dataSource }, "Data source preference updated");
+      return { dataSource: input.dataSource };
+    }),
+
+  // ESPN preview — lets admins see what ESPN returns without persisting
+  espnPreview: adminProcedure
+    .input(z.object({
+      sport: z.enum(["cricket", "f1"]),
+    }))
+    .query(async ({ input }) => {
+      const espn = new ESPNProvider();
+      try {
+        const result = await espn.fetchDashboard(input.sport as Sport);
+        return {
+          success: true,
+          source: result.source,
+          durationMs: result.durationMs,
+          tournaments: result.data.tournaments.length,
+          matches: result.data.matches.length,
+          data: {
+            tournaments: result.data.tournaments.slice(0, 20),
+            matches: result.data.matches.slice(0, 30),
+          },
+        };
+      } catch (err) {
+        return {
+          success: false,
+          source: "espn" as const,
+          durationMs: 0,
+          tournaments: 0,
+          matches: 0,
+          data: { tournaments: [], matches: [] },
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
     }),
 
   stats: adminProcedure.query(async ({ ctx }) => {

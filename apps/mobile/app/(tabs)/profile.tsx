@@ -88,10 +88,19 @@ export default function ProfileScreen() {
   const isLoggedIn = !!user;
   const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false, enabled: isLoggedIn });
   const myTier = trpc.subscription.getMyTier.useQuery(undefined, { retry: false, enabled: isLoggedIn });
+  const { availableSports } = useTheme();
   const { unreadCount } = useNotifications();
+  const prefs = trpc.auth.getPreferences.useQuery(undefined, { retry: false, enabled: isLoggedIn });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
+
+  const sportsLabel = availableSports.map((s) => s === "cricket" ? "Cricket" : "F1").join(", ");
+  const locationLabel = prefs.data?.country
+    ? prefs.data.state
+      ? `${prefs.data.state}, ${prefs.data.country}`
+      : prefs.data.country
+    : undefined;
 
   return (
     <YStack flex={1} backgroundColor="$background" paddingTop={insets.top} testID="profile-screen">
@@ -233,7 +242,7 @@ export default function ProfileScreen() {
                     {formatBadgeText("subscription")}
                   </Text>
                   <Text fontFamily="$heading" fontSize={18} color="$color">
-                    {myTier.data.tier === "free" ? "Free Plan" : myTier.data.tier === "pro" ? "Pro Plan" : "Elite Plan"}
+                    {myTier.data.tier === "basic" ? "Basic Plan" : myTier.data.tier === "pro" ? "Pro Plan" : "Elite Plan"}
                   </Text>
                 </YStack>
                 <XStack alignItems="center" gap="$3">
@@ -261,6 +270,21 @@ export default function ProfileScreen() {
             </Text>
             <SettingRow icon="language-outline" label={formatUIText("Language")} value="English" />
             <SettingRow
+              icon="baseball-outline"
+              label={formatUIText("Sports")}
+              value={sportsLabel}
+              accent
+              onPress={() => router.push("/settings/sports" as never)}
+            />
+            {locationLabel && (
+              <SettingRow
+                icon="location-outline"
+                label={formatUIText("Location")}
+                value={locationLabel}
+                onPress={() => router.push("/settings/location" as never)}
+              />
+            )}
+            <SettingRow
               icon="wallet-outline"
               label={formatUIText("Wallet")}
               onPress={() => router.push("/wallet" as never)}
@@ -269,7 +293,7 @@ export default function ProfileScreen() {
               icon="diamond-outline"
               label={formatUIText("Subscription")}
               value={myTier.data ? myTier.data.tier.toUpperCase() : undefined}
-              accent={myTier.data?.tier !== "free"}
+              accent={myTier.data?.tier !== "basic"}
               onPress={() => router.push("/subscription" as never)}
             />
             <SettingRow

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
-import { eq, desc, asc, and, or, gte, lte } from "drizzle-orm";
-import { matches } from "@draftplay/db";
+import { eq, desc, asc, and, or, gte, lte, inArray } from "drizzle-orm";
+import { matches, tournaments } from "@draftplay/db";
+import { getVisibleTournamentNames } from "../services/admin-config";
 
 export const matchRouter = router({
   /**
@@ -25,6 +26,11 @@ export const matchRouter = router({
       const filters = input ?? {};
       const conditions = [];
 
+      // Only show matches from visible tournaments
+      const visibleNames = await getVisibleTournamentNames();
+      if (visibleNames.length === 0) return { matches: [], nextCursor: null };
+      conditions.push(inArray(matches.tournament, visibleNames));
+
       if (filters.status) {
         conditions.push(eq(matches.status, filters.status));
       }
@@ -36,7 +42,7 @@ export const matchRouter = router({
       }
 
       const result = await ctx.db.query.matches.findMany({
-        where: conditions.length > 0 ? and(...conditions) : undefined,
+        where: and(...conditions),
         orderBy: [asc(matches.startTime)],
         limit: filters.limit,
       });
@@ -66,17 +72,24 @@ export const matchRouter = router({
     }),
 
   /**
-   * Get live + upcoming + recently completed matches
+   * Get live + upcoming + recently completed matches (only from visible tournaments)
    */
   live: publicProcedure.query(async ({ ctx }) => {
+    // Only show matches from admin-visible tournaments
+    const visibleNames = await getVisibleTournamentNames();
+    if (visibleNames.length === 0) return [];
+
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const result = await ctx.db.query.matches.findMany({
-      where: or(
-        eq(matches.status, "live"),
-        eq(matches.status, "upcoming"),
-        and(
-          eq(matches.status, "completed"),
-          gte(matches.startTime, oneDayAgo),
+      where: and(
+        inArray(matches.tournament, visibleNames),
+        or(
+          eq(matches.status, "live"),
+          eq(matches.status, "upcoming"),
+          and(
+            eq(matches.status, "completed"),
+            gte(matches.startTime, oneDayAgo),
+          ),
         ),
       ),
       orderBy: [desc(matches.status), asc(matches.startTime)],

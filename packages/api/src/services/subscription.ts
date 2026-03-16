@@ -1,5 +1,9 @@
 /**
- * Subscription Service — manages user tier, subscription lifecycle, and promo codes.
+ * Subscription Service — manages user tier, subscription lifecycle, Day Pass, and promo codes.
+ *
+ * 3-tier paid model: Basic / Pro / Elite (yearly billing).
+ * Day Pass: 24hr Elite access via one-time payment.
+ * No free tier — every user must have an active subscription or trial.
  *
  * Tier configs are admin-configurable via admin_config ("subscription_tiers" key).
  * Falls back to DEFAULT_TIER_CONFIGS from shared types if no admin override exists.
@@ -7,7 +11,7 @@
  * Uses Redis cache (5min TTL) for tier lookups to avoid DB hits on every request.
  */
 
-import { eq, and, sql, gte, lte } from "drizzle-orm";
+import { eq, and, sql, lt } from "drizzle-orm";
 import { getDb } from "@draftplay/db";
 import {
   subscriptions,
@@ -21,11 +25,13 @@ import {
   type TierConfig,
   type TierFeatures,
   DEFAULT_TIER_CONFIGS,
+  DAY_PASS_CONFIG,
   tierAtLeast,
+  getEffectiveTier,
 } from "@draftplay/shared";
 import { getFromHotCache, setHotCache, invalidateHotCache } from "./sports-cache";
 import { getAdminConfig, setAdminConfig } from "./admin-config";
-import { getPaymentMode, createRazorpaySubscription, cancelRazorpaySubscription } from "./razorpay";
+import { getPaymentMode, createRazorpaySubscription, cancelRazorpaySubscription, createDayPassOrder } from "./razorpay";
 import { getLogger } from "../lib/logger";
 
 const log = getLogger("subscription");
@@ -50,7 +56,7 @@ export async function getTierConfigs(): Promise<Record<SubscriptionTier, TierCon
   const configs = { ...DEFAULT_TIER_CONFIGS };
 
   if (adminOverrides) {
-    for (const tier of ["free", "pro", "elite"] as SubscriptionTier[]) {
+    for (const tier of ["basic", "pro", "elite"] as SubscriptionTier[]) {
       const override = adminOverrides[tier];
       if (override) {
         configs[tier] = {
@@ -85,27 +91,58 @@ export async function updateTierConfigs(
 // User tier resolution
 // ---------------------------------------------------------------------------
 
+export interface UserTierResult {
+  baseTier: SubscriptionTier;
+  effectiveTier: SubscriptionTier;
+  dayPassActive: boolean;
+  dayPassExpiresAt: Date | null;
+  isTrialing: boolean;
+}
+
 /**
- * Get a user's current subscription tier. Cached in Redis for 5 min.
- * Returns "free" if no active subscription exists.
+ * Get a user's current subscription tier with Day Pass overlay.
+ * Returns "basic" if no active subscription exists.
+ * Day Pass grants Elite features for 24hrs regardless of base tier.
  */
 export async function getUserTier(db: Database, userId: string): Promise<SubscriptionTier> {
-  const cacheKey = `subscription:tier:${userId}`;
-  const cached = await getFromHotCache<SubscriptionTier>(cacheKey);
+  const result = await getUserTierFull(db, userId);
+  return result.effectiveTier;
+}
+
+/**
+ * Full tier resolution with Day Pass and trial info.
+ */
+export async function getUserTierFull(db: Database, userId: string): Promise<UserTierResult> {
+  const cacheKey = `subscription:tier-full:${userId}`;
+  const cached = await getFromHotCache<UserTierResult>(cacheKey);
   if (cached) return cached;
 
   const sub = await db.query.subscriptions.findFirst({
     where: eq(subscriptions.userId, userId),
   });
 
-  if (!sub || sub.status !== "active") {
-    await setHotCache(cacheKey, "free", TIER_CACHE_TTL);
-    return "free";
+  const defaultResult: UserTierResult = {
+    baseTier: "basic",
+    effectiveTier: "basic",
+    dayPassActive: false,
+    dayPassExpiresAt: null,
+    isTrialing: false,
+  };
+
+  if (!sub) {
+    await setHotCache(cacheKey, defaultResult, TIER_CACHE_TTL);
+    return defaultResult;
+  }
+
+  // Check if subscription is not active/trialing
+  if (sub.status !== "active" && sub.status !== "trialing") {
+    await setHotCache(cacheKey, defaultResult, TIER_CACHE_TTL);
+    return defaultResult;
   }
 
   // Check if period has expired
   if (sub.currentPeriodEnd && new Date(sub.currentPeriodEnd) < new Date()) {
-    // Mark as expired
+    // Check if trial ended — mark as expired
     await db
       .update(subscriptions)
       .set({ status: "expired", updatedAt: new Date() })
@@ -115,15 +152,43 @@ export async function getUserTier(db: Database, userId: string): Promise<Subscri
       subscriptionId: sub.id,
       event: "expired",
       fromTier: sub.tier,
-      toTier: "free",
+      toTier: sub.tier,
     });
-    await setHotCache(cacheKey, "free", TIER_CACHE_TTL);
-    return "free";
+    await setHotCache(cacheKey, defaultResult, TIER_CACHE_TTL);
+    return defaultResult;
   }
 
-  const tier = sub.tier as SubscriptionTier;
-  await setHotCache(cacheKey, tier, TIER_CACHE_TTL);
-  return tier;
+  const baseTier = sub.tier as SubscriptionTier;
+  const now = new Date();
+
+  // Check Day Pass status
+  let dayPassActive = sub.dayPassActive ?? false;
+  const dayPassExpiresAt = sub.dayPassExpiresAt ? new Date(sub.dayPassExpiresAt) : null;
+
+  if (dayPassActive && dayPassExpiresAt) {
+    if (dayPassExpiresAt < now) {
+      // Day Pass expired — deactivate lazily
+      dayPassActive = false;
+      await db
+        .update(subscriptions)
+        .set({ dayPassActive: false, updatedAt: now })
+        .where(eq(subscriptions.id, sub.id));
+    }
+  }
+
+  const isTrialing = sub.status === "trialing";
+  const effectiveTier = getEffectiveTier(baseTier, dayPassActive);
+
+  const result: UserTierResult = {
+    baseTier,
+    effectiveTier,
+    dayPassActive,
+    dayPassExpiresAt: dayPassActive ? dayPassExpiresAt : null,
+    isTrialing,
+  };
+
+  await setHotCache(cacheKey, result, TIER_CACHE_TTL);
+  return result;
 }
 
 /**
@@ -136,11 +201,17 @@ export async function getUserSubscription(db: Database, userId: string) {
 
   if (!sub) {
     return {
-      tier: "free" as SubscriptionTier,
-      status: "active" as const,
+      tier: "basic" as SubscriptionTier,
+      status: "expired" as const,
       currentPeriodEnd: null,
       cancelAtPeriodEnd: false,
       priceInPaise: null,
+      priceUsdCents: null,
+      currency: "INR" as const,
+      billingCycle: "yearly" as const,
+      trialEndsAt: null,
+      dayPassActive: false,
+      dayPassExpiresAt: null,
     };
   }
 
@@ -150,11 +221,19 @@ export async function getUserSubscription(db: Database, userId: string) {
     currentPeriodEnd: sub.currentPeriodEnd,
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
     priceInPaise: sub.priceInPaise ? Number(sub.priceInPaise) : null,
+    priceUsdCents: sub.priceUsdCents,
+    currency: sub.currency,
+    billingCycle: sub.billingCycle,
+    trialEndsAt: sub.trialEndsAt,
+    dayPassActive: sub.dayPassActive,
+    dayPassExpiresAt: sub.dayPassExpiresAt,
   };
 }
 
 /** Invalidate tier cache for a user (call after any subscription change). */
 export async function invalidateUserTierCache(userId: string): Promise<void> {
+  await invalidateHotCache(`subscription:tier-full:${userId}`);
+  // Also invalidate legacy key if cached
   await invalidateHotCache(`subscription:tier:${userId}`);
 }
 
@@ -163,9 +242,10 @@ export async function invalidateUserTierCache(userId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Create or upgrade a subscription.
+ * Create or upgrade a subscription (yearly billing).
  * Stub mode: directly activates (no payment).
  * Live mode: creates Razorpay subscription, sets status "pending", returns checkout URL.
+ * Basic tier with free trial: sets status "trialing" for 7 days.
  */
 export async function subscribeTier(
   db: Database,
@@ -179,11 +259,8 @@ export async function subscribeTier(
   discountApplied: number;
   paymentMode: "stub" | "live";
   checkoutUrl?: string;
+  isTrialing?: boolean;
 }> {
-  if (tier === "free") {
-    throw new Error("Cannot subscribe to free tier — cancel instead");
-  }
-
   const configs = await getTierConfigs();
   const tierConfig = configs[tier];
   if (!tierConfig) throw new Error(`Unknown tier: ${tier}`);
@@ -193,8 +270,8 @@ export async function subscribeTier(
     where: eq(subscriptions.userId, userId),
   });
 
-  const fromTier = (existing?.tier ?? "free") as SubscriptionTier;
-  const isUpgrade = existing && existing.status === "active";
+  const fromTier = (existing?.tier ?? "basic") as SubscriptionTier;
+  const isUpgrade = existing && (existing.status === "active" || existing.status === "trialing");
   const event = isUpgrade ? (tierAtLeast(tier, fromTier) ? "upgraded" : "downgraded") : "created";
 
   // Resolve promo code discount
@@ -206,19 +283,36 @@ export async function subscribeTier(
     if (promo) {
       promoCodeId = promo.id;
       if (promo.discountType === "percentage") {
-        discountApplied = Math.round(tierConfig.priceInPaise * promo.discountValue / 100);
+        discountApplied = Math.round(tierConfig.priceYearlyINR * promo.discountValue / 100);
       } else if (promo.discountType === "fixed_amount") {
         discountApplied = promo.discountValue;
       } else if (promo.discountType === "free_trial") {
-        discountApplied = tierConfig.priceInPaise; // 100% off
+        discountApplied = tierConfig.priceYearlyINR; // 100% off first year
       }
     }
   }
 
-  const finalPrice = Math.max(0, tierConfig.priceInPaise - discountApplied);
+  const finalPrice = Math.max(0, tierConfig.priceYearlyINR - discountApplied);
   const now = new Date();
-  const periodEnd = new Date(now);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+  // Check if this is a free trial eligible subscription
+  const isNewBasicTrial = tier === "basic" && tierConfig.hasFreeTrial && !existing;
+
+  let periodEnd: Date;
+  let trialEndsAt: Date | null = null;
+  let status: string;
+
+  if (isNewBasicTrial) {
+    // 7-day free trial for Basic tier
+    trialEndsAt = new Date(now);
+    trialEndsAt.setDate(trialEndsAt.getDate() + tierConfig.freeTrialDays);
+    periodEnd = trialEndsAt;
+    status = "trialing";
+  } else {
+    periodEnd = new Date(now);
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1); // yearly billing
+    status = "active";
+  }
 
   // Determine payment mode
   const paymentMode = await getPaymentMode();
@@ -227,12 +321,13 @@ export async function subscribeTier(
   let subscriptionId: string;
   let checkoutUrl: string | undefined;
 
-  // In live mode, create Razorpay subscription first to get the ID
+  // In live mode and not a free trial, create Razorpay subscription
   let razorpaySubscriptionId: string | null = null;
-  if (isLive) {
+  if (isLive && !isNewBasicTrial) {
     const rpResult = await createRazorpaySubscription(db, userId, tier, userEmail ?? null);
     razorpaySubscriptionId = rpResult.razorpaySubscriptionId;
     checkoutUrl = rpResult.shortUrl;
+    status = "pending"; // wait for Razorpay webhook to activate
   }
 
   if (existing) {
@@ -241,12 +336,14 @@ export async function subscribeTier(
       .update(subscriptions)
       .set({
         tier,
-        status: isLive ? "pending" : "active",
-        currentPeriodStart: isLive ? undefined : now,
-        currentPeriodEnd: isLive ? undefined : periodEnd,
+        status: isLive && !isNewBasicTrial ? "pending" : status,
+        currentPeriodStart: isLive && !isNewBasicTrial ? undefined : now,
+        currentPeriodEnd: isLive && !isNewBasicTrial ? undefined : periodEnd,
         cancelAtPeriodEnd: false,
+        billingCycle: "yearly",
         priceInPaise: String(finalPrice),
         promoCodeId,
+        trialEndsAt,
         razorpaySubscriptionId: razorpaySubscriptionId ?? existing.razorpaySubscriptionId,
         updatedAt: now,
       })
@@ -260,11 +357,13 @@ export async function subscribeTier(
       .values({
         userId,
         tier,
-        status: isLive ? "pending" : "active",
-        currentPeriodStart: isLive ? undefined : now,
-        currentPeriodEnd: isLive ? undefined : periodEnd,
+        status,
+        currentPeriodStart: isLive && !isNewBasicTrial ? undefined : now,
+        currentPeriodEnd: isLive && !isNewBasicTrial ? undefined : periodEnd,
+        billingCycle: "yearly",
         priceInPaise: String(finalPrice),
         promoCodeId,
+        trialEndsAt,
         razorpaySubscriptionId,
       })
       .returning({ id: subscriptions.id });
@@ -275,7 +374,7 @@ export async function subscribeTier(
   await db.insert(subscriptionEvents).values({
     userId,
     subscriptionId,
-    event,
+    event: isNewBasicTrial ? "trial_started" : event,
     fromTier,
     toTier: tier,
     metadata: {
@@ -283,6 +382,8 @@ export async function subscribeTier(
       promoCode: promoCode ?? null,
       discountApplied,
       paymentMode,
+      billingCycle: "yearly",
+      isTrialing: isNewBasicTrial,
       razorpaySubscriptionId: razorpaySubscriptionId ?? undefined,
     },
   });
@@ -302,15 +403,171 @@ export async function subscribeTier(
       .where(eq(promoCodes.id, promoCodeId));
   }
 
-  // Only invalidate cache in stub mode (immediate activation)
-  // In live mode, cache invalidation happens when webhook confirms payment
-  if (!isLive) {
+  // Only invalidate cache in stub mode or trial (immediate activation)
+  if (!isLive || isNewBasicTrial) {
     await invalidateUserTierCache(userId);
   }
 
-  log.info({ userId, tier, event, discountApplied, paymentMode }, "Subscription updated");
+  log.info({ userId, tier, event, discountApplied, paymentMode, isTrialing: isNewBasicTrial }, "Subscription updated");
 
-  return { subscriptionId, tier, discountApplied, paymentMode, checkoutUrl };
+  return { subscriptionId, tier, discountApplied, paymentMode, checkoutUrl, isTrialing: isNewBasicTrial };
+}
+
+/**
+ * Purchase a Day Pass — 24hr Elite access via one-time payment.
+ * Stub mode: activates immediately.
+ * Live mode: creates Razorpay order, returns checkout URL.
+ */
+export async function purchaseDayPass(
+  db: Database,
+  userId: string,
+  userEmail?: string | null
+): Promise<{
+  success: boolean;
+  dayPassExpiresAt: Date;
+  paymentMode: "stub" | "live";
+  checkoutUrl?: string;
+  orderId?: string;
+}> {
+  const now = new Date();
+  const expiresAt = new Date(now);
+  expiresAt.setHours(expiresAt.getHours() + DAY_PASS_CONFIG.durationHours);
+
+  const paymentMode = await getPaymentMode();
+  const isLive = paymentMode === "live";
+
+  // Ensure subscription record exists
+  let sub = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.userId, userId),
+  });
+
+  if (!sub) {
+    // Create a basic subscription record first
+    const result = await db
+      .insert(subscriptions)
+      .values({
+        userId,
+        tier: "basic",
+        status: "active",
+        currentPeriodStart: now,
+        billingCycle: "yearly",
+      })
+      .returning();
+    sub = result[0]!;
+  }
+
+  let checkoutUrl: string | undefined;
+  let orderId: string | undefined;
+  let razorpayPaymentId: string | null = null;
+
+  if (isLive) {
+    const orderResult = await createDayPassOrder(db, userId, userEmail ?? null);
+    checkoutUrl = orderResult.checkoutUrl;
+    orderId = orderResult.orderId;
+    // In live mode, Day Pass activates on payment.captured webhook
+    // Log the pending purchase
+    await db.insert(subscriptionEvents).values({
+      userId,
+      subscriptionId: sub.id,
+      event: "day_pass_purchased",
+      fromTier: sub.tier,
+      toTier: sub.tier,
+      metadata: { orderId, paymentMode, status: "pending" },
+    });
+
+    return { success: true, dayPassExpiresAt: expiresAt, paymentMode, checkoutUrl, orderId };
+  }
+
+  // Stub mode: activate immediately
+  await db
+    .update(subscriptions)
+    .set({
+      dayPassActive: true,
+      dayPassExpiresAt: expiresAt,
+      updatedAt: now,
+    })
+    .where(eq(subscriptions.id, sub.id));
+
+  await db.insert(subscriptionEvents).values({
+    userId,
+    subscriptionId: sub.id,
+    event: "day_pass_purchased",
+    fromTier: sub.tier,
+    toTier: sub.tier,
+    metadata: {
+      dayPassExpiresAt: expiresAt.toISOString(),
+      priceINR: DAY_PASS_CONFIG.priceINR,
+      paymentMode,
+    },
+  });
+
+  await invalidateUserTierCache(userId);
+  log.info({ userId, dayPassExpiresAt: expiresAt.toISOString() }, "Day Pass activated (stub mode)");
+
+  return { success: true, dayPassExpiresAt: expiresAt, paymentMode };
+}
+
+/**
+ * Activate Day Pass from webhook (live mode).
+ */
+export async function activateDayPassFromWebhook(
+  db: Database,
+  userId: string,
+  razorpayPaymentId: string
+): Promise<void> {
+  const now = new Date();
+  const expiresAt = new Date(now);
+  expiresAt.setHours(expiresAt.getHours() + DAY_PASS_CONFIG.durationHours);
+
+  const sub = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.userId, userId),
+  });
+
+  if (!sub) {
+    log.warn({ userId, razorpayPaymentId }, "Webhook: no subscription found for Day Pass activation");
+    return;
+  }
+
+  await db
+    .update(subscriptions)
+    .set({
+      dayPassActive: true,
+      dayPassExpiresAt: expiresAt,
+      dayPassRazorpayPaymentId: razorpayPaymentId,
+      updatedAt: now,
+    })
+    .where(eq(subscriptions.id, sub.id));
+
+  await invalidateUserTierCache(userId);
+  log.info({ userId, razorpayPaymentId, dayPassExpiresAt: expiresAt.toISOString() }, "Day Pass activated via webhook");
+}
+
+/**
+ * Batch expire Day Passes that have passed their expiry time.
+ * Can be called from a cron job or periodically.
+ */
+export async function expireDayPasses(db: Database): Promise<number> {
+  const now = new Date();
+  const expired = await db
+    .update(subscriptions)
+    .set({ dayPassActive: false, updatedAt: now })
+    .where(
+      and(
+        eq(subscriptions.dayPassActive, true),
+        lt(subscriptions.dayPassExpiresAt, now)
+      )
+    )
+    .returning({ userId: subscriptions.userId });
+
+  for (const { userId } of expired) {
+    await invalidateUserTierCache(userId);
+  }
+
+  if (expired.length > 0) {
+    log.info({ count: expired.length }, "Expired Day Passes cleaned up");
+  }
+
+  return expired.length;
 }
 
 /**
@@ -318,11 +575,14 @@ export async function subscribeTier(
  */
 export async function cancelSubscription(db: Database, userId: string): Promise<void> {
   const sub = await db.query.subscriptions.findFirst({
-    where: and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")),
+    where: and(
+      eq(subscriptions.userId, userId),
+      sql`${subscriptions.status} IN ('active', 'trialing')`,
+    ),
   });
 
-  if (!sub || sub.tier === "free") {
-    throw new Error("No active paid subscription to cancel");
+  if (!sub) {
+    throw new Error("No active subscription to cancel");
   }
 
   const paymentMode = await getPaymentMode();
@@ -351,11 +611,10 @@ export async function cancelSubscription(db: Database, userId: string): Promise<
 
     log.info({ userId, tier: sub.tier, paymentMode }, "Subscription cancelled (active until period end)");
   } else {
-    // Stub mode: cancel immediately, downgrade to free
+    // Stub mode or trial: cancel immediately, mark as cancelled
     await db
       .update(subscriptions)
       .set({
-        tier: "free",
         status: "cancelled",
         cancelAtPeriodEnd: false,
         currentPeriodEnd: new Date(),
@@ -368,7 +627,7 @@ export async function cancelSubscription(db: Database, userId: string): Promise<
       subscriptionId: sub.id,
       event: "cancelled",
       fromTier: sub.tier,
-      toTier: "free",
+      toTier: sub.tier,
       metadata: { cancelledAt: new Date().toISOString(), paymentMode, immediate: true },
     });
 
@@ -473,7 +732,7 @@ export async function activateSubscriptionFromWebhook(
 
   const now = new Date();
   const periodEnd = new Date(now);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
+  periodEnd.setFullYear(periodEnd.getFullYear() + 1); // yearly billing
 
   await db
     .update(subscriptions)
@@ -499,7 +758,7 @@ export async function activateSubscriptionFromWebhook(
 }
 
 /**
- * Extend subscription period on recurring charge.
+ * Extend subscription period on recurring charge (yearly renewal).
  * Called on: subscription.charged (subsequent charges)
  */
 export async function renewSubscription(
@@ -518,7 +777,7 @@ export async function renewSubscription(
 
   const now = new Date();
   const newPeriodEnd = new Date(sub.currentPeriodEnd ?? now);
-  newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+  newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 1); // yearly renewal
 
   await db
     .update(subscriptions)
@@ -540,7 +799,7 @@ export async function renewSubscription(
   });
 
   await invalidateUserTierCache(sub.userId);
-  log.info({ userId: sub.userId, razorpaySubscriptionId }, "Webhook: subscription renewed");
+  log.info({ userId: sub.userId, razorpaySubscriptionId }, "Webhook: subscription renewed (yearly)");
 }
 
 /**
@@ -612,7 +871,7 @@ export async function handleExternalCancellation(
     subscriptionId: sub.id,
     event: "cancelled",
     fromTier: sub.tier,
-    toTier: "free",
+    toTier: sub.tier,
     metadata: { razorpaySubscriptionId, razorpayEventId, source: "webhook" },
   });
 

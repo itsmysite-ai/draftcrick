@@ -3,14 +3,16 @@ import { router, publicProcedure, protectedProcedure, adminProcedure } from "../
 import {
   getTierConfigs,
   updateTierConfigs,
-  getUserTier,
+  getUserTierFull,
   getUserSubscription,
   subscribeTier,
   cancelSubscription,
   getSubscriptionHistory,
   validatePromoCode,
+  purchaseDayPass,
+  expireDayPasses,
 } from "../services/subscription";
-import { type SubscriptionTier, type TierConfig } from "@draftplay/shared";
+import { type SubscriptionTier, type TierConfig, DAY_PASS_CONFIG } from "@draftplay/shared";
 import { promoCodes, promoRedemptions, subscriptions, subscriptionEvents } from "@draftplay/db";
 import { eq, desc, and, sql } from "drizzle-orm";
 
@@ -25,33 +27,49 @@ export const subscriptionRouter = router({
    */
   getTierConfigs: publicProcedure.query(async () => {
     const configs = await getTierConfigs();
-    return Object.values(configs);
+    return { tiers: Object.values(configs), dayPass: DAY_PASS_CONFIG };
   }),
 
   /**
-   * Get current user's subscription status.
+   * Get current user's subscription status (with Day Pass + trial info).
    */
   getMyTier: protectedProcedure.query(async ({ ctx }) => {
     const sub = await getUserSubscription(ctx.db, ctx.user.id);
+    const tierFull = await getUserTierFull(ctx.db, ctx.user.id);
     const configs = await getTierConfigs();
-    const tierConfig = configs[sub.tier];
-    return { ...sub, tierConfig };
+    const tierConfig = configs[tierFull.effectiveTier];
+    return {
+      ...sub,
+      effectiveTier: tierFull.effectiveTier,
+      baseTier: tierFull.baseTier,
+      dayPassActive: tierFull.dayPassActive,
+      dayPassExpiresAt: tierFull.dayPassExpiresAt,
+      isTrialing: tierFull.isTrialing,
+      tierConfig,
+    };
   }),
 
   /**
-   * Subscribe to a paid tier (Pro or Elite).
+   * Subscribe to a tier (Basic, Pro, or Elite) — yearly billing.
    * In stub mode (no Razorpay), directly activates.
    */
   subscribe: protectedProcedure
     .input(
       z.object({
-        tier: z.enum(["pro", "elite"]),
+        tier: z.enum(["basic", "pro", "elite"]),
         promoCode: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       return subscribeTier(ctx.db, ctx.user.id, input.tier, input.promoCode, ctx.user.email);
     }),
+
+  /**
+   * Purchase a Day Pass — 24hr Elite access.
+   */
+  purchaseDayPass: protectedProcedure.mutation(async ({ ctx }) => {
+    return purchaseDayPass(ctx.db, ctx.user.id, ctx.user.email);
+  }),
 
   /**
    * Cancel subscription. Stays active until period end.
@@ -65,7 +83,7 @@ export const subscriptionRouter = router({
    * Validate a promo code before applying.
    */
   validatePromo: protectedProcedure
-    .input(z.object({ code: z.string(), tier: z.enum(["pro", "elite"]) }))
+    .input(z.object({ code: z.string(), tier: z.enum(["basic", "pro", "elite"]) }))
     .query(async ({ ctx, input }) => {
       const result = await validatePromoCode(ctx.db, input.code, ctx.user.id, input.tier);
       if (!result) return { valid: false as const, message: "Invalid or expired promo code" };
@@ -78,7 +96,7 @@ export const subscriptionRouter = router({
       } else if (result.discountType === "fixed_amount") {
         discountDisplay = `₹${(result.discountValue / 100).toFixed(0)} off`;
       } else {
-        discountDisplay = `${result.durationMonths} month(s) free`;
+        discountDisplay = "First year free";
       }
 
       return {
@@ -117,10 +135,12 @@ export const subscriptionRouter = router({
       .input(
         z.object({
           tiers: z.record(
-            z.enum(["free", "pro", "elite"]),
+            z.enum(["basic", "pro", "elite"]),
             z.object({
-              priceMonthly: z.number().optional(),
-              priceInPaise: z.number().optional(),
+              priceYearlyINR: z.number().optional(),
+              priceYearlyUSD: z.number().optional(),
+              hasFreeTrial: z.boolean().optional(),
+              freeTrialDays: z.number().int().min(0).optional(),
               displayFeatures: z.array(z.string()).optional(),
               features: z
                 .object({
@@ -178,12 +198,12 @@ export const subscriptionRouter = router({
           description: z.string().optional(),
           discountType: z.enum(["percentage", "fixed_amount", "free_trial"]),
           discountValue: z.number().int().min(1),
-          applicableTiers: z.array(z.enum(["pro", "elite"])).min(1),
+          applicableTiers: z.array(z.enum(["basic", "pro", "elite"])).min(1),
           maxRedemptions: z.number().int().min(1).nullable().optional(),
           maxPerUser: z.number().int().min(1).default(1),
           validFrom: z.date().optional(),
           validUntil: z.date().nullable().optional(),
-          durationMonths: z.number().int().min(1).default(1),
+          durationMonths: z.number().int().min(1).default(12), // default to 1 year
           influencerName: z.string().optional(),
           influencerCommission: z.number().int().optional(), // paise per redemption
         })
@@ -246,8 +266,8 @@ export const subscriptionRouter = router({
     listSubscriptions: adminProcedure
       .input(
         z.object({
-          status: z.enum(["active", "cancelled", "expired", "past_due"]).optional(),
-          tier: z.enum(["free", "pro", "elite"]).optional(),
+          status: z.enum(["active", "cancelled", "expired", "past_due", "trialing"]).optional(),
+          tier: z.enum(["basic", "pro", "elite"]).optional(),
           limit: z.number().int().min(1).max(100).default(50),
         })
       )
@@ -271,7 +291,7 @@ export const subscriptionRouter = router({
       .input(
         z.object({
           userId: z.string().uuid(),
-          tier: z.enum(["free", "pro", "elite"]),
+          tier: z.enum(["basic", "pro", "elite"]),
           reason: z.string().min(1),
         })
       )
@@ -293,7 +313,7 @@ export const subscriptionRouter = router({
               tier: input.tier,
               status: "active",
               currentPeriodStart: now,
-              currentPeriodEnd: input.tier === "free" ? null : periodEnd,
+              currentPeriodEnd: periodEnd,
               cancelAtPeriodEnd: false,
               updatedAt: now,
             })
@@ -307,7 +327,7 @@ export const subscriptionRouter = router({
             toTier: input.tier,
             metadata: { reason: input.reason, adminId: ctx.user.id },
           });
-        } else if (input.tier !== "free") {
+        } else {
           const result = await ctx.db
             .insert(subscriptions)
             .values({
@@ -316,6 +336,7 @@ export const subscriptionRouter = router({
               status: "active",
               currentPeriodStart: now,
               currentPeriodEnd: periodEnd,
+              billingCycle: "yearly",
               priceInPaise: "0",
             })
             .returning({ id: subscriptions.id });
@@ -324,7 +345,7 @@ export const subscriptionRouter = router({
             userId: input.userId,
             subscriptionId: result[0]!.id,
             event: "admin_override",
-            fromTier: "free",
+            fromTier: "basic",
             toTier: input.tier,
             metadata: { reason: input.reason, adminId: ctx.user.id },
           });
@@ -333,6 +354,62 @@ export const subscriptionRouter = router({
         await invalidateUserTierCache(input.userId);
         return { success: true };
       }),
+
+    /**
+     * Grant a Day Pass to a user (admin override).
+     */
+    grantDayPass: adminProcedure
+      .input(
+        z.object({
+          userId: z.string().uuid(),
+          reason: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { invalidateUserTierCache, DAY_PASS_CONFIG: _ } = await import("../services/subscription");
+        const { DAY_PASS_CONFIG: dpConfig } = await import("@draftplay/shared");
+
+        const now = new Date();
+        const expiresAt = new Date(now);
+        expiresAt.setHours(expiresAt.getHours() + dpConfig.durationHours);
+
+        const sub = await ctx.db.query.subscriptions.findFirst({
+          where: eq(subscriptions.userId, input.userId),
+        });
+
+        if (!sub) {
+          throw new Error("User has no subscription record");
+        }
+
+        await ctx.db
+          .update(subscriptions)
+          .set({
+            dayPassActive: true,
+            dayPassExpiresAt: expiresAt,
+            updatedAt: now,
+          })
+          .where(eq(subscriptions.id, sub.id));
+
+        await ctx.db.insert(subscriptionEvents).values({
+          userId: input.userId,
+          subscriptionId: sub.id,
+          event: "day_pass_purchased",
+          fromTier: sub.tier,
+          toTier: sub.tier,
+          metadata: { reason: input.reason, adminId: ctx.user.id, source: "admin_grant" },
+        });
+
+        await invalidateUserTierCache(input.userId);
+        return { success: true, dayPassExpiresAt: expiresAt };
+      }),
+
+    /**
+     * Expire all Day Passes that have passed their expiry time.
+     */
+    expireDayPasses: adminProcedure.mutation(async ({ ctx }) => {
+      const count = await expireDayPasses(ctx.db);
+      return { expired: count };
+    }),
 
     /**
      * Get payment settings (mode + Razorpay config status).
@@ -345,6 +422,7 @@ export const subscriptionRouter = router({
         hasKeyId: !!process.env.RAZORPAY_KEY_ID,
         hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
         hasWebhookSecret: !!process.env.RAZORPAY_WEBHOOK_SECRET,
+        hasPlanBasic: !!process.env.RAZORPAY_PLAN_BASIC,
         hasPlanPro: !!process.env.RAZORPAY_PLAN_PRO,
         hasPlanElite: !!process.env.RAZORPAY_PLAN_ELITE,
       };
@@ -378,9 +456,22 @@ export const subscriptionRouter = router({
         .select({ total: sql<number>`count(*)::int` })
         .from(promoRedemptions);
 
+      // Day Pass metrics
+      const activeDayPasses = await ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(subscriptions)
+        .where(eq(subscriptions.dayPassActive, true));
+
+      const totalDayPassPurchases = await ctx.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(subscriptionEvents)
+        .where(eq(subscriptionEvents.event, "day_pass_purchased"));
+
       return {
         subscriptionsByTierAndStatus: allSubs,
         totalPromoRedemptions: totalPromo[0]?.total ?? 0,
+        activeDayPasses: activeDayPasses[0]?.count ?? 0,
+        totalDayPassPurchases: totalDayPassPurchases[0]?.count ?? 0,
       };
     }),
 
@@ -412,30 +503,35 @@ export const subscriptionRouter = router({
             revenue: sql<number>`coalesce(sum(price_in_paise::int), 0)::int`,
           })
           .from(subscriptions)
-          .where(and(
-            eq(subscriptions.status, "active"),
-            sql`${subscriptions.tier} != 'free'`,
-          ))
+          .where(
+            sql`${subscriptions.status} IN ('active', 'trialing')`,
+          )
           .groupBy(subscriptions.tier);
 
         const totalActiveUsers = totalUsers[0]?.count ?? 0;
+        const basicCount = activePaid.find(r => r.tier === "basic")?.count ?? 0;
         const proCount = activePaid.find(r => r.tier === "pro")?.count ?? 0;
         const eliteCount = activePaid.find(r => r.tier === "elite")?.count ?? 0;
-        const totalPaidUsers = proCount + eliteCount;
-        const freeUsers = totalActiveUsers - totalPaidUsers;
+        const totalPaidUsers = basicCount + proCount + eliteCount;
 
-        // MRR = sum of all active paid subscriptions' monthly price
-        const mrrResult = await ctx.db
-          .select({ mrr: sql<number>`coalesce(sum(price_in_paise::int), 0)::int` })
+        // ARR = sum of all active subscriptions' yearly price
+        const arrResult = await ctx.db
+          .select({ arr: sql<number>`coalesce(sum(price_in_paise::int), 0)::int` })
           .from(subscriptions)
-          .where(and(
-            eq(subscriptions.status, "active"),
-            sql`${subscriptions.tier} != 'free'`,
-          ));
-        const mrrPaise = mrrResult[0]?.mrr ?? 0;
+          .where(
+            sql`${subscriptions.status} IN ('active', 'trialing')`,
+          );
+        const arrPaise = arrResult[0]?.arr ?? 0;
+
+        // Day Pass revenue
+        const dayPassRevenue = await ctx.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(subscriptionEvents)
+          .where(eq(subscriptionEvents.event, "day_pass_purchased"));
+        const dayPassCount = dayPassRevenue[0]?.count ?? 0;
+        const dayPassRevenuePaise = dayPassCount * DAY_PASS_CONFIG.priceINR;
 
         // ── 2. Conversion rates ──
-        // How many users ever upgraded from free to a paid tier
         const conversions = await ctx.db
           .select({
             toTier: subscriptionEvents.toTier,
@@ -444,13 +540,13 @@ export const subscriptionRouter = router({
           .from(subscriptionEvents)
           .where(and(
             sql`${subscriptionEvents.event} IN ('created', 'upgraded')`,
-            eq(subscriptionEvents.fromTier, "free"),
+            eq(subscriptionEvents.fromTier, "basic"),
             sql`${subscriptionEvents.toTier} IN ('pro', 'elite')`,
           ))
           .groupBy(subscriptionEvents.toTier);
 
-        const freeToPro = conversions.find(r => r.toTier === "pro")?.count ?? 0;
-        const freeToElite = conversions.find(r => r.toTier === "elite")?.count ?? 0;
+        const basicToPro = conversions.find(r => r.toTier === "pro")?.count ?? 0;
+        const basicToElite = conversions.find(r => r.toTier === "elite")?.count ?? 0;
 
         const proToElite = await ctx.db
           .select({ count: sql<number>`count(distinct ${subscriptionEvents.userId})::int` })
@@ -476,13 +572,11 @@ export const subscriptionRouter = router({
           .groupBy(sql`to_char(${subscriptionEvents.createdAt}, 'YYYY-MM')`, subscriptionEvents.fromTier)
           .orderBy(sql`to_char(${subscriptionEvents.createdAt}, 'YYYY-MM')`);
 
-        // Total cancellations (all time)
         const totalChurned = await ctx.db
           .select({ count: sql<number>`count(*)::int` })
           .from(subscriptionEvents)
           .where(eq(subscriptionEvents.event, "cancelled"));
 
-        // Avg days before cancellation
         const avgDaysToChurn = await ctx.db.execute<{ avgDays: number }>(sql`
           SELECT coalesce(avg(
             extract(epoch from (se.created_at - s.current_period_start)) / 86400
@@ -492,7 +586,7 @@ export const subscriptionRouter = router({
           WHERE se.event = 'cancelled'
         `);
 
-        // ── 4. Monthly trends (new subs, upgrades, cancellations, revenue) ──
+        // ── 4. Monthly trends ──
         const monthlyTrends = await ctx.db
           .select({
             month: sql<string>`to_char(${subscriptionEvents.createdAt}, 'YYYY-MM')`,
@@ -529,11 +623,10 @@ export const subscriptionRouter = router({
           )
           .orderBy(desc(promoCodes.currentRedemptions));
 
-        // How many promo-acquired users are still active
         const promoRetention = await ctx.db
           .select({
             promoCodeId: promoRedemptions.promoCodeId,
-            stillActive: sql<number>`count(case when ${subscriptions.status} = 'active' and ${subscriptions.tier} != 'free' then 1 end)::int`,
+            stillActive: sql<number>`count(case when ${subscriptions.status} IN ('active', 'trialing') then 1 end)::int`,
             total: sql<number>`count(*)::int`,
           })
           .from(promoRedemptions)
@@ -556,7 +649,7 @@ export const subscriptionRouter = router({
           .groupBy(sql`to_char(${subscriptionEvents.createdAt}, 'YYYY-MM')`)
           .orderBy(sql`to_char(${subscriptionEvents.createdAt}, 'YYYY-MM')`);
 
-        // ── 7. At-risk users (cancelled or past_due) ──
+        // ── 7. At-risk users ──
         const atRisk = await ctx.db
           .select({
             status: subscriptions.status,
@@ -570,24 +663,28 @@ export const subscriptionRouter = router({
         return {
           overview: {
             totalUsers: totalActiveUsers,
-            freeUsers,
+            basicUsers: basicCount,
             proUsers: proCount,
             eliteUsers: eliteCount,
+            totalPaidUsers,
             conversionRate: totalActiveUsers > 0
               ? Number(((totalPaidUsers / totalActiveUsers) * 100).toFixed(1))
               : 0,
-            mrrPaise,
-            mrrDisplay: `₹${(mrrPaise / 100).toFixed(0)}`,
+            arrPaise,
+            arrDisplay: `₹${(arrPaise / 100).toFixed(0)}`,
             arpu: totalPaidUsers > 0
-              ? Number(((mrrPaise / totalPaidUsers) / 100).toFixed(0))
+              ? Number(((arrPaise / totalPaidUsers) / 100).toFixed(0))
               : 0,
+            dayPassPurchases: dayPassCount,
+            dayPassRevenuePaise,
+            dayPassRevenueDisplay: `₹${(dayPassRevenuePaise / 100).toFixed(0)}`,
           },
           conversion: {
-            freeToPro,
-            freeToElite,
+            basicToPro,
+            basicToElite,
             proToElite: proToElite[0]?.count ?? 0,
-            freeToProRate: totalActiveUsers > 0
-              ? Number(((freeToPro / totalActiveUsers) * 100).toFixed(1))
+            basicToProRate: basicCount > 0
+              ? Number(((basicToPro / basicCount) * 100).toFixed(1))
               : 0,
           },
           churn: {

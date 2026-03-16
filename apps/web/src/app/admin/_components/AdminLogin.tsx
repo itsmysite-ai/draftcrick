@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { DraftPlayLogoSVG } from "@/components/DraftPlayLogoSVG";
 
 export function AdminLogin() {
   const { signIn } = useAuth();
@@ -43,7 +44,10 @@ export function AdminLogin() {
           border: "1px solid var(--border)",
         }}
       >
-        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>DraftPlay Admin</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <DraftPlayLogoSVG size={28} animate={false} />
+          <h1 style={{ fontSize: 20, fontWeight: 700 }}>DraftPlay Admin</h1>
+        </div>
         <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>
           Sign in with your admin account
         </p>

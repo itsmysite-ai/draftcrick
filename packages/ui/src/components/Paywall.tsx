@@ -20,6 +20,12 @@ export interface PaywallProps {
   description?: string;
   /** Called when user taps "Upgrade" */
   onUpgrade: () => void;
+  /** Called when user taps "Day Pass" for 24hr Elite access */
+  onDayPass?: () => void;
+  /** Whether to show the Day Pass option */
+  showDayPassOption?: boolean;
+  /** If true, show only INR pricing (no USD) */
+  isIndian?: boolean;
   /** Called when user taps dismiss / backdrop */
   onDismiss: () => void;
   /** Whether the modal is visible */
@@ -32,6 +38,9 @@ export function Paywall({
   featureName,
   description,
   onUpgrade,
+  onDayPass,
+  showDayPassOption,
+  isIndian = true,
   onDismiss,
   visible,
   testID = "paywall",
@@ -125,6 +134,31 @@ export function Paywall({
             {formatUIText(`upgrade to ${requiredTier}`)}
           </Text>
         </YStack>
+
+        {/* Day Pass option */}
+        {showDayPassOption && onDayPass && (
+          <YStack
+            backgroundColor="transparent"
+            borderWidth={1}
+            borderColor="$colorAccent"
+            paddingVertical="$2.5"
+            paddingHorizontal="$6"
+            borderRadius="$3"
+            width="100%"
+            alignItems="center"
+            onPress={onDayPass}
+            cursor="pointer"
+            pressStyle={{ opacity: 0.85 }}
+            testID={`${testID}-daypass-btn`}
+          >
+            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$colorAccent">
+              {formatUIText("day pass — 24hr elite access")}
+            </Text>
+            <Text fontFamily="$body" fontSize={11} color="$colorSecondary" marginTop="$1">
+              {isIndian ? "₹69 for 24 hours" : "$2.99 for 24 hours"}
+            </Text>
+          </YStack>
+        )}
 
         {/* Dismiss */}
         <Text
