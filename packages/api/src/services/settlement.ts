@@ -98,10 +98,23 @@ export async function settleContest(
  * Calculate prize distribution for a contest based on entries and fee.
  * Uses a standard payout structure.
  */
+/**
+ * Distribute remainder coins to top ranks so prize sum exactly equals pool.
+ */
+function distributeRemainder(slots: PrizeSlot[], pool: number): PrizeSlot[] {
+  const total = slots.reduce((s, p) => s + p.amount, 0);
+  let remainder = pool - total;
+  for (let i = 0; i < slots.length && remainder > 0; i++) {
+    slots[i].amount += 1;
+    remainder--;
+  }
+  return slots;
+}
+
 export function calculatePrizeDistribution(
   entryFee: number,
   maxEntries: number,
-  rake = 0.10 // 10% rake (burned for anti-inflation)
+  rake = 0 // no platform cut — 100% of pool goes to winners
 ): PrizeSlot[] {
   const totalPool = entryFee * maxEntries;
   const prizePool = Math.floor(totalPool * (1 - rake));
@@ -110,16 +123,16 @@ export function calculatePrizeDistribution(
     return [{ rank: 1, amount: prizePool }];
   }
 
+  let slots: PrizeSlot[];
+
   if (maxEntries <= 10) {
-    return [
+    slots = [
       { rank: 1, amount: Math.floor(prizePool * 0.6) },
       { rank: 2, amount: Math.floor(prizePool * 0.25) },
       { rank: 3, amount: Math.floor(prizePool * 0.15) },
     ];
-  }
-
-  if (maxEntries <= 100) {
-    return [
+  } else if (maxEntries <= 100) {
+    slots = [
       { rank: 1, amount: Math.floor(prizePool * 0.4) },
       { rank: 2, amount: Math.floor(prizePool * 0.2) },
       { rank: 3, amount: Math.floor(prizePool * 0.12) },
@@ -131,22 +144,22 @@ export function calculatePrizeDistribution(
       { rank: 9, amount: Math.floor(prizePool * 0.01) },
       { rank: 10, amount: Math.floor(prizePool * 0.01) },
     ];
+  } else {
+    const winnerCount = Math.max(10, Math.floor(maxEntries * 0.1));
+    slots = [
+      { rank: 1, amount: Math.floor(prizePool * 0.25) },
+      { rank: 2, amount: Math.floor(prizePool * 0.12) },
+      { rank: 3, amount: Math.floor(prizePool * 0.08) },
+    ];
+
+    const remainingPool = Math.floor(prizePool * 0.55);
+    const remainingSlots = winnerCount - 3;
+    const perSlot = Math.floor(remainingPool / remainingSlots);
+
+    for (let i = 4; i <= winnerCount; i++) {
+      slots.push({ rank: i, amount: perSlot });
+    }
   }
 
-  const winnerCount = Math.max(10, Math.floor(maxEntries * 0.1));
-  const slots: PrizeSlot[] = [
-    { rank: 1, amount: Math.floor(prizePool * 0.25) },
-    { rank: 2, amount: Math.floor(prizePool * 0.12) },
-    { rank: 3, amount: Math.floor(prizePool * 0.08) },
-  ];
-
-  const remainingPool = Math.floor(prizePool * 0.55);
-  const remainingSlots = winnerCount - 3;
-  const perSlot = Math.floor(remainingPool / remainingSlots);
-
-  for (let i = 4; i <= winnerCount; i++) {
-    slots.push({ rank: i, amount: perSlot });
-  }
-
-  return slots;
+  return distributeRemainder(slots, prizePool);
 }

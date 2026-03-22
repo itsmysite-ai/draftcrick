@@ -105,6 +105,9 @@ export const fantasyTeams = pgTable(
       .notNull()
       .default("0"),
     rank: integer("rank"),
+    predictionPoints: decimal("prediction_points", { precision: 8, scale: 2 })
+      .notNull()
+      .default("0"),
     creditsUsed: decimal("credits_used", { precision: 6, scale: 1 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

@@ -8,7 +8,7 @@
     "type-check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:push": "echo '⛔ db:push is disabled — it destroys data. Use db:generate + db:migrate instead.' && exit 1",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

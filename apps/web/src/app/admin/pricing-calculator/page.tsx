@@ -667,7 +667,7 @@ export default function PricingCalculatorPage() {
       </div>
 
       {/* ─── Presets ─── */}
-      <div style={{ ...sectionStyle, display: "flex", gap: 12, alignItems: "center" }}>
+      <div style={{ ...sectionStyle, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Quick Presets:</span>
         {(["beta", "growth", "scale"] as const).map(p => (
           <button
@@ -687,6 +687,49 @@ export default function PricingCalculatorPage() {
             {p === "beta" ? "Beta (500)" : p === "growth" ? "Growth (5K)" : "Scale (50K)"}
           </button>
         ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Custom:</span>
+          <input
+            type="number"
+            min={1}
+            placeholder="e.g. 10000"
+            style={{
+              width: 100,
+              padding: "6px 10px",
+              borderRadius: 6,
+              border: "1px solid var(--border)",
+              fontSize: 12,
+              fontFamily: "var(--font-data)",
+              backgroundColor: "var(--bg)",
+              color: "var(--text-primary)",
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const v = Number((e.target as HTMLInputElement).value);
+                if (v > 0) setUsers(u => ({ ...u, totalUsers: v }));
+              }
+            }}
+          />
+          <button
+            onClick={(e) => {
+              const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+              const v = Number(input.value);
+              if (v > 0) setUsers(u => ({ ...u, totalUsers: v }));
+            }}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "1px solid var(--accent)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              backgroundColor: "var(--accent)",
+              color: "#fff",
+            }}
+          >
+            Apply
+          </button>
+        </div>
       </div>
 
       {/* ─── SUMMARY DASHBOARD (always visible) ─── */}

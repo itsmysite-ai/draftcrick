@@ -37,6 +37,9 @@ export const matches = pgTable(
     lastFetchAction: text("last_fetch_action"), // "new" | "updated"
     lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
 
+    // Prediction grace period — 15 min after match ends for users to resolve predictions
+    predictionDeadline: timestamp("prediction_deadline", { withTimezone: true }),
+
     // Smart refresh columns
     tournamentId: uuid("tournament_id").references(() => tournaments.id),
     matchPhase: text("match_phase").notNull().default("idle"), // idle, pre_match, live, post_match, completed

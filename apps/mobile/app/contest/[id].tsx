@@ -20,12 +20,14 @@ import {
   formatBadgeText,
   formatTeamName,
   DraftPlayLogo,
+  ScoringRulesCard,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
 
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+import { LivePredictionFeed } from "../../components/LivePredictionFeed";
 
 // ── Countdown helper ─────────────────────────────────────────────
 function formatCountdownFull(targetDate: string | Date): string {
@@ -72,7 +74,7 @@ function ConfettiParticle({ delay, color, startX }: { delay: number; color: stri
 const CONFETTI_COLORS = ["#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98FB98"];
 
 export default function ContestDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, section } = useLocalSearchParams<{ id: string; section?: string }>();
   const router = useRouter();
   const theme = useTamaguiTheme();
 
@@ -85,10 +87,12 @@ export default function ContestDetailScreen() {
   const celebrationShown = useRef(false);
 
   const contest = trpc.contest.getById.useQuery({ id: id! }, { enabled: !!id });
-  const standings = trpc.contest.getStandings.useQuery({ contestId: id! }, { enabled: !!id });
+  const c = contest.data as any;
+  const isLiveMatch = c?.status === "live" || c?.match?.status === "live";
+  const standings = trpc.contest.getStandings.useQuery({ contestId: id! }, { enabled: !!id, refetchInterval: isLiveMatch ? 5_000 : undefined });
   const myContests = trpc.contest.myContests.useQuery(undefined, { retry: false });
-  const myPosition = trpc.contest.myPosition.useQuery({ contestId: id! }, { enabled: !!id && !!user });
-  const myTeam = trpc.team.getByContest.useQuery({ contestId: id! }, { enabled: !!id && !!user });
+  const myPosition = trpc.contest.myPosition.useQuery({ contestId: id! }, { enabled: !!id && !!user, refetchInterval: isLiveMatch ? 5_000 : undefined });
+  const myTeam = trpc.team.getByContest.useQuery({ contestId: id! }, { enabled: !!id && !!user, refetchInterval: isLiveMatch ? 5_000 : undefined });
   const myAllTeams = trpc.team.myTeams.useQuery(undefined, { enabled: !!user, retry: false });
   const swapMutation = trpc.team.swapTeam.useMutation({
     onSuccess: () => {
@@ -97,6 +101,31 @@ export default function ContestDetailScreen() {
     },
   });
   const [showSwap, setShowSwap] = useState(false);
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "predictions">(section === "predictions" ? "predictions" : "overview");
+
+  // Score flash animation when prediction points update
+  const scoreFlash = useSharedValue(1);
+  const scoreFlashStyle = useAnimatedStyle(() => ({
+    opacity: scoreFlash.value,
+    transform: [{ scale: scoreFlash.value < 1 ? 1.08 : 1 }],
+  }));
+  const prevPointsRef = useRef<number | null>(null);
+
+  const handlePredictionScoreUpdate = useCallback(() => {
+    // Refetch all score-related data
+    standings.refetch();
+    myPosition.refetch();
+    myTeam.refetch();
+    myContests.refetch();
+    // Trigger flash animation
+    scoreFlash.value = withSequence(
+      withTiming(0.3, { duration: 150 }),
+      withTiming(1.2, { duration: 200 }),
+      withTiming(0.5, { duration: 150 }),
+      withTiming(1, { duration: 200 }),
+    );
+  }, [standings, myPosition, myTeam, myContests, scoreFlash]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -104,7 +133,6 @@ export default function ContestDetailScreen() {
     setRefreshing(false);
   }, [contest, standings, myContests, myPosition, myTeam, myAllTeams]);
 
-  const c = contest.data;
   const match = c?.match;
 
   // Other teams for this match the user can swap to
@@ -154,10 +182,11 @@ export default function ContestDetailScreen() {
   const isOpen = c.status === "open";
   const isLive = c.status === "live";
   const isSettling = c.status === "settling";
-  const hasJoined = (myContests.data ?? []).some((mc: any) => mc.contestId === id || mc.contest?.id === id);
+  const standingsData = standings.data ?? [];
+  const hasJoined = (myContests.data ?? []).some((mc: any) => mc.contestId === id || mc.contest?.id === id)
+    || (standingsData.length > 0 && standingsData.some((s: any) => s.userId === (user as any)?.id));
   const currentUserId = (user as any)?.id ?? null;
   const isH2H = c.maxEntries === 2 || c.contestType === "h2h";
-  const standingsData = standings.data ?? [];
 
   // Score breakdown data (#2)
   const teamPlayers = myTeam.data?.playerDetails ?? [];
@@ -167,6 +196,81 @@ export default function ContestDetailScreen() {
   const captainBonus = captain ? (captain.fantasyPoints ?? 0) : 0; // extra 1x
   const vcBonus = viceCaptain ? (viceCaptain.fantasyPoints ?? 0) * 0.5 : 0; // extra 0.5x
   const hasScores = (isLive || isSettled) && basePoints > 0;
+
+  /** Build structured points breakdown for a player (receipt-style) */
+  interface BreakdownRow { label: string; pts: number | null; isHeader?: boolean; isDivider?: boolean; isBold?: boolean }
+  const buildBreakdown = (p: any): BreakdownRow[] => {
+    const rows: BreakdownRow[] = [];
+    const runs = p.runs ?? 0;
+    const ballsFaced = p.ballsFaced ?? 0;
+    const fours = p.fours ?? 0;
+    const sixes = p.sixes ?? 0;
+    const wickets = p.wickets ?? 0;
+    const overs = p.oversBowled ?? 0;
+    const conceded = p.runsConceded ?? 0;
+    const maidens = p.maidens ?? 0;
+    const catches = p.catches ?? 0;
+    const stumpings = p.stumpings ?? 0;
+    const runOuts = p.runOuts ?? 0;
+
+    // Batting
+    if (runs > 0 || ballsFaced > 0) {
+      rows.push({ label: "batting", pts: null, isHeader: true });
+      rows.push({ label: `${runs} runs`, pts: runs });
+      if (fours > 0) rows.push({ label: `${fours} fours (boundary bonus)`, pts: fours });
+      if (sixes > 0) rows.push({ label: `${sixes} sixes (six bonus)`, pts: sixes * 2 });
+      if (runs >= 100) rows.push({ label: "century milestone", pts: 50 });
+      else if (runs >= 50) rows.push({ label: "half-century milestone", pts: 20 });
+      if (runs === 0 && ballsFaced > 0) rows.push({ label: "duck penalty", pts: -5 });
+      if (ballsFaced >= 10) {
+        const sr = (runs / ballsFaced) * 100;
+        if (sr >= 200) rows.push({ label: `SR ${sr.toFixed(1)} bonus`, pts: 10 });
+        else if (sr >= 175) rows.push({ label: `SR ${sr.toFixed(1)} bonus`, pts: 6 });
+        else if (sr >= 150) rows.push({ label: `SR ${sr.toFixed(1)} bonus`, pts: 4 });
+        else rows.push({ label: `SR ${sr.toFixed(1)}`, pts: null });
+      }
+    }
+
+    // Bowling
+    if (wickets > 0 || overs > 0) {
+      rows.push({ label: "bowling", pts: null, isHeader: true });
+      if (wickets > 0) rows.push({ label: `${wickets} wicket${wickets > 1 ? "s" : ""}`, pts: wickets * 25 });
+      if (maidens > 0) rows.push({ label: `${maidens} maiden${maidens > 1 ? "s" : ""}`, pts: maidens * 15 });
+      if (wickets >= 5) rows.push({ label: "5-wicket haul bonus", pts: 30 });
+      else if (wickets >= 3) rows.push({ label: "3-wicket haul bonus", pts: 15 });
+      if (overs >= 2) {
+        const er = conceded / overs;
+        if (er <= 4) rows.push({ label: `ER ${er.toFixed(1)} bonus`, pts: 10 });
+        else if (er <= 5) rows.push({ label: `ER ${er.toFixed(1)} bonus`, pts: 6 });
+        else if (er <= 6) rows.push({ label: `ER ${er.toFixed(1)} bonus`, pts: 4 });
+        else rows.push({ label: `${overs} ov, ${conceded} conc, ER ${er.toFixed(1)}`, pts: null });
+      } else if (overs > 0) {
+        const er = conceded / overs;
+        rows.push({ label: `${overs} ov, ${conceded} conc, ER ${er.toFixed(1)}`, pts: null });
+      }
+    }
+
+    // Fielding
+    if (catches > 0 || stumpings > 0 || runOuts > 0) {
+      rows.push({ label: "fielding", pts: null, isHeader: true });
+      if (catches > 0) rows.push({ label: `${catches} catch${catches > 1 ? "es" : ""}`, pts: catches * 10 });
+      if (stumpings > 0) rows.push({ label: `${stumpings} stumping${stumpings > 1 ? "s" : ""}`, pts: stumpings * 15 });
+      if (runOuts > 0) rows.push({ label: `${runOuts} run out${runOuts > 1 ? "s" : ""}`, pts: runOuts * 15 });
+    }
+
+    // Totals
+    const basePts = p.fantasyPoints ?? 0;
+    const multiplierVal = p.isCaptain ? 2 : p.isViceCaptain ? 1.5 : 1;
+    rows.push({ label: "", pts: null, isDivider: true });
+    rows.push({ label: "base total", pts: basePts, isBold: true });
+    if (multiplierVal > 1) {
+      const label = p.isCaptain ? "captain (2x)" : "vice-captain (1.5x)";
+      rows.push({ label, pts: basePts * (multiplierVal - 1), isBold: false });
+      rows.push({ label: "total", pts: basePts * multiplierVal, isBold: true });
+    }
+
+    return rows;
+  };
 
   const shareResult = () => {
     const text = `I finished #${myPosition.data?.rank} in "${c.name}" on DraftPlay${prizeWon > 0 ? ` and won ${prizeWon} PC!` : "!"}`;
@@ -212,26 +316,53 @@ export default function ContestDetailScreen() {
 
       {/* Contest Header */}
       <YStack padding="$5">
-        <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
-          <Text testID="contest-name" fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} flex={1}>
+        <XStack justifyContent="space-between" alignItems="flex-start" marginBottom="$1" gap="$2">
+          <Text testID="contest-name" fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5} flex={1} numberOfLines={2} ellipsizeMode="tail">
             {c.name}
           </Text>
           <Badge testID="contest-status-badge" variant={isLive ? "live" : "role"} size="sm">
             {formatBadgeText(c.status ?? "open")}
           </Badge>
         </XStack>
+        {/* Tappable match link — navigate to match center */}
         {match && (
           <YStack gap="$1">
             <XStack justifyContent="space-between" alignItems="center">
-              <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color">
-                {formatTeamName(match.teamHome)} {formatUIText("vs")} {formatTeamName(match.teamAway)}
-              </Text>
-              <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$accentBackground">
-                {match.tournament ?? formatUIText("cricket")}
-              </Text>
+              <XStack
+                alignItems="center"
+                gap="$2"
+                onPress={() => router.push(`/match/${match.externalId ?? match.id}`)}
+                cursor="pointer"
+                flex={1}
+              >
+                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$accentBackground">
+                  {formatTeamName(match.teamHome)} {formatUIText("vs")} {formatTeamName(match.teamAway)}
+                </Text>
+                <Text fontFamily="$mono" fontSize={10} color="$colorMuted">→</Text>
+              </XStack>
             </XStack>
+            <Text fontFamily="$mono" fontSize={11} fontWeight="500" color="$colorMuted">
+              {match.tournament ?? formatUIText("cricket")}
+            </Text>
+            {/* Live score summary */}
+            {(isLive || isSettled || isSettling) && match.scoreSummary ? (
+              <XStack
+                marginTop="$2"
+                padding="$3"
+                backgroundColor="$backgroundSurface"
+                borderRadius="$3"
+                borderLeftWidth={3}
+                borderLeftColor="$accentBackground"
+                onPress={() => router.push(`/match/${match.externalId ?? match.id}`)}
+                cursor="pointer"
+              >
+                <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$color" flex={1}>
+                  {match.scoreSummary}
+                </Text>
+              </XStack>
+            ) : null}
             {match.result && (
-              <Text fontFamily="$body" fontWeight="700" fontSize={11} color="$accentBackground">
+              <Text fontFamily="$body" fontWeight="700" fontSize={11} color="$accentBackground" marginTop="$1">
                 {match.result}
               </Text>
             )}
@@ -279,6 +410,66 @@ export default function ContestDetailScreen() {
         isLive ? { matchInfo: `${formatTeamName(match?.teamHome ?? "")} vs ${formatTeamName(match?.teamAway ?? "")} is live!` } :
         undefined
       } />
+
+      {/* Tab Bar — shown when predictions are available */}
+      {hasJoined && match && (isLive || isSettling || isSettled) && (
+        <XStack
+          marginHorizontal="$4"
+          marginBottom="$3"
+          backgroundColor="$backgroundSurface"
+          borderRadius={DesignSystem.radius.lg}
+          padding={3}
+          gap={3}
+        >
+          {(["overview", "predictions"] as const).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <XStack
+                key={tab}
+                flex={1}
+                justifyContent="center"
+                alignItems="center"
+                gap="$1"
+                paddingVertical="$2"
+                borderRadius={DesignSystem.radius.md}
+                backgroundColor={isActive ? "$accentBackground" : "transparent"}
+                cursor="pointer"
+                pressStyle={{ opacity: 0.8 }}
+                onPress={() => setActiveTab(tab)}
+                testID={`tab-${tab}`}
+              >
+                <Text
+                  fontFamily="$mono"
+                  fontWeight={isActive ? "700" : "500"}
+                  fontSize={DesignSystem.fontSize.md}
+                  color={isActive ? "$accentColor" : "$colorSecondary"}
+                >
+                  {formatUIText(tab)}
+                </Text>
+                {tab === "predictions" && isLive && !isActive && (
+                  <YStack
+                    width={6}
+                    height={6}
+                    borderRadius={3}
+                    backgroundColor="#30A46C"
+                  />
+                )}
+              </XStack>
+            );
+          })}
+        </XStack>
+      )}
+
+      {/* ── OVERVIEW TAB CONTENT ── */}
+      {/* Show overview content when: no tabs (pre-match/no predictions), or overview tab active */}
+      {(activeTab === "overview" || !(hasJoined && match && (isLive || isSettling || isSettled))) && (<>
+
+      {/* Scoring Rules — show during onboarding (open contests) */}
+      {isOpen && (
+        <YStack marginHorizontal="$4" marginBottom="$4">
+          <ScoringRulesCard format={match?.format} testID="contest-scoring-rules" />
+        </YStack>
+      )}
 
       {/* Post-Settlement Celebration Banner (#7) */}
       {isSettled && hasJoined && prizeWon > 0 && (
@@ -329,28 +520,57 @@ export default function ContestDetailScreen() {
                   of {myPosition.data.totalEntries} entries
                 </Text>
               </YStack>
-              <YStack alignItems="flex-end" gap={2}>
+              <Animated.View style={[scoreFlashStyle, { alignItems: "flex-end", gap: 2 }]}>
                 <Text fontFamily="$mono" fontWeight="700" fontSize={20} color="$color">
                   {myTeam.data ? myTeam.data.totalPoints.toFixed(1) : "—"} {formatUIText("pts")}
                 </Text>
+                {myTeam.data && (() => {
+                  const predPts = Number((myTeam.data as any).predictionPoints ?? 0);
+                  const matchPts = myTeam.data.totalPoints - predPts;
+                  if (predPts !== 0) {
+                    return (
+                      <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                        {formatUIText(`match ${matchPts.toFixed(1)} + predictions ${predPts >= 0 ? "+" : ""}${predPts.toFixed(1)}`)}
+                      </Text>
+                    );
+                  }
+                  return null;
+                })()}
                 {isSettled && prizeWon > 0 && (
                   <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorCricket">
                     won {prizeWon.toLocaleString()} PC
                   </Text>
                 )}
-              </YStack>
+              </Animated.View>
             </XStack>
 
-            {/* View Team toggle */}
-            <Button
-              variant="secondary"
-              size="sm"
-              marginTop="$3"
-              onPress={() => setShowTeam(!showTeam)}
-              testID="view-team-btn"
-            >
-              {formatUIText(showTeam ? "hide team" : "view your team")}
-            </Button>
+            {/* Team name — tappable to view team details */}
+            {myTeam.data && (
+              <XStack marginTop="$3" alignItems="center" justifyContent="space-between">
+                <XStack
+                  alignItems="center"
+                  gap="$2"
+                  flex={1}
+                  onPress={() => router.push(`/team/${myTeam.data!.id}`)}
+                  cursor="pointer"
+                >
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">team:</Text>
+                  <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$accentBackground" numberOfLines={1} flex={1}>
+                    {myTeam.data.name}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">→</Text>
+                </XStack>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  marginLeft="$2"
+                  onPress={() => setShowTeam(!showTeam)}
+                  testID="view-team-btn"
+                >
+                  {formatUIText(showTeam ? "hide" : "expand")}
+                </Button>
+              </XStack>
+            )}
           </Card>
         </Animated.View>
       )}
@@ -370,10 +590,10 @@ export default function ContestDetailScreen() {
                 </Text>
               </XStack>
               <YStack alignItems="flex-end">
-                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={(captain.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
                   {((captain.fantasyPoints ?? 0) * 2).toFixed(1)} pts
                 </Text>
-                <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                <Text fontFamily="$mono" fontSize={9} color={(captain.fantasyPoints ?? 0) > 0 ? "$colorMuted" : "$error"}>
                   +{(captain.fantasyPoints ?? 0).toFixed(1)} bonus (2x)
                 </Text>
               </YStack>
@@ -387,10 +607,10 @@ export default function ContestDetailScreen() {
                   </Text>
                 </XStack>
                 <YStack alignItems="flex-end">
-                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={(viceCaptain.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
                     {((viceCaptain.fantasyPoints ?? 0) * 1.5).toFixed(1)} pts
                   </Text>
-                  <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                  <Text fontFamily="$mono" fontSize={9} color={(viceCaptain.fantasyPoints ?? 0) > 0 ? "$colorMuted" : "$error"}>
                     +{vcBonus.toFixed(1)} bonus (1.5x)
                   </Text>
                 </YStack>
@@ -408,15 +628,25 @@ export default function ContestDetailScreen() {
         </Animated.View>
       )}
 
-      {/* Team View — expandable */}
+      {/* Team View — expandable with per-player points breakdown */}
       {showTeam && myTeam.data && (
         <Animated.View entering={FadeInDown.delay(0).springify()}>
           <YStack paddingHorizontal="$4" marginBottom="$4">
-            {/* Pre-match team preview (#3) — show player grid */}
             {teamPlayers.map((p: any, i: number) => {
               const multiplier = p.isCaptain ? "2x" : p.isViceCaptain ? "1.5x" : "";
+              const isExpanded = expandedPlayerId === (p.id || i);
+              const breakdown = hasScores && isExpanded ? buildBreakdown(p) : [];
               return (
-                <Card key={p.id || i} marginBottom="$1" padding="$3">
+                <Card
+                  key={p.id || i}
+                  marginBottom="$1"
+                  padding="$3"
+                  pressable={hasScores}
+                  onPress={hasScores ? () => setExpandedPlayerId(isExpanded ? null : (p.id || i)) : undefined}
+                  cursor={hasScores ? "pointer" : undefined}
+                  borderColor={isExpanded ? "$accentBackground" : "$borderColor"}
+                  borderWidth={isExpanded ? 1 : 0}
+                >
                   <XStack alignItems="center">
                     <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={hasScores ? (p.fantasyPoints ?? 0).toFixed(0) : 0} size={28} hideBadge={!hasScores} imageUrl={p.photoUrl} />
                     <YStack flex={1} marginLeft="$2">
@@ -439,7 +669,7 @@ export default function ContestDetailScreen() {
                       </XStack>
                     </YStack>
                     <YStack alignItems="flex-end">
-                      <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={(p.contribution ?? p.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
                         {(p.contribution ?? p.fantasyPoints ?? 0).toFixed(1)}
                       </Text>
                       {multiplier ? (
@@ -449,6 +679,40 @@ export default function ContestDetailScreen() {
                       ) : null}
                     </YStack>
                   </XStack>
+                  {/* Points breakdown — receipt-style */}
+                  {isExpanded && breakdown.length > 0 && (
+                    <YStack marginTop="$2" paddingTop="$2" borderTopWidth={1} borderTopColor="$borderColor" gap={2}>
+                      {breakdown.map((row, bi) => {
+                        if (row.isDivider) {
+                          return <YStack key={bi} height={1} backgroundColor="$borderColor" marginVertical={3} />;
+                        }
+                        if (row.isHeader) {
+                          return (
+                            <Text key={bi} fontFamily="$mono" fontSize={9} fontWeight="700" color="$colorMuted" letterSpacing={0.8} marginTop={bi > 0 ? 6 : 0}>
+                              {formatBadgeText(row.label)}
+                            </Text>
+                          );
+                        }
+                        return (
+                          <XStack key={bi} justifyContent="space-between" alignItems="center" paddingLeft="$2">
+                            <Text fontFamily="$mono" fontSize={10} color={row.isBold ? "$color" : "$colorSecondary"} fontWeight={row.isBold ? "700" : "400"}>
+                              {row.label}
+                            </Text>
+                            {row.pts != null && (
+                              <Text
+                                fontFamily="$mono"
+                                fontSize={10}
+                                fontWeight={row.isBold ? "700" : "600"}
+                                color={row.pts < 0 ? "$error" : row.isBold ? "$accentBackground" : "$color"}
+                              >
+                                {row.pts > 0 ? `+${row.pts.toFixed(1)}` : row.pts < 0 ? row.pts.toFixed(1) : "0.0"}
+                              </Text>
+                            )}
+                          </XStack>
+                        );
+                      })}
+                    </YStack>
+                  )}
                 </Card>
               );
             })}
@@ -456,34 +720,49 @@ export default function ContestDetailScreen() {
         </Animated.View>
       )}
 
-      {/* Stats Grid */}
-      <XStack flexWrap="wrap" padding="$4" gap="$3">
-        {[
-          { label: formatUIText("prize pool"), value: `${c.prizePool.toLocaleString()} PC`, tid: "contest-prize-pool" },
-          { label: formatUIText("entry fee"), value: c.entryFee === 0 ? formatBadgeText("free") : `${c.entryFee} PC`, tid: "contest-entry-fee" },
-          { label: formatUIText("spots"), value: `${c.currentEntries}/${c.maxEntries}`, tid: "contest-spots" },
-          { label: formatUIText("type"), value: formatBadgeText(c.contestType ?? ""), tid: "contest-type" },
-        ].map((item) => (
-          <Card key={item.label} testID={item.tid} flex={1} minWidth="45%" padding="$3">
-            <Text {...textStyles.hint}>{item.label}</Text>
-            <Text fontFamily="$mono" fontWeight="700" fontSize={18} color="$color" marginTop="$1">
-              {item.value}
-            </Text>
-          </Card>
-        ))}
-      </XStack>
+      {/* Stats Grid — compact inline during live, full cards pre-match */}
+      {isLive || isSettling ? (
+        <XStack paddingHorizontal="$4" marginBottom="$3" gap="$3" flexWrap="wrap">
+          {[
+            c.prizePool > 0 ? `${c.prizePool.toLocaleString()} PC prize` : null,
+            c.entryFee === 0 ? "free entry" : `${c.entryFee} PC entry`,
+            `${c.currentEntries} ${c.currentEntries === 1 ? "entry" : "entries"}`,
+            c.contestType,
+          ].filter(Boolean).map((tag, i) => (
+            <Badge key={i} variant="default" size="sm">{formatBadgeText(tag!)}</Badge>
+          ))}
+        </XStack>
+      ) : (
+        <XStack flexWrap="wrap" padding="$4" gap="$3">
+          {[
+            { label: formatUIText("prize pool"), value: c.prizePool > 0 ? `${c.prizePool.toLocaleString()} PC` : formatBadgeText("glory"), tid: "contest-prize-pool" },
+            { label: formatUIText("entry fee"), value: c.entryFee === 0 ? formatBadgeText("free") : `${c.entryFee} PC`, tid: "contest-entry-fee" },
+            { label: formatUIText("spots"), value: `${c.currentEntries}/${c.maxEntries}`, tid: "contest-spots" },
+            { label: formatUIText("type"), value: formatBadgeText(c.contestType ?? ""), tid: "contest-type" },
+          ].map((item) => (
+            <Card key={item.label} testID={item.tid} flex={1} minWidth="45%" padding="$3">
+              <Text {...textStyles.hint}>{item.label}</Text>
+              <Text fontFamily="$mono" fontWeight="700" fontSize={18} color="$color" marginTop="$1">
+                {item.value}
+              </Text>
+            </Card>
+          ))}
+        </XStack>
+      )}
 
-      {/* Progress Bar */}
-      <YStack paddingHorizontal="$4" marginBottom="$4">
-        <YStack height={6} backgroundColor="$borderColor" borderRadius={3}>
-          <YStack height={6} backgroundColor="$accentBackground" borderRadius={3} width={`${Math.min(100, (c.currentEntries / c.maxEntries) * 100)}%` as any} />
+      {/* Progress Bar — only show pre-match or settled (not during live — not actionable) */}
+      {!isLive && !isSettling && (
+        <YStack paddingHorizontal="$4" marginBottom="$4">
+          <YStack height={6} backgroundColor="$borderColor" borderRadius={3}>
+            <YStack height={6} backgroundColor="$accentBackground" borderRadius={3} width={`${Math.min(100, (c.currentEntries / c.maxEntries) * 100)}%` as any} />
+          </YStack>
+          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$1" textAlign="center">
+            {isSettled
+              ? `${c.currentEntries} ${formatUIText("entries")}`
+              : `${c.maxEntries - c.currentEntries} ${formatUIText("spots left")}`}
+          </Text>
         </YStack>
-        <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$1" textAlign="center">
-          {isSettled
-            ? `${c.currentEntries} ${formatUIText("entries")}`
-            : `${c.maxEntries - c.currentEntries} ${formatUIText("spots left")}`}
-        </Text>
-      </YStack>
+      )}
 
       {/* Status-Aware Action Section */}
       <YStack paddingHorizontal="$4" marginBottom="$4">
@@ -517,6 +796,25 @@ export default function ContestDetailScreen() {
                   </Button>
                 </XStack>
               </Card>
+            ) : c.currentEntries < c.maxEntries ? (
+              <Card padding="$4" alignItems="center" borderColor="$colorAccent" borderWidth={1} gap="$2">
+                <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$color">
+                  {formatUIText(`${c.maxEntries - c.currentEntries} spots left — invite friends`)}
+                </Text>
+                <XStack gap="$2" marginTop="$1">
+                  <Button variant="primary" size="md" flex={1} onPress={() => {
+                    const link = `draftplay://contest/${c.id}`;
+                    RNShare.share({ message: `Join my fantasy contest "${c.name}" on DraftPlay! ${link}` });
+                  }} testID="share-contest-btn">
+                    {formatUIText("invite friends")}
+                  </Button>
+                  <Button variant="secondary" size="md" onPress={() => {
+                    Clipboard.setString(`draftplay://contest/${c.id}`);
+                  }} testID="copy-contest-link-btn">
+                    {formatUIText("copy link")}
+                  </Button>
+                </XStack>
+              </Card>
             ) : swappableTeams.length > 0 ? (
               <Button variant={showSwap ? "secondary" : "primary"} size="lg" onPress={() => setShowSwap(!showSwap)} testID="swap-team-btn">
                 {formatUIText(showSwap ? "cancel swap" : "swap team")}
@@ -533,11 +831,9 @@ export default function ContestDetailScreen() {
           )
         )}
         {isLive && (
-          <Card padding="$3" alignItems="center" borderColor="$colorAccent" borderWidth={1}>
-            <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorAccent">
-              {formatUIText("match in progress")}
-            </Text>
-          </Card>
+          <XStack justifyContent="center" marginBottom="$1">
+            <Badge variant="live" size="sm">{formatBadgeText("match in progress")}</Badge>
+          </XStack>
         )}
         {isSettling && (
           <Card padding="$3" alignItems="center">
@@ -627,7 +923,8 @@ export default function ContestDetailScreen() {
               {/* Side-by-side duel */}
               <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
                 {standingsData.map((entry: any, idx: number) => {
-                  const name = entry.displayName || entry.username || `Player ${entry.rank}`;
+                  const rawN = entry.displayName || entry.username || `Player ${entry.rank}`;
+                  const name = rawN.includes("@") ? rawN.split("@")[0]! : rawN;
                   const isMe = currentUserId && entry.userId === currentUserId;
                   const isWinner = isSettled && entry.rank === 1;
                   return (
@@ -679,7 +976,8 @@ export default function ContestDetailScreen() {
             <EggLoadingSpinner size={32} message={formatUIText("loading standings")} />
           ) : standingsData.length > 0 ? (
             standingsData.map((entry: { rank: number; userId: string; totalPoints: number; displayName?: string; username?: string }, i: number) => {
-              const displayName = entry.displayName || entry.username || `Player ${entry.rank}`;
+              const rawName = entry.displayName || entry.username || `Player ${entry.rank}`;
+              const displayName = rawName.includes("@") ? rawName.split("@")[0]! : rawName;
               const isCurrentUser = currentUserId && entry.userId === currentUserId;
               return (
                 <Animated.View key={entry.userId} entering={FadeInDown.delay(i * 30).springify()}>
@@ -757,6 +1055,27 @@ export default function ContestDetailScreen() {
             </Card>
           </YStack>
         </Animated.View>
+      )}
+
+      </>)}
+
+      {/* ── PREDICTIONS TAB CONTENT ── */}
+      {activeTab === "predictions" && hasJoined && match && (isLive || isSettling || isSettled) && (
+        <YStack paddingHorizontal="$4" marginBottom="$6">
+          <LivePredictionFeed
+            contestId={id!}
+            matchId={match.id ?? c.matchId}
+            isLive={isLive}
+            currentUserId={currentUserId}
+            onScoreUpdate={handlePredictionScoreUpdate}
+            matchContext={{
+              teamA: match.teamHome ?? undefined,
+              teamB: match.teamAway ?? undefined,
+              format: match.format ?? "T20",
+              score: match.scoreSummary ?? undefined,
+            }}
+          />
+        </YStack>
       )}
     </ScrollView>
   );

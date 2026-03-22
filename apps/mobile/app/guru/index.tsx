@@ -101,9 +101,13 @@ export default function GuruScreen() {
   }, [params.teamA, params.teamB]);
 
   const flatListRef = useRef<FlatList>(null);
-  const { gate, hasAccess, paywallProps } = usePaywall();
-  const [userMessageCount, setUserMessageCount] = useState(0);
-  const FREE_DAILY_LIMIT = 3;
+  const { tier, gate, hasAccess, paywallProps } = usePaywall();
+  const usageQuery = trpc.guru.getUsageToday.useQuery(undefined, { staleTime: 60_000 });
+  const serverUsed = usageQuery.data?.used ?? 0;
+  const serverLimit = usageQuery.data?.limit ?? null;
+  const [localSentCount, setLocalSentCount] = useState(0); // tracks sends this session
+  const totalUsed = serverUsed + localSentCount;
+  const isAtLimit = serverLimit !== null && totalUsed >= serverLimit;
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -123,15 +127,24 @@ export default function GuruScreen() {
     const msg = (text ?? input).trim();
     if (!msg || isSending) return;
 
-    // Free tier: gate after daily limit
-    if (!hasAccess("pro") && userMessageCount >= FREE_DAILY_LIMIT) {
-      gate("pro", "Unlimited Guru", "Free users get 3 questions per day. Upgrade for unlimited access.");
+    // Daily limit gate — all tiers have a limit
+    if (isAtLimit) {
+      if (hasAccess("elite")) {
+        // Elite users: no upgrade path, just come back tomorrow
+        gate("elite", "Daily Limit Reached", `You've used all ${serverLimit} Guru questions for today. Your limit resets tomorrow!`);
+      } else if (hasAccess("pro")) {
+        // Pro users: suggest Elite upgrade
+        gate("elite", "More Guru Questions", `You've used all ${serverLimit} Guru questions for today. Upgrade to Elite for ${100} questions/day.`);
+      } else {
+        // Basic users: suggest Pro upgrade
+        gate("pro", "More Guru Questions", `You've used all ${serverLimit} Guru questions for today. Upgrade to Pro for ${25} questions/day.`);
+      }
       return;
     }
 
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: msg };
     setMessages((prev) => [...prev, userMsg]);
-    setUserMessageCount((c) => c + 1);
+    setLocalSentCount((c) => c + 1);
     setInput("");
     setIsSending(true);
 
@@ -184,7 +197,7 @@ export default function GuruScreen() {
     }
 
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-  }, [input, isSending, conversationId, params, sendMutation, hasAccess, userMessageCount, gate]);
+  }, [input, isSending, conversationId, params, sendMutation, isAtLimit, serverLimit, gate]);
 
   return (
     <KeyboardAvoidingView
@@ -206,12 +219,12 @@ export default function GuruScreen() {
           </Text>
         </XStack>
         <XStack alignItems="center" gap="$2">
-          {!hasAccess("pro") && (
+          {serverLimit !== null && (
             <XStack alignItems="center" gap="$1">
               <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                {Math.max(0, FREE_DAILY_LIMIT - userMessageCount)}/{FREE_DAILY_LIMIT}
+                {Math.max(0, serverLimit - totalUsed)}/{serverLimit}
               </Text>
-              <TierBadge tier="pro" size="sm" />
+              <TierBadge tier={tier ?? "basic"} size="sm" />
             </XStack>
           )}
           <HeaderControls />

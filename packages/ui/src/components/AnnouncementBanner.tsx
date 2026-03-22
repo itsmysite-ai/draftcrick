@@ -15,7 +15,7 @@ import Animated, {
 const SPORT_ANNOUNCEMENTS = {
   cricket: [
     "ipl fantasy is live — draft your dream xi now",
-    "challenge a friend to a head-to-head duel from the match center",
+    "challenge a friend to a head-to-head duel",
     "pro tip: diversify picks across roles for higher points",
     "create a league and invite friends to compete all season",
     "coming soon: snake draft — take turns picking players for the season",

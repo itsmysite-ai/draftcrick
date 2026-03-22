@@ -44,9 +44,13 @@ const ROLE_MAP: Record<string, RoleKey> = {
 
 type DetailTab = "matches" | "standings" | "stats";
 
-/** Safely parse AI-returned date/time strings into a Date object */
+/** Safely parse date/time into a Date object. Handles ISO strings and legacy format. */
 function parseSafeDate(dateStr?: string, timeStr?: string): Date {
   if (!dateStr) return new Date();
+  if (dateStr.includes("T") || dateStr.endsWith("Z")) {
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
   const cleanTime = (timeStr ?? "").replace(/\s+[A-Z]{2,4}$/, "");
   const parsed = new Date(`${dateStr} ${cleanTime}`);
   return isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -348,9 +352,10 @@ export default function TournamentScreen() {
     { sport },
     { staleTime: 60 * 60_000, retry: 1 },
   );
-  const playersQuery = trpc.player.list.useQuery(undefined, {
-    staleTime: 5 * 60_000,
-  });
+  const playersQuery = trpc.player.listByTournament.useQuery(
+    { tournamentName },
+    { staleTime: 5 * 60_000 },
+  );
 
   // DB matches for toss/score enrichment
   const dbLive = trpc.match.live.useQuery(undefined, {
@@ -402,27 +407,11 @@ export default function TournamentScreen() {
     { staleTime: 60 * 60_000 },
   );
 
-  // ── Top players by credits, grouped by role (filtered to this tournament's teams) ──
+  // ── Top players by credits, grouped by role (already filtered to tournament) ──
   const topPlayers = useMemo(() => {
     const raw = (playersQuery.data ?? []) as any[];
 
-    // Extract team names from this tournament's matches
-    const tournamentTeams = new Set<string>();
-    for (const m of tournamentMatches) {
-      const match = m as any;
-      if (match.teamA) tournamentTeams.add(match.teamA);
-      if (match.teamHome) tournamentTeams.add(match.teamHome);
-      if (match.teamB) tournamentTeams.add(match.teamB);
-      if (match.teamAway) tournamentTeams.add(match.teamAway);
-    }
-
-    // If no teams found from matches, return empty (don't fall back to showing all players)
-    if (tournamentTeams.size === 0) {
-      return { BAT: [], BOWL: [], AR: [], WK: [] } as Record<RoleKey, any[]>;
-    }
-
     const mapped = raw
-      .filter((p: any) => tournamentTeams.has(p.team as string))
       .map((p: any) => {
         const stats =
           typeof p.stats === "string" ? JSON.parse(p.stats) : p.stats ?? {};
@@ -446,7 +435,7 @@ export default function TournamentScreen() {
       grouped[role] = grouped[role].sort((a, b) => b.credits - a.credits).slice(0, 5);
     }
     return grouped;
-  }, [playersQuery.data, tournamentMatches]);
+  }, [playersQuery.data]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

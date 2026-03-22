@@ -14,6 +14,7 @@ import {
   parseSchedulePage,
   parseLiveScoresPage,
   fetchSeriesMatches,
+  fetchSeriesInfo,
   fetchPointsTable,
   resolveSeries,
   cacheSeriesMapping,
@@ -29,7 +30,11 @@ import {
   mapRscMatchToAIMatch,
   mapRscPointsTableToStandings,
   shouldIncludeTournament,
+  cleanSeriesName,
+  inferCategory,
+  parseDateRange,
 } from "./cricbuzz-dashboard-mapper";
+import { enrichTournamentsWithGemini } from "../../services/gemini-sports";
 import { getLogger } from "../../lib/logger";
 
 const log = getLogger("cricbuzz-provider");
@@ -317,7 +322,6 @@ export class CricbuzzProvider implements DataProvider {
 
         for (const entry of entries) {
           if (!shouldIncludeTournament(entry.seriesName)) continue;
-          if (!entry.dateRange) continue; // skip entries without date info
           const tournament = mapScheduleEntryToTournament(entry);
           if (!seenIds.has(tournament.id)) {
             seenIds.add(tournament.id);
@@ -329,15 +333,75 @@ export class CricbuzzProvider implements DataProvider {
       }
     }
 
-    // Note: all-series page (/cricket-schedule/series/all) intentionally skipped —
-    // it returns noisy data with incomplete names (trailing commas, missing years).
-    // Schedule pages + live scores already discover all relevant tournaments.
+    // Also check live scores page for currently active series not on schedule pages.
+    // For entries only found here (abbreviated names like "WIW v AUSW"), fetch the
+    // actual Cricbuzz series page to get the proper name, slug, and date range.
+    try {
+      const $ = await fetchPage("/cricket-match/live-scores");
+      const liveMatches = parseLiveScoresPage($);
+      const liveOnlySeriesIds: number[] = [];
+      for (const m of liveMatches) {
+        if (!m.seriesId || !m.seriesName) continue;
+        const id = `cb-${m.seriesId}`;
+        if (seenIds.has(id)) continue;
+        if (!shouldIncludeTournament(m.seriesName)) continue;
+        seenIds.add(id);
+        liveOnlySeriesIds.push(m.seriesId);
+      }
+
+      // Fetch actual series pages for live-only entries to get proper names
+      for (const seriesId of liveOnlySeriesIds) {
+        const info = await fetchSeriesInfo(seriesId);
+        if (info) {
+          const name = cleanSeriesName(info.name);
+          const { startDate, endDate } = info.dateRange
+            ? parseDateRange(info.dateRange, info.name)
+            : { startDate: null, endDate: null };
+          tournaments.push({
+            id: `cb-${seriesId}`,
+            name,
+            sport: "cricket",
+            category: inferCategory(name),
+            startDate,
+            endDate,
+            imageUrl: null,
+            sourceUrl: `https://www.cricbuzz.com/cricket-series/${seriesId}/${info.slug}/matches`,
+            description: name,
+          });
+        } else {
+          // Fallback: use raw name from live page (Gemini will try to enrich)
+          const rawMatch = liveMatches.find(m => m.seriesId === seriesId);
+          const rawName = cleanSeriesName(rawMatch?.seriesName ?? `Series ${seriesId}`);
+          tournaments.push({
+            id: `cb-${seriesId}`,
+            name: rawName,
+            sport: "cricket",
+            category: inferCategory(rawName),
+            startDate: null,
+            endDate: null,
+            imageUrl: null,
+            sourceUrl: `https://www.cricbuzz.com/cricket-series/${seriesId}`,
+            description: rawName,
+          });
+        }
+      }
+    } catch (err) {
+      log.warn({ error: err instanceof Error ? err.message : String(err) }, "Failed to fetch live scores for discovery");
+    }
+
+    // Enrich all tournaments via Gemini + Google Search grounding:
+    // - Resolves abbreviated names (e.g. "WIW v AUSW" → "Australia Women tour of West Indies")
+    // - Fills in missing dates for live-page discoveries
+    // - Verifies tournaments are real/active, marks completed ones for removal
+    // IDs (cb-{seriesId}) are preserved — only names/dates/categories are enriched
+    log.info({ rawCount: tournaments.length }, "Enriching tournaments via Gemini");
+    const enriched = await enrichTournamentsWithGemini(tournaments, "cricket");
 
     const durationMs = Date.now() - start;
-    log.info({ count: tournaments.length, durationMs }, "Cricbuzz discoverTournaments complete");
+    log.info({ rawCount: tournaments.length, enrichedCount: enriched.length, durationMs }, "Cricbuzz discoverTournaments complete");
 
     return {
-      data: tournaments,
+      data: enriched,
       source: "cricbuzz",
       fetchedAt: new Date().toISOString(),
       durationMs,

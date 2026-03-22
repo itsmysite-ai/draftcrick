@@ -21,8 +21,10 @@ export function calculateFantasyPoints(
     points += rules.halfCenturyBonus ?? 20;
   }
 
-  // Duck penalty (only for batsmen who faced at least 1 ball)
-  if (score.runs === 0 && score.ballsFaced > 0) {
+  // Duck penalty (only for batsmen who were dismissed for 0)
+  // If isDismissed is not tracked (undefined), fall back to old behavior for backwards compat
+  const isDismissed = (score as any).isDismissed;
+  if (score.runs === 0 && score.ballsFaced > 0 && (isDismissed === true || isDismissed === undefined)) {
     points += rules.duckPenalty ?? -5;
   }
 
@@ -62,6 +64,11 @@ export function calculateFantasyPoints(
   points += score.catches * (rules.catchPoints ?? 10);
   points += score.stumpings * (rules.stumpingPoints ?? 15);
   points += score.runOuts * (rules.runOutDirectPoints ?? 15);
+
+  // Player of the Match
+  if ((score as any).isPlayerOfMatch && rules.playerOfMatchBonus) {
+    points += rules.playerOfMatchBonus;
+  }
 
   return Math.round(points * 100) / 100;
 }

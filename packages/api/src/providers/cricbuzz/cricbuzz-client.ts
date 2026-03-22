@@ -376,7 +376,10 @@ export interface CricbuzzScheduleMatch {
  */
 export function parseSchedulePage($: cheerio.CheerioAPI, category: "international" | "league"): CricbuzzScheduleEntry[] {
   const entries: CricbuzzScheduleEntry[] = [];
-  const seenSeries = new Set<number>();
+  // Track entries by seriesId — prefer entries with dateRange over those without
+  // (schedule pages have a live header section with abbreviated names and no dates,
+  //  followed by the actual schedule with proper names and date ranges)
+  const entryBySeriesId = new Map<number, number>(); // seriesId → index in entries
   let currentDate = "";
 
   // Process the main content area
@@ -390,9 +393,6 @@ export function parseSchedulePage($: cheerio.CheerioAPI, category: "internationa
 
     const seriesId = parseInt(seriesMatch[1]!, 10);
     const seriesSlug = seriesMatch[2]!;
-
-    if (seenSeries.has(seriesId)) return;
-    seenSeries.add(seriesId);
 
     // Get series name from the element text or title
     const title = $(el).attr("title") ?? "";
@@ -436,14 +436,28 @@ export function parseSchedulePage($: cheerio.CheerioAPI, category: "internationa
     // Cache the series mapping for later use
     cacheSeriesMapping(seriesName, { slug: seriesSlug, id: seriesId });
 
-    entries.push({
+    const newEntry: CricbuzzScheduleEntry = {
       seriesId,
       seriesSlug,
       seriesName,
       dateRange,
       category,
       matches: [],
-    });
+    };
+
+    // If we already have an entry for this seriesId, prefer the one with dateRange
+    const existingIdx = entryBySeriesId.get(seriesId);
+    if (existingIdx !== undefined) {
+      const existing = entries[existingIdx]!;
+      // Replace only if new entry has dateRange and existing doesn't
+      if (dateRange && !existing.dateRange) {
+        entries[existingIdx] = newEntry;
+      }
+      return;
+    }
+
+    entryBySeriesId.set(seriesId, entries.length);
+    entries.push(newEntry);
   });
 
   // Now find match links within the page
@@ -724,6 +738,58 @@ export interface RscPointsTableData {
 }
 
 /**
+ * Fetch basic series info (name, slug, dates) from a Cricbuzz series page.
+ * Only needs seriesId — Cricbuzz handles slug resolution.
+ * Used to resolve abbreviated names from the live scores page.
+ */
+export async function fetchSeriesInfo(seriesId: number): Promise<{
+  name: string;
+  slug: string;
+  dateRange: string | null;
+} | null> {
+  try {
+    // Fetch the series page — Cricbuzz serves it even without slug
+    const html = await fetchRawHtml(`/cricket-series/${seriesId}`);
+    const $ = cheerio.load(html);
+
+    // Extract series name from <title> tag: "Australia Women tour of West Indies, 2026 | Cricbuzz.com"
+    const title = $("title").text().trim();
+    const nameFromTitle = title
+      .replace(/\s*\|\s*Cricbuzz\.com.*$/i, "")
+      .replace(/\s*-\s*Cricbuzz.*$/i, "")
+      .trim();
+
+    // Extract slug from canonical URL or og:url
+    const canonicalUrl = $('link[rel="canonical"]').attr("href")
+      || $('meta[property="og:url"]').attr("content")
+      || "";
+    const slugMatch = canonicalUrl.match(/cricket-series\/\d+\/([^/]+)/);
+    const slug = slugMatch?.[1] ?? seriesId.toString();
+
+    // Try to find date range from the page (usually in a subtitle or breadcrumb)
+    // Common patterns: "Mar 19 - Apr 02, 2026" in the series header area
+    let dateRange: string | null = null;
+
+    // Look for date pattern in page content — Cricbuzz shows dates in series header
+    const headerText = $("h1").parent().text() || $(".cb-col-100").first().text() || "";
+    const datePattern = headerText.match(
+      /(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(?:,?\s*\d{4})?\s*-\s*\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(?:,?\s*\d{4})?)/i
+    );
+    if (datePattern) {
+      dateRange = datePattern[1]!;
+    }
+
+    if (!nameFromTitle || nameFromTitle.length < 3) return null;
+
+    log.info({ seriesId, name: nameFromTitle, slug, dateRange }, "Fetched series info from Cricbuzz");
+    return { name: nameFromTitle, slug, dateRange };
+  } catch (err) {
+    log.warn({ seriesId, error: err instanceof Error ? err.message : String(err) }, "Failed to fetch series info");
+    return null;
+  }
+}
+
+/**
  * Fetch series matches using RSC JSON extraction.
  */
 export async function fetchSeriesMatches(seriesId: number, seriesSlug: string): Promise<RscMatchesData | null> {
@@ -912,6 +978,334 @@ export async function fetchScorecardPlayers(cricbuzzMatchId: number): Promise<Sc
 
   log.info({ cricbuzzMatchId, playerCount: playersById.size }, "Extracted playing XI from scorecard");
   return [...playersById.values()];
+}
+
+// ---------------------------------------------------------------------------
+// Scorecard stats parser — extract full player performance stats
+// ---------------------------------------------------------------------------
+
+export interface ScorecardPlayerStats {
+  cricbuzzId: number;
+  name: string;
+  teamName: string;
+  // Batting
+  runs: number;
+  ballsFaced: number;
+  fours: number;
+  sixes: number;
+  isDismissed: boolean; // true if batter was out (not "batting"/"not out")
+  // Bowling
+  oversBowled: number;
+  runsConceded: number;
+  wickets: number;
+  maidens: number;
+  // Fielding (parsed from dismissal descriptions)
+  catches: number;
+  stumpings: number;
+  runOuts: number;
+}
+
+/**
+ * Fetch live match score directly from a Cricbuzz scorecard page using the match ID.
+ * This bypasses the series listing (which can be cached/stale) and gets real-time data.
+ */
+export async function fetchMatchScoreById(cricbuzzMatchId: number): Promise<{
+  scoreSummary: string | null;
+  status: string | null;
+  result: string | null;
+  tossWinner: string | null;
+  tossDecision: string | null;
+} | null> {
+  try {
+    const html = await fetchRawHtml(`/live-cricket-scorecard/${cricbuzzMatchId}`);
+
+    // Try extracting matchHeader which has match status and score
+    const matchHeader = extractRscJson<{
+      matchId: number;
+      state: string;
+      status: string;
+      team1: { name: string; shortName: string };
+      team2: { name: string; shortName: string };
+      tossResults?: { tossWinnerId: number; decision: string };
+      result?: { resultType: string; winningTeam: string; winningMargin: number; winByInnings: boolean; winByRuns: boolean };
+    }>(html, "matchHeader");
+
+    // Extract scoreCard for building score summary
+    const scoreCard = extractRscJson<Array<{
+      inningsId: number;
+      scoreDetails?: { runs: number; wickets: number; overs: number };
+      batTeamDetails?: { batTeamShortName: string };
+    }>>(html, "scoreCard");
+
+    if (!matchHeader && !scoreCard) {
+      log.warn({ cricbuzzMatchId }, "No matchHeader or scoreCard found on scorecard page");
+      return null;
+    }
+
+    // Build score summary from scoreCard innings
+    let scoreSummary: string | null = null;
+    if (scoreCard && scoreCard.length > 0) {
+      const parts: string[] = [];
+      // Group innings by team
+      const teamInnings = new Map<string, string[]>();
+      for (const innings of scoreCard) {
+        const teamName = innings.batTeamDetails?.batTeamShortName ?? `Team${innings.inningsId}`;
+        const sd = innings.scoreDetails;
+        if (sd) {
+          const inStr = `${sd.runs}/${sd.wickets} (${sd.overs})`;
+          const existing = teamInnings.get(teamName) || [];
+          existing.push(inStr);
+          teamInnings.set(teamName, existing);
+        }
+      }
+      for (const [team, innings] of teamInnings) {
+        parts.push(`${team} ${innings.join(" & ")}`);
+      }
+      if (parts.length > 0) scoreSummary = parts.join(" vs ");
+    }
+
+    // Determine status
+    let status: string | null = null;
+    if (matchHeader) {
+      const state = matchHeader.state?.toLowerCase();
+      if (state === "complete" || state === "completed") status = "completed";
+      else if (state === "in progress") status = "live";
+    }
+    // If no matchHeader or state not recognized, infer from scoreCard presence
+    if (!status && scoreCard && scoreCard.length > 0) {
+      // Has active scorecard data → must be live or completed
+      status = "live";
+    }
+
+    // Result
+    let result: string | null = null;
+    if (status === "completed" && matchHeader?.status) {
+      result = matchHeader.status;
+    }
+
+    // Toss
+    let tossWinner: string | null = null;
+    let tossDecision: string | null = null;
+    if (matchHeader?.tossResults) {
+      const tossTeamId = matchHeader.tossResults.tossWinnerId;
+      // Match toss winner to team names
+      // The tossWinnerId should match team1.id or team2.id, but we only have names
+      // Check status string for toss info as fallback
+      const tossMatch = matchHeader.status?.match(/(\w[\w\s]+?)\s+(?:opt|elected|chose)\s+to\s+(bat|bowl|field)/i);
+      if (tossMatch) {
+        tossWinner = tossMatch[1]!.trim();
+        tossDecision = tossMatch[2]!.toLowerCase() === "bat" ? "bat" : "bowl";
+      } else {
+        tossDecision = matchHeader.tossResults.decision?.toLowerCase() || null;
+      }
+    }
+
+    log.info({ cricbuzzMatchId, status, scoreSummary, result }, "fetchMatchScoreById complete");
+    return { scoreSummary, status, result, tossWinner, tossDecision };
+  } catch (err: any) {
+    log.error({ cricbuzzMatchId, err: err.message }, "Failed to fetch match score by ID");
+    return null;
+  }
+}
+
+/**
+ * Fetch full player performance stats from a Cricbuzz match scorecard page.
+ * Parses batting stats, bowling stats, and fielding (from dismissal text).
+ * Stats are accumulated across innings (for Tests / multi-innings matches).
+ */
+export async function fetchScorecardStats(cricbuzzMatchId: number): Promise<ScorecardPlayerStats[]> {
+  const html = await fetchRawHtml(`/live-cricket-scorecard/${cricbuzzMatchId}`);
+
+  const scoreCard = extractRscJson<Array<{
+    inningsId: number;
+    batTeamDetails?: {
+      batTeamName: string;
+      batTeamShortName: string;
+      batsmenData?: Record<string, {
+        batId: number;
+        batName: string;
+        runs: number;
+        balls: number;
+        fours: number;
+        sixes: number;
+        strikeRate: number;
+        outDesc: string;
+        isCaptain: boolean;
+        isKeeper: boolean;
+      }>;
+    };
+    bowlTeamDetails?: {
+      bowlTeamName: string;
+      bowlTeamShortName: string;
+      bowlersData?: Record<string, {
+        bowlerId: number;
+        bowlName: string;
+        overs: number;
+        maidens: number;
+        runs: number;
+        wickets: number;
+        economy: number;
+        noBalls: number;
+        wides: number;
+      }>;
+    };
+  }>>(html, "scoreCard");
+
+  if (!scoreCard || scoreCard.length === 0) {
+    log.warn({ cricbuzzMatchId }, "No scoreCard data found for stats extraction");
+    return [];
+  }
+
+  // Accumulate stats per player (keyed by cricbuzzId)
+  const statsMap = new Map<number, ScorecardPlayerStats>();
+
+  const getOrCreate = (id: number, name: string, teamName: string): ScorecardPlayerStats => {
+    let s = statsMap.get(id);
+    if (!s) {
+      s = { cricbuzzId: id, name, teamName, runs: 0, ballsFaced: 0, fours: 0, sixes: 0, isDismissed: false, oversBowled: 0, runsConceded: 0, wickets: 0, maidens: 0, catches: 0, stumpings: 0, runOuts: 0 };
+      statsMap.set(id, s);
+    }
+    return s;
+  };
+
+  // Collect all player names → cricbuzzId for fielding attribution
+  const playerNameToId = new Map<string, number>();
+
+  // First pass: collect all player identities
+  for (const innings of scoreCard) {
+    if (innings.batTeamDetails?.batsmenData) {
+      for (const bat of Object.values(innings.batTeamDetails.batsmenData)) {
+        playerNameToId.set(bat.batName.toLowerCase(), bat.batId);
+      }
+    }
+    if (innings.bowlTeamDetails?.bowlersData) {
+      for (const bowl of Object.values(innings.bowlTeamDetails.bowlersData)) {
+        playerNameToId.set(bowl.bowlName.toLowerCase(), bowl.bowlerId);
+      }
+    }
+  }
+
+  // Second pass: extract batting + bowling stats
+  for (const innings of scoreCard) {
+    // Batting stats
+    if (innings.batTeamDetails?.batsmenData) {
+      const teamName = innings.batTeamDetails.batTeamName;
+      for (const bat of Object.values(innings.batTeamDetails.batsmenData)) {
+        const s = getOrCreate(bat.batId, bat.batName, teamName);
+        s.runs += bat.runs || 0;
+        s.ballsFaced += bat.balls || 0;
+        s.fours += bat.fours || 0;
+        s.sixes += bat.sixes || 0;
+
+        // Track dismissal — "batting", "not out", or empty means still at crease
+        const outDesc = (bat.outDesc || "").toLowerCase().trim();
+        if (outDesc && outDesc !== "batting" && outDesc !== "not out" && outDesc !== "dnb") {
+          s.isDismissed = true;
+        }
+
+        // Parse fielding from dismissal description
+        parseFieldingCredit(bat.outDesc, playerNameToId, statsMap, innings.bowlTeamDetails?.bowlTeamName || "");
+      }
+    }
+
+    // Bowling stats
+    if (innings.bowlTeamDetails?.bowlersData) {
+      const teamName = innings.bowlTeamDetails.bowlTeamName;
+      for (const bowl of Object.values(innings.bowlTeamDetails.bowlersData)) {
+        const s = getOrCreate(bowl.bowlerId, bowl.bowlName, teamName);
+        s.oversBowled += bowl.overs || 0;
+        s.runsConceded += bowl.runs || 0;
+        s.wickets += bowl.wickets || 0;
+        s.maidens += bowl.maidens || 0;
+      }
+    }
+  }
+
+  log.info({ cricbuzzMatchId, playerCount: statsMap.size }, "Extracted scorecard stats");
+  return [...statsMap.values()];
+}
+
+/**
+ * Parse fielding credit from a batsman's dismissal description.
+ * Examples:
+ *   "c Fielder b Bowler" => catch to Fielder
+ *   "c & b Bowler" => catch to Bowler (caught and bowled)
+ *   "st Keeper b Bowler" => stumping to Keeper
+ *   "run out (Fielder)" => run out to Fielder
+ *   "run out (Fielder1/Fielder2)" => run out to Fielder1
+ */
+function parseFieldingCredit(
+  outDesc: string | null | undefined,
+  playerNameToId: Map<string, number>,
+  statsMap: Map<number, ScorecardPlayerStats>,
+  fieldingTeamName: string
+) {
+  if (!outDesc || outDesc === "not out" || outDesc === "batting" || outDesc === "yet to bat") return;
+
+  const desc = outDesc.trim();
+
+  // "c & b BowlerName" — caught and bowled
+  const cAndB = desc.match(/^c\s*&\s*b\s+(.+)/i);
+  if (cAndB) {
+    const fielderId = findPlayerId(cAndB[1]!.trim(), playerNameToId);
+    if (fielderId !== null) {
+      const s = statsMap.get(fielderId);
+      if (s) s.catches++;
+    }
+    return;
+  }
+
+  // "c FielderName b BowlerName" — caught by fielder
+  const caught = desc.match(/^c\s+(.+?)\s+b\s+/i);
+  if (caught) {
+    const fielderId = findPlayerId(caught[1]!.trim(), playerNameToId);
+    if (fielderId !== null) {
+      const s = statsMap.get(fielderId);
+      if (s) s.catches++;
+    }
+    return;
+  }
+
+  // "st KeeperName b BowlerName" — stumped by keeper
+  const stumped = desc.match(/^st\s+(.+?)\s+b\s+/i);
+  if (stumped) {
+    const fielderId = findPlayerId(stumped[1]!.trim(), playerNameToId);
+    if (fielderId !== null) {
+      const s = statsMap.get(fielderId);
+      if (s) s.stumpings++;
+    }
+    return;
+  }
+
+  // "run out (FielderName)" or "run out (Fielder1/Fielder2)"
+  const runOut = desc.match(/run\s+out\s*\(([^)]+)\)/i);
+  if (runOut) {
+    const fielders = runOut[1]!.split("/");
+    // Credit to the first fielder (direct hit)
+    const fielderId = findPlayerId(fielders[0]!.trim(), playerNameToId);
+    if (fielderId !== null) {
+      const s = statsMap.get(fielderId);
+      if (s) s.runOuts++;
+    }
+    return;
+  }
+}
+
+/** Find player ID by name (fuzzy match against known player names) */
+function findPlayerId(name: string, playerNameToId: Map<string, number>): number | null {
+  // Strip Cricbuzz special markers: † (keeper), (sub) (substitute fielder)
+  const cleaned = name.replace(/[†‡]/g, "").replace(/\(sub\)/gi, "").trim();
+  const norm = cleaned.toLowerCase();
+  if (!norm) return null;
+  // Exact match
+  if (playerNameToId.has(norm)) return playerNameToId.get(norm)!;
+  // Partial match: Cricbuzz sometimes uses short names like "Rahul" for "KL Rahul"
+  for (const [fullName, id] of playerNameToId) {
+    if (fullName.endsWith(norm) || fullName.includes(norm) || norm.includes(fullName.split(" ").pop() || "")) {
+      return id;
+    }
+  }
+  return null;
 }
 
 /**

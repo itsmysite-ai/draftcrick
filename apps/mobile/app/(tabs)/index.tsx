@@ -33,6 +33,10 @@ import { trpc } from "../../lib/trpc";
 // ─── Helpers ─────────────────────────────────────────────────────────
 function parseSafeDate(dateStr?: string, timeStr?: string): Date {
   if (!dateStr) return new Date();
+  if (dateStr.includes("T") || dateStr.endsWith("Z")) {
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
   const cleanTime = (timeStr ?? "").replace(/\s+[A-Z]{2,4}$/, "");
   const parsed = new Date(`${dateStr} ${cleanTime}`);
   return isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -198,9 +202,9 @@ function FeaturedMatchCard({
         <YStack alignItems="center" gap={2} marginTop="$2">
           <Text fontFamily="$mono" fontSize={11} fontWeight="500" color="$accentBackground">
             {match.date
-              ? new Date(`${match.date} ${(match.time ?? "").replace(/\s+[A-Z]{2,4}$/, "")}`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+              ? startTime.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
                 + " · "
-                + new Date(`${match.date} ${(match.time ?? "").replace(/\s+[A-Z]{2,4}$/, "")}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+                + startTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
               : match.time || ""}
           </Text>
           {match.venue && (
@@ -232,13 +236,13 @@ function FeaturedMatchCard({
               </Text>
             </YStack>
             <Button variant="primary" size="sm" onPress={onPress} testID="featured-create-team-btn">
-              {formatUIText(isCricket ? "create team" : "build grid")}
+              {formatUIText(isCricket ? "play" : "build grid")}
             </Button>
           </>
         ) : (
           <YStack flex={1} alignItems="center" gap={1}>
             <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
-              {formatUIText("draft not open yet")}
+              {formatUIText(isLive || isCompleted ? "draft closed" : "draft not open yet")}
             </Text>
             <Button variant="secondary" size="sm" onPress={onPress} testID="featured-view-match-btn" marginTop={4}>
               {formatUIText("view match")}
@@ -250,30 +254,167 @@ function FeaturedMatchCard({
   );
 }
 
-// ─── Stat Card ──────────────────────────────────────────────────────
-function StatCard({
-  label,
-  value,
-  icon,
-  onPress,
+// ─── My Contests Section ────────────────────────────────────────────
+function MyContestsSection({
+  contests,
+  sport,
 }: {
-  label: string;
-  value: string | number;
-  icon: string;
-  onPress?: () => void;
+  contests: any[];
+  sport: string;
 }) {
+  const router = useRouter();
+
+  // Sort: live first, then upcoming (by match date), then recently settled (max 2)
+  const sorted = useMemo(() => {
+    const statusOrder: Record<string, number> = { live: 0, locked: 1, open: 2, settling: 3, settled: 4, cancelled: 5 };
+    const active = contests
+      .filter((c) => c.contest) // Only contest-linked teams
+      .sort((a, b) => {
+        const sa = statusOrder[a.contest?.status] ?? 9;
+        const sb = statusOrder[b.contest?.status] ?? 9;
+        if (sa !== sb) return sa - sb;
+        const da = a.match?.startTime ? new Date(a.match.startTime).getTime() : 0;
+        const db = b.match?.startTime ? new Date(b.match.startTime).getTime() : 0;
+        return da - db;
+      });
+    const nonSettled = active.filter((c) => c.contest?.status !== "settled" && c.contest?.status !== "cancelled");
+    const settled = active.filter((c) => c.contest?.status === "settled").slice(0, 2);
+    return [...nonSettled.slice(0, 3), ...settled].slice(0, 4);
+  }, [contests]);
+
+  if (sorted.length === 0) return null;
+
   return (
-    <Card flex={1} padding="$3" pressable={!!onPress} onPress={onPress}>
-      <XStack alignItems="center" gap="$2" marginBottom="$1">
-        <Text fontSize={14}>{icon}</Text>
-        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-          {formatUIText(label)}
+    <Animated.View entering={FadeInDown.delay(0).springify()}>
+      <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+        <Text {...textStyles.sectionHeader}>
+          {formatUIText("my contests")}
         </Text>
+        <Button size="sm" variant="secondary" onPress={() => router.push("/(tabs)/contests")}>
+          {formatUIText("see all")}
+        </Button>
       </XStack>
-      <Text fontFamily="$mono" fontWeight="700" fontSize={20} color="$color">
-        {value}
-      </Text>
-    </Card>
+      <YStack gap="$2">
+        {sorted.map((entry: any) => {
+          const contest = entry.contest;
+          const match = entry.match ?? contest?.match;
+          const teamHome = formatTeamName(match?.teamHome || "TBA");
+          const teamAway = formatTeamName(match?.teamAway || "TBA");
+          const isLive = contest?.status === "live";
+          const isSettled = contest?.status === "settled";
+          const rawTime = match?.startTime;
+          const matchDate = rawTime
+            ? (rawTime instanceof Date ? rawTime : parseSafeDate(String(rawTime)))
+            : null;
+
+          const points = entry.totalPoints?.toFixed(0) ?? "0";
+          const rankText = entry.rank != null ? `#${entry.rank}` : "—";
+          const totalText = entry.totalEntries ?? "?";
+
+          const ctaLabel = isLive ? "watch live" : isSettled ? "view results" : "view contest";
+          const entryText = contest?.entryFee === 0 ? "free entry" : contest?.entryFee ? `${contest.entryFee} PC entry` : null;
+
+          return (
+            <Card
+              key={entry.id}
+              pressable
+              live={isLive}
+              padding={0}
+              overflow="hidden"
+              onPress={() => router.push(isLive ? `/match/${match?.id}` : `/contest/${contest?.id}`)}
+              testID={`my-contest-${entry.id}`}
+            >
+              {/* Main content area */}
+              <YStack padding="$3" paddingBottom="$3">
+                {/* Row 1: "team name in contest name" + status badge */}
+                <XStack justifyContent="space-between" alignItems="flex-start" marginBottom="$3">
+                  <Text flex={1} marginRight="$2" numberOfLines={2}>
+                    <Text fontFamily="$body" fontWeight="700" fontSize={15} color="$accentBackground">
+                      {formatUIText(entry.name || "my team")}
+                    </Text>
+                    {contest?.name && (
+                      <Text fontFamily="$mono" fontSize={12} color="$colorMuted">
+                        {" "}{formatUIText("in")}{" "}
+                      </Text>
+                    )}
+                    {contest?.name && (
+                      <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
+                        {formatUIText(contest.name)}
+                      </Text>
+                    )}
+                  </Text>
+                  <Badge variant={isLive ? "live" : "default"} size="sm">
+                    {formatBadgeText(contest?.status || "open")}
+                  </Badge>
+                </XStack>
+
+                {/* Row 2: Rank + Pts centered */}
+                <XStack justifyContent="center" alignItems="center" gap="$5">
+                  <YStack alignItems="center">
+                    <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
+                      {entry.rank ?? "—"}<Text fontWeight="400" fontSize={13} color="$colorMuted">/{totalText}</Text>
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                      {formatUIText("rank")}
+                    </Text>
+                  </YStack>
+
+                  <YStack width={1} height={28} backgroundColor="$borderColor" />
+
+                  <YStack alignItems="center">
+                    <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
+                      {points}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                      {formatUIText("points")}
+                    </Text>
+                  </YStack>
+
+                  {isSettled && entry.prizeWon > 0 && (
+                    <>
+                      <YStack width={1} height={24} backgroundColor="$borderColor" />
+                      <YStack alignItems="center">
+                        <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$colorSuccess">
+                          {entry.prizeWon}
+                        </Text>
+                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                          {formatUIText("won")}
+                        </Text>
+                      </YStack>
+                    </>
+                  )}
+                </XStack>
+              </YStack>
+
+              {/* Bottom strip — match info (mirrors match card CTA bar) */}
+              <XStack
+                backgroundColor="$backgroundSurfaceAlt"
+                paddingVertical="$3"
+                paddingHorizontal="$4"
+                justifyContent="space-between"
+                alignItems="center"
+                borderTopWidth={1}
+                borderTopColor="$borderColor"
+              >
+                <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorAccent" numberOfLines={1}>
+                  {formatUIText(`${teamHome} vs ${teamAway}`)}
+                  {match?.format && (
+                    <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
+                      {`  ·  ${match.format.toUpperCase()}`}
+                    </Text>
+                  )}
+                </Text>
+                {entryText && (
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                    {formatUIText(entryText)}
+                  </Text>
+                )}
+              </XStack>
+            </Card>
+          );
+        })}
+      </YStack>
+    </Animated.View>
   );
 }
 
@@ -282,10 +423,18 @@ function HighlightsSection({
   tournaments,
   sport,
   walletData,
+  teamCount,
+  leagueCount,
+  balance,
+  isAuthenticated,
 }: {
   tournaments: any[];
   sport: string;
   walletData?: { canClaimDaily?: boolean; currentStreak?: number } | null;
+  teamCount?: number;
+  leagueCount?: number;
+  balance?: number;
+  isAuthenticated?: boolean;
 }) {
   const router = useRouter();
 
@@ -300,7 +449,7 @@ function HighlightsSection({
     const canClaim = walletData?.canClaimDaily ?? false;
     items.push({
       key: "daily-coins",
-      icon: "🍿",
+      icon: canClaim ? "🎁" : "🔥",
       title: canClaim ? "claim daily coins" : `day ${streak} streak`,
       subtitle: canClaim ? `day ${streak + 1} — tap to claim!` : "come back tomorrow!",
       onPress: () => router.push("/wallet" as any),
@@ -349,7 +498,53 @@ function HighlightsSection({
 
   return (
     <Animated.View entering={FadeInDown.delay(90).springify()}>
-      <Text {...textStyles.sectionHeader} marginTop="$4" marginBottom="$2">
+      {/* Stats strip — compact inline row */}
+      {isAuthenticated && (
+        <XStack
+          justifyContent="space-around"
+          alignItems="center"
+          marginTop="$4"
+          marginBottom="$3"
+          paddingVertical="$3"
+          paddingHorizontal="$2"
+          backgroundColor="$backgroundSurface"
+          borderRadius={12}
+          borderWidth={1}
+          borderColor="$borderColor"
+        >
+          <Card pressable padding="$2" onPress={() => router.push("/(tabs)/contests")} backgroundColor="transparent" borderWidth={0} testID="highlight-teams">
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={16}>👥</Text>
+              <YStack>
+                <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color">{teamCount ?? 0}</Text>
+                <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatUIText("teams")}</Text>
+              </YStack>
+            </XStack>
+          </Card>
+          <YStack width={1} height={28} backgroundColor="$borderColor" />
+          <Card pressable padding="$2" onPress={() => router.push("/(tabs)/social")} backgroundColor="transparent" borderWidth={0} testID="highlight-leagues">
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={16}>🏟️</Text>
+              <YStack>
+                <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color">{leagueCount ?? 0}</Text>
+                <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatUIText("leagues")}</Text>
+              </YStack>
+            </XStack>
+          </Card>
+          <YStack width={1} height={28} backgroundColor="$borderColor" />
+          <Card pressable padding="$2" onPress={() => router.push("/wallet" as any)} backgroundColor="transparent" borderWidth={0} testID="highlight-coins">
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={16}>🍿</Text>
+              <YStack>
+                <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color">{balance ?? 0}</Text>
+                <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatUIText("pop coins")}</Text>
+              </YStack>
+            </XStack>
+          </Card>
+        </XStack>
+      )}
+
+      <Text {...textStyles.sectionHeader} marginBottom="$2">
         {formatUIText("highlights")}
       </Text>
       <ScrollView
@@ -363,15 +558,15 @@ function HighlightsSection({
             pressable
             onPress={card.onPress}
             padding="$3"
-            width={140}
+            width={150}
             gap="$2"
             testID={`highlight-${card.key}`}
           >
             <Text fontSize={24}>{card.icon}</Text>
-            <Text fontFamily="$mono" fontWeight="600" fontSize={11} color={(card.accent ?? "$color") as any} numberOfLines={2} lineHeight={16}>
+            <Text fontFamily="$mono" fontWeight="600" fontSize={11} color={(card.accent ?? "$color") as any} numberOfLines={2} lineHeight={16} ellipsizeMode="tail">
               {card.preserveCase ? card.title : formatUIText(card.title)}
             </Text>
-            <Text fontFamily="$mono" fontSize={10} color="$colorMuted" numberOfLines={2} lineHeight={14}>
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted" numberOfLines={2} lineHeight={14} ellipsizeMode="tail">
               {formatUIText(card.subtitle)}
             </Text>
           </Card>
@@ -417,11 +612,20 @@ export default function HomeScreen() {
   const myTeamsQuery = trpc.team.myTeams.useQuery(undefined, {
     enabled: !!user,
     retry: false,
+    staleTime: 30_000,
   });
 
   const myLeaguesQuery = trpc.league.myLeagues.useQuery(undefined, {
     enabled: !!user,
     retry: false,
+    staleTime: 30_000,
+  });
+
+  const myContestsQuery = trpc.contest.myContests.useQuery(undefined, {
+    enabled: !!user,
+    retry: false,
+    staleTime: 30_000,
+    refetchInterval: 60_000, // Refresh every minute for live contest updates
   });
 
 
@@ -433,30 +637,40 @@ export default function HomeScreen() {
       profileQuery.refetch(),
       walletQuery.refetch(),
       myTeamsQuery.refetch(),
+      myContestsQuery.refetch(),
     ]);
     setRefreshing(false);
-  }, [dashboardQuery, dbLive, profileQuery, walletQuery, myTeamsQuery]);
+  }, [dashboardQuery, dbLive, profileQuery, walletQuery, myTeamsQuery, myContestsQuery]);
 
   // Refetch key queries when tab gains focus (e.g. after creating a league)
   useFocusEffect(
     useCallback(() => {
       myLeaguesQuery.refetch();
       myTeamsQuery.refetch();
-    }, [myLeaguesQuery, myTeamsQuery])
+      myContestsQuery.refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
   );
 
   // ── Derived data ──
   // Build DB lookup for toss/score enrichment
+  // Use externalId as primary key (unique per match), fall back to team-name key
   const dbMatches = dbLive.data ?? [];
-  const dbLookup = new Map<string, any>();
+  const dbByExternalId = new Map<string, any>();
+  const dbByTeamKey = new Map<string, any>();
   for (const m of dbMatches) {
+    if (m.externalId) dbByExternalId.set(m.externalId, m);
     const key = [m.teamHome, m.teamAway].map((t: string) => t.toLowerCase().trim()).sort().join("|");
-    dbLookup.set(key, m);
+    dbByTeamKey.set(key, m);
   }
 
   const allMatches = (dashboardQuery.data?.matches ?? []).map((ai: any) => {
-    const key = [ai.teamA || "", ai.teamB || ""].map((t: string) => t.toLowerCase().trim()).sort().join("|");
-    const db = dbLookup.get(key);
+    // Primary: match by externalId (unique per match — handles same-team series correctly)
+    const db = dbByExternalId.get(ai.id)
+      || (() => {
+        const key = [ai.teamA || "", ai.teamB || ""].map((t: string) => t.toLowerCase().trim()).sort().join("|");
+        return dbByTeamKey.get(key);
+      })();
     return {
       ...ai,
       dbId: db?.id || null,
@@ -475,9 +689,7 @@ export default function HomeScreen() {
       if (b.status === "live" && a.status !== "live") return 1;
       const getTime = (m: any) => {
         if (!m.date) return 0;
-        const cleanTime = (m.time ?? "").replace(/\s+[A-Z]{2,4}$/, "");
-        const parsed = new Date(`${m.date} ${cleanTime}`);
-        return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+        return parseSafeDate(m.date, m.time).getTime();
       };
       return getTime(a) - getTime(b);
     });
@@ -559,15 +771,11 @@ export default function HomeScreen() {
         }
         contentContainerStyle={{ padding: 20, paddingTop: 10, paddingBottom: 120 }}
       >
-        {/* ── Stats Row (authenticated) ── */}
-        {user && (
-          <Animated.View entering={FadeInDown.delay(0).springify()}>
-            <XStack gap="$2" marginBottom="$4">
-              <StatCard label="teams" value={teamCount} icon="👥" onPress={() => router.push("/(tabs)/contests")} />
-              <StatCard label="leagues" value={leagueCount} icon="🏟️" onPress={() => router.push("/(tabs)/social")} />
-              <StatCard label="pop coins" value={`${balance} PC`} icon="🍿" onPress={() => router.push("/wallet")} />
-            </XStack>
-          </Animated.View>
+        {/* ── My Contests (authenticated, has contests) ── */}
+        {user && (myContestsQuery.data?.length ?? 0) > 0 && (
+          <YStack marginBottom="$4">
+            <MyContestsSection contests={myContestsQuery.data ?? []} sport={sport} getTeamLogo={getTeamLogo} />
+          </YStack>
         )}
 
         {/* ── Progressive Onboarding — adapts to user stage ── */}
@@ -668,7 +876,7 @@ export default function HomeScreen() {
                     onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.dbId || nextMatch.id)}`)}
                     testID="onboard-go-to-match-btn"
                   >
-                    {formatUIText(nextMatch.draftEnabled ? "create team" : "view match")}
+                    {formatUIText(nextMatch.draftEnabled ? "play" : "view match")}
                   </Button>
                 </YStack>
               ) : (
@@ -684,7 +892,7 @@ export default function HomeScreen() {
             </Card>
           </Animated.View>
         )}
-        {user && leagueCount > 0 && teamCount > 0 && nextMatch && !nextMatch.draftEnabled && (
+        {user && leagueCount > 0 && teamCount > 0 && (myContestsQuery.data?.length ?? 0) === 0 && nextMatch && !nextMatch.draftEnabled && (
           <Animated.View entering={FadeInDown.delay(30).springify()}>
             <Card padding="$4" marginBottom="$4" testID="onboard-next-match-card">
               <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$accentBackground" marginBottom="$1">
@@ -717,7 +925,15 @@ export default function HomeScreen() {
         )}
 
         {/* ── Highlights — daily coins, standings, rate my team ── */}
-        <HighlightsSection tournaments={activeTournaments} sport={sport} walletData={walletQuery.data} />
+        <HighlightsSection
+          tournaments={activeTournaments}
+          sport={sport}
+          walletData={walletQuery.data}
+          teamCount={teamCount}
+          leagueCount={leagueCount}
+          balance={balance}
+          isAuthenticated={!!user}
+        />
 
         {/* ── More Matches — each with play button ── */}
         {otherMatches.length > 0 && (
@@ -801,7 +1017,7 @@ export default function HomeScreen() {
                       <YStack flex={1} gap={2}>
                         <Text {...textStyles.hint}>
                           {m.date
-                            ? new Date(`${m.date} ${(m.time ?? "").replace(/\s+[A-Z]{2,4}$/, "")}`).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
+                            ? startTime.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
                             : formatCountdown(startTime)}
                         </Text>
                         {m.venue && (

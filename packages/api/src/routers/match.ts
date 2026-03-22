@@ -72,6 +72,18 @@ export const matchRouter = router({
     }),
 
   /**
+   * Get a single match by external ID (e.g. cb-match-12345)
+   */
+  getByExternalId: publicProcedure
+    .input(z.object({ externalId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const match = await ctx.db.query.matches.findFirst({
+        where: eq(matches.externalId, input.externalId),
+      });
+      return match ?? null;
+    }),
+
+  /**
    * Get live + upcoming + recently completed matches (only from visible tournaments)
    */
   live: publicProcedure.query(async ({ ctx }) => {

@@ -50,6 +50,20 @@ interface AlertState {
 
 const EMPTY_ALERT: AlertState = { visible: false, title: "", message: "", actions: [] };
 
+// ── Cancel flow ────────────────────────────────────────────────────
+type CancelStep = "idle" | "confirm" | "downgrade_pro" | "downgrade_basic" | "daypass" | "reason" | "freeform";
+
+const CANCEL_REASONS = [
+  "Too expensive",
+  "Not using the app enough",
+  "Missing features I need",
+  "Found a better alternative",
+  "Too many bugs / technical issues",
+  "Just trying it out",
+  "Taking a break from fantasy cricket",
+  "Other",
+] as const;
+
 function formatTimeRemaining(expiresAt: Date): string {
   const now = new Date();
   const diff = expiresAt.getTime() - now.getTime();
@@ -65,12 +79,15 @@ export default function SubscriptionScreen() {
   const theme = useTamaguiTheme();
 
   const { user } = useAuth();
-  const isIndian = useIsIndianUser();
+  const isIndianFallback = useIsIndianUser();
   const [refreshing, setRefreshing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoResult, setPromoResult] = useState<{ valid: boolean; discountDisplay?: string } | null>(null);
   const [alert, setAlert] = useState<AlertState>(EMPTY_ALERT);
   const [dayPassCountdown, setDayPassCountdown] = useState("");
+  const [cancelStep, setCancelStep] = useState<CancelStep>("idle");
+  const [cancelReason, setCancelReason] = useState<string | null>(null);
+  const [cancelFreeform, setCancelFreeform] = useState("");
 
   const dismiss = () => setAlert(EMPTY_ALERT);
 
@@ -99,6 +116,13 @@ export default function SubscriptionScreen() {
     enabled: !!user,
     retry: false,
   });
+
+  // Use server-returned country (IP-based in live mode, declared in stub mode)
+  const userCountry = (myTier.data as any)?.country as string | null;
+  const pricingSource = (myTier.data as any)?.pricingSource as "ip" | "declared" | "fallback" | null;
+  const pricingMode = (myTier.data as any)?.pricingMode as "stub" | "live" | null;
+  const isIndian = userCountry ? userCountry.toUpperCase() === "IN" || userCountry.toLowerCase() === "india" : isIndianFallback;
+
   const tierConfigs = trpc.subscription.getTierConfigs.useQuery(undefined, { retry: false });
   const history = trpc.subscription.getHistory.useQuery(undefined, {
     enabled: !!user,
@@ -135,9 +159,13 @@ export default function SubscriptionScreen() {
     onSuccess: () => {
       myTier.refetch();
       history.refetch();
+      setCancelStep("idle");
+      setCancelReason(null);
+      setCancelFreeform("");
       showInfo("Subscription Cancelled", "Your subscription will not renew. Access continues until the end of your billing period.");
     },
     onError: (error: { message: string }) => {
+      setCancelStep("idle");
       showInfo("Cancellation Failed", error.message);
     },
   });
@@ -162,7 +190,15 @@ export default function SubscriptionScreen() {
   }, [myTier, tierConfigs, history]);
 
   const currentTier = myTier.data?.effectiveTier ?? myTier.data?.tier ?? "basic";
+  // baseTier = computed tier for feature access (always "basic" when cancelled)
   const baseTier = myTier.data?.baseTier ?? myTier.data?.tier ?? "basic";
+  // subTier = actual subscription tier from DB (preserves "elite" even when cancelled)
+  const subTier = (myTier.data?.tier as string) ?? "basic";
+  const subStatus = (myTier.data?.status as string) ?? "expired";
+  const isActive = subStatus === "active" || subStatus === "trialing";
+  const isCancelled = subStatus === "cancelled" || subStatus === "expired";
+  // For display & cancel flow: show actual tier when active, show actual when cancelled too
+  const displayTier = isActive ? baseTier : subTier;
   const isTrialing = myTier.data?.isTrialing ?? false;
   const tiers = ((tierConfigs.data as any)?.tiers ?? []) as TierConfig[];
   const tierRank: Record<string, number> = { basic: 0, pro: 1, elite: 2 };
@@ -171,7 +207,7 @@ export default function SubscriptionScreen() {
     const promoNote = promoResult?.valid ? ` Promo: ${promoResult.discountDisplay}` : "";
     const trialNote = tier === "basic" ? " Includes a 7-day free trial." : "";
     showConfirm(
-      `${tier === baseTier ? "Renew" : "Upgrade to"} ${tier.toUpperCase()}`,
+      `${tier === displayTier ? (isCancelled ? "Resubscribe to" : "Renew") : (tierRank[tier] ?? 0) > (tierRank[displayTier] ?? 0) ? "Upgrade to" : "Downgrade to"} ${tier.toUpperCase()}`,
       `This will start your yearly ${tier} subscription.${promoNote}${trialNote}`,
       "Subscribe",
       () => subscribeMutation.mutate({
@@ -191,13 +227,71 @@ export default function SubscriptionScreen() {
   };
 
   const handleCancel = () => {
-    showConfirm(
-      "Cancel Subscription",
-      "Your subscription will not renew. You'll keep access until the end of your current billing period.",
-      "Cancel Subscription",
-      () => cancelMutation.mutate(),
-      "danger",
-    );
+    // Step 1: "Are you sure?" confirmation
+    setCancelStep("confirm");
+  };
+
+  const onCancelConfirmed = () => {
+    // Offer downgrade path based on current tier:
+    // Elite → Pro → Basic → Day Pass → Reason
+    // Pro → Basic → Day Pass → Reason
+    // Basic → Day Pass → Reason
+    if (displayTier === "elite") {
+      setCancelStep("downgrade_pro");
+    } else if (displayTier === "pro") {
+      setCancelStep("downgrade_basic");
+    } else if (!myTier.data?.dayPassActive) {
+      setCancelStep("daypass");
+    } else {
+      setCancelStep("reason");
+    }
+  };
+
+  const onSkipDowngradePro = () => {
+    setCancelStep("downgrade_basic");
+  };
+
+  const onSkipDowngradeBasic = () => {
+    if (!myTier.data?.dayPassActive) {
+      setCancelStep("daypass");
+    } else {
+      setCancelStep("reason");
+    }
+  };
+
+  const onSkipDayPass = () => {
+    setCancelStep("reason");
+  };
+
+  const handleDowngrade = (toTier: "basic" | "pro") => {
+    dismissCancelFlow();
+    subscribeMutation.mutate({ tier: toTier });
+  };
+
+  const onReasonSelected = (reason: string) => {
+    setCancelReason(reason);
+    if (reason === "Other") {
+      setCancelStep("freeform");
+    } else {
+      // Final cancel
+      cancelMutation.mutate({
+        reason,
+        reasonCategory: reason,
+      });
+    }
+  };
+
+  const onFreeformSubmit = () => {
+    cancelMutation.mutate({
+      reason: cancelFreeform.trim() || "Other",
+      reasonCategory: cancelReason ?? "Other",
+    });
+  };
+
+  const dismissCancelFlow = () => {
+    setCancelStep("idle");
+    setCancelReason(null);
+    setCancelFreeform("");
   };
 
   return (
@@ -225,6 +319,29 @@ export default function SubscriptionScreen() {
         <HeaderControls />
       </XStack>
 
+      {/* Geo-pricing notification */}
+      {pricingMode === "live" && pricingSource === "ip" && (
+        <Animated.View entering={FadeInDown.delay(20).springify()}>
+          <XStack
+            marginHorizontal="$4"
+            marginBottom="$3"
+            padding="$3"
+            backgroundColor="$backgroundSurface"
+            borderRadius="$3"
+            borderWidth={1}
+            borderColor="$borderColor"
+            alignItems="center"
+            gap="$2"
+            testID="geo-pricing-banner"
+          >
+            <Text fontSize={14}>🌍</Text>
+            <Text fontFamily="$body" fontSize={11} color="$colorSecondary" flex={1}>
+              {formatUIText(`pricing shown in ${isIndian ? "INR (₹)" : "USD ($)"} based on your location`)}
+            </Text>
+          </XStack>
+        </Animated.View>
+      )}
+
       {/* Current Plan */}
       <Animated.View entering={FadeInDown.delay(40).springify()}>
         <Card marginHorizontal="$4" marginBottom="$4" padding="$5" testID="current-plan-card">
@@ -236,12 +353,13 @@ export default function SubscriptionScreen() {
               {myTier.data?.dayPassActive && (
                 <TierBadge tier="day_pass" testID="daypass-active-badge" />
               )}
-              <TierBadge tier={baseTier} testID="current-tier-badge" />
+              <TierBadge tier={displayTier} testID="current-tier-badge" />
             </XStack>
           </XStack>
           <Text fontFamily="$body" fontWeight="700" fontSize={22} color="$color">
-            {baseTier === "basic" ? "Basic" : baseTier === "pro" ? "Pro" : "Elite"}
+            {displayTier === "basic" ? "Basic" : displayTier === "pro" ? "Pro" : "Elite"}
             {isTrialing && " (Trial)"}
+            {isCancelled && " (Cancelled)"}
           </Text>
           {myTier.data?.currentPeriodEnd && (
             <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop="$1">
@@ -354,8 +472,9 @@ export default function SubscriptionScreen() {
 
       {/* Tier Cards */}
       {tiers.map((tier, i) => {
-        const isCurrent = baseTier === tier.id;
-        const isUpgrade = !isCurrent && (tierRank[tier.id] ?? 0) > (tierRank[baseTier] ?? 0);
+        const isCurrent = displayTier === tier.id;
+        const isUpgrade = !isCurrent && (tierRank[tier.id] ?? 0) > (tierRank[displayTier] ?? 0);
+        const isDowngrade = !isCurrent && (tierRank[tier.id] ?? 0) < (tierRank[displayTier] ?? 0);
 
         return (
           <Animated.View key={tier.id} entering={FadeInDown.delay(120 + i * 60).springify()}>
@@ -428,7 +547,7 @@ export default function SubscriptionScreen() {
               </YStack>
 
               {/* CTA */}
-              {isUpgrade && (
+              {isUpgrade && isActive && (
                 <Button
                   variant="primary"
                   size="md"
@@ -441,7 +560,7 @@ export default function SubscriptionScreen() {
                     : formatUIText(`upgrade to ${tier.name.toLowerCase()}`)}
                 </Button>
               )}
-              {isCurrent && !myTier.data?.cancelAtPeriodEnd && (
+              {isCurrent && isActive && !myTier.data?.cancelAtPeriodEnd && (
                 <Button
                   variant="secondary"
                   size="md"
@@ -458,6 +577,32 @@ export default function SubscriptionScreen() {
                 <Text fontFamily="$mono" fontSize={11} color="$colorMuted" textAlign="center">
                   {formatUIText("cancellation pending — access until period end")}
                 </Text>
+              )}
+              {isCancelled && !isCurrent && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={subscribeMutation.isPending}
+                  onPress={() => handleSubscribe(tier.id as "basic" | "pro" | "elite")}
+                  testID={`subscribe-btn-${tier.id}`}
+                >
+                  {subscribeMutation.isPending
+                    ? formatUIText("processing...")
+                    : formatUIText(`subscribe to ${tier.name.toLowerCase()}`)}
+                </Button>
+              )}
+              {isCurrent && isCancelled && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={subscribeMutation.isPending}
+                  onPress={() => handleSubscribe(tier.id as "basic" | "pro" | "elite")}
+                  testID="resubscribe-btn"
+                >
+                  {subscribeMutation.isPending
+                    ? formatUIText("processing...")
+                    : formatUIText("resubscribe")}
+                </Button>
               )}
             </Card>
           </Animated.View>
@@ -509,6 +654,283 @@ export default function SubscriptionScreen() {
       actions={alert.actions}
       onDismiss={dismiss}
     />
+
+    {/* ── Cancel Flow Modal ── */}
+    {cancelStep !== "idle" && (
+      <YStack
+        position="absolute"
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        backgroundColor="rgba(0,0,0,0.6)"
+        justifyContent="center"
+        alignItems="center"
+        zIndex={1000}
+        onPress={dismissCancelFlow}
+        testID="cancel-flow-overlay"
+      >
+        <YStack
+          backgroundColor="$backgroundSurface"
+          borderRadius="$4"
+          padding="$6"
+          marginHorizontal="$6"
+          maxWidth={360}
+          width="100%"
+          gap="$4"
+          onPress={(e: any) => e.stopPropagation()}
+        >
+          {/* Step 1: Are you sure? */}
+          {cancelStep === "confirm" && (
+            <>
+              <Text fontFamily="$body" fontWeight="700" fontSize={18} color="$color" textAlign="center">
+                {formatUIText("are you sure?")}
+              </Text>
+              <Text fontFamily="$body" fontSize={14} color="$colorSecondary" textAlign="center" lineHeight={20}>
+                {formatUIText("you'll lose access to all your current plan features. your subscription stays active until the end of your billing period.")}
+              </Text>
+              <Button variant="primary" size="md" onPress={dismissCancelFlow}>
+                {formatUIText("keep my plan")}
+              </Button>
+              <Text
+                fontFamily="$mono"
+                fontSize={13}
+                color="$colorDanger"
+                textAlign="center"
+                onPress={onCancelConfirmed}
+                cursor="pointer"
+                testID="cancel-proceed-btn"
+              >
+                {formatUIText("i still want to cancel")}
+              </Text>
+            </>
+          )}
+
+          {/* Step: Downgrade to Pro (shown when cancelling Elite) */}
+          {cancelStep === "downgrade_pro" && (
+            <>
+              <Text fontFamily="$body" fontWeight="700" fontSize={18} color="$color" textAlign="center">
+                {formatUIText("downgrade to pro instead?")}
+              </Text>
+              <Text fontFamily="$body" fontSize={14} color="$colorSecondary" textAlign="center" lineHeight={20}>
+                {formatUIText("keep most premium features at a lower price. you won't lose your history or teams.")}
+              </Text>
+              <YStack
+                backgroundColor="rgba(0,200,100,0.08)"
+                padding="$4"
+                borderRadius="$3"
+                alignItems="center"
+                gap="$1"
+              >
+                <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$accentBackground">
+                  {isIndian
+                    ? `₹${((tiers.find(t => t.id === "pro") as any)?.priceYearlyINR / 100 ?? 889).toFixed(0)}`
+                    : `$${((tiers.find(t => t.id === "pro") as any)?.priceYearlyUSD / 100 ?? 19.99).toFixed(2)}`}
+                </Text>
+                <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                  /year — Pro plan
+                </Text>
+              </YStack>
+              <Button variant="primary" size="md" onPress={() => handleDowngrade("pro")}>
+                {formatUIText("downgrade to pro")}
+              </Button>
+              <Text
+                fontFamily="$mono"
+                fontSize={13}
+                color="$colorDanger"
+                textAlign="center"
+                onPress={onSkipDowngradePro}
+                cursor="pointer"
+              >
+                {formatUIText("no thanks, continue cancelling")}
+              </Text>
+            </>
+          )}
+
+          {/* Step: Downgrade to Basic (shown when cancelling Elite/Pro) */}
+          {cancelStep === "downgrade_basic" && (
+            <>
+              <Text fontFamily="$body" fontWeight="700" fontSize={18} color="$color" textAlign="center">
+                {formatUIText("downgrade to basic instead?")}
+              </Text>
+              <Text fontFamily="$body" fontSize={14} color="$colorSecondary" textAlign="center" lineHeight={20}>
+                {formatUIText("keep your account active with essential features. you won't lose your history or teams.")}
+              </Text>
+              <YStack
+                backgroundColor="rgba(0,200,100,0.08)"
+                padding="$4"
+                borderRadius="$3"
+                alignItems="center"
+                gap="$1"
+              >
+                <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$accentBackground">
+                  {isIndian
+                    ? `₹${((tiers.find(t => t.id === "basic") as any)?.priceYearlyINR / 100 ?? 289).toFixed(0)}`
+                    : `$${((tiers.find(t => t.id === "basic") as any)?.priceYearlyUSD / 100 ?? 5.99).toFixed(2)}`}
+                </Text>
+                <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                  /year — Basic plan
+                </Text>
+              </YStack>
+              <Button variant="primary" size="md" onPress={() => handleDowngrade("basic")}>
+                {formatUIText("downgrade to basic")}
+              </Button>
+              <Text
+                fontFamily="$mono"
+                fontSize={13}
+                color="$colorDanger"
+                textAlign="center"
+                onPress={onSkipDowngradeBasic}
+                cursor="pointer"
+              >
+                {formatUIText("no thanks, continue cancelling")}
+              </Text>
+            </>
+          )}
+
+          {/* Step: Day Pass offer */}
+          {cancelStep === "daypass" && (
+            <>
+              <Text fontFamily="$body" fontWeight="700" fontSize={18} color="$color" textAlign="center">
+                {formatUIText("try a day pass instead?")}
+              </Text>
+              <Text fontFamily="$body" fontSize={14} color="$colorSecondary" textAlign="center" lineHeight={20}>
+                {formatUIText("get full elite access for 24 hours — perfect for match days without a yearly commitment.")}
+              </Text>
+              <YStack
+                backgroundColor="#8B5CF620"
+                padding="$4"
+                borderRadius="$3"
+                alignItems="center"
+                gap="$1"
+              >
+                <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="#8B5CF6">
+                  {isIndian ? `₹${(DAY_PASS_CONFIG.priceINR / 100).toFixed(0)}` : `$${(DAY_PASS_CONFIG.priceUSD / 100).toFixed(2)}`}
+                </Text>
+                <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                  24 hours of Elite
+                </Text>
+              </YStack>
+              <Button
+                variant="primary"
+                size="md"
+                onPress={() => {
+                  dismissCancelFlow();
+                  handleDayPass();
+                }}
+              >
+                {formatUIText("buy day pass")}
+              </Button>
+              <Text
+                fontFamily="$mono"
+                fontSize={13}
+                color="$colorDanger"
+                textAlign="center"
+                onPress={onSkipDayPass}
+                cursor="pointer"
+              >
+                {formatUIText("no thanks, continue cancelling")}
+              </Text>
+            </>
+          )}
+
+          {/* Step 3: Reason selection */}
+          {cancelStep === "reason" && (
+            <>
+              <Text fontFamily="$body" fontWeight="700" fontSize={18} color="$color" textAlign="center">
+                {formatUIText("help us improve")}
+              </Text>
+              <Text fontFamily="$body" fontSize={14} color="$colorSecondary" textAlign="center" lineHeight={20}>
+                {formatUIText("why are you cancelling? your feedback helps us build a better app.")}
+              </Text>
+              <YStack gap="$2">
+                {CANCEL_REASONS.map((reason) => (
+                  <XStack
+                    key={reason}
+                    backgroundColor="$background"
+                    borderRadius="$3"
+                    paddingVertical="$3"
+                    paddingHorizontal="$4"
+                    borderWidth={1}
+                    borderColor="$borderColor"
+                    onPress={() => onReasonSelected(reason)}
+                    cursor="pointer"
+                    pressStyle={{ backgroundColor: "$backgroundSurfaceHover", scale: 0.98 }}
+                    testID={`cancel-reason-${reason.slice(0, 10)}`}
+                  >
+                    <Text fontFamily="$body" fontSize={14} color="$color">
+                      {reason}
+                    </Text>
+                  </XStack>
+                ))}
+              </YStack>
+              <Text
+                fontFamily="$mono"
+                fontSize={13}
+                color="$colorMuted"
+                textAlign="center"
+                onPress={dismissCancelFlow}
+                cursor="pointer"
+              >
+                {formatUIText("go back")}
+              </Text>
+            </>
+          )}
+
+          {/* Step 4: Freeform text (for "Other") */}
+          {cancelStep === "freeform" && (
+            <>
+              <Text fontFamily="$body" fontWeight="700" fontSize={18} color="$color" textAlign="center">
+                {formatUIText("tell us more")}
+              </Text>
+              <TextInput
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 14,
+                  color: theme.color?.val,
+                  backgroundColor: theme.background?.val,
+                  borderWidth: 1,
+                  borderColor: theme.borderColor?.val,
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  minHeight: 80,
+                  textAlignVertical: "top",
+                }}
+                placeholder="What could we do better?"
+                placeholderTextColor={theme.colorMuted?.val}
+                value={cancelFreeform}
+                onChangeText={setCancelFreeform}
+                multiline
+                maxLength={500}
+                testID="cancel-freeform-input"
+              />
+              <Button
+                variant="primary"
+                size="md"
+                disabled={cancelMutation.isPending}
+                onPress={onFreeformSubmit}
+                testID="cancel-submit-btn"
+              >
+                {cancelMutation.isPending
+                  ? formatUIText("processing...")
+                  : formatUIText("cancel subscription")}
+              </Button>
+              <Text
+                fontFamily="$mono"
+                fontSize={13}
+                color="$colorMuted"
+                textAlign="center"
+                onPress={() => setCancelStep("reason")}
+                cursor="pointer"
+              >
+                {formatUIText("go back")}
+              </Text>
+            </>
+          )}
+        </YStack>
+      </YStack>
+    )}
     </>
   );
 }

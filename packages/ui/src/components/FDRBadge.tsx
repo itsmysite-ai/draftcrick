@@ -17,7 +17,8 @@ interface FDRBadgeProps {
 }
 
 export function FDRBadge({ fdr, size = "md", showLabel = false, testID }: FDRBadgeProps) {
-  const clamped = Math.max(1, Math.min(5, Math.round(fdr))) as 1 | 2 | 3 | 4 | 5;
+  const rounded = Math.round(fdr);
+  const clamped = (Number.isFinite(rounded) ? Math.max(1, Math.min(5, rounded)) : 3) as 1 | 2 | 3 | 4 | 5;
   const config = FDR_COLORS[clamped];
   const fontSize = size === "sm" ? 10 : size === "md" ? 12 : 14;
   const padding = size === "sm" ? "$1" : size === "md" ? "$2" : "$3";

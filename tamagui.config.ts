@@ -13,10 +13,12 @@ import { tokens, animations, light, dark, cricket_light, cricket_dark, f1_light,
  */
 
 // ─── Shared size/lineHeight scales (identical across sports) ──────────
-const bodySize = { 1: 11, 2: 12, 3: 13, 4: 14, 5: 16, 6: 18, 7: 20, 8: 24, 9: 30 };
-const bodyLineHeight = { 1: 16, 2: 18, 3: 20, 4: 22, 5: 24, 6: 28, 7: 30, 8: 32, 9: 38 };
-const monoSize = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 16, 8: 18, 9: 22 };
-const monoLineHeight = { 1: 14, 2: 16, 3: 17, 4: 18, 5: 20, 6: 22, 7: 24, 8: 28, 9: 30 };
+// Named aliases (sm/md/lg) map to numeric tokens so Tamagui's useButton
+// can resolve font sizes when our Button variants use size="sm"/"md"/"lg"
+const bodySize = { 1: 11, 2: 12, 3: 13, 4: 14, 5: 16, 6: 18, 7: 20, 8: 24, 9: 30, sm: 12, md: 14, lg: 16 } as Record<string, number>;
+const bodyLineHeight = { 1: 16, 2: 18, 3: 20, 4: 22, 5: 24, 6: 28, 7: 30, 8: 32, 9: 38, sm: 18, md: 22, lg: 24 } as Record<string, number>;
+const monoSize = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 16, 8: 18, 9: 22, sm: 11, md: 13, lg: 15 } as Record<string, number>;
+const monoLineHeight = { 1: 14, 2: 16, 3: 17, 4: 18, 5: 20, 6: 22, 7: 24, 8: 28, 9: 30, sm: 17, md: 20, lg: 22 } as Record<string, number>;
 
 // ─── Cricket fonts — DM Sans + DM Mono ───────────────────────────────
 const dmSansFont = createFont({

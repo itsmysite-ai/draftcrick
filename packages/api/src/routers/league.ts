@@ -57,10 +57,14 @@ export async function autoCreateContestsForLeague(
     return 0;
   }
 
+  // Get league name for contest naming
+  const league = await db.query.leagues.findFirst({ where: eq(leagues.id, leagueId) });
+  const leagueName = league?.name || "League";
+
   const contestValues = newMatches.map((m) => ({
     matchId: m.id,
     leagueId,
-    name: `${m.teamHome} vs ${m.teamAway}`,
+    name: leagueName,
     entryFee: 0,
     prizePool: 0,
     maxEntries: maxMembers,
@@ -109,10 +113,145 @@ export async function autoCreateContestsForTournament(
 
 // ─── AI League Name Generator ──────────────────────────────────────────────
 
+// Indian state code → full name mapping (ISO 3166-2:IN codes)
+const STATE_CODE_MAP: Record<string, string> = {
+  "AP": "andhra pradesh", "AR": "arunachal pradesh", "AS": "assam", "BR": "bihar",
+  "CG": "chhattisgarh", "CT": "chhattisgarh", "GA": "goa", "GJ": "gujarat",
+  "HR": "haryana", "HP": "himachal pradesh", "JH": "jharkhand", "JK": "jammu and kashmir",
+  "KA": "karnataka", "KL": "kerala", "MP": "madhya pradesh", "MH": "maharashtra",
+  "MN": "manipur", "ML": "meghalaya", "MZ": "mizoram", "NL": "nagaland",
+  "OD": "odisha", "OR": "odisha", "PB": "punjab", "RJ": "rajasthan",
+  "SK": "sikkim", "TN": "tamil nadu", "TG": "telangana", "TS": "telangana",
+  "TR": "tripura", "UP": "uttar pradesh", "UK": "uttarakhand", "UT": "uttarakhand",
+  "WB": "west bengal", "DL": "delhi", "AN": "andaman and nicobar",
+  "CH": "chandigarh", "DD": "dadra and nagar haveli", "DN": "dadra and nagar haveli",
+  "LD": "lakshadweep", "PY": "puducherry",
+};
+
+/** Resolve state code or full name to lowercase key */
+function resolveStateName(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const upper = raw.trim().toUpperCase();
+  if (STATE_CODE_MAP[upper]) return STATE_CODE_MAP[upper];
+  return raw.toLowerCase().trim();
+}
+
+// Minimal region→language map — just enough for Gemini to know the local language.
+// All cultural knowledge (films, slang, food, memes) comes from Gemini's own training.
+const REGION_LANG: Record<string, string> = {
+  "kerala": "Malayalam", "tamil nadu": "Tamil", "karnataka": "Kannada",
+  "andhra pradesh": "Telugu", "telangana": "Telugu/Deccani Hindi",
+  "maharashtra": "Marathi", "west bengal": "Bengali", "gujarat": "Gujarati",
+  "rajasthan": "Rajasthani/Hindi", "punjab": "Punjabi", "delhi": "Hindi",
+  "uttar pradesh": "Hindi/Bhojpuri", "bihar": "Bhojpuri/Hindi",
+  "goa": "Konkani", "madhya pradesh": "Hindi", "jharkhand": "Hindi",
+  "odisha": "Odia", "assam": "Assamese", "himachal pradesh": "Pahari/Hindi",
+  "uttarakhand": "Garhwali/Hindi", "chhattisgarh": "Chhattisgarhi",
+  "meghalaya": "Khasi", "manipur": "Meitei", "nagaland": "Nagamese",
+  "tripura": "Bengali/Kokborok", "mizoram": "Mizo", "sikkim": "Nepali",
+  "arunachal pradesh": "Hindi", "jammu and kashmir": "Kashmiri/Urdu",
+};
+
+function getRegionalHint(state: string | null | undefined): string {
+  if (!state) return "";
+  const region = resolveStateName(state);
+  if (!region) return "";
+  const lang = REGION_LANG[region] || null;
+  return `
+REGIONAL FLAVOR (user is from ${region}, India${lang ? `, speaks ${lang}` : ""}):
+You know ${region}'s culture — films, food, festivals, slang, memes, college life, famous people, local rivalries, stereotypes.
+USE YOUR OWN KNOWLEDGE. Be creative. Mix references from different parts of their culture — don't just pick the most obvious movie.
+At least 2 of 5 names should have a ${region} flavor — a local word, cultural reference, or something that makes someone from ${region} smile.
+The other 3 can mix cricket + the group's identity.`;
+}
+
+/**
+ * Generate a dynamic follow-up question with selectable options,
+ * personalized to the user's group name and tournament context.
+ */
+async function generateDynamicQuestion(
+  groupName: string,
+  tournament: string,
+  leagueSize: number,
+  userRegion?: string | null,
+): Promise<{ question: string; options: string[] }> {
+  const { GoogleGenAI } = await import("@google/genai");
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "",
+  });
+
+  const resolvedRegion = resolveStateName(userRegion);
+  const lang = resolvedRegion ? REGION_LANG[resolvedRegion] : null;
+
+  // Fixed question templates — each is structurally different.
+  // We pick one at random; only the OPTIONS are AI-generated.
+  const questionTemplates = [
+    `if your ${groupName} was a street food stall, what would you serve?`,
+    `pick a song that plays when ${groupName} enters the stadium`,
+    `your ${groupName} is a movie — what genre?`,
+    `what does ${groupName} fight about the most?`,
+    `it's 3 am and ${groupName} is still awake because...`,
+    `${groupName}'s captain gets out on duck — what happens next?`,
+    `one word your rivals would use to describe ${groupName}?`,
+    `${groupName} walks into a cricket ground — what's the entry scene?`,
+    `what's ${groupName}'s biggest flex?`,
+    `how would ${groupName} celebrate winning the league?`,
+    `pick a vehicle that represents ${groupName}`,
+    `${groupName}'s signature move on the cricket field?`,
+  ];
+  const question = questionTemplates[Math.floor(Math.random() * questionTemplates.length)];
+
+  const regionHint = resolvedRegion
+    ? `The user is from ${resolvedRegion}, India${lang ? ` (speaks ${lang})` : ""}.
+Use your knowledge of ${resolvedRegion} culture to make 2-3 options hyper-local (food, places, slang, habits unique to ${resolvedRegion}).
+The rest should be universal but specific. DO NOT just list famous movies or actors.`
+    : `The user is from India. Make options fun and diverse.`;
+
+  const prompt = `Generate 5 answer options for this question: "${question}"
+Context: fantasy cricket league for "${tournament}", ${leagueSize} members.
+
+${regionHint}
+
+RULES:
+- Each option: 2-5 words, funny, something a group would proudly claim
+- All 5 must be DIFFERENT vibes — don't make variations of the same answer
+- Think: local food, city quirks, daily life, college humor, not just movies/cricket
+- Make someone from ${resolvedRegion || "India"} laugh or say "that's literally us"
+
+Return ONLY a JSON array of 5 strings: ["...", "...", "...", "...", "..."]`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-flash-lite-preview",
+    contents: prompt,
+  });
+
+  const text = response.text?.trim() ?? "";
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) {
+    return {
+      question,
+      options: ["absolute chaos", "silent assassins", "meme factory", "last over specialists", "chai break champions"],
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(match[0]) as string[];
+    if (Array.isArray(parsed) && parsed.length >= 3) {
+      return { question, options: parsed.filter((o) => typeof o === "string" && o.length > 0).slice(0, 6) };
+    }
+  } catch {}
+
+  return {
+    question,
+    options: ["absolute chaos", "silent assassins", "meme factory", "last over specialists", "chai break champions"],
+  };
+}
+
 async function generateLeagueNameWithAI(
   format: string,
   template: string,
   tournament: string,
+  userContext?: { crewVibe?: string; groupName?: string; leagueSize?: number; userRegion?: string | null },
 ): Promise<string[]> {
   const { GoogleGenAI } = await import("@google/genai");
   const ai = new GoogleGenAI({
@@ -125,16 +264,33 @@ async function generateLeagueNameWithAI(
     : "prediction (predict match outcomes)";
   const templateDesc = template === "casual" ? "casual/fun" : template === "competitive" ? "competitive" : "hardcore pro";
 
-  const prompt = `Generate 5 creative fantasy cricket league names for a "${tournament}" ${formatDesc} league (${templateDesc} vibe).
+  const userHints = userContext
+    ? `\nABOUT THE GROUP:
+- They picked this vibe: "${userContext.crewVibe || "just vibes"}"
+- They call their group: "${userContext.groupName || "the gang"}"
+- League size: ${userContext.leagueSize || "unknown"} members`
+    : "";
 
-CRITICAL RULES:
-- Each name MUST reference "${tournament}" or cricket in a meaningful way
-- Names should feel like they belong to this specific tournament, not generic
-- Mix styles: 2 tournament-specific puns, 1 cricket jargon reference, 1 format-specific, 1 creative/funny
-- 2-5 words each, catchy and memorable
-- If IPL: reference auction dynamics, franchise culture, Indian cricket venues, IPL-specific terms (orange cap, purple cap, impact player, strategic timeout, retention, mega auction)
-- If Champions Trophy/World Cup: reference knockout stages, group stages, ICC, host country
-- NO generic names like "Fantasy League" or "Cricket Club"
+  const regionalHint = getRegionalHint(userContext?.userRegion);
+
+  const prompt = `Generate 5 fantasy cricket league names for "${tournament}" (${formatDesc}, ${templateDesc}).
+${userHints}
+${regionalHint}
+
+NAME GENERATION RULES:
+- MAX 5 WORDS. 2-3 word names are best. Punchy > clever > long.
+- Each name should feel DIFFERENT — don't just rephrase the same joke 5 ways
+- Weave the group's identity ("${userContext?.groupName || "the gang"}") + their vibe ("${userContext?.crewVibe || ""}") into the names
+- The 5 names should be a MIX of:
+  1. One that uses a local/regional word or phrase naturally (not forced)
+  2. One cricket-specific pun or wordplay
+  3. One that references their group name creatively
+  4. One that mashes up their vibe + tournament context
+  5. One wildcard — surprise me
+- DO NOT just append "XI" or "league" to a movie name — that's lazy
+- DO NOT use the same cultural reference twice across the 5 names
+- Names should sound like something a group would actually name their WhatsApp group — natural, funny, a bit irreverent
+- Think: inside jokes > movie references > generic cricket terms
 
 Return ONLY a JSON array of 5 strings:`;
 
@@ -253,14 +409,38 @@ export const leagueRouter = router({
       return league;
     }),
 
+  generateQuestion: protectedProcedure
+    .input(z.object({
+      groupName: z.string(),
+      tournament: z.string(),
+      leagueSize: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Fetch user's region for personalized question
+      const user = await ctx.db.query.users.findFirst({ where: eq(users.id, ctx.user.id) });
+      const prefs = user?.preferences as { state?: string } | null;
+      const userRegion = prefs?.state || null;
+      return generateDynamicQuestion(input.groupName, input.tournament, input.leagueSize || 10, userRegion);
+    }),
+
   generateName: protectedProcedure
     .input(z.object({
       format: z.string(),
       template: z.string(),
       tournament: z.string(),
+      crewVibe: z.string().optional(),
+      groupName: z.string().optional(),
+      leagueSize: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const names = await generateLeagueNameWithAI(input.format, input.template, input.tournament);
+      // Fetch user's region for regional flavor in names
+      const user = await ctx.db.query.users.findFirst({ where: eq(users.id, ctx.user.id) });
+      const prefs = user?.preferences as { state?: string } | null;
+      const userRegion = prefs?.state || null;
+      const names = await generateLeagueNameWithAI(
+        input.format, input.template, input.tournament,
+        { crewVibe: input.crewVibe, groupName: input.groupName, leagueSize: input.leagueSize, userRegion },
+      );
       // Ensure all returned names are unique in DB
       const uniqueNames: string[] = [];
       for (const name of names) {

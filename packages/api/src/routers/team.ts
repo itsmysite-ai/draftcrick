@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { createTeamSchema } from "@draftplay/shared";
-import { eq, and, inArray } from "drizzle-orm";
-import { fantasyTeams, contests, players, matches, playerMatchScores, leagueMembers } from "@draftplay/db";
+import { eq, and, inArray, sql } from "drizzle-orm";
+import { fantasyTeams, contests, players, matches, playerMatchScores, leagueMembers, users } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { getPlayerCredits } from "../services/cricket-data";
 import { getEffectiveTeamRules } from "../services/admin-config";
 import { getTierConfigs } from "../services/subscription";
+import { deductCoins } from "../services/pop-coins";
 
 // Fun team name generator — multiple patterns for variety
 const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
@@ -45,7 +46,7 @@ const SUFFIXES = [
   "Legion", "Brigade", "Alliance", "Crew", "Posse", "Gang",
 ];
 const FUNNY = [
-  "No Ball Nightmares", "Duck Dynasty XI", "Caught Behind the Sofa",
+  "No Ball Nightmares", "Duck Dynasty XI",
   "Boundary Bandits", "Wicket Wizards", "Spin to Win", "Pace & Grace",
   "Six Machine", "Stump Mic Legends", "Third Umpire FC",
   "DRS Delinquents", "Mankad Mafia", "Sledge Hammers",
@@ -53,10 +54,10 @@ const FUNNY = [
   "Dot Ball Dealers", "Powerplay Pirates", "Death Over Demons",
   "Sweep Shot Society", "Inside Edge United", "No Run Needed",
   "Review Lost FC", "Dolly Drop XI", "Wide Ball Wonders",
-  "Helicopter Shot Heroes", "Yorker Yodelers", "Googly Gang",
-  "Reverse Swing Rebels", "Last Over Legends", "Hat Trick Heroes",
+  "Yorker Yodelers", "Googly Gang",
+  "Last Over Legends", "Hat Trick Heroes",
   "Stumped & Confused", "Bowled Over Bunch", "Run Out Rascals",
-  "LBW Lovers", "Maiden Over Mavericks", "Tail Ender Terrors",
+  "LBW Lovers", "Tail Ender Terrors",
 ];
 
 const PATTERNS = [
@@ -94,10 +95,14 @@ function getTeamCity(teamName: string): string {
   return TEAM_SHORT[teamName.toLowerCase()] ?? teamName.split(" ")[0] ?? teamName;
 }
 
+const MAX_TEAM_NAME_LENGTH = 20;
+
 function generateTeamName(teamA?: string, teamB?: string): string {
   const cityA = teamA ? getTeamCity(teamA) : null;
   const cityB = teamB ? getTeamCity(teamB) : null;
   const matchCities = [cityA, cityB].filter(Boolean) as string[];
+
+  let name: string;
 
   // Match-aware patterns (50% chance when match context available)
   if (matchCities.length > 0 && Math.random() < 0.5) {
@@ -112,10 +117,16 @@ function generateTeamName(teamA?: string, teamB?: string): string {
       // "Chennai Blazing Force"
       () => `${city} ${pick(ADJECTIVES)} ${pick(SUFFIXES)}`,
     ];
-    return pick(matchPatterns)();
+    name = pick(matchPatterns)();
+  } else {
+    name = pick(PATTERNS)();
   }
 
-  return pick(PATTERNS)();
+  // Cap at max length — if too long, retry with a simple 2-word pattern
+  if (name.length > MAX_TEAM_NAME_LENGTH) {
+    name = `${pick(ADJECTIVES)} ${pick(CRICKET)}`;
+  }
+  return name.slice(0, MAX_TEAM_NAME_LENGTH);
 }
 
 export const teamRouter = router({
@@ -130,6 +141,7 @@ export const teamRouter = router({
       let matchTeamA: string | undefined;
       let matchTeamB: string | undefined;
       let relevantContestId: string | undefined; // contest the user should navigate to, even if not linked
+      let contestEntryFee = 0; // entry fee to deduct when linking to a contest
 
       // If contestId provided, verify contest exists and is open
       if (input.contestId) {
@@ -148,6 +160,8 @@ export const teamRouter = router({
             message: "Contest is no longer accepting entries",
           });
         }
+
+        contestEntryFee = contest.entryFee;
 
         // Resolve tournament and team names from the match
         const matchRecord = contest.match;
@@ -215,6 +229,7 @@ export const teamRouter = router({
               });
               if (!existing) {
                 input = { ...input, contestId: openContest.id };
+                contestEntryFee = openContest.entryFee;
               }
             }
           }
@@ -324,10 +339,13 @@ export const teamRouter = router({
         }
       }
 
-      // Overseas player limit (0 = disabled, e.g., for international tournaments)
-      if (rules.maxOverseas > 0) {
+      // Overseas player limit — check tournament-level overseasRule first
+      const overseasRule = (rules as any).overseasRule as { enabled: boolean; hostCountry: string } | undefined;
+      const overseasEnabled = overseasRule ? overseasRule.enabled : (rules.maxOverseas > 0);
+      if (overseasEnabled && rules.maxOverseas > 0) {
+        const hostCountry = overseasRule?.hostCountry || "India";
         const overseasCount = playerRecords.filter(
-          (p) => p.nationality !== "India"
+          (p) => p.nationality && p.nationality.toLowerCase() !== hostCountry.toLowerCase()
         ).length;
         if (overseasCount > rules.maxOverseas) {
           throw new TRPCError({
@@ -367,6 +385,20 @@ export const teamRouter = router({
           : `${generateTeamName(matchTeamA, matchTeamB)} #${teamNum}`;
       }
 
+      // Deduct entry fee before creating the team
+      if (input.contestId && contestEntryFee > 0) {
+        try {
+          await deductCoins(ctx.db, ctx.user.id, contestEntryFee, "contest_entry", {
+            contestId: input.contestId,
+          });
+        } catch (e: any) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.message || "Insufficient Pop Coins for entry fee",
+          });
+        }
+      }
+
       const [team] = await ctx.db
         .insert(fantasyTeams)
         .values({
@@ -384,6 +416,14 @@ export const teamRouter = router({
           creditsUsed: String(totalCredits),
         })
         .returning();
+
+      // Increment contest entry count
+      if (input.contestId) {
+        await ctx.db
+          .update(contests)
+          .set({ currentEntries: sql`${contests.currentEntries} + 1` })
+          .where(eq(contests.id, input.contestId));
+      }
 
       return { ...team!, creditsUsed: totalCredits, relevantContestId: relevantContestId ?? team!.contestId ?? undefined };
     }),
@@ -426,28 +466,45 @@ export const teamRouter = router({
         : [];
       const scoreMap = new Map(scores.map((s) => [s.playerId, s]));
 
+      // Compute live total from player scores (instead of stale DB value)
+      const playerDetails = playerRecords.map((p) => {
+        const score = scoreMap.get(p.id);
+        const pts = Number(score?.fantasyPoints ?? 0);
+        const isCaptain = p.id === team.captainId;
+        const isViceCaptain = p.id === team.viceCaptainId;
+        const multiplier = isCaptain ? 2 : isViceCaptain ? 1.5 : 1;
+        return {
+          ...p,
+          credits: getPlayerCredits(p.stats as Record<string, unknown>),
+          isCaptain,
+          isViceCaptain,
+          fantasyPoints: pts,
+          contribution: pts * multiplier,
+            runs: score?.runs ?? 0,
+            ballsFaced: score?.ballsFaced ?? 0,
+            fours: score?.fours ?? 0,
+            sixes: score?.sixes ?? 0,
+            wickets: score?.wickets ?? 0,
+            oversBowled: Number(score?.oversBowled ?? 0),
+            runsConceded: score?.runsConceded ?? 0,
+            maidens: score?.maidens ?? 0,
+            catches: score?.catches ?? 0,
+            stumpings: score?.stumpings ?? 0,
+            runOuts: score?.runOuts ?? 0,
+          };
+        });
+
+      // Sum live points from player contributions + prediction points
+      const predPts = Number(team.predictionPoints ?? 0);
+      const liveTotal = scores.length > 0
+        ? Math.round((playerDetails.reduce((sum, p) => sum + p.contribution, 0) + predPts) * 100) / 100
+        : Number(team.totalPoints);
+
       return {
         ...team,
-        totalPoints: Number(team.totalPoints),
+        totalPoints: liveTotal,
         creditsUsed: Number(team.creditsUsed),
-        playerDetails: playerRecords.map((p) => {
-          const score = scoreMap.get(p.id);
-          const pts = Number(score?.fantasyPoints ?? 0);
-          const isCaptain = p.id === team.captainId;
-          const isViceCaptain = p.id === team.viceCaptainId;
-          const multiplier = isCaptain ? 2 : isViceCaptain ? 1.5 : 1;
-          return {
-            ...p,
-            credits: getPlayerCredits(p.stats as Record<string, unknown>),
-            isCaptain,
-            isViceCaptain,
-            fantasyPoints: pts,
-            contribution: pts * multiplier,
-            runs: score?.runs ?? 0,
-            wickets: score?.wickets ?? 0,
-            catches: score?.catches ?? 0,
-          };
-        }),
+        playerDetails,
       };
     }),
 
@@ -516,8 +573,16 @@ export const teamRouter = router({
             fantasyPoints: pts,
             contribution: pts * multiplier,
             runs: score?.runs ?? 0,
+            ballsFaced: score?.ballsFaced ?? 0,
+            fours: score?.fours ?? 0,
+            sixes: score?.sixes ?? 0,
             wickets: score?.wickets ?? 0,
+            oversBowled: Number(score?.oversBowled ?? 0),
+            runsConceded: score?.runsConceded ?? 0,
+            maidens: score?.maidens ?? 0,
             catches: score?.catches ?? 0,
+            stumpings: score?.stumpings ?? 0,
+            runOuts: score?.runOuts ?? 0,
           };
         }),
       };
@@ -577,4 +642,84 @@ export const teamRouter = router({
       creditsUsed: Number(t.creditsUsed),
     }));
   }),
+
+  /**
+   * Generate a personal question for AI team naming — asks about the user's cricket identity.
+   */
+  /**
+   * Generate AI-powered team names — single call, no questions needed.
+   * Uses match context + user profile + region for personalized names.
+   */
+  generateTeamNames: protectedProcedure
+    .input(z.object({
+      teamA: z.string(),
+      teamB: z.string(),
+      tournament: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.db.query.users.findFirst({ where: eq(users.id, ctx.user.id) });
+      const prefs = user?.preferences as { state?: string } | null;
+      const displayName = user?.displayName || "player";
+      const userRegion = prefs?.state || null;
+
+      const STATE_CODE_MAP: Record<string, string> = {
+        "AP": "andhra pradesh", "TN": "tamil nadu", "KA": "karnataka", "KL": "kerala",
+        "MH": "maharashtra", "TG": "telangana", "TS": "telangana", "WB": "west bengal",
+        "GJ": "gujarat", "RJ": "rajasthan", "PB": "punjab", "DL": "delhi",
+        "UP": "uttar pradesh", "BR": "bihar", "JH": "jharkhand", "HR": "haryana",
+        "OD": "odisha", "AS": "assam", "GA": "goa", "HP": "himachal pradesh",
+      };
+      const resolvedRegion = userRegion
+        ? (STATE_CODE_MAP[userRegion.toUpperCase()] || userRegion.toLowerCase())
+        : null;
+
+      const regionHint = resolvedRegion
+        ? `User is from ${resolvedRegion}. Use YOUR OWN KNOWLEDGE to give 1-2 names a ${resolvedRegion} flavor — a local word, cricket slang from the region, or a cultural nod. Be creative, don't just use the obvious references.`
+        : "";
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "",
+      });
+
+      const prompt = `Generate 5 fantasy cricket team names for ${input.teamA} vs ${input.teamB} (${input.tournament}).
+
+ABOUT THE USER:
+- Name: ${displayName}
+${regionHint}
+
+NAME RULES:
+- MAX 3 WORDS (20 chars max). Short & punchy.
+- This is a PERSONAL team name — the user's alter ego or team identity
+- All 5 must feel STRUCTURALLY DIFFERENT:
+  1. A cricket term/pun (e.g. "Yorker Yodas", "Six Machine")
+  2. A match/team reference using "${input.teamA.split(" ")[0]}" or "${input.teamB.split(" ")[0]}"
+  3. A name mashup using "${displayName}" creatively (e.g. "${displayName}'s Army")
+  4. One with regional flavor (if region known) or local cricket culture
+  5. One wildcard — funny, unexpected, meme-worthy
+- Think: WhatsApp cricket group name energy, fantasy team banter, IPL nickname vibes
+- NO "XI" suffix on every name. Vary the format.
+- DO NOT repeat the same structure twice.
+
+Return ONLY a JSON array of 5 strings:`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-lite-preview",
+        contents: prompt,
+      });
+
+      const text = response.text?.trim() ?? "";
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) {
+        return { names: [generateTeamName(input.teamA, input.teamB)] };
+      }
+
+      try {
+        const parsed = JSON.parse(match[0]) as string[];
+        const valid = parsed.filter((n) => typeof n === "string" && n.length > 0 && n.length <= 30);
+        if (valid.length >= 3) return { names: valid.slice(0, 5) };
+      } catch {}
+
+      return { names: [generateTeamName(input.teamA, input.teamB)] };
+    }),
 });

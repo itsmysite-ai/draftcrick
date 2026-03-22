@@ -84,6 +84,17 @@ export default function MatchDetailPage() {
     onError: (err) => alert(`Error: ${err.message}`),
   });
 
+  const refreshScores = trpc.admin.matches.refreshScores.useMutation({
+    onSuccess: (data: any) => {
+      matchQuery.refetch();
+      playersQuery.refetch();
+      contestsQuery.refetch();
+      const changes = data.matchChanges?.length ? `\nMatch: ${data.matchChanges.join(", ")}` : "";
+      alert(`Live scores updated: ${data.details}${changes}`);
+    },
+    onError: (err) => alert(`Error: ${err.message}`),
+  });
+
   const updatePhase = trpc.admin.matches.updatePhase.useMutation({
     onSuccess: (data) => {
       matchQuery.refetch();
@@ -207,11 +218,19 @@ export default function MatchDetailPage() {
           </button>
 
           <button
+            onClick={() => refreshScores.mutate({ matchId })}
+            disabled={refreshScores.isPending || !match?.externalId}
+            style={btnStyle("#22c55e")}
+          >
+            {refreshScores.isPending ? "Fetching Live..." : "2. Refresh Live Scores"}
+          </button>
+
+          <button
             onClick={() => seedScores.mutate({ matchId })}
             disabled={isPending || players.length === 0}
             style={btnStyle("var(--accent)")}
           >
-            2. Seed Scores ({players.length} players)
+            Seed Random Scores ({players.length} players)
           </button>
 
           <button
@@ -329,16 +348,96 @@ export default function MatchDetailPage() {
                   sortValue: (row: any) => row.score?.runs ?? null,
                 },
                 {
+                  key: "ballsFaced",
+                  header: "Balls",
+                  render: (row: any) => row.score?.ballsFaced ?? "—",
+                  sortValue: (row: any) => row.score?.ballsFaced ?? null,
+                },
+                {
+                  key: "fours",
+                  header: "4s",
+                  render: (row: any) => row.score?.fours ?? "—",
+                  sortValue: (row: any) => row.score?.fours ?? null,
+                },
+                {
+                  key: "sixes",
+                  header: "6s",
+                  render: (row: any) => row.score?.sixes ?? "—",
+                  sortValue: (row: any) => row.score?.sixes ?? null,
+                },
+                {
+                  key: "strikeRate",
+                  header: "SR",
+                  render: (row: any) => {
+                    const s = row.score;
+                    if (!s || !s.ballsFaced || s.ballsFaced === 0) return "—";
+                    const sr = (s.runs / s.ballsFaced) * 100;
+                    const hasBonus = s.ballsFaced >= 10 && sr >= 150;
+                    return <span style={{ color: hasBonus ? "var(--accent)" : undefined, fontWeight: hasBonus ? 700 : undefined }}>{sr.toFixed(1)}</span>;
+                  },
+                  sortValue: (row: any) => {
+                    const s = row.score;
+                    return s?.ballsFaced > 0 ? (s.runs / s.ballsFaced) * 100 : null;
+                  },
+                },
+                {
                   key: "wickets",
                   header: "Wkts",
                   render: (row: any) => row.score?.wickets ?? "—",
                   sortValue: (row: any) => row.score?.wickets ?? null,
                 },
                 {
+                  key: "oversBowled",
+                  header: "Overs",
+                  render: (row: any) => row.score?.oversBowled ? Number(row.score.oversBowled).toFixed(1) : "—",
+                  sortValue: (row: any) => row.score?.oversBowled ? Number(row.score.oversBowled) : null,
+                },
+                {
+                  key: "maidens",
+                  header: "Mdns",
+                  render: (row: any) => row.score?.maidens ?? "—",
+                  sortValue: (row: any) => row.score?.maidens ?? null,
+                },
+                {
+                  key: "runsConceded",
+                  header: "Conc",
+                  render: (row: any) => row.score?.runsConceded ?? "—",
+                  sortValue: (row: any) => row.score?.runsConceded ?? null,
+                },
+                {
+                  key: "economy",
+                  header: "Econ",
+                  render: (row: any) => {
+                    const s = row.score;
+                    const overs = s?.oversBowled ? Number(s.oversBowled) : 0;
+                    if (overs === 0) return "—";
+                    const er = s.runsConceded / overs;
+                    const hasBonus = overs >= 2 && er <= 6;
+                    return <span style={{ color: hasBonus ? "var(--accent)" : undefined, fontWeight: hasBonus ? 700 : undefined }}>{er.toFixed(1)}</span>;
+                  },
+                  sortValue: (row: any) => {
+                    const s = row.score;
+                    const overs = s?.oversBowled ? Number(s.oversBowled) : 0;
+                    return overs > 0 ? s.runsConceded / overs : null;
+                  },
+                },
+                {
                   key: "catches",
-                  header: "Catches",
+                  header: "Ct",
                   render: (row: any) => row.score?.catches ?? "—",
                   sortValue: (row: any) => row.score?.catches ?? null,
+                },
+                {
+                  key: "stumpings",
+                  header: "St",
+                  render: (row: any) => row.score?.stumpings ?? "—",
+                  sortValue: (row: any) => row.score?.stumpings ?? null,
+                },
+                {
+                  key: "runOuts",
+                  header: "RO",
+                  render: (row: any) => row.score?.runOuts ?? "—",
+                  sortValue: (row: any) => row.score?.runOuts ?? null,
                 },
                 {
                   key: "fantasyPoints",

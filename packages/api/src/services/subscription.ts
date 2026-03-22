@@ -573,7 +573,7 @@ export async function expireDayPasses(db: Database): Promise<number> {
 /**
  * Cancel subscription. Sets cancelAtPeriodEnd — sub stays active until period end.
  */
-export async function cancelSubscription(db: Database, userId: string): Promise<void> {
+export async function cancelSubscription(db: Database, userId: string, reason?: string, reasonCategory?: string): Promise<void> {
   const sub = await db.query.subscriptions.findFirst({
     where: and(
       eq(subscriptions.userId, userId),
@@ -582,7 +582,11 @@ export async function cancelSubscription(db: Database, userId: string): Promise<
   });
 
   if (!sub) {
-    throw new Error("No active subscription to cancel");
+    const { TRPCError } = await import("@trpc/server");
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "No active subscription to cancel",
+    });
   }
 
   const paymentMode = await getPaymentMode();
@@ -606,10 +610,10 @@ export async function cancelSubscription(db: Database, userId: string): Promise<
       event: "cancelled",
       fromTier: sub.tier,
       toTier: sub.tier, // stays until period end
-      metadata: { cancelledAt: new Date().toISOString(), expiresAt: sub.currentPeriodEnd?.toISOString(), paymentMode },
+      metadata: { cancelledAt: new Date().toISOString(), expiresAt: sub.currentPeriodEnd?.toISOString(), paymentMode, ...(reason && { reason }), ...(reasonCategory && { reasonCategory }) },
     });
 
-    log.info({ userId, tier: sub.tier, paymentMode }, "Subscription cancelled (active until period end)");
+    log.info({ userId, tier: sub.tier, paymentMode, reasonCategory }, "Subscription cancelled (active until period end)");
   } else {
     // Stub mode or trial: cancel immediately, mark as cancelled
     await db
@@ -628,7 +632,7 @@ export async function cancelSubscription(db: Database, userId: string): Promise<
       event: "cancelled",
       fromTier: sub.tier,
       toTier: sub.tier,
-      metadata: { cancelledAt: new Date().toISOString(), paymentMode, immediate: true },
+      metadata: { cancelledAt: new Date().toISOString(), paymentMode, immediate: true, ...(reason && { reason }), ...(reasonCategory && { reasonCategory }) },
     });
 
     await invalidateUserTierCache(userId);

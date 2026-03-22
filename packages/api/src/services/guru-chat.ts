@@ -67,7 +67,7 @@ function buildSystemPrompt(context: GuruContext): string {
       if (m.date) contextBlock += ` — ${m.date}`;
       contextBlock += "\n";
     }
-    contextBlock += "When the user asks about these teams, ALWAYS search for them in the context of cricket and the tournament listed above. For example, if the tournament is Indian Premier League, search for 'RCB vs SRH IPL head to head cricket' not just 'Bengaluru vs Hyderabad'.\n";
+    contextBlock += "CRITICAL: The user is currently viewing one of these matches. When they say 'both teams', 'the match', 'this game', 'current form', etc., they are ALWAYS referring to the match listed above. NEVER ask which teams they mean — you already know. Use Google Search to find recent cricket form, stats, and news for these specific teams.\n";
   }
 
   if (context.fdrData?.length) {
@@ -220,10 +220,14 @@ export async function sendGuruMessage(
     : await createGeminiClientGlobal();
 
   try {
-    log.info({ userId, conversationId, messageLength: message.length }, "Sending to Guru");
+    log.info({ userId, conversationId, messageLength: message.length, hasMatches: !!context.upcomingMatches?.length, matchContext: context.upcomingMatches?.[0] }, "Sending to Guru");
 
     // Build conversation history for Gemini
     const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+
+    // Inject system prompt as first user+model exchange so the model always sees it
+    contents.push({ role: "user", parts: [{ text: `[SYSTEM CONTEXT — follow these instructions for this entire conversation]\n\n${systemPrompt}` }] });
+    contents.push({ role: "model", parts: [{ text: "Understood. I'll follow these instructions and use the match context provided. How can I help?" }] });
 
     // Trim to last N messages to stay within context
     const recentMessages = existingMessages.slice(-MAX_CONVERSATION_MESSAGES);
@@ -237,7 +241,6 @@ export async function sendGuruMessage(
 
     const response = await ai.models.generateContent({
       model: MODEL,
-      systemInstruction: systemPrompt,
       contents,
       config: {
         temperature: 0.7,

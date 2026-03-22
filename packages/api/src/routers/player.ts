@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
-import { eq, ilike, and, or, desc } from "drizzle-orm";
+import { eq, ilike, and, or, desc, inArray } from "drizzle-orm";
 import { players, playerMatchScores, matches, tournaments } from "@draftplay/db";
 
 export const playerRouter = router({
@@ -13,6 +13,48 @@ export const playerRouter = router({
       limit: 200,
     });
   }),
+
+  /**
+   * List players for a specific tournament (via match associations).
+   */
+  listByTournament: publicProcedure
+    .input(z.object({ tournamentName: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      // Find tournament
+      const tournament = await ctx.db.query.tournaments.findFirst({
+        where: eq(tournaments.name, input.tournamentName),
+        columns: { id: true },
+      });
+      if (!tournament) return [];
+
+      // Get match IDs for this tournament
+      const tournamentMatches = await ctx.db
+        .select({ id: matches.id })
+        .from(matches)
+        .where(eq(matches.tournamentId, tournament.id));
+
+      if (tournamentMatches.length === 0) return [];
+
+      const matchIds = tournamentMatches.map((m) => m.id);
+
+      // Get distinct player IDs from match scores
+      const scores = await ctx.db
+        .selectDistinct({ playerId: playerMatchScores.playerId })
+        .from(playerMatchScores)
+        .where(inArray(playerMatchScores.matchId, matchIds));
+
+      if (scores.length === 0) return [];
+
+      const playerIds = scores.map((s) => s.playerId);
+
+      // Fetch full player data
+      return ctx.db.query.players.findMany({
+        where: and(
+          eq(players.isDisabled, false),
+          inArray(players.id, playerIds),
+        ),
+      });
+    }),
 
   /**
    * Search players by name, team, or role

@@ -201,7 +201,7 @@ export async function getDashboardFromPg(
   const pgTournaments = await db
     .select()
     .from(tournaments)
-    .where(eq(tournaments.sport, sport));
+    .where(and(eq(tournaments.sport, sport), eq(tournaments.isVisible, true)));
 
   if (pgTournaments.length === 0) {
     log.info({ sport }, "No tournaments in PG — cold start");
@@ -234,16 +234,9 @@ export async function getDashboardFromPg(
     sport: m.sport as Sport,
     format: m.format,
     tournamentName: m.tournament,
-    time: m.startTime.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }),
-    date: m.startTime.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }),
+    // Send ISO string so the client can format in the user's local timezone
+    time: m.startTime.toISOString(),
+    date: m.startTime.toISOString(),
     venue: m.venue,
     status: m.status as AIMatch["status"],
     scoreSummary: m.scoreSummary ?? null,
@@ -317,7 +310,30 @@ export async function upsertTournaments(
   const now = new Date();
   let upserted = 0;
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const maxFutureDate = new Date(today);
+  maxFutureDate.setDate(maxFutureDate.getDate() + 90);
+
   for (const t of aiTournaments) {
+    // Skip tournaments that have already ended
+    if (t.endDate && t.endDate !== "unknown") {
+      const endDate = new Date(t.endDate + "T23:59:59");
+      if (endDate < today) {
+        log.debug({ name: t.name, endDate: t.endDate }, "Skipping past tournament");
+        continue;
+      }
+    }
+
+    // Skip tournaments that start more than 90 days from now
+    if (t.startDate && t.startDate !== "unknown") {
+      const startDate = new Date(t.startDate + "T00:00:00");
+      if (startDate > maxFutureDate) {
+        log.debug({ name: t.name, startDate: t.startDate }, "Skipping tournament too far in future (>90 days)");
+        continue;
+      }
+    }
+
     const externalId = t.id && t.id.length > 0
       ? t.id
       : normalizeTournamentExternalId(t);
@@ -481,6 +497,7 @@ export async function upsertMatches(
         status: correctedStatus,
         tournamentId,
         matchPhase: phase,
+        draftEnabled: phase === "pre_match",
         lastRefreshedAt: now,
         nextRefreshAfter: nextRefresh,
         refreshCount: 1,
@@ -499,6 +516,7 @@ export async function upsertMatches(
           status: correctedStatus,
           tournamentId,
           matchPhase: phase,
+          draftEnabled: phase === "pre_match",
           lastRefreshedAt: now,
           nextRefreshAfter: nextRefresh,
           refreshCount: sql`${matches.refreshCount} + 1`,
@@ -519,6 +537,41 @@ export async function upsertMatches(
   }
 
   log.info({ sport, total: result.total, new: result.newCount, updated: result.updatedCount, skipped: result.skippedCount }, "Upserted matches");
+
+  // ── Backfill tournament dates from match start times ──
+  // If a tournament has null startDate/endDate, derive them from its matches.
+  try {
+    const tournamentsWithNullDates = await database
+      .select({ id: tournaments.id, externalId: tournaments.externalId })
+      .from(tournaments)
+      .where(and(eq(tournaments.sport, sport), or(
+        sql`${tournaments.startDate} IS NULL`,
+        sql`${tournaments.endDate} IS NULL`,
+      )));
+
+    for (const t of tournamentsWithNullDates) {
+      const matchDates = await database
+        .select({
+          minStart: sql<string>`MIN(${matches.startTime})`,
+          maxStart: sql<string>`MAX(${matches.startTime})`,
+        })
+        .from(matches)
+        .where(eq(matches.tournamentId, t.id));
+
+      const row = matchDates[0];
+      if (row?.minStart && row?.maxStart) {
+        const startISO = new Date(row.minStart).toISOString().split("T")[0]!;
+        const endISO = new Date(row.maxStart).toISOString().split("T")[0]!;
+        await database
+          .update(tournaments)
+          .set({ startDate: startISO, endDate: endISO, updatedAt: now })
+          .where(eq(tournaments.id, t.id));
+        log.debug({ tournament: t.externalId, startDate: startISO, endDate: endISO }, "Backfilled tournament dates from matches");
+      }
+    }
+  } catch (err) {
+    log.warn({ err }, "Failed to backfill tournament dates");
+  }
 
   // Auto-create contests for leagues tied to tournaments with new matches
   if (result.newCount > 0) {
@@ -1546,39 +1599,55 @@ const TZ_OFFSETS: Record<string, number> = {
 };
 
 function parseAIDateTime(dateStr: string, timeStr: string): Date {
-  // Extract timezone abbreviation if present
+  // ── Fast path: if either field is already an ISO string, use it directly ──
+  // Cricbuzz passes ISO strings from the raw Unix timestamp — no re-parsing needed.
+  for (const s of [dateStr, timeStr]) {
+    if (s && (s.includes("T") || s.endsWith("Z"))) {
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+  }
+
+  // ── Slow path: parse human-readable strings from Gemini ──
+  // Extract timezone abbreviation if present (e.g., "7:30 PM IST" → "IST")
   const tzMatch = timeStr.match(/\s+([A-Z]{2,4})\s*$/);
   const tzAbbrev = tzMatch?.[1] ?? null;
   const tzOffsetMinutes = tzAbbrev ? TZ_OFFSETS[tzAbbrev] ?? null : null;
 
-  // Strip timezone abbreviation for base parsing
+  // Strip timezone abbreviation for parsing
   const cleanTime = timeStr.replace(/\s*[A-Z]{2,4}\s*$/, "").trim();
-  const combined = `${dateStr} ${cleanTime}`;
-  const parsed = new Date(combined);
 
-  if (isNaN(parsed.getTime())) {
-    // Fallback: try just the date
-    const dateOnly = new Date(dateStr);
-    if (isNaN(dateOnly.getTime())) {
-      throw new Error(`Cannot parse date/time: ${combined}`);
-    }
-    return dateOnly;
+  // Parse the date part to get year/month/day
+  const dateParsed = new Date(dateStr);
+  if (isNaN(dateParsed.getTime())) {
+    throw new Error(`Cannot parse date: ${dateStr}`);
+  }
+  const year = dateParsed.getFullYear();
+  const month = dateParsed.getMonth(); // 0-indexed
+  const day = dateParsed.getDate();
+
+  // Parse the time part manually to avoid timezone ambiguity
+  // Handles "7:30 PM", "19:30", "7:30PM", "7:30 pm"
+  const timeMatch = cleanTime.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM|am|pm))?$/i);
+  if (!timeMatch) {
+    // Fallback: return date-only at midnight UTC
+    return new Date(Date.UTC(year, month, day));
   }
 
-  // If we have a known timezone offset, correct to proper UTC
+  let hours = parseInt(timeMatch[1]!, 10);
+  const minutes = parseInt(timeMatch[2]!, 10);
+  const ampm = timeMatch[3]?.toUpperCase();
+
+  if (ampm === "PM" && hours !== 12) hours += 12;
+  if (ampm === "AM" && hours === 12) hours = 0;
+
   if (tzOffsetMinutes !== null) {
-    // `parsed` assumed the time was in the machine's local timezone.
-    // But it's actually in the source timezone (e.g., IST = UTC+330min).
-    // parsed.getTime() gives UTC assuming machine-local interpretation.
-    // We need to undo the machine-local offset and apply the source timezone offset.
-    // machineOffsetMin = parsed.getTimezoneOffset() (positive means behind UTC, e.g., EST = +300)
-    // parsed internally = wallclock + machineOffsetMin (in UTC millis)
-    // We want           = wallclock - tzOffsetMinutes (in UTC millis, since tzOffsetMinutes is ahead of UTC)
-    // So correct        = parsed.getTime() - (machineOffsetMin + tzOffsetMinutes) * 60000
-    const machineOffsetMin = parsed.getTimezoneOffset(); // e.g., EST = 300 (5 hours behind UTC)
-    const correction = -(machineOffsetMin + tzOffsetMinutes) * 60000;
-    return new Date(parsed.getTime() + correction);
+    // Build UTC time directly: wall-clock time minus the source timezone offset
+    // e.g., "7:30 PM IST" = 19:30 IST = 19:30 - 5:30 = 14:00 UTC
+    const wallClockMs = Date.UTC(year, month, day, hours, minutes);
+    return new Date(wallClockMs - tzOffsetMinutes * 60_000);
   }
 
-  return parsed;
+  // No timezone info — assume UTC
+  return new Date(Date.UTC(year, month, day, hours, minutes));
 }

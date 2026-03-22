@@ -11,6 +11,14 @@ const DB_URL = process.env.DATABASE_URL || "postgresql://postgres:Dreamproject@3
 const API_BASE = process.env.API_URL ?? "http://localhost:3001";
 
 async function main() {
+  // Safety: require explicit --confirm flag to prevent accidental execution
+  if (!process.argv.includes("--confirm")) {
+    console.log("⚠️  This script DELETES ALL data (tournaments, matches, players), flushes Redis, and triggers a cold-start dashboard refresh.");
+    console.log("   Run with --confirm to proceed:");
+    console.log("   npx tsx scripts/force-cold-start.ts --confirm");
+    process.exit(1);
+  }
+
   const sql = postgres(DB_URL);
 
   // 1. TRUNCATE everything

@@ -40,7 +40,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   // Unread count from backend
   const unreadQuery = trpc.notification.getUnreadCount.useQuery(undefined, {
     enabled: !!user,
-    refetchInterval: 60_000, // refresh every minute
+    refetchInterval: 5_000, // refresh every 5 seconds
   });
   const unreadCount = unreadQuery.data?.count ?? 0;
 

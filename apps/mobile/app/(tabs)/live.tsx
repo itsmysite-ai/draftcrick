@@ -33,6 +33,20 @@ import {
 } from "@draftplay/ui";
 
 // ---------------------------------------------------------------------------
+// Safe date parser — handles ISO strings from API and legacy date+time pairs
+// ---------------------------------------------------------------------------
+function parseSafeDate(dateStr?: string, timeStr?: string): Date {
+  if (!dateStr) return new Date();
+  if (dateStr.includes("T") || dateStr.endsWith("Z")) {
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+  const cleanTime = (timeStr ?? "").replace(/\s+[A-Z]{2,4}$/, "");
+  const parsed = new Date(`${dateStr} ${cleanTime}`);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+// ---------------------------------------------------------------------------
 // PulsingDot — animated live indicator (reanimated, needs raw color values)
 // ---------------------------------------------------------------------------
 function PulsingDot({ size = 6, color }: { size?: number; color?: string }) {
@@ -243,7 +257,7 @@ function LiveMatchCard({
           <YStack flex={1} gap={2}>
             <Text {...textStyles.hint}>
               {match.date
-                ? new Date(`${match.date} ${(match.time ?? "").replace(/\s+[A-Z]{2,4}$/, "")}`).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
+                ? parseSafeDate(match.date, match.time).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
                 : match.time || match.venue || ""}
             </Text>
             {match.venue && match.date && (
@@ -325,11 +339,8 @@ export default function LiveScreen() {
           teamA: m.teamHome,
           teamB: m.teamAway,
           tournamentName: m.tournament,
-          time: new Date(m.startTime).toLocaleTimeString("en-US", {
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-          }),
+          time: new Date(m.startTime).toISOString(),
+          date: new Date(m.startTime).toISOString(),
           status: m.status,
           format: m.format?.toUpperCase() || "T20",
           venue: m.venue,
@@ -363,11 +374,7 @@ export default function LiveScreen() {
   const sortByDate = (a: any, b: any) => {
     const getTime = (m: any) => {
       if (m.startTime) return new Date(m.startTime).getTime();
-      if (m.date) {
-        const cleanTime = (m.time ?? "").replace(/\s+[A-Z]{2,4}$/, "");
-        const parsed = new Date(`${m.date} ${cleanTime}`);
-        return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
-      }
+      if (m.date) return parseSafeDate(m.date, m.time).getTime();
       return 0;
     };
     return getTime(a) - getTime(b);

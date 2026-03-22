@@ -22,6 +22,14 @@ async function tryDelete(sql: any, table: string) {
 }
 
 async function main() {
+  // Safety: require explicit --confirm flag to prevent accidental execution
+  if (!process.argv.includes("--confirm")) {
+    console.log("⚠️  This script DELETES all tournaments, matches, players, and contest data.");
+    console.log("   Run with --confirm to proceed:");
+    console.log("   npx tsx scripts/clear-sports-data.ts --confirm");
+    process.exit(1);
+  }
+
   const sql = postgres(DB_URL);
 
   console.log("Clearing sports data from PostgreSQL...");

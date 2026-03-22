@@ -29,6 +29,7 @@ export async function processScoreUpdate(
     ballsFaced: number;
     fours: number;
     sixes: number;
+    isDismissed?: boolean;
     wickets: number;
     oversBowled: number;
     runsConceded: number;
@@ -109,10 +110,14 @@ export async function processScoreUpdate(
         totalPoints += points;
       }
 
+      // Add prediction points to total (prediction points are tracked separately)
+      const predPts = Number(team.predictionPoints ?? 0);
+      const finalTotal = Math.round((totalPoints + predPts) * 100) / 100;
+
       await db
         .update(fantasyTeams)
         .set({
-          totalPoints: String(Math.round(totalPoints * 100) / 100),
+          totalPoints: String(finalTotal),
           updatedAt: new Date(),
         })
         .where(eq(fantasyTeams.id, team.id));

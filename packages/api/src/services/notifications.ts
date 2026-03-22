@@ -26,6 +26,7 @@ export const NOTIFICATION_TYPES = {
   RANK_CHANGE: "rank_change",
   CONTEST_RESULT: "contest_result",
   PREDICTION_RESULT: "prediction_result",
+  PREDICTION_POSTED: "prediction_posted",
   TOURNAMENT_AWARD: "tournament_award",
 } as const;
 
@@ -41,6 +42,7 @@ const TYPE_TO_PREF: Record<NotificationType, string> = {
   rank_change: "rankChanges",
   contest_result: "statusAlerts",
   prediction_result: "statusAlerts",
+  prediction_posted: "statusAlerts",
   tournament_award: "statusAlerts",
 };
 

@@ -54,6 +54,22 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
+  // Force zustand subpath imports (e.g. "zustand/middleware") to CJS builds
+  // to avoid import.meta usage in ESM builds that Metro can't handle
+  if (moduleName.startsWith("zustand/")) {
+    const subpath = moduleName.slice("zustand/".length); // e.g. "middleware"
+    const searchPaths = [
+      path.join(monorepoRoot, "node_modules", "zustand", `${subpath}.js`),
+      path.join(projectRoot, "node_modules", "zustand", `${subpath}.js`),
+    ];
+    for (const cjsPath of searchPaths) {
+      if (fs.existsSync(cjsPath)) {
+        console.log(`[metro-resolve] ${moduleName} -> ${cjsPath}`);
+        return { filePath: cjsPath, type: "sourceFile" };
+      }
+    }
+  }
+
   // Fall back to the default resolver
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);

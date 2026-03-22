@@ -129,7 +129,8 @@ export default function SocialScreen() {
     useCallback(() => {
       refetch();
       myTeamsQuery.refetch();
-    }, [refetch, myTeamsQuery])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
   );
 
   const onRefresh = async () => {

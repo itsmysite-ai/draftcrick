@@ -56,7 +56,7 @@ function ContestCard({
       <Card pressable onPress={onPress} marginBottom="$3" padding={0} overflow="hidden">
         <XStack justifyContent="space-between" alignItems="flex-start" padding="$4" paddingBottom="$3">
           <YStack flex={1}>
-            <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" numberOfLines={2} marginBottom={2}>
+            <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" numberOfLines={1} ellipsizeMode="tail" marginBottom={2}>
               {contest?.name ?? "Contest"}
             </Text>
             {match && (
@@ -86,22 +86,22 @@ function ContestCard({
 
         {/* Stats strip */}
         <XStack borderTopWidth={1} borderTopColor="$borderColor" paddingVertical="$3" marginHorizontal="$4">
-          <YStack flex={1} alignItems="center">
+          <YStack flex={1.4} alignItems="center" overflow="hidden" paddingHorizontal={2}>
             <Text fontFamily="$body" fontSize={10} color="$colorMuted" textTransform="uppercase" letterSpacing={0.3} marginBottom={2}>
               Your Team
             </Text>
-            <Text fontFamily="$body" fontWeight="700" fontSize={13} color="$color" numberOfLines={1}>
+            <Text fontFamily="$body" fontWeight="700" fontSize={12} color="$color" numberOfLines={1} ellipsizeMode="tail">
               {item.name ?? "—"}
             </Text>
           </YStack>
           <YStack width={1} backgroundColor="$borderColor" />
           {item.rank && (
             <>
-              <YStack flex={1} alignItems="center">
+              <YStack flex={0.7} alignItems="center">
                 <Text fontFamily="$body" fontSize={10} color="$colorMuted" textTransform="uppercase" letterSpacing={0.3} marginBottom={2}>
                   Rank
                 </Text>
-                <Text fontFamily="$mono" fontWeight="800" fontSize={16} color="$accentBackground">
+                <Text fontFamily="$mono" fontWeight="800" fontSize={15} color="$accentBackground">
                   #{item.rank}
                 </Text>
                 {item.totalEntries && (
@@ -113,21 +113,23 @@ function ContestCard({
               <YStack width={1} backgroundColor="$borderColor" />
             </>
           )}
-          <YStack flex={1} alignItems="center">
+          <YStack flex={0.9} alignItems="center">
             <Text fontFamily="$body" fontSize={10} color="$colorMuted" textTransform="uppercase" letterSpacing={0.3} marginBottom={2}>
               Points
             </Text>
-            <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$color">
+            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
               {item.totalPoints?.toFixed?.(1) ?? "0.0"}
             </Text>
           </YStack>
           <YStack width={1} backgroundColor="$borderColor" />
           <YStack flex={1} alignItems="center">
             <Text fontFamily="$body" fontSize={10} color="$colorMuted" textTransform="uppercase" letterSpacing={0.3} marginBottom={2}>
-              Prize
+              {status === "settled" ? "Won" : "Pool"}
             </Text>
-            <Text fontFamily="$body" fontWeight="700" fontSize={16} color="$colorAccent">
-              {contest?.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "FREE"}
+            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorAccent" numberOfLines={1}>
+              {status === "settled"
+                ? (item.prizeWon > 0 ? `${item.prizeWon.toLocaleString()} PC` : "—")
+                : (contest?.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "FREE")}
             </Text>
           </YStack>
         </XStack>

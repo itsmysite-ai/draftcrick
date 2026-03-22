@@ -1,8 +1,9 @@
-import { TextInput, ScrollView, ActivityIndicator } from "react-native";
-import { useState, useEffect, useCallback } from "react";
+import { TextInput, ScrollView, ActivityIndicator, Pressable } from "react-native";
+import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
+import { YStack, XStack, View, useTheme as useTamaguiTheme } from "tamagui";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { Text } from "../../components/SportText";
 import {
   Card,
@@ -14,6 +15,7 @@ import {
   Paywall,
   textStyles,
   formatUIText,
+  formatBadgeText,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useSport } from "../../providers/ThemeProvider";
@@ -22,7 +24,6 @@ import { usePaywall } from "../../hooks/usePaywall";
 import { useSubscription } from "../../hooks/useSubscription";
 
 type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
-type Template = "casual" | "competitive" | "pro";
 
 const FORMATS: { value: LeagueFormat; label: string; desc: string; comingSoon?: boolean }[] = [
   { value: "salary_cap", label: "salary cap", desc: "pick players within budget each match" },
@@ -31,11 +32,68 @@ const FORMATS: { value: LeagueFormat; label: string; desc: string; comingSoon?: 
   { value: "prediction", label: "prediction", desc: "predict match outcomes", comingSoon: true },
 ];
 
-const TEMPLATES: { value: Template; label: string; desc: string }[] = [
-  { value: "casual", label: "casual", desc: "relaxed rules, generous transfers" },
-  { value: "competitive", label: "competitive", desc: "trading, playoffs, waiver wire" },
-  { value: "pro", label: "pro", desc: "strict rules, trade vetoes, advanced scoring" },
-];
+const LEAGUE_TYPES = [
+  { label: "Duel", min: 2, max: 2, default: 2, desc: "1v1 head-to-head" },
+  { label: "Huddle", min: 3, max: 4, default: 4, desc: "small group" },
+  { label: "Club", min: 5, max: 10, default: 10, desc: "classic league" },
+  { label: "Arena", min: 11, max: 20, default: 20, desc: "big league" },
+] as const;
+
+function getLeagueTypeSuffix(members: number): string {
+  const type = LEAGUE_TYPES.find((t) => members >= t.min && members <= t.max);
+  return type?.label ?? "League";
+}
+
+const MIN_MEMBERS = 2;
+const MAX_MEMBERS = 20;
+const MAX_ENTRY_FEE = 50;
+const MIN_ENTRY_FEE = 0;
+const ENTRY_FEE_STEP = 10;
+
+function getPrizePreview(entryFee: number, members: number): { rank: number; pct: number }[] {
+  if (entryFee === 0 || members < 2) return [];
+  if (members <= 2) return [{ rank: 1, pct: 100 }];
+  if (members <= 10) return [{ rank: 1, pct: 60 }, { rank: 2, pct: 25 }, { rank: 3, pct: 15 }];
+  return [
+    { rank: 1, pct: 40 }, { rank: 2, pct: 20 }, { rank: 3, pct: 12 },
+    { rank: 4, pct: 8 }, { rank: 5, pct: 6 },
+  ];
+}
+
+function Stepper({ value, onValue, min, max, step = 1, suffix }: {
+  value: number; onValue: (v: number) => void; min: number; max: number; step?: number; suffix?: string;
+}) {
+  const theme = useTamaguiTheme();
+  const canDec = value - step >= min;
+  const canInc = value + step <= max;
+  return (
+    <XStack alignItems="center" gap="$2">
+      <Card
+        pressable={canDec}
+        padding="$2"
+        paddingHorizontal="$3"
+        opacity={canDec ? 1 : 0.3}
+        onPress={() => canDec && onValue(value - step)}
+        borderColor="$borderColor"
+      >
+        <Text fontFamily="$mono" fontWeight="700" fontSize={18} color="$color">-</Text>
+      </Card>
+      <Text fontFamily="$mono" fontWeight="700" fontSize={20} color="$color" minWidth={50} textAlign="center">
+        {value}{suffix || ""}
+      </Text>
+      <Card
+        pressable={canInc}
+        padding="$2"
+        paddingHorizontal="$3"
+        opacity={canInc ? 1 : 0.3}
+        onPress={() => canInc && onValue(value + step)}
+        borderColor="$borderColor"
+      >
+        <Text fontFamily="$mono" fontWeight="700" fontSize={18} color="$color">+</Text>
+      </Card>
+    </XStack>
+  );
+}
 
 export default function CreateLeagueScreen() {
   const router = useRouter();
@@ -47,13 +105,22 @@ export default function CreateLeagueScreen() {
   const myLeagues = trpc.league.myLeagues.useQuery();
   const ownedLeagueCount = (myLeagues.data ?? []).filter((m: any) => m.role === "owner").length;
   const atLeagueLimit = ownedLeagueCount >= features.maxLeagues;
+
+  // ── League config state ──
   const [name, setName] = useState("");
   const [format, setFormat] = useState<LeagueFormat>("salary_cap");
-  const [template, setTemplate] = useState<Template>("casual");
   const [tournament, setTournament] = useState("");
-  const [maxMembers, setMaxMembers] = useState("10");
+  const [maxMembers, setMaxMembers] = useState(10);
+  const [entryFee, setEntryFee] = useState(0);
   const [isPrivate, setIsPrivate] = useState(true);
-  const [suggesting, setSuggesting] = useState(false);
+
+  // ── AI naming flow state ──
+  const [nameGenStep, setNameGenStep] = useState<"config" | "q1" | "q2" | "picking" | "done">("config");
+  const [groupName, setGroupName] = useState("");
+  const [dynamicQ, setDynamicQ] = useState<{ question: string; options: string[] } | null>(null);
+  const [selectedVibe, setSelectedVibe] = useState("");
+  const [aiNameOptions, setAiNameOptions] = useState<string[]>([]);
+
   const tournamentsQuery = trpc.sports.tournaments.useQuery({ sport });
   const availableTournaments = tournamentsQuery.data?.tournaments ?? [];
 
@@ -65,27 +132,56 @@ export default function CreateLeagueScreen() {
   }, [availableTournaments]);
 
   const generateNameMutation = trpc.league.generateName.useMutation();
-
-  const handleSuggest = useCallback(async () => {
-    if (!tournament || suggesting) return;
-    setSuggesting(true);
-    try {
-      const result = await generateNameMutation.mutateAsync({ format, template, tournament });
-      if (result.names.length > 0) {
-        // Pick a random one from the suggestions
-        const picked = result.names[Math.floor(Math.random() * result.names.length)]!;
-        setName(picked);
-      }
-    } catch {
-      // Silently fail — user can just type their own name
-    } finally {
-      setSuggesting(false);
-    }
-  }, [format, template, tournament, suggesting]);
+  const generateQuestionMutation = trpc.league.generateQuestion.useMutation();
 
   const createMutation = trpc.league.create.useMutation({
     onSuccess: (league) => { router.replace(`/league/${league!.id}` as any); },
   });
+
+  // Step 1: User clicks "name my league" → show Q1
+  const handleStartNaming = () => {
+    if (!tournament) return;
+    setNameGenStep("q1");
+  };
+
+  // Step 2: User submits Q1 (group name) → AI generates dynamic Q2
+  const handleQ1Submit = () => {
+    if (!groupName.trim() || !tournament) return;
+    generateQuestionMutation.mutate(
+      { groupName: groupName.trim(), tournament, leagueSize: maxMembers },
+      {
+        onSuccess: (data) => {
+          setDynamicQ(data);
+          setNameGenStep("q2");
+        },
+      },
+    );
+  };
+
+  // Step 3: User picks a Q2 option → AI generates league names
+  const handleQ2Pick = (option: string) => {
+    setSelectedVibe(option);
+    if (!tournament) return;
+    generateNameMutation.mutate(
+      {
+        format,
+        template: "casual",
+        tournament,
+        crewVibe: option,
+        groupName: groupName.trim() || undefined,
+        leagueSize: maxMembers,
+      },
+      {
+        onSuccess: (data: { names: string[] }) => {
+          if (data.names?.length) {
+            setAiNameOptions(data.names);
+            setName(data.names[0]);
+            setNameGenStep("picking");
+          }
+        },
+      },
+    );
+  };
 
   const handleCreate = () => {
     if (!name.trim()) return;
@@ -93,19 +189,27 @@ export default function CreateLeagueScreen() {
       gate("pro", "More Leagues", `You've reached the ${features.maxLeagues} league limit for your current tier. Upgrade to create more.`);
       return;
     }
+    const suffix = getLeagueTypeSuffix(maxMembers);
+    const trimmedName = name.trim();
+    // Append suffix if not already present
+    const finalName = trimmedName.toLowerCase().endsWith(suffix.toLowerCase())
+      ? trimmedName
+      : `${trimmedName} ${suffix}`;
     createMutation.mutate({
-      name: name.trim(),
+      name: finalName,
       format,
-      template,
+      template: "casual",
       tournament,
-      maxMembers: parseInt(maxMembers) || 10,
+      maxMembers,
       isPrivate,
     });
   };
 
+  const activePreset = LEAGUE_TYPES.find((t) => maxMembers >= t.min && maxMembers <= t.max);
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} testID="create-league-screen">
-      {/* ── Inline Header ── */}
+      {/* ── Header ── */}
       <XStack
         justifyContent="space-between"
         alignItems="center"
@@ -123,196 +227,378 @@ export default function CreateLeagueScreen() {
 
       <AnnouncementBanner marginHorizontal={0} />
 
-      <Text {...textStyles.sectionHeader} marginBottom="$1">
-        {formatUIText("league name")}
-      </Text>
-      <XStack gap="$2" marginBottom={20} alignItems="center">
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. office boys ipl, college gang..."
-          placeholderTextColor={theme.placeholderColor?.val}
-          testID="league-name-input"
-          style={{
-            flex: 1,
-            backgroundColor: theme.background.val,
-            color: theme.color.val,
-            borderRadius: DesignSystem.radius.lg,
-            padding: 14,
-            fontSize: 16,
-            fontFamily: "DM Sans",
-            borderWidth: 1,
-            borderColor: theme.borderColor.val,
-          }}
-        />
-        <Card
-          pressable={!suggesting}
-          padding="$3"
-          onPress={handleSuggest}
-          opacity={suggesting ? 0.5 : 1}
-          testID="suggest-name-btn"
-        >
-          {suggesting ? (
-            <ActivityIndicator size="small" color={theme.accentBackground?.val} />
-          ) : (
-            <Text fontFamily="$mono" fontSize={11} color="$accentBackground" fontWeight="600">
-              {formatUIText("AI")}
-            </Text>
-          )}
-        </Card>
-      </XStack>
-
-      <Text {...textStyles.sectionHeader} marginBottom="$2">
-        {formatUIText("tournament")}
-      </Text>
-      {tournamentsQuery.isLoading ? (
-        <YStack alignItems="center" paddingVertical="$4" marginBottom="$5">
-          <ActivityIndicator size="small" color={theme.color.val} />
-          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$2">
-            {formatUIText("loading tournaments...")}
-          </Text>
-        </YStack>
-      ) : availableTournaments.length === 0 ? (
-        <Card padding="$4" marginBottom="$5">
-          <Text fontFamily="$body" fontSize={13} color="$colorMuted" textAlign="center">
-            {formatUIText("no active tournaments available")}
-          </Text>
-        </Card>
-      ) : (
-        <YStack marginBottom="$5">
-          {availableTournaments.map((t) => (
-            <Card
-              key={t.id}
-              pressable
-              marginBottom="$2"
-              padding="$4"
-              borderColor={tournament === t.name ? "$accentBackground" : "$borderColor"}
-              onPress={() => setTournament(t.name)}
-              testID={`tournament-${t.id}`}
-            >
-              <Text fontFamily="$body" fontWeight="700" fontSize={15} color={tournament === t.name ? "$accentBackground" : "$color"}>
-                {t.name}
-              </Text>
-              {t.category && (
-                <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
-                  {t.category}{t.startDate ? ` · ${t.startDate}` : ""}
-                </Text>
-              )}
-            </Card>
-          ))}
-        </YStack>
-      )}
-
-      <Text {...textStyles.sectionHeader} marginBottom="$2">
-        {formatUIText("format")}
-      </Text>
-      <YStack marginBottom="$5">
-        {FORMATS.map((f) => (
-          <Card
-            key={f.value}
-            pressable={!f.comingSoon}
-            marginBottom="$2"
-            padding="$4"
-            borderColor={format === f.value ? "$accentBackground" : "$borderColor"}
-            opacity={f.comingSoon ? 0.5 : 1}
-            onPress={() => !f.comingSoon && setFormat(f.value)}
-          >
-            <XStack alignItems="center" gap="$2">
-              <Text fontFamily="$body" fontWeight="700" fontSize={15} color={format === f.value ? "$accentBackground" : "$color"}>
-                {f.label}
-              </Text>
-              {f.comingSoon && (
-                <Badge variant="default" size="sm" backgroundColor="$colorAccentLight" color="$colorAccent" fontWeight="700">
-                  COMING SOON
-                </Badge>
-              )}
-            </XStack>
-            <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
-              {f.desc}
-            </Text>
-          </Card>
-        ))}
-      </YStack>
-
-      <Text {...textStyles.sectionHeader} marginBottom="$2">
-        {formatUIText("template")}
-      </Text>
-      <XStack gap="$3" marginBottom="$3">
-        {TEMPLATES.map((tmpl) => (
-          <Card
-            key={tmpl.value}
-            pressable
-            flex={1}
-            padding="$4"
-            alignItems="center"
-            borderColor={template === tmpl.value ? "$accentBackground" : "$borderColor"}
-            onPress={() => setTemplate(tmpl.value)}
-          >
-            <Text fontFamily="$body" fontWeight="700" fontSize={15} color={template === tmpl.value ? "$accentBackground" : "$color"}>
-              {tmpl.label}
-            </Text>
-            <Text fontFamily="$body" fontSize={10} color="$colorMuted" marginTop="$1" textAlign="center">
-              {tmpl.desc}
-            </Text>
-          </Card>
-        ))}
-      </XStack>
-
-      {/* Customize Rules — Coming Soon */}
-      <Card padding="$3" marginBottom="$5" borderColor="$borderColor" opacity={0.7}>
-        <XStack justifyContent="space-between" alignItems="center">
-          <YStack flex={1}>
-            <XStack alignItems="center" gap="$2">
-              <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
-                {formatUIText("customize rules")}
-              </Text>
-              <Badge variant="default" size="sm" backgroundColor="$colorAccentLight" color="$colorAccent" fontWeight="700">
-                COMING SOON
-              </Badge>
-            </XStack>
-            <Text fontFamily="$body" fontSize={11} color="$colorMuted" marginTop={2}>
-              {formatUIText("fine-tune scoring, transfers, boosters & more")}
+      {/* ── League Name (shown once AI flow is done) ── */}
+      {nameGenStep === "done" && (
+        <Animated.View entering={FadeInDown.duration(200)}>
+          <YStack marginBottom="$5" gap="$1">
+            <Text {...textStyles.sectionHeader}>{formatUIText("league name")}</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              maxLength={60}
+              testID="league-name-input"
+              style={{
+                fontFamily: "DM Sans",
+                fontSize: 16,
+                fontWeight: "700",
+                color: theme.accentBackground?.val,
+                backgroundColor: theme.background.val,
+                borderWidth: 1,
+                borderColor: theme.accentBackground?.val,
+                borderRadius: DesignSystem.radius.lg,
+                padding: 14,
+              }}
+            />
+            <Text fontFamily="$mono" fontSize={9} color="$colorMuted" marginTop="$1">
+              {formatUIText("tap to edit the name")}
             </Text>
           </YStack>
-        </XStack>
-      </Card>
+        </Animated.View>
+      )}
 
-      <XStack gap="$3" marginBottom="$5">
-        <YStack flex={1}>
-          <Text {...textStyles.sectionHeader} marginBottom="$1">
-            {formatUIText("max members")}
+      {/* ── Tournament Selection ── */}
+      {(nameGenStep === "config" || nameGenStep === "done") && (
+        <>
+          <Text {...textStyles.sectionHeader} marginBottom="$2">
+            {formatUIText("tournament")}
           </Text>
-          <TextInput value={maxMembers} onChangeText={setMaxMembers} keyboardType="numeric"
-            style={{ backgroundColor: theme.background.val, color: theme.color.val, borderRadius: DesignSystem.radius.lg, padding: 14, fontSize: 16, fontFamily: "DM Mono", borderWidth: 1, borderColor: theme.borderColor.val }} />
-        </YStack>
-        <YStack flex={1}>
-          <Text {...textStyles.sectionHeader} marginBottom="$1">
+          {tournamentsQuery.isLoading ? (
+            <YStack alignItems="center" paddingVertical="$4" marginBottom="$5">
+              <ActivityIndicator size="small" color={theme.color.val} />
+              <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$2">
+                {formatUIText("loading tournaments...")}
+              </Text>
+            </YStack>
+          ) : availableTournaments.length === 0 ? (
+            <Card padding="$4" marginBottom="$5">
+              <Text fontFamily="$body" fontSize={13} color="$colorMuted" textAlign="center">
+                {formatUIText("no active tournaments available")}
+              </Text>
+            </Card>
+          ) : (
+            <YStack marginBottom="$5">
+              {availableTournaments.map((t) => (
+                <Card
+                  key={t.id}
+                  pressable
+                  marginBottom="$2"
+                  padding="$4"
+                  borderColor={tournament === t.name ? "$accentBackground" : "$borderColor"}
+                  onPress={() => setTournament(t.name)}
+                  testID={`tournament-${t.id}`}
+                >
+                  <Text fontFamily="$body" fontWeight="700" fontSize={15} color={tournament === t.name ? "$accentBackground" : "$color"}>
+                    {t.name}
+                  </Text>
+                  {t.category && (
+                    <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
+                      {t.category}{t.startDate ? ` · ${t.startDate}` : ""}
+                    </Text>
+                  )}
+                </Card>
+              ))}
+            </YStack>
+          )}
+
+          {/* ── Format ── */}
+          <Text {...textStyles.sectionHeader} marginBottom="$2">
+            {formatUIText("format")}
+          </Text>
+          <YStack marginBottom="$5">
+            {FORMATS.map((f) => (
+              <Card
+                key={f.value}
+                pressable={!f.comingSoon}
+                marginBottom="$2"
+                padding="$4"
+                borderColor={format === f.value ? "$accentBackground" : "$borderColor"}
+                opacity={f.comingSoon ? 0.5 : 1}
+                onPress={() => !f.comingSoon && setFormat(f.value)}
+              >
+                <XStack alignItems="center" gap="$2">
+                  <Text fontFamily="$body" fontWeight="700" fontSize={15} color={format === f.value ? "$accentBackground" : "$color"}>
+                    {f.label}
+                  </Text>
+                  {f.comingSoon && (
+                    <Badge variant="default" size="sm" backgroundColor="$colorAccentLight" color="$colorAccent" fontWeight="700">
+                      COMING SOON
+                    </Badge>
+                  )}
+                </XStack>
+                <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
+                  {f.desc}
+                </Text>
+              </Card>
+            ))}
+          </YStack>
+
+          {/* ── League Type ── */}
+          <Text {...textStyles.sectionHeader} marginBottom="$2">
+            {formatUIText("league type")}
+          </Text>
+          <XStack gap="$2" marginBottom="$3" flexWrap="wrap">
+            {LEAGUE_TYPES.map((t) => (
+              <Card
+                key={t.label}
+                pressable
+                flex={1}
+                minWidth={70}
+                padding="$3"
+                alignItems="center"
+                borderColor={activePreset?.label === t.label ? "$accentBackground" : "$borderColor"}
+                onPress={() => setMaxMembers(t.default)}
+              >
+                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={activePreset?.label === t.label ? "$accentBackground" : "$color"}>
+                  {t.label}
+                </Text>
+                <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={2}>
+                  {t.min === t.max ? `${t.min} player` : `${t.min}-${t.max} players`}
+                </Text>
+              </Card>
+            ))}
+          </XStack>
+
+          {/* Fine-tune with stepper */}
+          <XStack justifyContent="space-between" alignItems="center" marginBottom="$5">
+            <YStack>
+              <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600">
+                {formatUIText("max members")}
+              </Text>
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                {activePreset ? activePreset.desc : `custom (${maxMembers})`}
+              </Text>
+            </YStack>
+            <Stepper value={maxMembers} onValue={setMaxMembers} min={MIN_MEMBERS} max={MAX_MEMBERS} />
+          </XStack>
+
+          {/* ── Entry Fee ── */}
+          <Text {...textStyles.sectionHeader} marginBottom="$2">
+            {formatUIText("entry fee")}
+          </Text>
+          <XStack justifyContent="space-between" alignItems="center" marginBottom="$5">
+            <YStack>
+              <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600">
+                {entryFee === 0 ? formatUIText("free to join") : formatUIText(`${entryFee} coins per match`)}
+              </Text>
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                {formatUIText("lower fee = more accessible")}
+              </Text>
+            </YStack>
+            <Stepper value={entryFee} onValue={setEntryFee} min={MIN_ENTRY_FEE} max={MAX_ENTRY_FEE} step={ENTRY_FEE_STEP} />
+          </XStack>
+
+          {/* ── Prize Breakdown ── */}
+          {entryFee > 0 && (
+            <Card padding="$3" marginBottom="$5" borderColor="$borderColor">
+              <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+                <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$color">
+                  {formatUIText("prize breakdown")}
+                </Text>
+                <Text fontFamily="$mono" fontSize={11} color="$accentBackground" fontWeight="700">
+                  {formatUIText(`pool: ${entryFee * maxMembers} coins`)}
+                </Text>
+              </XStack>
+              {getPrizePreview(entryFee, maxMembers).map((p) => (
+                <XStack key={p.rank} justifyContent="space-between" paddingVertical={3}>
+                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted">
+                    {p.rank === 1 ? "1st" : p.rank === 2 ? "2nd" : p.rank === 3 ? "3rd" : `${p.rank}th`}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={12} color="$color" fontWeight="600">
+                    {Math.floor(entryFee * maxMembers * p.pct / 100)} coins ({p.pct}%)
+                  </Text>
+                </XStack>
+              ))}
+            </Card>
+          )}
+
+          {/* ── Visibility ── */}
+          <Text {...textStyles.sectionHeader} marginBottom="$2">
             {formatUIText("visibility")}
           </Text>
-          <Card
-            pressable
-            padding="$4"
-            alignItems="center"
-            onPress={() => setIsPrivate(!isPrivate)}
-          >
-            <Text fontFamily="$mono" fontWeight="700" fontSize={16} color={isPrivate ? "$accentBackground" : "$colorCricket"}>
-              {formatUIText(isPrivate ? "private" : "public")}
-            </Text>
-          </Card>
-        </YStack>
-      </XStack>
+          <XStack gap="$3" marginBottom="$5">
+            <Card
+              pressable
+              flex={1}
+              padding="$4"
+              alignItems="center"
+              borderColor={isPrivate ? "$accentBackground" : "$borderColor"}
+              onPress={() => setIsPrivate(true)}
+            >
+              <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={isPrivate ? "$accentBackground" : "$color"}>
+                {formatUIText("private")}
+              </Text>
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={2}>
+                {formatUIText("invite only")}
+              </Text>
+            </Card>
+            <Card
+              pressable
+              flex={1}
+              padding="$4"
+              alignItems="center"
+              borderColor={!isPrivate ? "$accentBackground" : "$borderColor"}
+              onPress={() => setIsPrivate(false)}
+            >
+              <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={!isPrivate ? "$accentBackground" : "$color"}>
+                {formatUIText("public")}
+              </Text>
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={2}>
+                {formatUIText("anyone can join")}
+              </Text>
+            </Card>
+          </XStack>
+        </>
+      )}
 
-      <Button
-        variant="primary"
-        size="lg"
-        onPress={handleCreate}
-        disabled={createMutation.isPending || !name.trim() || !tournament}
-        opacity={!name.trim() || !tournament ? 0.4 : 1}
-        marginTop="$2"
-        testID="create-league-btn"
-      >
-        {createMutation.isPending ? formatUIText("creating...") : formatUIText("create league")}
-      </Button>
+      {/* ── Q1: Who's this league for? ── */}
+      {nameGenStep === "q1" && (
+        <Animated.View entering={FadeInDown.duration(200)}>
+          <Card padding="$4" marginBottom="$4" borderColor="$accentBackground">
+            <YStack gap="$3">
+              <YStack gap="$1">
+                <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
+                  {formatBadgeText("quick q — who's this league for?")}
+                </Text>
+                <TextInput
+                  value={groupName}
+                  onChangeText={setGroupName}
+                  placeholder="e.g. office gang, hostel 4, family whatsapp..."
+                  placeholderTextColor={theme.placeholderColor?.val || theme.colorMuted?.val}
+                  maxLength={60}
+                  autoFocus
+                  style={{
+                    fontFamily: "DM Sans",
+                    fontSize: 14,
+                    color: theme.color?.val,
+                    backgroundColor: theme.backgroundSurface?.val || theme.background?.val,
+                    borderWidth: 1,
+                    borderColor: theme.borderColor?.val,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                  }}
+                />
+              </YStack>
+              <XStack gap="$2">
+                <Pressable onPress={() => setNameGenStep("config")} style={{ flex: 1 }}>
+                  <XStack paddingVertical="$2" justifyContent="center">
+                    <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{formatUIText("← back")}</Text>
+                  </XStack>
+                </Pressable>
+                <View flex={2}>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onPress={handleQ1Submit}
+                    disabled={!groupName.trim() || generateQuestionMutation.isPending}
+                  >
+                    {generateQuestionMutation.isPending ? formatUIText("thinking...") : formatUIText("next →")}
+                  </Button>
+                </View>
+              </XStack>
+            </YStack>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* ── Q2: Dynamic AI-generated question with selectable options ── */}
+      {nameGenStep === "q2" && dynamicQ && (
+        <Animated.View entering={FadeInDown.duration(200)}>
+          <Card padding="$4" marginBottom="$4" borderColor="$accentBackground">
+            <YStack gap="$3">
+              <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
+                {formatBadgeText(dynamicQ.question)}
+              </Text>
+              <YStack gap="$2">
+                {dynamicQ.options.map((option, i) => (
+                  <Pressable key={i} onPress={() => handleQ2Pick(option)}>
+                    <XStack
+                      paddingHorizontal="$3"
+                      paddingVertical="$2.5"
+                      borderRadius={8}
+                      borderWidth={1}
+                      borderColor={selectedVibe === option ? "$accentBackground" : "$borderColor"}
+                      backgroundColor={selectedVibe === option ? "$accentBackground" : "$backgroundSurface"}
+                      alignItems="center"
+                      gap="$2"
+                      opacity={generateNameMutation.isPending && selectedVibe === option ? 0.7 : 1}
+                    >
+                      <Text fontFamily="$body" fontWeight="600" fontSize={14} color={selectedVibe === option ? "$background" : "$color"} flex={1}>
+                        {option}
+                      </Text>
+                      {generateNameMutation.isPending && selectedVibe === option && (
+                        <ActivityIndicator size="small" color={theme.background?.val} />
+                      )}
+                    </XStack>
+                  </Pressable>
+                ))}
+              </YStack>
+            </YStack>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* ── Picking: AI-generated name options ── */}
+      {nameGenStep === "picking" && (
+        <Animated.View entering={FadeInDown.duration(200)}>
+          <Card padding="$4" marginBottom="$4" borderColor="$accentBackground">
+            <YStack gap="$2">
+              <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
+                {formatBadgeText("pick your league name")}
+              </Text>
+              <YStack gap="$2">
+                {aiNameOptions.map((n, i) => (
+                  <Pressable key={i} onPress={() => { setName(n); setNameGenStep("done"); }}>
+                    <XStack
+                      paddingHorizontal="$3"
+                      paddingVertical="$2.5"
+                      borderRadius={8}
+                      borderWidth={1}
+                      borderColor={name === n ? "$accentBackground" : "$borderColor"}
+                      backgroundColor={name === n ? "$accentBackground" : "$backgroundSurface"}
+                      alignItems="center"
+                      gap="$2"
+                    >
+                      <Text fontFamily="$body" fontWeight="600" fontSize={14} color={name === n ? "$background" : "$color"} flex={1}>
+                        {n}
+                      </Text>
+                    </XStack>
+                  </Pressable>
+                ))}
+              </YStack>
+            </YStack>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* ── Bottom Buttons ── */}
+      {nameGenStep === "config" && (
+        <Button
+          variant="primary"
+          size="lg"
+          onPress={handleStartNaming}
+          disabled={!tournament}
+          opacity={!tournament ? 0.4 : 1}
+          marginTop="$2"
+          testID="generate-name-btn"
+        >
+          {formatUIText("✨ name my league")}
+        </Button>
+      )}
+
+      {nameGenStep === "done" && (
+        <Button
+          variant="primary"
+          size="lg"
+          onPress={handleCreate}
+          disabled={createMutation.isPending || !name.trim() || !tournament}
+          opacity={!name.trim() || !tournament ? 0.4 : 1}
+          marginTop="$2"
+          testID="create-league-btn"
+        >
+          {createMutation.isPending ? formatUIText("creating...") : formatUIText("create league")}
+        </Button>
+      )}
 
       {atLeagueLimit && (
         <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center" marginTop="$2">

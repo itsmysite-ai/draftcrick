@@ -8,7 +8,11 @@ export const Badge = styled(TamaguiText, {
   fontFamily: "$mono",
   fontWeight: "600",
   overflow: "hidden",
-  
+  // @ts-ignore — RN supports numberOfLines, web uses whiteSpace
+  numberOfLines: 1,
+  whiteSpace: "nowrap" as any,
+  flexShrink: 0,
+
   // Disable Tamagui's automatic font size lookup
   fontStyle: undefined,
   textTransform: undefined,
@@ -49,6 +53,11 @@ export const Badge = styled(TamaguiText, {
       },
     },
     size: {
+      xs: {
+        fontSize: 9,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+      },
       sm: {
         fontSize: 10,
         paddingHorizontal: "$1",

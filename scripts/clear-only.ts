@@ -7,6 +7,14 @@ import Redis from "ioredis";
 const DB_URL = process.env.DATABASE_URL || "postgresql://postgres:Dreamproject@34.57.117.132:5432/draftplay";
 
 async function main() {
+  // Safety: require explicit --confirm flag to prevent accidental execution
+  if (!process.argv.includes("--confirm")) {
+    console.log("⚠️  This script DELETES all sports data from PG and flushes Redis.");
+    console.log("   Run with --confirm to proceed:");
+    console.log("   npx tsx scripts/clear-only.ts --confirm");
+    process.exit(1);
+  }
+
   const sql = postgres(DB_URL);
   await sql.unsafe("TRUNCATE tournaments, matches, players CASCADE");
   await sql`DELETE FROM data_refresh_log`;

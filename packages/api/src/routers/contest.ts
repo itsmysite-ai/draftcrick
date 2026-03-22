@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 import { createContestSchema } from "@draftplay/shared";
 import { eq, and, or, desc, sql } from "drizzle-orm";
-import { contests, fantasyTeams, matches } from "@draftplay/db";
+import { contests, fantasyTeams, matches, users } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { calculatePrizeDistribution } from "../services/settlement";
 import { deductCoins } from "../services/pop-coins";
@@ -34,12 +34,19 @@ export const contestRouter = router({
         where: and(...conditions),
         orderBy: [desc(contests.prizePool)],
         limit: input.limit,
+        with: {
+          league: {
+            columns: { id: true, name: true, ownerId: true },
+          },
+        },
       });
 
       return result.map((c) => ({
         ...c,
         entryFee: c.entryFee,
         prizePool: c.prizePool,
+        leagueName: c.league?.name ?? null,
+        leagueOwnerId: c.league?.ownerId ?? null,
       }));
     }),
 
@@ -253,23 +260,31 @@ export const contestRouter = router({
         }
       }
 
-      // Fetch ranks for teams in contests
-      const rankLookup = new Map<string, { rank: number; totalEntries: number }>();
+      // Fetch ranks and live points for teams in contests
+      const rankLookup = new Map<string, { rank: number; totalEntries: number; totalPoints: number }>();
       const contestIds = [...new Set(teams.filter((t) => t.contestId).map((t) => t.contestId!))];
       for (const cid of contestIds) {
         const leaderboard = await getContestLeaderboard(ctx.db, cid);
         for (const entry of leaderboard) {
-          rankLookup.set(`${cid}:${entry.userId}`, { rank: entry.rank, totalEntries: leaderboard.length });
+          rankLookup.set(`${cid}:${entry.userId}`, { rank: entry.rank, totalEntries: leaderboard.length, totalPoints: entry.totalPoints });
         }
       }
 
       return teams.map((t) => {
         const rankInfo = t.contestId ? rankLookup.get(`${t.contestId}:${ctx.user.id}`) : undefined;
+        // Compute prize won from rank + prize distribution
+        let prizeWon = 0;
+        if (rankInfo?.rank && t.contest?.status === "settled" && t.contest.prizeDistribution) {
+          const dist = t.contest.prizeDistribution as Array<{ rank: number; amount: number }>;
+          const slot = dist.find((d) => d.rank === rankInfo.rank);
+          if (slot) prizeWon = Math.floor(slot.amount);
+        }
         return {
           ...t,
-          totalPoints: Number(t.totalPoints),
+          totalPoints: rankInfo?.totalPoints ?? Number(t.totalPoints),
           rank: rankInfo?.rank ?? null,
           totalEntries: rankInfo?.totalEntries ?? null,
+          prizeWon,
           contest: t.contest
             ? {
                 ...t.contest,
@@ -281,5 +296,153 @@ export const contestRouter = router({
           match: t.contest?.match ?? (t.matchId ? matchLookup.get(t.matchId) ?? null : null),
         };
       });
+    }),
+
+  /**
+   * Accept an H2H challenge — joins the contest and deducts stake.
+   */
+  acceptChallenge: protectedProcedure
+    .input(
+      z.object({
+        contestId: z.string().uuid(),
+        notificationId: z.string().uuid().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const contest = await ctx.db.query.contests.findFirst({
+        where: eq(contests.id, input.contestId),
+        with: { match: true },
+      });
+
+      if (!contest) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Contest not found" });
+      }
+      if (contest.contestType !== "h2h") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Not an H2H contest" });
+      }
+      if (contest.status !== "open") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Challenge is no longer open" });
+      }
+      if (contest.currentEntries >= contest.maxEntries) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Challenge is already full" });
+      }
+
+      // Update duel name to "Creator vs Joiner — H2H Duel".
+      // Try to find creator from fantasy teams first, fall back to parsing the contest name
+      // (which is set to "PlayerName's H2H Duel" on creation).
+      let creatorName = "Player 1";
+      const challengerTeam = await ctx.db.query.fantasyTeams.findFirst({
+        where: eq(fantasyTeams.contestId, input.contestId),
+        columns: { userId: true },
+        orderBy: (ft, { asc }) => [asc(ft.createdAt)],
+      });
+      if (challengerTeam?.userId) {
+        const creatorUser = await ctx.db.query.users.findFirst({
+          where: eq(users.id, challengerTeam.userId),
+          columns: { displayName: true, username: true },
+        });
+        creatorName = (creatorUser?.displayName || creatorUser?.username || "").split("@")[0] || "Player 1";
+      } else {
+        // Creator hasn't built a team yet — extract name from contest name ("Name's H2H Duel")
+        const nameMatch = contest.name.match(/^(.+?)'s\s+H2H/i);
+        if (nameMatch) creatorName = nameMatch[1]!;
+      }
+
+      const joinerUser = await ctx.db.query.users.findFirst({
+        where: eq(users.id, ctx.user.id),
+        columns: { displayName: true, username: true },
+      });
+      const joinerName = (joinerUser?.displayName || joinerUser?.username || "").split("@")[0] || "Player 2";
+      const duelName = `${creatorName} vs ${joinerName} — H2H Duel`;
+
+      await ctx.db
+        .update(contests)
+        .set({ name: duelName })
+        .where(eq(contests.id, input.contestId));
+
+      // Mark notification as read
+      if (input.notificationId) {
+        const { notifications } = await import("@draftplay/db");
+        await ctx.db
+          .update(notifications)
+          .set({ isRead: true })
+          .where(eq(notifications.id, input.notificationId));
+      }
+
+      // Create accepted notification for the challenger
+      try {
+        const { notifications } = await import("@draftplay/db");
+        // Find the challenger (first user in this contest's teams)
+        const challengerTeams = await ctx.db.query.fantasyTeams.findMany({
+          where: eq(fantasyTeams.contestId, input.contestId),
+          columns: { userId: true },
+          limit: 1,
+        });
+        const challengerUserId = challengerTeams[0]?.userId;
+        if (challengerUserId && challengerUserId !== ctx.user.id) {
+          await ctx.db.insert(notifications).values({
+            userId: challengerUserId,
+            type: "challenge_accepted",
+            title: "Challenge Accepted!",
+            body: `Your H2H challenge has been accepted. Build your team now!`,
+            data: {
+              contestId: input.contestId,
+              matchId: (contest as any).match?.id || contest.matchId,
+              teamA: (contest as any).match?.teamHome,
+              teamB: (contest as any).match?.teamAway,
+            },
+          });
+        }
+      } catch { /* notification creation is best-effort */ }
+
+      return {
+        contestId: input.contestId,
+        matchId: (contest as any).match?.id || contest.matchId,
+        teamA: (contest as any).match?.teamHome,
+        teamB: (contest as any).match?.teamAway,
+      };
+    }),
+
+  /**
+   * Decline an H2H challenge.
+   */
+  declineChallenge: protectedProcedure
+    .input(
+      z.object({
+        contestId: z.string().uuid(),
+        notificationId: z.string().uuid().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Mark notification as read
+      if (input.notificationId) {
+        const { notifications } = await import("@draftplay/db");
+        await ctx.db
+          .update(notifications)
+          .set({ isRead: true })
+          .where(eq(notifications.id, input.notificationId));
+      }
+
+      // Notify challenger
+      try {
+        const { notifications } = await import("@draftplay/db");
+        const challengerTeams = await ctx.db.query.fantasyTeams.findMany({
+          where: eq(fantasyTeams.contestId, input.contestId),
+          columns: { userId: true },
+          limit: 1,
+        });
+        const challengerUserId = challengerTeams[0]?.userId;
+        if (challengerUserId && challengerUserId !== ctx.user.id) {
+          await ctx.db.insert(notifications).values({
+            userId: challengerUserId,
+            type: "challenge_declined",
+            title: "Challenge Declined",
+            body: `Your H2H challenge was declined. You can share the link to find another opponent.`,
+            data: { contestId: input.contestId },
+          });
+        }
+      } catch { /* best-effort */ }
+
+      return { success: true };
     }),
 });

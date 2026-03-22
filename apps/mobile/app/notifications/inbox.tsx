@@ -7,6 +7,7 @@ import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
 import {
   Card,
+  Badge,
   Button,
   BackButton,
   DesignSystem,
@@ -15,6 +16,7 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
+import { useNavigationStore } from "../../lib/navigation-store";
 import { HeaderControls } from "../../components/HeaderControls";
 
 const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -28,7 +30,14 @@ const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
   contest_result: "medal-outline",
   social: "people-outline",
   system: "settings-outline",
+  challenge_received: "game-controller-outline",
+  challenge_accepted: "checkmark-circle-outline",
+  challenge_declined: "close-circle-outline",
+  challenge_expired: "time-outline",
+  prediction_posted: "help-circle-outline",
 };
+
+const CHALLENGE_TYPES = new Set(["challenge_received", "challenge_accepted", "challenge_declined", "challenge_expired"]);
 
 function getRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -73,6 +82,32 @@ export default function NotificationInboxScreen() {
     },
   });
 
+  const setMatchContext = useNavigationStore((s) => s.setMatchContext);
+
+  // Challenge accept/decline mutations
+  const acceptChallenge = trpc.contest.acceptChallenge.useMutation({
+    onSuccess: (data: any) => {
+      utils.notification.getInbox.invalidate();
+      utils.notification.getUnreadCount.invalidate();
+      // Navigate to team builder with contest context
+      if (data?.contestId) {
+        setMatchContext({
+          matchId: data.matchId || "",
+          contestId: data.contestId,
+          teamA: data.teamA,
+          teamB: data.teamB,
+        });
+        router.push("/team/create");
+      }
+    },
+  });
+  const declineChallenge = trpc.contest.declineChallenge.useMutation({
+    onSuccess: () => {
+      utils.notification.getInbox.invalidate();
+      utils.notification.getUnreadCount.invalidate();
+    },
+  });
+
   const items = inboxQuery.data?.pages.flatMap((p) => p.items) ?? [];
 
   const handleTap = (item: any) => {
@@ -81,6 +116,25 @@ export default function NotificationInboxScreen() {
     }
     // Navigate based on notification data
     const data = item.data as Record<string, unknown> | null;
+
+    // For challenge_accepted, navigate to team builder
+    if (item.type === "challenge_accepted" && data?.contestId) {
+      setMatchContext({
+        matchId: (data.matchId as string) || "",
+        contestId: data.contestId as string,
+        teamA: data.teamA as string,
+        teamB: data.teamB as string,
+      });
+      router.push("/team/create");
+      return;
+    }
+
+    // For prediction notifications, deep-link to predictions section
+    if (item.type === "prediction_posted" && data?.contestId) {
+      router.push(`/contest/${data.contestId}?section=predictions` as never);
+      return;
+    }
+
     if (data?.matchId) {
       router.push(`/match/${data.matchId}` as never);
     } else if (data?.contestId) {
@@ -209,6 +263,50 @@ export default function NotificationInboxScreen() {
                   <Text fontFamily="$body" fontSize={13} color="$colorSecondary" numberOfLines={2}>
                     {item.body}
                   </Text>
+
+                  {/* Challenge Accept/Decline buttons */}
+                  {item.type === "challenge_received" && !item.isRead && (
+                    <XStack gap="$2" marginTop="$2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onPress={(e: any) => {
+                          e?.stopPropagation?.();
+                          const d = item.data as Record<string, unknown> | null;
+                          if (d?.contestId) {
+                            acceptChallenge.mutate({ contestId: d.contestId as string, notificationId: item.id });
+                          }
+                        }}
+                        disabled={acceptChallenge.isPending || declineChallenge.isPending}
+                        testID={`accept-challenge-${item.id}`}
+                      >
+                        {acceptChallenge.isPending ? formatUIText("accepting...") : formatUIText("accept")}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onPress={(e: any) => {
+                          e?.stopPropagation?.();
+                          const d = item.data as Record<string, unknown> | null;
+                          if (d?.contestId) {
+                            declineChallenge.mutate({ contestId: d.contestId as string, notificationId: item.id });
+                          }
+                        }}
+                        disabled={acceptChallenge.isPending || declineChallenge.isPending}
+                        testID={`decline-challenge-${item.id}`}
+                      >
+                        {formatUIText("decline")}
+                      </Button>
+                    </XStack>
+                  )}
+
+                  {/* Challenge status badge */}
+                  {item.type === "challenge_accepted" && (
+                    <Badge variant="live" size="sm" marginTop="$1">{formatUIText("accepted")}</Badge>
+                  )}
+                  {item.type === "challenge_declined" && (
+                    <Badge variant="default" size="sm" marginTop="$1">{formatUIText("declined")}</Badge>
+                  )}
                 </YStack>
 
                 {/* Time */}

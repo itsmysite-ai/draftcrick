@@ -26,13 +26,20 @@ export const guruRouter = router({
         eq(guruConversations.userId, ctx.user.id),
         gte(guruConversations.createdAt, todayStart)
       ),
-      columns: { id: true },
+      columns: { id: true, messages: true },
     });
 
+    // Count individual user messages, not conversations
+    let used = 0;
+    for (const convo of todayConversations) {
+      const msgs = (convo.messages as Array<{ role: string }>) ?? [];
+      used += msgs.filter((m) => m.role === "user").length;
+    }
+
     return {
-      used: todayConversations.length,
+      used,
       limit, // null = unlimited
-      remaining: limit === null ? null : Math.max(0, limit - todayConversations.length),
+      remaining: limit === null ? null : Math.max(0, limit - used),
     };
   }),
 
@@ -110,13 +117,20 @@ export const guruRouter = router({
               eq(guruConversations.userId, ctx.user.id),
               gte(guruConversations.createdAt, todayStart)
             ),
-            columns: { id: true },
+            columns: { id: true, messages: true },
           });
 
-          if (todayConversations.length >= dailyLimit) {
+          // Count individual user messages, not conversations
+          let usedMessages = 0;
+          for (const convo of todayConversations) {
+            const msgs = (convo.messages as Array<{ role: string }>) ?? [];
+            usedMessages += msgs.filter((m) => m.role === "user").length;
+          }
+
+          if (usedMessages >= dailyLimit) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: `You've used all ${dailyLimit} Guru questions for today. Upgrade to Pro for unlimited access.`,
+              message: `You've used all ${dailyLimit} Guru questions for today. Your limit resets tomorrow.`,
             });
           }
         }

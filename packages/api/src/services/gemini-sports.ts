@@ -287,14 +287,15 @@ export async function fetchSportsData(sport: Sport = DEFAULT_SPORT, activeTourna
 function buildDiscoveryPrompt(sport: string, displayName: string, knownTournaments: string[]): string {
   const allKnown = knownTournaments.join(", ");
   return `
-Search for major ${displayName.toLowerCase()} tournaments that are currently active (ongoing right now) or upcoming (within next 60 days). Do NOT include tournaments that have already completed/finished.
+Today's date is ${new Date().toISOString().split("T")[0]}. Search for major ${displayName.toLowerCase()} tournaments that are currently active (ongoing right now) or upcoming (within next 90 days from today). Do NOT include tournaments that have already completed/finished — if the end date is before today, exclude it.
 
 ONLY include these types:
 1. ICC international events (World Cups, Champions Trophy, World Test Championship, etc.)
 2. Top franchise leagues (IPL, PSL, BBL, CPL, SA20, ILT20, BPL, The Hundred, WPL, etc.)
 3. Major bilateral series between top-8 ICC nations (India, Australia, England, South Africa, New Zealand, Pakistan, Sri Lanka, West Indies)
 
-DO NOT include: domestic/county tournaments, A-team tours, youth/U19 events, associate nation tours, celebrity/legends leagues, women's domestic competitions, or minor bilateral series.
+DO NOT include: domestic/county tournaments, A-team tours, youth/U19 events, associate nation tours, celebrity/legends leagues, or minor bilateral series.
+Include BOTH men's AND women's international/franchise tournaments (e.g. Women's Premier League, Women's T20 World Cup, Women's Ashes, etc.).
 
 Check these specifically: ${allKnown}.
 
@@ -392,6 +393,292 @@ export async function discoverTournaments(sport: Sport = DEFAULT_SPORT): Promise
   } catch (error) {
     log.error({ sport, error: String(error) }, "Gemini tournament discovery failed");
     return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tournament enrichment via Gemini (resolve abbreviations, fill dates, verify)
+// ---------------------------------------------------------------------------
+
+/**
+ * Enrich raw tournament data (e.g. from Cricbuzz scraping) using Gemini + Google Search.
+ * Resolves abbreviated names ("WIW v AUSW" → "Australia Women tour of West Indies"),
+ * fills in missing dates, and verifies tournaments are real/active via search grounding.
+ *
+ * Returns enriched tournaments with the same IDs (for DB linking).
+ */
+export async function enrichTournamentsWithGemini(
+  rawTournaments: AITournament[],
+  sport: Sport = "cricket"
+): Promise<AITournament[]> {
+  if (rawTournaments.length === 0) return [];
+
+  const apiKey = process.env.GEMINI_API_KEY ?? process.env.API_KEY;
+  if (!apiKey) {
+    log.warn("No Gemini API key — skipping tournament enrichment");
+    return rawTournaments;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+
+  // Build a list of raw entries for Gemini to resolve
+  const rawEntries = rawTournaments.map((t) => ({
+    id: t.id,
+    rawName: t.name,
+    category: t.category,
+    startDate: t.startDate ?? "unknown",
+    endDate: t.endDate ?? "unknown",
+    sourceUrl: t.sourceUrl ?? null,
+  }));
+
+  const prompt = `
+Today's date is ${today}. I have ${rawEntries.length} ${sport} tournament entries scraped from Cricbuzz.
+
+Your job: For EACH entry, use Google Search to find the ACTUAL official tournament/series name as it appears on Cricbuzz (cricbuzz.com) or ESPNcricinfo (espncricinfo.com). Do NOT guess or infer names — search for them.
+
+STEPS for each entry:
+1. Search Google for the tournament using the raw name + "cricbuzz" or "espncricinfo"
+2. Use the EXACT official series name from the search results (e.g. Cricbuzz page title: "Australia Women tour of West Indies, 2026")
+3. Strip the year from the name (we store years in date fields, not the name)
+4. Get the actual start and end dates from the search results
+5. Determine category: international, league, bilateral, qualifier
+
+For abbreviated names like "WIW v AUSW", "SA v NZ", etc.:
+- Search "WIW v AUSW 2026 cricbuzz" to find the actual series page
+- Use the official name from the Cricbuzz series page (e.g. "Australia Women tour of West Indies")
+- Do NOT try to construct the name yourself — copy it EXACTLY from the search result
+- TOUR DIRECTION MATTERS: "X tour of Y" means X is visiting Y's home. Get this from the search result, do not guess.
+- If the sourceUrl contains a slug like "aus-women-tour-of-wi-2026", use it as a hint for the correct name
+
+CRITICAL — SKIP rules:
+- Mark SKIP **ONLY** if Google Search confirms the tournament ended before ${today}
+- If unsure, mark ACTIVE
+- Upcoming tournaments are ALWAYS ACTIVE
+- If you cannot find info, mark ACTIVE and keep original data unchanged
+
+Here are the raw entries:
+${rawEntries.map((e) => `- ID: ${e.id} | Raw Name: "${e.rawName}" | Category: ${e.category} | Start: ${e.startDate} | End: ${e.endDate}${e.sourceUrl ? ` | URL: ${e.sourceUrl}` : ""}`).join("\n")}
+
+CRITICAL — Finding dates:
+- If Start or End is "unknown", you MUST search Google for the actual dates. Try: "{tournament name} 2026 schedule cricbuzz" or check the URL provided.
+- If the raw entry already has dates (not "unknown"), keep them unless Google Search shows they are clearly wrong.
+- Dates must be in YYYY-MM-DD format.
+
+Return ONLY the resolved data in this EXACT format (one line per tournament, keep the same ID):
+[ENRICHED_START]
+ID: {id} | Name: {resolved name} | Category: {category} | StartDate: {YYYY-MM-DD or unknown} | EndDate: {YYYY-MM-DD or unknown} | Status: {ACTIVE or SKIP} | Description: {brief description}
+[ENRICHED_END]
+
+RULES:
+- NEVER append the year to the name (year goes in StartDate/EndDate)
+- For leagues: use official full name (e.g. "Indian Premier League" not "IPL")
+- Include "Women" for women's tournaments
+- You MUST return exactly ${rawEntries.length} entries — one for each input ID. Do not omit any.
+`.trim();
+
+  try {
+    const ai = await getAI();
+    const model = "gemini-3.1-flash-lite-preview";
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const text: string = response.text || "";
+    const section = text.match(/\[ENRICHED_START\]([\s\S]*?)\[ENRICHED_END\]/);
+    if (!section) {
+      log.warn("Gemini enrichment returned no parseable section — using raw data");
+      return rawTournaments;
+    }
+
+    const lines = section[1]!.match(/ID: .+/g) || [];
+    const enrichedMap = new Map<string, { name: string; category: TournamentCategory; startDate: string | null; endDate: string | null; skip: boolean; description: string | null }>();
+
+    for (const line of lines) {
+      const idMatch = line.match(/ID:\s*([^\|]+)/);
+      const nameMatch = line.match(/Name:\s*([^\|]+)/);
+      const catMatch = line.match(/Category:\s*([^\|]+)/);
+      const startMatch = line.match(/StartDate:\s*([^\|]+)/);
+      const endMatch = line.match(/EndDate:\s*([^\|]+)/);
+      const statusMatch = line.match(/Status:\s*([^\|]+)/);
+      const descMatch = line.match(/Description:\s*(.+)/);
+
+      if (idMatch && nameMatch) {
+        const id = idMatch[1]!.trim();
+        const validCats: TournamentCategory[] = ["international", "league", "bilateral", "qualifier", "domestic", "friendly"];
+        const cat = catMatch?.[1]?.trim().toLowerCase() as TournamentCategory;
+        const startStr = startMatch?.[1]?.trim();
+        const endStr = endMatch?.[1]?.trim();
+
+        enrichedMap.set(id, {
+          name: nameMatch[1]!.trim(),
+          category: validCats.includes(cat) ? cat : "bilateral",
+          startDate: startStr && startStr !== "unknown" ? startStr : null,
+          endDate: endStr && endStr !== "unknown" ? endStr : null,
+          skip: statusMatch?.[1]?.trim().toUpperCase() === "SKIP",
+          description: descMatch?.[1]?.trim() ?? null,
+        });
+      }
+    }
+
+    log.info({ rawCount: rawTournaments.length, enrichedCount: enrichedMap.size, skipped: [...enrichedMap.values()].filter(e => e.skip).length }, "Gemini tournament enrichment complete");
+
+    // Merge enriched data back into raw tournaments
+    const result: AITournament[] = [];
+    for (const t of rawTournaments) {
+      const enriched = enrichedMap.get(t.id);
+      if (enriched?.skip) {
+        log.info({ id: t.id, name: t.name, enrichedName: enriched.name }, "Skipping tournament (Gemini marked as completed/invalid)");
+        continue;
+      }
+
+      // Date merge strategy:
+      // 1. If Cricbuzz has dates, use them (they come from the schedule page)
+      // 2. If Cricbuzz dates are missing, use Gemini dates (from Google Search)
+      // 3. If Cricbuzz dates are obviously wrong, prefer Gemini dates
+      //    Wrong = end before start, or bilateral spanning more than 6 months
+      let startDate = t.startDate;
+      let endDate = t.endDate;
+
+      let cricbuzzDatesInvalid = false;
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const spanDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+        // End before start is clearly wrong
+        if (spanDays < 0) cricbuzzDatesInvalid = true;
+        // Bilateral series spanning > 180 days is suspicious (likely wrong year)
+        if ((t.category === "bilateral") && spanDays > 180) cricbuzzDatesInvalid = true;
+      }
+
+      if (cricbuzzDatesInvalid) {
+        // Cricbuzz dates are clearly wrong — use Gemini's or null (don't keep bad dates)
+        startDate = enriched?.startDate ?? null;
+        endDate = enriched?.endDate ?? null;
+        log.info({ id: t.id, name: t.name, badStart: t.startDate, badEnd: t.endDate, fixedStart: startDate, fixedEnd: endDate }, "Fixed invalid Cricbuzz dates");
+      } else {
+        // Fill missing dates from Gemini
+        if (!startDate) startDate = enriched?.startDate ?? null;
+        if (!endDate) endDate = enriched?.endDate ?? null;
+      }
+
+      // Post-merge sanity check: even after Gemini enrichment, validate final dates
+      const finalCategory = enriched?.category ?? t.category;
+      if (startDate && endDate) {
+        const s = new Date(startDate);
+        const e = new Date(endDate);
+        const span = (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24);
+        if (span < 0) {
+          // End before start — null out end date
+          log.warn({ id: t.id, name: enriched?.name ?? t.name, startDate, endDate }, "Post-merge: end before start, nulling end date");
+          endDate = null;
+        } else if (finalCategory === "bilateral" && span > 180) {
+          // Bilateral > 6 months — likely wrong year on end date
+          log.warn({ id: t.id, name: enriched?.name ?? t.name, startDate, endDate, spanDays: span }, "Post-merge: bilateral span too long, nulling end date");
+          endDate = null;
+        }
+      }
+
+      // Use Cricbuzz slug as ground truth for tour direction
+      // Slug like "aus-women-tour-of-wi-2026" → touring team = "aus-women", host = "wi"
+      let finalName = enriched?.name ?? t.name;
+      if (t.sourceUrl) {
+        const slugMatch = t.sourceUrl.match(/cricket-series\/\d+\/([^/]+)/);
+        if (slugMatch) {
+          const slug = slugMatch[1]!;
+          const tourMatch = slug.match(/^(.+?)-tour-of-(.+?)(?:-\d{4})?$/);
+          if (tourMatch && finalName.toLowerCase().includes("tour of")) {
+            const [, slugTouring, slugHost] = tourMatch;
+            // Check if Gemini reversed the direction by seeing if slug's touring team
+            // appears after "tour of" in the enriched name (meaning it's listed as host)
+            const nameMatch = finalName.match(/^(.+?)\s+tour of\s+(.+)$/i);
+            if (nameMatch) {
+              const [, nameTouring, nameHost] = nameMatch;
+              const normSlugTouring = slugTouring!.replace(/-/g, " ").toLowerCase();
+              const normNameHost = nameHost!.toLowerCase();
+              // If slug's touring team is in the enriched name's host position, it's reversed
+              if (normNameHost.includes(normSlugTouring.split(" ")[0]!) && !normNameHost.includes(slugHost!.replace(/-/g, " ").split(" ")[0]!)) {
+                // Swap: use enriched name's host as touring, touring as host
+                finalName = `${nameHost} tour of ${nameTouring}`;
+                log.info({ id: t.id, slug, original: enriched?.name, corrected: finalName }, "Corrected tour direction from slug");
+              }
+            }
+          }
+        }
+      }
+
+      result.push({
+        ...t,
+        name: finalName,
+        category: enriched?.category ?? t.category,
+        startDate,
+        endDate,
+        description: enriched?.description ?? t.description,
+      });
+    }
+
+    // Second pass: targeted date-filling for tournaments still missing dates
+    const missingDates = result.filter(t => !t.startDate || !t.endDate);
+    if (missingDates.length > 0 && missingDates.length <= 10) {
+      log.info({ count: missingDates.length, names: missingDates.map(t => t.name) }, "Second pass: filling missing dates");
+      try {
+        const datePrompt = `
+Today is ${today}. I need EXACT start and end dates for these ${sport} tournaments/series.
+
+For EACH one, search Google (try "tournament name 2026 schedule cricbuzz" or "tournament name 2026 fixtures espncricinfo").
+
+${missingDates.map(t => `- ID: ${t.id} | Name: "${t.name}" | Known start: ${t.startDate ?? "unknown"} | Known end: ${t.endDate ?? "unknown"}${t.sourceUrl ? ` | URL: ${t.sourceUrl}` : ""}`).join("\n")}
+
+Return ONLY in this format:
+[DATES_START]
+ID: {id} | StartDate: {YYYY-MM-DD or unknown} | EndDate: {YYYY-MM-DD or unknown}
+[DATES_END]
+
+RULES:
+- Dates MUST be from search results, not guessed
+- If you truly cannot find a date, return "unknown"
+- Return exactly ${missingDates.length} entries
+`.trim();
+
+        const dateResponse = await ai.models.generateContent({
+          model,
+          contents: datePrompt,
+          config: { tools: [{ googleSearch: {} }] },
+        });
+
+        const dateText = dateResponse.text || "";
+        const dateSection = dateText.match(/\[DATES_START\]([\s\S]*?)\[DATES_END\]/);
+        if (dateSection) {
+          const dateLines = dateSection[1]!.match(/ID: .+/g) || [];
+          for (const line of dateLines) {
+            const idMatch = line.match(/ID:\s*([^\|]+)/);
+            const startMatch = line.match(/StartDate:\s*([^\|]+)/);
+            const endMatch = line.match(/EndDate:\s*(.+)/);
+            if (!idMatch) continue;
+            const id = idMatch[1]!.trim();
+            const start = startMatch?.[1]?.trim();
+            const end = endMatch?.[1]?.trim();
+            const t = result.find(r => r.id === id);
+            if (t) {
+              if (!t.startDate && start && start !== "unknown") t.startDate = start;
+              if (!t.endDate && end && end !== "unknown") t.endDate = end;
+            }
+          }
+          log.info({ filled: dateLines.length }, "Second pass date filling complete");
+        }
+      } catch (err) {
+        log.warn({ error: String(err) }, "Second pass date filling failed — continuing with partial dates");
+      }
+    }
+
+    return result;
+  } catch (error) {
+    log.error({ error: String(error) }, "Gemini tournament enrichment failed — using raw data");
+    return rawTournaments;
   }
 }
 

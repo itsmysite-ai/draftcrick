@@ -50,7 +50,7 @@ import type { Sport } from "@draftplay/shared";
 import { determineMatchPhase, calculateNextRefreshAfter, calculateFantasyPoints, DEFAULT_T20_SCORING } from "@draftplay/shared";
 import { lockMatchContests, processScoreUpdate, completeMatch } from "../jobs/score-updater";
 import { settleMatchContests } from "../jobs/settle-contest";
-import { onPhaseTransition } from "../services/match-lifecycle";
+import { onPhaseTransition, finalizePredictionsAndSettle } from "../services/match-lifecycle";
 
 const log = getLogger("admin-router");
 
@@ -63,7 +63,7 @@ const tournamentsRouter = router({
     const rows = await ctx.db
       .select()
       .from(tournaments)
-      .orderBy(desc(tournaments.updatedAt));
+      .orderBy(asc(tournaments.startDate));
     return rows;
   }),
 
@@ -411,7 +411,7 @@ const matchesRouter = router({
         .select()
         .from(matches)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(matches.startTime))
+        .orderBy(asc(matches.startTime))
         .limit(input.limit)
         .offset(input.offset);
 
@@ -803,6 +803,13 @@ const matchesRouter = router({
         lastFetchedAt: now,
       };
 
+      // Sync draftEnabled with phase transitions
+      if (phase === "pre_match") {
+        updateSet.draftEnabled = true;
+      } else if (phase === "live" || phase === "completed" || phase === "post_match") {
+        updateSet.draftEnabled = false;
+      }
+
       if (geminiUpdate?.result) updateSet.result = geminiUpdate.result;
       if (geminiUpdate?.scoreSummary) {
         // Only accept the new score if it's not a downgrade (e.g. losing overs info)
@@ -989,6 +996,98 @@ const matchesRouter = router({
     }),
 
   /**
+   * Refresh player scores from Cricbuzz live scorecard.
+   * Scrapes individual player stats (batting, bowling, fielding)
+   * and feeds them through the fantasy scoring pipeline.
+   */
+  refreshScores: adminProcedure
+    .input(z.object({ matchId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const match = await ctx.db.query.matches.findFirst({ where: eq(matches.id, input.matchId) });
+      if (!match) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
+
+      const matchChanges: string[] = [];
+
+      // Helper: extract total overs from a score summary to detect stale data
+      // e.g. "AUSW 164/6 (20) vs WIW 76/2 (12.1)" → total overs = 20 + 12.1 = 32.1
+      const extractTotalOvers = (summary: string | null | undefined): number => {
+        if (!summary) return 0;
+        let total = 0;
+        const overMatches = summary.matchAll(/\((\d+(?:\.\d+)?)\)/g);
+        for (const m of overMatches) total += parseFloat(m[1]!);
+        return total;
+      };
+
+      // 1. Refresh match score — prefer direct scorecard fetch if we have externalId
+      const cbIdMatch = match.externalId?.match(/cb-(?:match-)?(\d+)/);
+      if (cbIdMatch) {
+        const { fetchMatchScoreById } = await import("../providers/cricbuzz/cricbuzz-client");
+        const cbScore = await fetchMatchScoreById(parseInt(cbIdMatch[1]!, 10));
+        if (cbScore) {
+          // Guard: only update score if new data shows equal or more progress (prevents stale CDN cache regression)
+          const currentOvers = extractTotalOvers(match.scoreSummary);
+          const newOvers = extractTotalOvers(cbScore.scoreSummary);
+          const isStale = cbScore.scoreSummary && newOvers < currentOvers;
+
+          const updateSet: Record<string, any> = { lastRefreshedAt: new Date() };
+          if (cbScore.scoreSummary && !isStale) {
+            updateSet.scoreSummary = cbScore.scoreSummary;
+            matchChanges.push(`score: ${cbScore.scoreSummary}`);
+          } else if (isStale) {
+            matchChanges.push(`skipped stale score: ${cbScore.scoreSummary} (current: ${match.scoreSummary})`);
+          }
+          if (cbScore.status && cbScore.status !== match.status) { updateSet.status = cbScore.status; matchChanges.push(`status: ${cbScore.status}`); }
+          if (cbScore.result) { updateSet.result = cbScore.result; matchChanges.push(`result: ${cbScore.result}`); }
+          if (cbScore.tossWinner) { updateSet.tossWinner = cbScore.tossWinner; }
+          if (cbScore.tossDecision) { updateSet.tossDecision = cbScore.tossDecision; }
+          await ctx.db.update(matches).set(updateSet).where(eq(matches.id, input.matchId));
+        }
+      } else {
+        // Fallback to provider chain (series listing)
+        const sport = (match.sport as Sport) ?? "cricket";
+        const preference = await getDataSourcePreference();
+        const { data: providerUpdate } = await fetchMatchStatusWithFallback(
+          sport, match.teamHome, match.teamAway, match.tournament ?? "", match.format, match.startTime,
+          match.scoreSummary ?? undefined, preference
+        );
+        if (providerUpdate) {
+          const currentOvers = extractTotalOvers(match.scoreSummary);
+          const newOvers = extractTotalOvers(providerUpdate.scoreSummary);
+          const isStale = providerUpdate.scoreSummary && newOvers < currentOvers;
+
+          const updateSet: Record<string, any> = { lastRefreshedAt: new Date() };
+          if (providerUpdate.scoreSummary && !isStale) {
+            updateSet.scoreSummary = providerUpdate.scoreSummary;
+            matchChanges.push(`score: ${providerUpdate.scoreSummary}`);
+          } else if (isStale) {
+            matchChanges.push(`skipped stale score: ${providerUpdate.scoreSummary} (current: ${match.scoreSummary})`);
+          }
+          if (providerUpdate.status && providerUpdate.status !== match.status) { updateSet.status = providerUpdate.status; matchChanges.push(`status: ${providerUpdate.status}`); }
+          if (providerUpdate.result) { updateSet.result = providerUpdate.result; matchChanges.push(`result: ${providerUpdate.result}`); }
+          if (providerUpdate.tossWinner) { updateSet.tossWinner = providerUpdate.tossWinner; }
+          if (providerUpdate.tossDecision) { updateSet.tossDecision = providerUpdate.tossDecision; }
+          await ctx.db.update(matches).set(updateSet).where(eq(matches.id, input.matchId));
+        }
+      }
+
+      // 2. Refresh player scores from Cricbuzz scorecard
+      const { refreshMatchScoresFromCricbuzz } = await import("../services/live-scores");
+      const result = await refreshMatchScoresFromCricbuzz(ctx.db, input.matchId);
+
+      return { ...result, matchChanges };
+    }),
+
+  /**
+   * Poll all live matches and refresh scores from Cricbuzz.
+   */
+  pollLiveScores: adminProcedure
+    .mutation(async ({ ctx }) => {
+      const { pollLiveMatchScores } = await import("../services/live-scores");
+      const result = await pollLiveMatchScores(ctx.db);
+      return result;
+    }),
+
+  /**
    * Drive a match through its lifecycle phases for testing.
    * Phases: lock → score → complete → settle
    */
@@ -996,7 +1095,7 @@ const matchesRouter = router({
     .input(
       z.object({
         matchId: z.string().uuid(),
-        phase: z.enum(["lock", "score", "complete", "settle", "reset"]),
+        phase: z.enum(["lock", "score", "complete", "settle", "finalize_predictions", "reset"]),
         result: z.string().optional(),
       })
     )
@@ -1066,6 +1165,12 @@ const matchesRouter = router({
           const { settledCount, totalWinners } = await settleMatchContests(ctx.db, input.matchId);
           contestsAffected = settledCount;
           resultMsg = `Settled ${settledCount} contest(s). ${totalWinners} winner(s) awarded prizes.`;
+          break;
+        }
+        case "finalize_predictions": {
+          const finalResult = await finalizePredictionsAndSettle(ctx.db, input.matchId);
+          contestsAffected = finalResult.settledCount;
+          resultMsg = `Finalized: ${finalResult.abandoned} prediction(s) abandoned, ${finalResult.settledCount} contest(s) settled, ${finalResult.totalWinners} winner(s).`;
           break;
         }
         case "reset": {

@@ -13,7 +13,7 @@ import {
   expireDayPasses,
 } from "../services/subscription";
 import { type SubscriptionTier, type TierConfig, DAY_PASS_CONFIG } from "@draftplay/shared";
-import { promoCodes, promoRedemptions, subscriptions, subscriptionEvents } from "@draftplay/db";
+import { promoCodes, promoRedemptions, subscriptions, subscriptionEvents, users } from "@draftplay/db";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 export const subscriptionRouter = router({
@@ -38,6 +38,20 @@ export const subscriptionRouter = router({
     const tierFull = await getUserTierFull(ctx.db, ctx.user.id);
     const configs = await getTierConfigs();
     const tierConfig = configs[tierFull.effectiveTier];
+
+    // Fetch user's declared country for currency display
+    const dbUser = await ctx.db.query.users.findFirst({
+      where: eq(users.id, ctx.user.id),
+      columns: { preferences: true },
+    });
+    const declaredCountry = (dbUser?.preferences as any)?.country ?? null;
+
+    // Resolve pricing country (IP-based in live mode, declared in stub mode)
+    const { resolvePricingCountry, extractClientIP, getPricingMode } = await import("../services/pricing-geo");
+    const clientIP = extractClientIP((name: string) => ctx.req.req.header(name));
+    const pricingGeo = await resolvePricingCountry(declaredCountry, clientIP);
+    const pricingMode = await getPricingMode();
+
     return {
       ...sub,
       effectiveTier: tierFull.effectiveTier,
@@ -46,6 +60,9 @@ export const subscriptionRouter = router({
       dayPassExpiresAt: tierFull.dayPassExpiresAt,
       isTrialing: tierFull.isTrialing,
       tierConfig,
+      country: pricingGeo.countryCode ?? declaredCountry,
+      pricingSource: pricingGeo.source,
+      pricingMode,
     };
   }),
 
@@ -74,10 +91,17 @@ export const subscriptionRouter = router({
   /**
    * Cancel subscription. Stays active until period end.
    */
-  cancel: protectedProcedure.mutation(async ({ ctx }) => {
-    await cancelSubscription(ctx.db, ctx.user.id);
-    return { success: true };
-  }),
+  cancel: protectedProcedure
+    .input(
+      z.object({
+        reason: z.string().max(500).optional(),
+        reasonCategory: z.string().max(100).optional(),
+      }).optional().default({})
+    )
+    .mutation(async ({ ctx, input }) => {
+      await cancelSubscription(ctx.db, ctx.user.id, input.reason, input.reasonCategory);
+      return { success: true };
+    }),
 
   /**
    * Validate a promo code before applying.
@@ -164,6 +188,12 @@ export const subscriptionRouter = router({
                   hasPointsBreakdown: z.boolean().optional(),
                   hasValueTracker: z.boolean().optional(),
                   hasStatTopFives: z.boolean().optional(),
+                  hasGuruVerdict: z.boolean().optional(),
+                  rateMyTeamPerDay: z.number().int().min(0).optional(),
+                  maxLeagues: z.number().int().min(0).optional(),
+                  playerComparesPerDay: z.number().int().min(0).optional(),
+                  teamSolverPerDay: z.number().int().min(0).optional(),
+                  predictionSuggestionsPerMatch: z.number().int().min(0).optional(),
                 })
                 .optional(),
             })
@@ -416,8 +446,10 @@ export const subscriptionRouter = router({
      */
     getPaymentSettings: adminProcedure.query(async () => {
       const { getPaymentMode, isRazorpayConfigured } = await import("../services/razorpay");
+      const { getPricingMode } = await import("../services/pricing-geo");
       return {
         mode: await getPaymentMode(),
+        pricingMode: await getPricingMode(),
         razorpayConfigured: isRazorpayConfigured(),
         hasKeyId: !!process.env.RAZORPAY_KEY_ID,
         hasKeySecret: !!process.env.RAZORPAY_KEY_SECRET,
@@ -436,6 +468,27 @@ export const subscriptionRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { setPaymentMode } = await import("../services/razorpay");
         await setPaymentMode(input.mode, ctx.user.id);
+        return { success: true, mode: input.mode };
+      }),
+
+    /**
+     * Get pricing geo settings (mode + current status).
+     */
+    getPricingSettings: adminProcedure.query(async () => {
+      const { getPricingMode } = await import("../services/pricing-geo");
+      return {
+        pricingMode: await getPricingMode(),
+      };
+    }),
+
+    /**
+     * Toggle pricing mode between stub (declared country) and live (IP-based).
+     */
+    setPricingMode: adminProcedure
+      .input(z.object({ mode: z.enum(["stub", "live"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const { setPricingMode } = await import("../services/pricing-geo");
+        await setPricingMode(input.mode, ctx.user.id);
         return { success: true, mode: input.mode };
       }),
 

@@ -69,6 +69,8 @@ interface TierFeatureForm {
   hasPointsBreakdown: boolean;
   hasValueTracker: boolean;
   hasStatTopFives: boolean;
+  hasGuruVerdict: boolean;
+  predictionSuggestionsPerMatch: number;
 }
 
 interface TierForm {
@@ -105,6 +107,8 @@ const FEATURE_LABELS: Record<keyof TierFeatureForm, string> = {
   hasPointsBreakdown: "Points Breakdown",
   hasValueTracker: "Value Tracker",
   hasStatTopFives: "Stat Top Fives",
+  hasGuruVerdict: "Guru's Verdict (Team Review)",
+  predictionSuggestionsPerMatch: "AI Prediction Suggestions / Match",
 };
 
 export function TierConfigEditor() {
@@ -327,7 +331,42 @@ export function TierConfigEditor() {
                 Display Features (shown to users)
               </h4>
               {form.displayFeatures.map((feat, idx) => (
-                <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                <div key={idx} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                    <button
+                      onClick={() => {
+                        if (idx === 0) return;
+                        const updated = [...form.displayFeatures];
+                        [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+                        updateTier(tier, { displayFeatures: updated });
+                      }}
+                      disabled={idx === 0}
+                      style={{
+                        border: "none", background: "none", cursor: idx === 0 ? "default" : "pointer",
+                        color: idx === 0 ? "var(--border)" : "var(--text-muted)", fontSize: 10, padding: "0 2px", lineHeight: 1,
+                      }}
+                      title="Move up"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (idx === form.displayFeatures.length - 1) return;
+                        const updated = [...form.displayFeatures];
+                        [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+                        updateTier(tier, { displayFeatures: updated });
+                      }}
+                      disabled={idx === form.displayFeatures.length - 1}
+                      style={{
+                        border: "none", background: "none", cursor: idx === form.displayFeatures.length - 1 ? "default" : "pointer",
+                        color: idx === form.displayFeatures.length - 1 ? "var(--border)" : "var(--text-muted)", fontSize: 10, padding: "0 2px", lineHeight: 1,
+                      }}
+                      title="Move down"
+                    >
+                      ▼
+                    </button>
+                  </div>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)", minWidth: 16, textAlign: "center" }}>{idx + 1}</span>
                   <input
                     type="text"
                     value={feat}
@@ -343,9 +382,10 @@ export function TierConfigEditor() {
                       const updated = form.displayFeatures.filter((_, i) => i !== idx);
                       updateTier(tier, { displayFeatures: updated });
                     }}
-                    style={{ border: "none", background: "none", color: "var(--red)", cursor: "pointer", fontSize: 16 }}
+                    style={{ border: "none", background: "none", color: "var(--red)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}
+                    title="Remove"
                   >
-                    x
+                    ✕
                   </button>
                 </div>
               ))}

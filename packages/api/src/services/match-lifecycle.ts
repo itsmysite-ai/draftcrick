@@ -1,22 +1,28 @@
 /**
  * Match Lifecycle Automation Service.
  *
- * Fires side-effects when a match phase changes:
- *   idle → pre_match → live → post_match → completed
+ * Phase flow:
+ *   idle → pre_match → live → post_match (15 min) → completed
  *
- * Each transition can trigger: notifications, contest locking, draft toggling,
- * score processing, settlement, and awards.
+ * - pre_match:  Draft opens, users notified
+ * - live:       Contests lock, draft closes
+ * - post_match: Match over — 15 min grace period for users to resolve predictions
+ * - completed:  Auto-abandon unresolved predictions, settle contests, award prizes
  */
 
 import { eq, and, inArray } from "drizzle-orm";
 import type { Database } from "@draftplay/db";
-import { matches, contests, fantasyTeams } from "@draftplay/db";
+import { matches, contests, fantasyTeams, users } from "@draftplay/db";
 import { lockMatchContests, completeMatch } from "../jobs/score-updater";
 import { settleMatchContests } from "../jobs/settle-contest";
 import { sendBatchNotifications } from "./notifications";
+import { autoCloseMatchPredictions, autoAbandonUnresolvedPredictions } from "./live-predictions";
 import { getLogger } from "../lib/logger";
 
 const log = getLogger("match-lifecycle");
+
+/** 15-minute grace period for users to resolve predictions after match ends */
+const PREDICTION_GRACE_PERIOD_MS = 15 * 60 * 1000;
 
 export interface PhaseTransitionResult {
   fromPhase: string;
@@ -77,11 +83,12 @@ export async function onPhaseTransition(
       .where(eq(matches.id, matchId));
     actions.push("Draft enabled");
 
-    // Notify participants that draft is open
-    const userIds = await getMatchParticipantUserIds(db, matchId);
-    if (userIds.length > 0) {
+    // Notify ALL users that a new match is open for drafting
+    const allUsers = await db.query.users.findMany({ columns: { id: true } });
+    const allUserIds = allUsers.map(u => u.id);
+    if (allUserIds.length > 0) {
       const { sent } = await sendBatchNotifications(
-        db, userIds, "deadline_reminder",
+        db, allUserIds, "deadline_reminder",
         "Draft Open!",
         `${matchLabel} — Draft is now open. Build your team before the match starts!`,
         { matchId, type: "draft_open" }
@@ -120,70 +127,172 @@ export async function onPhaseTransition(
   }
 
   // ─── Transition: * → post_match ───────────────────────────────────
+  // Match is over. 15-min grace period starts for prediction resolution.
+  // NO settlement happens here — that's in the completed phase.
   if (toPhase === "post_match") {
+    const deadline = new Date(Date.now() + PREDICTION_GRACE_PERIOD_MS);
+
+    // Update match status + set prediction deadline
+    await db.update(matches)
+      .set({ status: "completed", predictionDeadline: deadline })
+      .where(eq(matches.id, matchId));
+    actions.push(`Status → completed, prediction deadline → ${deadline.toISOString()}`);
+
+    // Close open predictions (stop new votes) but keep them resolvable
+    const predResult = await autoCloseMatchPredictions(db, matchId);
+    if (predResult.closed > 0 || predResult.abandoned > 0) {
+      actions.push(`Predictions: ${predResult.closed} closed, ${predResult.abandoned} abandoned (no votes)`);
+    }
+
+    // Notify participants about the 15-min grace period
+    const userIds = await getMatchParticipantUserIds(db, matchId);
+    if (userIds.length > 0) {
+      const { sent } = await sendBatchNotifications(
+        db, userIds, "status_alert",
+        "Match Over — Resolve Your Predictions!",
+        `${matchLabel} — You have 15 minutes to resolve your prediction questions. Unresolved predictions will be auto-abandoned.`,
+        { matchId, type: "prediction_deadline", predictionDeadline: deadline.toISOString() }
+      );
+      actions.push(`Notified ${sent} users (prediction deadline)`);
+
+      // Schedule 5-min-remaining reminder
+      setTimeout(async () => {
+        try {
+          const freshMatch = await db.query.matches.findFirst({
+            where: eq(matches.id, matchId),
+            columns: { predictionDeadline: true, matchPhase: true },
+          });
+          // Only send if still in post_match (not yet transitioned to completed)
+          if (freshMatch?.predictionDeadline && freshMatch.matchPhase === "post_match") {
+            await sendBatchNotifications(
+              db, userIds, "urgent_deadline",
+              "5 Minutes Left!",
+              `${matchLabel} — Only 5 minutes left to resolve your predictions!`,
+              { matchId, type: "prediction_deadline_reminder" }
+            );
+            log.info({ matchId }, "Sent 5-min prediction deadline reminder");
+          }
+        } catch (err) {
+          log.warn({ matchId, err: String(err) }, "Failed to send 5-min reminder");
+        }
+      }, PREDICTION_GRACE_PERIOD_MS - 5 * 60 * 1000);
+
+      // Auto-transition to completed after 15 minutes
+      setTimeout(async () => {
+        try {
+          // Check we're still in post_match (admin may have manually moved to completed)
+          const freshMatch = await db.query.matches.findFirst({
+            where: eq(matches.id, matchId),
+            columns: { matchPhase: true },
+          });
+          if (freshMatch?.matchPhase !== "post_match") {
+            log.info({ matchId, currentPhase: freshMatch?.matchPhase }, "Skipping auto-complete — already transitioned");
+            return;
+          }
+
+          // Update phase to completed
+          await db.update(matches)
+            .set({ matchPhase: "completed" })
+            .where(eq(matches.id, matchId));
+
+          // Fire completed transition
+          await onPhaseTransition(db, matchId, "post_match", "completed");
+          log.info({ matchId }, "Auto-transitioned post_match → completed after 15-min deadline");
+        } catch (err) {
+          log.warn({ matchId, err: String(err) }, "Auto-transition to completed failed");
+        }
+      }, PREDICTION_GRACE_PERIOD_MS);
+    }
+
+    log.info({ matchId, matchLabel, actions }, "Phase → post_match");
+  }
+
+  // ─── Transition: * → completed ────────────────────────────────────
+  // Grace period is over. Abandon unresolved predictions, settle contests, award prizes.
+  if (toPhase === "completed") {
+    // Abandon any still-unresolved predictions
+    const { abandoned } = await autoAbandonUnresolvedPredictions(db, matchId);
+    if (abandoned > 0) {
+      actions.push(`Auto-abandoned ${abandoned} unresolved prediction(s)`);
+    }
+
+    // Clear prediction deadline
+    await db.update(matches)
+      .set({ status: "completed", draftEnabled: false, predictionDeadline: null })
+      .where(eq(matches.id, matchId));
+    actions.push("Status → completed, deadline cleared");
+
     // Complete match — transitions live contests → settling
     const resultText = match.result ?? "Match completed";
     await completeMatch(db, matchId, resultText);
     actions.push("Contests → settling");
 
-    // Update match status
-    await db.update(matches)
-      .set({ status: "completed" })
-      .where(eq(matches.id, matchId));
-    actions.push("Status → completed");
-
-    // Auto-settle contests
+    // Settle all contests + award prizes
     const { settledCount, totalWinners } = await settleMatchContests(db, matchId);
     actions.push(`Settled ${settledCount} contest(s), ${totalWinners} winner(s)`);
 
-    // Notify participants
+    // Notify participants that results are final
     const userIds = await getMatchParticipantUserIds(db, matchId);
     if (userIds.length > 0) {
       const { sent } = await sendBatchNotifications(
         db, userIds, "status_alert",
-        "Match Complete!",
-        `${matchLabel} — Results are in. Check your scores and rankings!`,
-        { matchId, type: "match_complete" }
+        "Results Finalized!",
+        `${matchLabel} — All predictions resolved. Check your final scores and rankings!`,
+        { matchId, type: "match_finalized" }
       );
-      actions.push(`Notified ${sent} users (match complete)`);
+      actions.push(`Notified ${sent} users (results finalized)`);
     }
 
-    log.info({ matchId, matchLabel, settledCount, totalWinners, actions }, "Phase → post_match");
-  }
-
-  // ─── Transition: * → completed ────────────────────────────────────
-  if (toPhase === "completed") {
-    // Ensure match is marked completed
-    await db.update(matches)
-      .set({ status: "completed", draftEnabled: false })
-      .where(eq(matches.id, matchId));
-    actions.push("Status → completed, draft disabled");
-
-    // If there are still unsettled contests, settle them now
-    const unsettled = await db.query.contests.findMany({
-      where: and(
-        eq(contests.matchId, matchId),
-        eq(contests.status, "settling")
-      ),
-      columns: { id: true },
-    });
-    if (unsettled.length > 0) {
-      const { settledCount, totalWinners } = await settleMatchContests(db, matchId);
-      actions.push(`Settled ${settledCount} remaining contest(s), ${totalWinners} winner(s)`);
-    }
-
-    log.info({ matchId, matchLabel, actions }, "Phase → completed");
+    log.info({ matchId, matchLabel, settledCount, totalWinners, actions }, "Phase → completed");
   }
 
   // ─── Transition: * → idle (reset) ─────────────────────────────────
   if (toPhase === "idle") {
     await db.update(matches)
-      .set({ draftEnabled: false })
+      .set({ draftEnabled: false, predictionDeadline: null })
       .where(eq(matches.id, matchId));
-    actions.push("Draft disabled");
+    actions.push("Draft disabled, deadline cleared");
 
     log.info({ matchId, matchLabel, actions }, "Phase → idle");
   }
 
   return { fromPhase, toPhase, actions };
+}
+
+/**
+ * Manually finalize predictions and settle.
+ * Triggers the same flow as completed phase — for admin use when
+ * auto-transition didn't fire (e.g. server restart during grace period).
+ */
+export async function finalizePredictionsAndSettle(
+  db: Database,
+  matchId: string,
+): Promise<{ abandoned: number; settledCount: number; totalWinners: number }> {
+  const match = await db.query.matches.findFirst({
+    where: eq(matches.id, matchId),
+    columns: { matchPhase: true, teamHome: true, teamAway: true },
+  });
+
+  if (!match) {
+    log.warn({ matchId }, "Match not found for finalization");
+    return { abandoned: 0, settledCount: 0, totalWinners: 0 };
+  }
+
+  // Update phase to completed and fire the transition
+  const fromPhase = match.matchPhase ?? "post_match";
+  await db.update(matches)
+    .set({ matchPhase: "completed" })
+    .where(eq(matches.id, matchId));
+
+  const result = await onPhaseTransition(db, matchId, fromPhase, "completed");
+  log.info({ matchId, result }, "Manual finalization complete");
+
+  // Extract counts from actions (best effort)
+  const abandonMatch = result.actions.find(a => a.includes("abandoned"));
+  const settleMatch = result.actions.find(a => a.includes("Settled"));
+  const abandoned = abandonMatch ? parseInt(abandonMatch.match(/\d+/)?.[0] ?? "0") : 0;
+  const settledCount = settleMatch ? parseInt(settleMatch.match(/\d+/)?.[0] ?? "0") : 0;
+  const totalWinners = settleMatch ? parseInt(settleMatch.match(/(\d+) winner/)?.[1] ?? "0") : 0;
+
+  return { abandoned, settledCount, totalWinners };
 }

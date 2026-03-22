@@ -40,6 +40,8 @@ export interface TierFeatures {
   hasPointsBreakdown: boolean;        // Detailed fantasy points breakdown
   hasValueTracker: boolean;           // Price/credit change tracking
   hasStatTopFives: boolean;           // Tournament stat leaderboards
+  hasGuruVerdict: boolean;            // Guru's Verdict on review step (elite-only)
+  predictionSuggestionsPerMatch: number; // AI prediction suggestions per match (basic=2, pro=5, elite=10)
 }
 
 export interface TierConfig {
@@ -102,6 +104,8 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       hasPointsBreakdown: true,
       hasValueTracker: false,
       hasStatTopFives: true,
+      hasGuruVerdict: false,
+      predictionSuggestionsPerMatch: 2,
     },
     displayFeatures: [
       "1 team per match",
@@ -112,6 +116,7 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       "Weather & pitch reports",
       "Player stats (basic)",
       "Fantasy points breakdown",
+      "2 AI prediction suggestions per match",
       "Ad-free experience",
       "20 Pop Coins daily",
       "7-day free trial",
@@ -149,6 +154,8 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       hasPointsBreakdown: true,
       hasValueTracker: true,
       hasStatTopFives: true,
+      hasGuruVerdict: false,
+      predictionSuggestionsPerMatch: 5,
     },
     displayFeatures: [
       "Everything in Basic",
@@ -164,6 +171,7 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       "Player stats (advanced: SR, economy, form)",
       "Player comparison (3/day)",
       "Value & ownership tracker",
+      "5 AI prediction suggestions per match",
       "100 Pop Coins daily",
     ],
   },
@@ -199,6 +207,8 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       hasPointsBreakdown: true,
       hasValueTracker: true,
       hasStatTopFives: true,
+      hasGuruVerdict: true,
+      predictionSuggestionsPerMatch: 10,
     },
     displayFeatures: [
       "Everything in Pro",
@@ -211,6 +221,8 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
       "Priority Guru responses",
       "AI Team Solver (20/day)",
       "Player comparison (25/day)",
+      "Guru's Verdict on team review",
+      "10 AI prediction suggestions per match",
       "200 Pop Coins daily",
       "Early access to new features",
     ],

@@ -25,6 +25,9 @@ export function PaymentSettings() {
   const setMode = trpc.subscription.admin.setPaymentMode.useMutation({
     onSuccess: () => settings.refetch(),
   });
+  const setPricingMode = trpc.subscription.admin.setPricingMode.useMutation({
+    onSuccess: () => settings.refetch(),
+  });
 
   const data = settings.data;
 
@@ -37,6 +40,7 @@ export function PaymentSettings() {
   }
 
   const isStub = data.mode === "stub";
+  const isPricingStub = data.pricingMode === "stub";
   const canGoLive = data.razorpayConfigured && data.hasPlanPro && data.hasPlanElite && data.hasWebhookSecret;
 
   return (
@@ -102,6 +106,65 @@ export function PaymentSettings() {
         {isStub && !canGoLive && (
           <p style={{ color: "var(--amber)", fontSize: 13, marginTop: 8 }}>
             Cannot enable live mode: missing required Razorpay environment variables (see below).
+          </p>
+        )}
+      </div>
+
+      {/* Pricing Geo Mode */}
+      <div style={sectionStyle}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Pricing Geo Mode</h2>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>Current mode:</span>
+          <span
+            style={{
+              display: "inline-block",
+              padding: "4px 12px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 700,
+              fontFamily: "var(--font-data)",
+              textTransform: "uppercase",
+              letterSpacing: 1,
+              backgroundColor: isPricingStub ? "var(--amber)" : "var(--accent)",
+              color: "#fff",
+            }}
+          >
+            {data.pricingMode}
+          </span>
+        </div>
+
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 }}>
+          {isPricingStub
+            ? "Stub mode: pricing currency uses the user's self-declared country from their profile. Good for testing."
+            : "Live mode: pricing currency is determined by server-side IP geolocation. Prevents users from declaring a cheaper region."}
+        </p>
+
+        <button
+          onClick={() => setPricingMode.mutate({ mode: isPricingStub ? "live" : "stub" })}
+          disabled={setPricingMode.isPending}
+          style={{
+            padding: "8px 20px",
+            backgroundColor: isPricingStub ? "var(--accent)" : "var(--amber)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: setPricingMode.isPending ? "not-allowed" : "pointer",
+            opacity: setPricingMode.isPending ? 0.5 : 1,
+          }}
+        >
+          {setPricingMode.isPending
+            ? "Switching..."
+            : isPricingStub
+              ? "Switch to Live (IP-based)"
+              : "Switch to Stub (Declared)"}
+        </button>
+
+        {setPricingMode.error && (
+          <p style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>
+            {setPricingMode.error.message}
           </p>
         )}
       </div>

@@ -23,6 +23,7 @@ import {
   formatBadgeText,
   formatTeamName,
   DraftPlayLogo,
+  ScoringRulesCard,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { useNavigationStore } from "../../lib/navigation-store";
@@ -30,10 +31,17 @@ import { useSport } from "../../providers/ThemeProvider";
 import { useAuth } from "../../providers/AuthProvider";
 import { usePaywall } from "../../hooks/usePaywall";
 import { HeaderControls } from "../../components/HeaderControls";
+import { StakePickerModal } from "../../components/StakePickerModal";
 
-/** Safely parse AI-returned date/time strings into a Date object */
+/** Safely parse date/time into a Date object. Handles ISO strings and legacy "Feb 12, 2026" + "7:30 PM" format. */
 function parseSafeDate(dateStr?: string, timeStr?: string): Date {
   if (!dateStr) return new Date();
+  // If dateStr is ISO (from updated API), parse directly — timezone is embedded
+  if (dateStr.includes("T") || dateStr.endsWith("Z")) {
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+  // Legacy: "Feb 12, 2026" + "7:30 PM IST"
   const cleanTime = (timeStr ?? "").replace(/\s+[A-Z]{2,4}$/, "");
   const parsed = new Date(`${dateStr} ${cleanTime}`);
   return isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -42,20 +50,74 @@ function parseSafeDate(dateStr?: string, timeStr?: string): Date {
 /**
  * Parse "India 253/7 (20 ov) vs England 246/7 (20 ov)" into per-team scores with overs.
  */
-function parseTeamScores(scoreSummary: string | null | undefined) {
+function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
   if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
   const parts = scoreSummary.split(/\s+vs\s+/i);
   const extract = (part: string) => {
     const scoreMatch = part.match(/(\d+\/\d+)/);
     const oversMatch = part.match(/\(([^)]+)\)/);
+    // Extract team abbreviation (text before the score digits)
+    const teamLabel = part.match(/^([A-Za-z\s]+?)\s*\d/)?.[1]?.trim() || null;
     return {
       score: scoreMatch ? scoreMatch[1] : null,
       overs: oversMatch ? oversMatch[1] : null,
+      teamLabel,
     };
   };
-  const a = parts[0] ? extract(parts[0]) : { score: null, overs: null };
-  const b = parts[1] ? extract(parts[1]) : { score: null, overs: null };
-  return { scoreA: a.score, scoreB: b.score, oversA: a.overs, oversB: b.overs };
+
+  if (parts.length >= 2) {
+    // "IND 253/7 (20 ov) vs ENG 246/7 (20 ov)" — two parts, assign by position or match team names
+    const a = extract(parts[0]!);
+    const b = extract(parts[1]!);
+
+    // Match labels to teams — handles abbreviations like "AUSW" for "Australia Women"
+    if (teamA && teamB && a.teamLabel && b.teamLabel) {
+      const matchesTeam = (label: string, teamName: string): boolean => {
+        const l = label.toLowerCase().replace(/[^a-z]/g, "");
+        const t = teamName.toLowerCase().replace(/[^a-z]/g, "");
+        // Direct inclusion
+        if (t.includes(l) || l.includes(t)) return true;
+        // First N chars match (abbreviation like "ausw" → "australiawomen")
+        if (t.startsWith(l.slice(0, 3)) || l.startsWith(t.slice(0, 3))) return true;
+        // Abbreviation built from first letters of words
+        const words = teamName.toLowerCase().split(/\s+/);
+        const abbr = words.map(w => w[0]).join("");
+        if (abbr === l || l.startsWith(abbr)) return true;
+        // First word match (e.g., "west" for "West Indies Women")
+        if (words[0] && (l.includes(words[0]) || words[0].includes(l.slice(0, 4)))) return true;
+        return false;
+      };
+      const part0MatchesA = matchesTeam(a.teamLabel, teamA);
+      const part0MatchesB = matchesTeam(a.teamLabel, teamB);
+      // If first part matches teamB (not teamA), scores are swapped
+      if (part0MatchesB && !part0MatchesA) {
+        return { scoreA: b.score, scoreB: a.score, oversA: b.overs, oversB: a.overs };
+      }
+    }
+    return { scoreA: a.score, scoreB: b.score, oversA: a.overs, oversB: b.overs };
+  }
+
+  // Single score (e.g. "AUSW 156/5 (18.5)") — match team label to determine which team it belongs to
+  const single = extract(parts[0]!);
+  if (single.teamLabel && teamA && teamB) {
+    const matchesTeam = (label: string, teamName: string): boolean => {
+      const l = label.toLowerCase().replace(/[^a-z]/g, "");
+      const t = teamName.toLowerCase().replace(/[^a-z]/g, "");
+      if (t.includes(l) || l.includes(t)) return true;
+      if (t.startsWith(l.slice(0, 3)) || l.startsWith(t.slice(0, 3))) return true;
+      const words = teamName.toLowerCase().split(/\s+/);
+      const abbr = words.map(w => w[0]).join("");
+      if (abbr === l || l.startsWith(abbr)) return true;
+      if (words[0] && (l.includes(words[0]) || words[0].includes(l.slice(0, 4)))) return true;
+      return false;
+    };
+    const isTeamB = matchesTeam(single.teamLabel, teamB) && !matchesTeam(single.teamLabel, teamA);
+    if (isTeamB) {
+      return { scoreA: null, scoreB: single.score, oversA: null, oversB: single.overs };
+    }
+  }
+  // Default: assign to scoreA (first team)
+  return { scoreA: single.score, scoreB: null, oversA: single.overs, oversB: null };
 }
 
 /**
@@ -186,6 +248,17 @@ export default function MatchScreen() {
     retry: false,
   });
 
+  // Fallback: fetch DB match directly by externalId when match.live doesn't include it
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId);
+  const dbMatchDirect = trpc.match.getByExternalId.useQuery(
+    { externalId: matchId },
+    { enabled: !isUuid && (dbLive.data ?? []).length === 0 && !dbLive.isLoading, staleTime: 30_000 },
+  );
+  const dbMatchById = trpc.match.getById.useQuery(
+    { id: matchId },
+    { enabled: isUuid, staleTime: 30_000 },
+  );
+
   // Build team logo lookup from tournament teams data
   const getTeamLogo = useCallback((teamName: string) => {
     const key = teamName.toLowerCase();
@@ -200,36 +273,46 @@ export default function MatchScreen() {
     return undefined;
   }, [dashboardQuery.data?.tournaments]);
 
-  const [showProjections, setShowProjections] = useState(false);
-  const [showAllProjections, setShowAllProjections] = useState(false);
-  const [showH2H, setShowH2H] = useState(false);
-  const [showCaptainPicks, setShowCaptainPicks] = useState(false);
-  const [showDifferentials, setShowDifferentials] = useState(false);
-  const [showPlayingXI, setShowPlayingXI] = useState(false);
-  const [showPitchWeather, setShowPitchWeather] = useState(false);
-  const [showPlayerStats, setShowPlayerStats] = useState(false);
   const [showPointsBreakdown, setShowPointsBreakdown] = useState(false);
-  const [showValueTracker, setShowValueTracker] = useState(false);
-  const [showStatTopFives, setShowStatTopFives] = useState(false);
-  const [statsSortBy, setStatsSortBy] = useState("formAvg");
   const setMatchContext = useNavigationStore((s) => s.setMatchContext);
-  const { gate, gateFeature, hasAccess, canAccess, paywallProps } = usePaywall();
+  const { hasAccess, canAccess, paywallProps } = usePaywall();
 
   // Build match from dashboard + DB data (no hooks below, just computation)
   const dbMatches = dbLive.data ?? [];
+  // Fallback DB match from direct query (when match.live doesn't include it)
+  const fallbackDbMatch = dbMatchDirect.data ?? dbMatchById.data ?? null;
   const match = useMemo(() => {
     if (dashboardQuery.isLoading) return undefined; // still loading
-    const dbLookup = new Map<string, any>();
+    // Use externalId as primary key (unique per match — handles same-team series correctly)
+    const dbByExternalId = new Map<string, any>();
+    const dbByTeamKey = new Map<string, any>();
     for (const m of dbMatches) {
+      if (m.externalId) dbByExternalId.set(m.externalId, m);
       const key = [m.teamHome, m.teamAway].map((t: string) => t.toLowerCase().trim()).sort().join("|");
-      dbLookup.set(key, m);
+      dbByTeamKey.set(key, m);
     }
     const rawMatch = (dashboardQuery.data?.matches ?? []).find((m: any) => m.id === matchId) as any;
-    const dbMatchDirect = !rawMatch ? dbMatches.find((m: any) => m.id === matchId || m.externalId === matchId) : null;
+    const dbMatchFromList = !rawMatch ? dbMatches.find((m: any) => m.id === matchId || m.externalId === matchId) : null;
 
     if (rawMatch) {
-      const key = [rawMatch.teamA || "", rawMatch.teamB || ""].map((t: string) => t.toLowerCase().trim()).sort().join("|");
-      const db = dbLookup.get(key);
+      // Primary: match by externalId, then exact team key, then fuzzy team match, then direct query fallback
+      const db = dbByExternalId.get(rawMatch.id)
+        || (() => {
+          const key = [rawMatch.teamA || "", rawMatch.teamB || ""].map((t: string) => t.toLowerCase().trim()).sort().join("|");
+          return dbByTeamKey.get(key);
+        })()
+        || (() => {
+          // Fuzzy: check if both dashboard team names appear as substrings in DB team names (or vice versa)
+          const a = (rawMatch.teamA || "").toLowerCase().trim();
+          const b = (rawMatch.teamB || "").toLowerCase().trim();
+          return dbMatches.find((m: any) => {
+            const h = m.teamHome?.toLowerCase().trim() ?? "";
+            const aw = m.teamAway?.toLowerCase().trim() ?? "";
+            return (h.includes(a) || a.includes(h)) && (aw.includes(b) || b.includes(aw))
+              || (h.includes(b) || b.includes(h)) && (aw.includes(a) || a.includes(aw));
+          });
+        })()
+        || fallbackDbMatch; // Direct DB query fallback
       return {
         ...rawMatch,
         tossWinner: rawMatch.tossWinner || db?.tossWinner || null,
@@ -239,40 +322,62 @@ export default function MatchScreen() {
         draftEnabled: db?.draftEnabled ?? false,
       };
     }
-    if (dbMatchDirect) {
+    if (dbMatchFromList) {
       return {
-        id: dbMatchDirect.id,
-        teamA: dbMatchDirect.teamHome,
-        teamB: dbMatchDirect.teamAway,
-        tournamentName: dbMatchDirect.tournament,
-        format: dbMatchDirect.format?.toUpperCase() || "T20",
-        venue: dbMatchDirect.venue,
-        status: dbMatchDirect.status,
-        date: new Date(dbMatchDirect.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        time: new Date(dbMatchDirect.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-        scoreSummary: dbMatchDirect.scoreSummary || null,
-        result: dbMatchDirect.result || null,
-        tossWinner: dbMatchDirect.tossWinner || null,
-        tossDecision: dbMatchDirect.tossDecision || null,
-        draftEnabled: dbMatchDirect.draftEnabled ?? false,
+        id: dbMatchFromList.id,
+        teamA: dbMatchFromList.teamHome,
+        teamB: dbMatchFromList.teamAway,
+        tournamentName: dbMatchFromList.tournament,
+        format: dbMatchFromList.format?.toUpperCase() || "T20",
+        venue: dbMatchFromList.venue,
+        status: dbMatchFromList.status,
+        date: new Date(dbMatchFromList.startTime).toISOString(),
+        time: new Date(dbMatchFromList.startTime).toISOString(),
+        scoreSummary: dbMatchFromList.scoreSummary || null,
+        result: dbMatchFromList.result || null,
+        tossWinner: dbMatchFromList.tossWinner || null,
+        tossDecision: dbMatchFromList.tossDecision || null,
+        draftEnabled: dbMatchFromList.draftEnabled ?? false,
+        sport,
+      };
+    }
+    // Final fallback: direct DB query result
+    if (fallbackDbMatch) {
+      return {
+        id: fallbackDbMatch.id,
+        teamA: (fallbackDbMatch as any).teamHome,
+        teamB: (fallbackDbMatch as any).teamAway,
+        tournamentName: (fallbackDbMatch as any).tournament,
+        format: ((fallbackDbMatch as any).format?.toUpperCase()) || "T20",
+        venue: (fallbackDbMatch as any).venue,
+        status: (fallbackDbMatch as any).status,
+        date: new Date((fallbackDbMatch as any).startTime).toISOString(),
+        time: new Date((fallbackDbMatch as any).startTime).toISOString(),
+        scoreSummary: (fallbackDbMatch as any).scoreSummary || null,
+        result: (fallbackDbMatch as any).result || null,
+        tossWinner: (fallbackDbMatch as any).tossWinner || null,
+        tossDecision: (fallbackDbMatch as any).tossDecision || null,
+        draftEnabled: (fallbackDbMatch as any).draftEnabled ?? false,
         sport,
       };
     }
     return null;
-  }, [dashboardQuery.isLoading, dashboardQuery.data, dbMatches, matchId]);
+  }, [dashboardQuery.isLoading, dashboardQuery.data, dbMatches, matchId, fallbackDbMatch]);
 
   // Derived match fields (safe defaults when match is null)
   const isLive = match?.status === "live";
   const isCompleted = match?.status === "completed";
-  const teamA = formatTeamName(match?.teamA || match?.teamHome || "TBA");
-  const teamB = formatTeamName(match?.teamB || match?.teamAway || "TBA");
+  const rawTeamA = match?.teamA || match?.teamHome || "TBA";
+  const rawTeamB = match?.teamB || match?.teamAway || "TBA";
+  const teamA = formatTeamName(rawTeamA);
+  const teamB = formatTeamName(rawTeamB);
   const tournament = match?.tournamentName || match?.tournament || "";
   const format = match?.format || "T20";
   const venue = match?.venue || null;
   const startTime = parseSafeDate(match?.date, match?.time);
   const timeStr = startTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const dateStr = startTime.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  const scoreData = parseTeamScores(match?.scoreSummary);
+  const scoreData = parseTeamScores(match?.scoreSummary, rawTeamA, rawTeamB);
   const scoreA = scoreData.scoreA;
   const scoreB = scoreData.scoreB;
   const oversA = scoreData.oversA;
@@ -286,63 +391,11 @@ export default function MatchScreen() {
     { staleTime: 60 * 60_000, retry: 1, enabled: !!match },
   );
 
-  // Player + Projections queries (for AI tools section)
-  const playersQuery = trpc.player.getByMatch.useQuery(
-    { matchId: matchId! },
-    { enabled: !!match, staleTime: 60 * 60_000 },
-  );
-
-  const playerList = useMemo(() => {
-    const list = (playersQuery.data as any)?.players ?? playersQuery.data ?? [];
-    if (!Array.isArray(list)) return [];
-    return list
-      .map((ps: any) => {
-        const p = ps.player ?? ps;
-        return p?.id ? { id: p.id, name: p.name, role: p.role, team: p.team, photoUrl: p.photoUrl ?? null } : null;
-      })
-      .filter(Boolean) as { id: string; name: string; role: string; team: string; photoUrl: string | null }[];
-  }, [playersQuery.data]);
-
-  const projectionsQuery = trpc.analytics.getPlayerProjections.useQuery(
-    { matchId, teamA, teamB, format, venue, tournament: tournament || "unknown", players: playerList },
-    { enabled: showProjections && !!match, staleTime: 60 * 60_000, retry: 1 },
-  );
-
-  const allSortedProjections = useMemo(() => {
-    const players = projectionsQuery.data?.players;
-    if (!players || !Array.isArray(players)) return [];
-    return [...players]
-      .sort((a: any, b: any) => (b.projectedPoints ?? 0) - (a.projectedPoints ?? 0));
-  }, [projectionsQuery.data]);
-
-  const topProjections = useMemo(() => allSortedProjections.slice(0, 5), [allSortedProjections]);
-
-  // Lazy-loaded AI feature queries (only fetch when user taps)
-  const h2hQuery = trpc.analytics.getHeadToHead.useQuery(
-    { teamA, teamB, format, venue },
-    { enabled: showH2H && !!match, staleTime: 6 * 60 * 60_000, retry: 1 },
-  );
-  const captainPicksQuery = trpc.analytics.getCaptainPicks.useQuery(
-    { matchId, teamA, teamB, format, venue, tournament: tournament || "unknown", players: playerList.map((p: any) => ({ name: p.name, role: p.role, team: p.team })) },
-    { enabled: showCaptainPicks && !!match, staleTime: 2 * 60 * 60_000, retry: 1 },
-  );
-  const differentialsQuery = trpc.analytics.getDifferentials.useQuery(
-    { matchId, teamA, teamB, format, venue, tournament: tournament || "unknown", players: playerList.map((p: any) => ({ name: p.name, role: p.role, team: p.team })) },
-    { enabled: showDifferentials && !!match, staleTime: 2 * 60 * 60_000, retry: 1 },
-  );
-  const playingXIQuery = trpc.analytics.getPlayingXI.useQuery(
-    { matchId, teamA, teamB, format, venue, tournament: tournament || "unknown" },
-    { enabled: showPlayingXI && !!match, staleTime: 60 * 60_000, retry: 1 },
-  );
-  const pitchWeatherQuery = trpc.analytics.getPitchWeather.useQuery(
-    { matchId, teamA, teamB, format, venue },
-    { enabled: showPitchWeather && !!match, staleTime: 60 * 60_000, retry: 1 },
-  );
 
   // Resolve DB match UUID for contest queries
   const dbMatchUuid = useMemo(() => {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId);
-    if (isUuid) return matchId;
+    const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId);
+    if (isUuidFormat) return matchId;
     // Find from dbMatches by externalId or team name matching
     const byExternal = dbMatches.find((m: any) => m.externalId === matchId);
     if (byExternal) return byExternal.id;
@@ -355,8 +408,10 @@ export default function MatchScreen() {
         if (mKey === key) return m.id;
       }
     }
+    // Fallback: direct DB query result
+    if (fallbackDbMatch) return (fallbackDbMatch as any).id;
     return null;
-  }, [matchId, dbMatches, match]);
+  }, [matchId, dbMatches, match, fallbackDbMatch]);
 
   // Fetch real contests from DB
   const contestsQuery = trpc.contest.listByMatch.useQuery(
@@ -386,30 +441,22 @@ export default function MatchScreen() {
     ? allDbContests.filter((c: any) => myContestIds.has(c.id))
     : allDbContests;
 
-  // New analytics feature queries (lazy-loaded, after dbMatchUuid)
-  const playerStatsQuery = trpc.analytics.getPlayerStats.useQuery(
-    { teamA, teamB, tournament: tournament || "unknown", sortBy: statsSortBy, sortDir: "desc" },
-    { enabled: showPlayerStats && !!match, staleTime: 30 * 60_000, retry: 1 },
-  );
   const pointsBreakdownQuery = trpc.analytics.getPointsBreakdown.useQuery(
     { matchId: dbMatchUuid ?? "", format },
     { enabled: showPointsBreakdown && !!dbMatchUuid && isCompleted, staleTime: 60 * 60_000, retry: 1 },
   );
-  const valueTrackerQuery = trpc.analytics.getValueTracker.useQuery(
-    { matchId: dbMatchUuid ?? matchId, teamA, teamB },
-    { enabled: showValueTracker && !!match, staleTime: 30 * 60_000, retry: 1 },
-  );
-  const statTopFivesQuery = trpc.analytics.getStatTopFives.useQuery(
-    { tournament: tournament || "unknown" },
-    { enabled: showStatTopFives && !!tournament, staleTime: 60 * 60_000, retry: 1 },
-  );
 
-  // H2H Challenge
-  const createH2H = trpc.contest.create.useMutation({
-    onSuccess: (data: any) => {
-      router.push(`/contest/${data.id}`);
-    },
-  });
+  // Wallet balance (for H2H stake picker)
+  const walletQuery = trpc.wallet.getBalance.useQuery(undefined, { staleTime: 30_000 });
+
+  // H2H Challenge — stake picker modal state
+  const [showStakePicker, setShowStakePicker] = useState(false);
+  const { setFlowState } = useNavigationStore();
+
+  const safeBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)");
+  };
 
   const goToTeamCreate = (contestId?: string) => {
     setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined, ...(contestId ? { contestId } : {}) });
@@ -417,7 +464,10 @@ export default function MatchScreen() {
   };
 
   const goToGuru = () => {
-    setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
+    // Use raw team names (not formatTeamName) so "Women" suffix is preserved for AI context
+    const rawTeamA = match?.teamA || match?.teamHome || teamA;
+    const rawTeamB = match?.teamB || match?.teamAway || teamB;
+    setMatchContext({ matchId, teamA: rawTeamA, teamB: rawTeamB, format, venue: venue || undefined, tournament: tournament || undefined });
     router.push("/guru");
   };
 
@@ -441,7 +491,7 @@ export default function MatchScreen() {
           paddingBottom="$3"
         >
           <XStack alignItems="center" gap="$3">
-            <BackButton onPress={() => router.back()} />
+            <BackButton onPress={safeBack} />
             <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
               {formatUIText("match center")}
             </Text>
@@ -452,7 +502,7 @@ export default function MatchScreen() {
           <CricketBatIcon size={DesignSystem.emptyState.iconSize} />
           <Text {...textStyles.playerName}>{formatUIText("match not found")}</Text>
           <Text {...textStyles.hint}>{formatUIText("this match may no longer be available")}</Text>
-          <Button variant="primary" size="md" marginTop="$3" onPress={() => router.back()}>
+          <Button variant="primary" size="md" marginTop="$3" onPress={safeBack}>
             {formatUIText("go back")}
           </Button>
         </YStack>
@@ -471,7 +521,7 @@ export default function MatchScreen() {
         paddingBottom="$3"
       >
         <XStack alignItems="center" gap="$3">
-          <BackButton onPress={() => router.back()} />
+          <BackButton onPress={safeBack} />
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
             {formatUIText("match center")}
           </Text>
@@ -536,9 +586,26 @@ export default function MatchScreen() {
                   </YStack>
                 )}
                 {fdrQuery.data?.teamA && !isCompleted && !scoreA && match?.draftEnabled && (
-                  <XStack marginTop={4}>
+                  <YStack alignItems="center" marginTop={4} gap={4}>
                     <FDRBadge fdr={fdrQuery.data.teamA.overallFdr} size="sm" showLabel testID="fdr-badge-team-a" />
-                  </XStack>
+                    {hasAccess("pro") ? (
+                      <XStack gap="$2">
+                        <YStack alignItems="center">
+                          <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{formatUIText("bat")}</Text>
+                          <FDRBadge fdr={fdrQuery.data.teamA.battingFdr} size="sm" />
+                        </YStack>
+                        <YStack alignItems="center">
+                          <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{formatUIText("bowl")}</Text>
+                          <FDRBadge fdr={fdrQuery.data.teamA.bowlingFdr} size="sm" />
+                        </YStack>
+                      </XStack>
+                    ) : (
+                      <XStack alignItems="center" gap="$1">
+                        <TierBadge tier="pro" size="sm" />
+                        <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{formatUIText("bat/bowl")}</Text>
+                      </XStack>
+                    )}
+                  </YStack>
                 )}
               </YStack>
 
@@ -580,9 +647,26 @@ export default function MatchScreen() {
                   </YStack>
                 )}
                 {fdrQuery.data?.teamB && !isCompleted && !scoreB && match?.draftEnabled && (
-                  <XStack marginTop={4}>
+                  <YStack alignItems="center" marginTop={4} gap={4}>
                     <FDRBadge fdr={fdrQuery.data.teamB.overallFdr} size="sm" showLabel testID="fdr-badge-team-b" />
-                  </XStack>
+                    {hasAccess("pro") ? (
+                      <XStack gap="$2">
+                        <YStack alignItems="center">
+                          <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{formatUIText("bat")}</Text>
+                          <FDRBadge fdr={fdrQuery.data.teamB.battingFdr} size="sm" />
+                        </YStack>
+                        <YStack alignItems="center">
+                          <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{formatUIText("bowl")}</Text>
+                          <FDRBadge fdr={fdrQuery.data.teamB.bowlingFdr} size="sm" />
+                        </YStack>
+                      </XStack>
+                    ) : (
+                      <XStack alignItems="center" gap="$1">
+                        <TierBadge tier="pro" size="sm" />
+                        <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{formatUIText("bat/bowl")}</Text>
+                      </XStack>
+                    )}
+                  </YStack>
                 )}
               </YStack>
             </XStack>
@@ -612,19 +696,26 @@ export default function MatchScreen() {
 
             {/* Date + Venue */}
             <YStack alignItems="center" marginTop="$3" gap={2}>
-              <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorCricket">
-                {isLive ? formatUIText("in progress") : `${dateStr} · ${timeStr}`}
-              </Text>
+              {!isLive && (
+                <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorCricket">
+                  {`${dateStr} · ${timeStr}`}
+                </Text>
+              )}
               {venue && (
                 <Text fontFamily="$mono" fontSize={10} color="$colorMuted" numberOfLines={1}>
                   {venue}
+                </Text>
+              )}
+              {fdrQuery.data && !isCompleted && !scoreA && match?.draftEnabled && (
+                <Text fontFamily="$mono" fontSize={9} color="$colorMuted" marginTop={4} opacity={0.6}>
+                  {formatUIText("lower fdr = easier fixture")}
                 </Text>
               )}
             </YStack>
           </Card>
         </Animated.View>
 
-        {/* ── Primary CTA — Build Team ── */}
+        {/* ── Primary CTA — Play This Match ── */}
         {!isCompleted && !isLive && (
           <Animated.View entering={FadeInDown.delay(50).springify()}>
             {match?.draftEnabled ? (
@@ -635,77 +726,108 @@ export default function MatchScreen() {
                   onPress={() => goToTeamCreate()}
                   testID="primary-create-team-btn"
                 >
-                  {formatUIText("build team")}
+                  {formatUIText("play this match")}
                 </Button>
                 {user && dbMatchUuid && (
                   <Button
                     variant="secondary"
                     size="md"
-                    disabled={createH2H.isPending}
-                    onPress={() => createH2H.mutate({
-                      matchId: dbMatchUuid,
-                      name: `${teamA} vs ${teamB} — H2H`,
-                      entryFee: 0,
-                      maxEntries: 2,
-                      contestType: "h2h",
-                      isGuaranteed: false,
-                      prizeDistribution: [{ rank: 1, amount: 0 }],
-                    })}
+                    onPress={() => setShowStakePicker(true)}
                     testID="challenge-friend-btn"
                   >
-                    {createH2H.isPending ? formatUIText("creating...") : formatUIText("challenge a friend")}
+                    {formatUIText("challenge a friend")}
                   </Button>
                 )}
               </YStack>
             ) : (
               <Card padding="$3" marginBottom="$5" alignItems="center" borderColor="$borderColor" borderWidth={1}>
                 <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
-                  {formatUIText("draft not open yet")}
+                  {formatUIText(isLive || isCompleted ? "draft closed" : "draft not open yet")}
                 </Text>
                 <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={2}>
-                  {formatUIText("team creation opens closer to match time")}
+                  {formatUIText(isLive || isCompleted ? "team creation is no longer available" : "team creation opens closer to match time")}
                 </Text>
               </Card>
             )}
           </Animated.View>
         )}
 
-        {/* ── Contests Section (draft open OR match already started so users see their joined contests) ── */}
-        {(match?.draftEnabled || matchStarted) ? (
-          <Animated.View entering={FadeInDown.delay(100).springify()}>
-            <XStack alignItems="center" gap="$2" marginBottom="$3">
-              <Text fontSize={14}>🏟️</Text>
-              <Text {...textStyles.sectionHeader}>
-                {formatUIText(matchStarted ? "your contests" : "choose a contest")}
-              </Text>
-            </XStack>
-
-            {dbContests.length > 0 ? (
-              dbContests.map((contest: any, i: number) => (
-                <ContestOption
-                  key={contest.id}
-                  title={contest.name}
-                  subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
-                  prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "glory"}
-                  entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
-                  spots={`${contest.maxEntries - contest.currentEntries}`}
-                  highlight={i === 0}
-                  testID={`contest-${i}`}
-                />
-              ))
-            ) : contestsQuery.isLoading ? (
-              <Card padding="$4" marginBottom="$3" alignItems="center">
-                <EggLoadingSpinner size={24} message={formatUIText("loading contests")} />
-              </Card>
-            ) : (
-              <Card padding="$4" marginBottom="$3" alignItems="center">
-                <Text {...textStyles.hint} textAlign="center">
-                  {formatUIText(matchStarted ? "you didn't join any contests for this match" : "no contests available for this match")}
+        {/* ── Your Contests (after match starts: exclude H2H — those go in "your duels") ── */}
+        {matchStarted && (() => {
+          const nonH2H = dbContests.filter((c: any) => c.contestType !== "h2h");
+          if (nonH2H.length === 0) return null;
+          return (
+            <Animated.View entering={FadeInDown.delay(100).springify()}>
+              <XStack alignItems="center" gap="$2" marginBottom="$3">
+                <Text fontSize={14}>🏟️</Text>
+                <Text {...textStyles.sectionHeader}>
+                  {formatUIText("your contests")}
                 </Text>
-              </Card>
-            )}
-          </Animated.View>
-        ) : (
+              </XStack>
+              {nonH2H.map((contest: any, i: number) => {
+                const mc = (myContestsQuery.data ?? []).find((c: any) => c.contestId === contest.id);
+                const liveRank = mc?.rank ? `#${mc.rank} of ${mc.totalEntries}` : null;
+                const livePoints = mc?.totalPoints != null ? `${mc.totalPoints.toFixed(1)} pts` : null;
+                return (
+                  <Card
+                    key={contest.id}
+                    pressable
+                    padding={0}
+                    overflow="hidden"
+                    marginBottom="$3"
+                    borderWidth={1}
+                    borderColor="$borderColor"
+                    onPress={() => router.push(`/contest/${contest.id}`)}
+                    testID={`contest-${i}`}
+                  >
+                    <XStack padding="$4" paddingBottom={mc?.name ? "$2" : "$3"} alignItems="center" justifyContent="space-between">
+                      <YStack flex={1} gap="$1">
+                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                          {contest.name}
+                        </Text>
+                        <XStack alignItems="center" gap="$2">
+                          <Badge variant="live" size="sm">{formatBadgeText("live")}</Badge>
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                            {formatUIText(`${contest.contestType} · ${contest.currentEntries} joined`)}
+                          </Text>
+                        </XStack>
+                      </YStack>
+                      {livePoints && (
+                        <YStack alignItems="flex-end" gap={1}>
+                          <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground">
+                            {livePoints}
+                          </Text>
+                          {liveRank && (
+                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{liveRank}</Text>
+                          )}
+                        </YStack>
+                      )}
+                    </XStack>
+                    {mc?.name && (
+                      <XStack
+                        paddingHorizontal="$4"
+                        paddingBottom="$3"
+                        alignItems="center"
+                        gap="$2"
+                        onPress={(e: any) => { e.stopPropagation(); router.push(`/team/${mc.id}`); }}
+                        cursor="pointer"
+                      >
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">team:</Text>
+                        <Text fontFamily="$body" fontWeight="600" fontSize={11} color="$accentBackground" numberOfLines={1}>
+                          {mc.name}
+                        </Text>
+                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">→</Text>
+                      </XStack>
+                    )}
+                  </Card>
+                );
+              })}
+            </Animated.View>
+          );
+        })()}
+
+        {/* ── Your Contests (before match starts — show all with join info) ── */}
+        {!matchStarted && dbContests.length > 0 && (
           <Animated.View entering={FadeInDown.delay(100).springify()}>
             <XStack alignItems="center" gap="$2" marginBottom="$3">
               <Text fontSize={14}>🏟️</Text>
@@ -713,73 +835,118 @@ export default function MatchScreen() {
                 {formatUIText("contests")}
               </Text>
             </XStack>
-            <Card padding="$4" marginBottom="$3" alignItems="center">
-              <Text {...textStyles.hint} textAlign="center">
-                {formatUIText("contests will be available once the draft opens")}
-              </Text>
-            </Card>
+            {dbContests.map((contest: any, i: number) => (
+              <ContestOption
+                key={contest.id}
+                title={contest.name}
+                subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
+                prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "glory"}
+                entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
+                spots={`${contest.maxEntries - contest.currentEntries}`}
+                highlight={i === 0}
+                testID={`contest-${i}`}
+              />
+            ))}
+          </Animated.View>
+        )}
+
+        {/* ── My Duels (H2H contests for this match) ── */}
+        {user && dbMatchUuid && (() => {
+          const myH2HContests = allDbContests.filter((c: any) => c.contestType === "h2h" && myContestIds.has(c.id));
+          if (myH2HContests.length === 0) return null;
+          return (
+            <Animated.View entering={FadeInDown.delay(120).springify()}>
+              <XStack alignItems="center" gap="$2" marginBottom="$3">
+                <Text fontSize={14}>⚔️</Text>
+                <Text {...textStyles.sectionHeader}>{formatUIText("your duels")}</Text>
+              </XStack>
+              {myH2HContests.map((duel: any) => {
+                const isFull = duel.currentEntries >= duel.maxEntries;
+                const duelData = matchStarted
+                  ? (myContestsQuery.data ?? []).find((c: any) => c.contestId === duel.id)
+                  : null;
+                return (
+                  <Card
+                    key={duel.id}
+                    pressable
+                    padding="$4"
+                    marginBottom="$2"
+                    borderWidth={1}
+                    borderColor="$borderColor"
+                    onPress={() => router.push(`/contest/${duel.id}`)}
+                    testID={`duel-${duel.id}`}
+                  >
+                    <YStack gap="$2">
+                      <XStack alignItems="center" justifyContent="space-between">
+                        <YStack flex={1} gap="$1">
+                          <XStack alignItems="center" gap="$2">
+                            <Badge variant={matchStarted && isFull ? "live" : isFull ? "role" : "warning"} size="sm">
+                              {matchStarted && isFull ? formatBadgeText("live") : isFull ? formatBadgeText("matched") : formatBadgeText("waiting")}
+                            </Badge>
+                            {duel.entryFee > 0 && (
+                              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                                {duel.entryFee} PC stake
+                              </Text>
+                            )}
+                          </XStack>
+                          <Text fontFamily="$body" fontSize={12} color="$colorMuted" numberOfLines={1}>
+                            {duel.name}
+                          </Text>
+                        </YStack>
+                        {matchStarted && duelData?.totalPoints != null ? (
+                          <YStack alignItems="flex-end" gap={1}>
+                            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                              {duelData.totalPoints.toFixed(1)}
+                            </Text>
+                            {duelData.rank && (
+                              <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                                #{duelData.rank} of {duelData.totalEntries}
+                              </Text>
+                            )}
+                          </YStack>
+                        ) : (
+                          <Text fontFamily="$mono" fontSize={12} color="$colorMuted">→</Text>
+                        )}
+                      </XStack>
+                      {duelData?.name && (
+                        <XStack
+                          alignItems="center"
+                          gap="$2"
+                          onPress={(e: any) => { e.stopPropagation(); router.push(`/team/${duelData.id}`); }}
+                          cursor="pointer"
+                        >
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">team:</Text>
+                          <Text fontFamily="$body" fontWeight="600" fontSize={11} color="$accentBackground" numberOfLines={1}>
+                            {duelData.name}
+                          </Text>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">→</Text>
+                        </XStack>
+                      )}
+                    </YStack>
+                  </Card>
+                );
+              })}
+            </Animated.View>
+          );
+        })()}
+
+        {/* ── Scoring Rules during live ── */}
+        {isLive && (
+          <Animated.View entering={FadeInDown.delay(140).springify()}>
+            <YStack marginBottom="$3">
+              <ScoringRulesCard format={match?.format} testID="live-scoring-rules" />
+            </YStack>
           </Animated.View>
         )}
 
         {/* ── FDR / AI Tools — only when draft is open and before match starts ── */}
         {!matchStarted && match?.draftEnabled && (
           <>
-            {/* ── FDR Breakdown (decision support) ── */}
-            {fdrQuery.data && (
-              <Animated.View entering={FadeInDown.delay(150).springify()}>
-                <XStack alignItems="center" gap="$2" marginTop="$2" marginBottom="$3">
-                  <Text fontSize={14}>📊</Text>
-                  <Text {...textStyles.sectionHeader}>{formatUIText("fixture difficulty")}</Text>
-                </XStack>
-                <Card padding="$4" marginBottom="$5" testID="fdr-card">
-                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted" textAlign="center" marginBottom="$3">
-                    {formatUIText("lower fdr = easier fixture for your fantasy picks")}
-                  </Text>
-                  <XStack justifyContent="space-around">
-                    {[
-                      { label: teamA, data: fdrQuery.data.teamA },
-                      { label: teamB, data: fdrQuery.data.teamB },
-                    ].map((t) => (
-                      <YStack key={t.label} alignItems="center" gap="$2">
-                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{t.label}</Text>
-                        <FDRBadge fdr={t.data.overallFdr} size="lg" showLabel />
-                        {hasAccess("pro") ? (
-                          <XStack gap="$3" marginTop="$1">
-                            <YStack alignItems="center">
-                              <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatUIText("bat")}</Text>
-                              <FDRBadge fdr={t.data.battingFdr} size="sm" />
-                            </YStack>
-                            <YStack alignItems="center">
-                              <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatUIText("bowl")}</Text>
-                              <FDRBadge fdr={t.data.bowlingFdr} size="sm" />
-                            </YStack>
-                          </XStack>
-                        ) : (
-                          <XStack marginTop="$1" alignItems="center" gap="$1">
-                            <TierBadge tier="pro" size="sm" />
-                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatUIText("bat/bowl split")}</Text>
-                          </XStack>
-                        )}
-                      </YStack>
-                    ))}
-                  </XStack>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    marginTop="$4"
-                    onPress={() => goToTeamCreate()}
-                  >
-                    {formatUIText("use insights to build team")}
-                  </Button>
-                </Card>
-              </Animated.View>
-            )}
-
             {/* ── AI Tools — upsell after primary CTA ── */}
             <Animated.View entering={FadeInDown.delay(200).springify()}>
               <XStack alignItems="center" gap="$2" marginBottom="$3">
                 <Text fontSize={14}>🤖</Text>
-                <Text {...textStyles.sectionHeader}>{formatUIText("ai tools")}</Text>
+                <Text {...textStyles.sectionHeader}>{formatUIText("explore")}</Text>
               </XStack>
 
               <Card
@@ -803,773 +970,62 @@ export default function MatchScreen() {
                 </XStack>
               </Card>
 
-              <Card pressable padding="$4" marginBottom="$3" testID="projections-card" onPress={() => {
-                if (!showProjections) {
-                  if (gateFeature("hasProjectedPoints", "pro", "Projected Points", "AI-powered player point projections for smarter picks")) return;
-                }
-                setShowProjections(!showProjections);
-                if (showProjections) setShowAllProjections(false);
-              }}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>📈</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("projected points")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("ai-estimated fantasy points for each player")}
-                    </Text>
-                  </YStack>
-                  {!canAccess("hasProjectedPoints") ? (
-                    <TierBadge tier="pro" size="sm" />
-                  ) : (
-                    <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showProjections ? "▲" : "▼"}</Text>
-                  )}
-                </XStack>
-              </Card>
-              {showProjections && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                  {projectionsQuery.isLoading || projectionsQuery.isFetching ? (
-                    <YStack alignItems="center" paddingVertical="$3">
-                      <EggLoadingSpinner size={24} message={formatUIText("analyzing players via ai")} />
-                    </YStack>
-                  ) : projectionsQuery.isError ? (
-                    <YStack alignItems="center" paddingVertical="$2">
-                      <Text {...textStyles.hint} textAlign="center">
-                        {formatUIText("failed to load projections. tap to retry.")}
-                      </Text>
-                      <Card pressable padding="$2" marginTop="$2" onPress={() => projectionsQuery.refetch()}>
-                        <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
-                          {formatUIText("retry")}
-                        </Text>
-                      </Card>
-                    </YStack>
-                  ) : topProjections.length > 0 ? (
-                    <YStack gap="$1">
-                      {/* Column header */}
-                      <XStack alignItems="center" paddingVertical="$1" gap="$2" marginBottom="$1">
-                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted" width={28} textAlign="center">#</Text>
-                        <Text fontFamily="$body" fontSize={10} color="$colorMuted" flex={1}>{formatUIText("player")}</Text>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={40} textAlign="right">{formatUIText("pts")}</Text>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={50} textAlign="right">{formatUIText("range")}</Text>
-                      </XStack>
-
-                      {(showAllProjections ? allSortedProjections : topProjections).map((p: any, i: number) => (
-                        <XStack key={p.playerId || i} alignItems="center" paddingVertical="$1" gap="$2">
-                          <Text fontFamily="$mono" fontSize={10} color={p.captainRank <= 3 ? "$accentBackground" : "$colorMuted"} width={28} textAlign="center">
-                            {p.captainRank <= 3 ? "🔥" : `#${p.captainRank}`}
-                          </Text>
-                          <YStack flex={1}>
-                            <Text fontFamily="$body" fontSize={12} color="$color" numberOfLines={1}>
-                              {p.playerName}
-                            </Text>
-                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                              {formatBadgeText(p.role)}
-                            </Text>
-                          </YStack>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$accentBackground" width={40} textAlign="right">
-                            {Number(p.projectedPoints).toFixed(1)}
-                          </Text>
-                          {canAccess("hasConfidence") ? (
-                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted" width={50} textAlign="right">
-                              ({Math.round(Number(p.confidenceLow))}-{Math.round(Number(p.confidenceHigh))})
-                            </Text>
-                          ) : (
-                            <TierBadge tier="elite" size="sm" />
-                          )}
-                        </XStack>
-                      ))}
-
-                      <XStack gap="$2" marginTop="$2">
-                        {allSortedProjections.length > 5 && (
-                          <Card pressable padding="$2" flex={1} onPress={() => setShowAllProjections(!showAllProjections)}>
-                            <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
-                              {showAllProjections
-                                ? formatUIText("show top 5")
-                                : formatUIText(`view all ${allSortedProjections.length} players`)}
-                            </Text>
-                          </Card>
-                        )}
-                        <Card pressable padding="$2" flex={1} onPress={() => goToTeamCreate()}>
-                          <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
-                            {formatUIText("build team →")}
-                          </Text>
-                        </Card>
-                      </XStack>
-                    </YStack>
-                  ) : (
-                    <YStack alignItems="center" paddingVertical="$2">
-                      <Text {...textStyles.hint} textAlign="center">
-                        {formatUIText("no projections available yet")}
-                      </Text>
-                      <Card pressable padding="$2" marginTop="$2" onPress={() => projectionsQuery.refetch()}>
-                        <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
-                          {formatUIText("retry →")}
-                        </Text>
-                      </Card>
-                    </YStack>
-                  )}
-                  </Card>
-                </Animated.View>
-              )}
-            </Animated.View>
-
-            {/* ── AI Insights ── */}
-            <Animated.View entering={FadeInDown.delay(250).springify()}>
-              <XStack alignItems="center" gap="$2" marginBottom="$3" testID="ai-insights-header">
-                <Text fontSize={14}>🔮</Text>
-                <Text {...textStyles.sectionHeader}>{formatUIText("ai insights")}</Text>
-              </XStack>
-
-              {/* Head to Head — free by default, admin-togglable */}
-              {canAccess("hasHeadToHead") && (<>
-              <Card pressable padding="$4" marginBottom="$3" testID="h2h-card" onPress={() => setShowH2H(!showH2H)}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>⚔️</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("head to head stats")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("historical record between these two teams")}
-                    </Text>
-                  </YStack>
-                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showH2H ? "▲" : "▼"}</Text>
-                </XStack>
-              </Card>
-              {showH2H && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {h2hQuery.isLoading || h2hQuery.isFetching ? (
-                      <EggLoadingSpinner size={24} message={formatUIText("loading h2h")} />
-                    ) : h2hQuery.data ? (
-                      <YStack gap="$2">
-                        <XStack justifyContent="space-around">
-                          <YStack alignItems="center">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$accentBackground">{(h2hQuery.data as any).overall?.teamAWins ?? 0}</Text>
-                            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{teamA} wins</Text>
-                          </YStack>
-                          <YStack alignItems="center">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$colorMuted">{(h2hQuery.data as any).overall?.draws ?? 0}</Text>
-                            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">draws</Text>
-                          </YStack>
-                          <YStack alignItems="center">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$colorCricket">{(h2hQuery.data as any).overall?.teamBWins ?? 0}</Text>
-                            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{teamB} wins</Text>
-                          </YStack>
-                        </XStack>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" textAlign="center">
-                          {format}: {(h2hQuery.data as any).inFormat?.teamAWins ?? 0}-{(h2hQuery.data as any).inFormat?.teamBWins ?? 0} ({(h2hQuery.data as any).inFormat?.totalMatches ?? 0} matches)
-                        </Text>
-                        {(h2hQuery.data as any).venueRecord && (
-                          <Text fontFamily="$body" fontSize={11} color="$colorSecondary" textAlign="center">
-                            {(h2hQuery.data as any).venueRecord}
-                          </Text>
-                        )}
-                        {(h2hQuery.data as any).keyInsight && (
-                          <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$accentBackground" textAlign="center" marginTop="$1">
-                            {(h2hQuery.data as any).keyInsight}
-                          </Text>
-                        )}
-                      </YStack>
-                    ) : (
-                      <YStack alignItems="center" gap="$2" paddingVertical="$2">
-                        <Text {...textStyles.hint} textAlign="center">{formatUIText("couldn't load head to head data")}</Text>
-                        <Card pressable padding="$2" onPress={() => h2hQuery.refetch()}>
-                          <Text fontFamily="$body" fontSize={12} color="$accentBackground" textAlign="center" fontWeight="600">
-                            {formatUIText("retry")}
-                          </Text>
-                        </Card>
-                      </YStack>
-                    )}
-                  </Card>
-                </Animated.View>
-              )}
-              </>)}
-
-              {/* Captain Picks — Pro */}
-              <Card pressable padding="$4" marginBottom="$3" testID="captain-picks-card" onPress={() => {
-                if (gateFeature("hasCaptainPicks", "pro", "Captain Picks", "AI-recommended captain & vice-captain choices")) return;
-                setShowCaptainPicks(!showCaptainPicks);
-              }}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>👑</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("captain picks")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("ai-recommended captain & vice-captain")}
-                    </Text>
-                  </YStack>
-                  {canAccess("hasCaptainPicks") ? (
-                    <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showCaptainPicks ? "▲" : "▼"}</Text>
-                  ) : (
-                    <TierBadge tier="pro" size="sm" />
-                  )}
-                </XStack>
-              </Card>
-              {showCaptainPicks && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {captainPicksQuery.isLoading ? (
-                      <EggLoadingSpinner size={24} message={formatUIText("analyzing picks")} />
-                    ) : captainPicksQuery.data ? (
-                      <YStack gap="$3">
-                        <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("top captain picks (2x)")}</Text>
-                        {((captainPicksQuery.data as any).captainPicks ?? []).map((p: any, i: number) => (
-                          <XStack key={i} alignItems="flex-start" gap="$2">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$colorCricket" marginTop={2}>#{i + 1}</Text>
-                            <YStack flex={1} gap="$1">
-                              <XStack alignItems="center" gap="$2">
-                                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
-                                <Badge variant={p.confidence === "high" ? "live" : p.confidence === "medium" ? "warning" : "default"} size="sm">{p.confidence}</Badge>
-                              </XStack>
-                              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.reason}</Text>
-                            </YStack>
-                          </XStack>
-                        ))}
-                        <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5} marginTop="$2">{formatBadgeText("top vice-captain picks (1.5x)")}</Text>
-                        {((captainPicksQuery.data as any).viceCaptainPicks ?? []).map((p: any, i: number) => (
-                          <XStack key={i} alignItems="flex-start" gap="$2">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground" marginTop={2}>#{i + 1}</Text>
-                            <YStack flex={1} gap="$1">
-                              <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
-                              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.reason}</Text>
-                            </YStack>
-                          </XStack>
-                        ))}
-                        {(captainPicksQuery.data as any).summary && (
-                          <Text fontFamily="$body" fontSize={11} color="$colorSecondary" marginTop="$1">
-                            {(captainPicksQuery.data as any).summary}
-                          </Text>
-                        )}
-                      </YStack>
-                    ) : (
-                      <Text {...textStyles.hint} textAlign="center">{formatUIText("no picks available")}</Text>
-                    )}
-                  </Card>
-                </Animated.View>
-              )}
-
-              {/* Differentials — Pro */}
-              <Card pressable padding="$4" marginBottom="$3" testID="differentials-card" onPress={() => {
-                if (gateFeature("hasDifferentials", "pro", "Differentials", "Low-ownership high-upside picks for your team")) return;
-                setShowDifferentials(!showDifferentials);
-              }}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>💎</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("differentials")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("low-ownership high-upside picks")}
-                    </Text>
-                  </YStack>
-                  {canAccess("hasDifferentials") ? (
-                    <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showDifferentials ? "▲" : "▼"}</Text>
-                  ) : (
-                    <TierBadge tier="pro" size="sm" />
-                  )}
-                </XStack>
-              </Card>
-              {showDifferentials && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {differentialsQuery.isLoading ? (
-                      <EggLoadingSpinner size={24} message={formatUIText("finding differentials")} />
-                    ) : differentialsQuery.data ? (
-                      <YStack gap="$3">
-                        {((differentialsQuery.data as any).picks ?? []).map((p: any, i: number) => (
-                          <XStack key={i} alignItems="flex-start" gap="$2">
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground" marginTop={2}>#{i + 1}</Text>
-                            <YStack flex={1} gap="$1">
-                              <XStack alignItems="center" gap="$2">
-                                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">{p.playerName}</Text>
-                                <Badge variant="role" size="sm">~{p.expectedOwnership}% est. ownership</Badge>
-                              </XStack>
-                              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.upsideReason}</Text>
-                            </YStack>
-                            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$accentBackground" marginTop={2}>{p.projectedPoints} pts</Text>
-                          </XStack>
-                        ))}
-                      </YStack>
-                    ) : (
-                      <Text {...textStyles.hint} textAlign="center">{formatUIText("no data available")}</Text>
-                    )}
-                  </Card>
-                </Animated.View>
-              )}
-
-              {/* Playing XI Prediction — Pro */}
-              <Card pressable padding="$4" marginBottom="$3" testID="playing-xi-card" onPress={() => {
-                if (gateFeature("hasPlayingXI", "pro", "Playing XI", "AI-predicted lineup before toss")) return;
-                setShowPlayingXI(!showPlayingXI);
-              }}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>📋</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("playing xi prediction")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("ai-predicted lineup before toss")}
-                    </Text>
-                  </YStack>
-                  {canAccess("hasPlayingXI") ? (
-                    <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showPlayingXI ? "▲" : "▼"}</Text>
-                  ) : (
-                    <TierBadge tier="pro" size="sm" />
-                  )}
-                </XStack>
-              </Card>
-              {showPlayingXI && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {playingXIQuery.isLoading ? (
-                      <EggLoadingSpinner size={24} message={formatUIText("predicting lineup")} />
-                    ) : playingXIQuery.data ? (
-                      <YStack gap="$3">
-                        {[(playingXIQuery.data as any).teamA, (playingXIQuery.data as any).teamB].map((team: any) => team && (
-                          <YStack key={team.teamName} gap="$1">
-                            <Text fontFamily="$mono" fontSize={11} fontWeight="700" color="$accentBackground" letterSpacing={0.5}>
-                              {formatBadgeText(team.teamName)}
-                            </Text>
-                            {(team.predictedXI ?? []).map((p: any, i: number) => (
-                              <XStack key={i} alignItems="center" gap="$2" paddingVertical={2}>
-                                <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={16}>{i + 1}.</Text>
-                                <Text fontFamily="$body" fontSize={12} color="$color" flex={1}>{p.name}</Text>
-                                <Badge variant="default" size="sm">{formatBadgeText(p.role)}</Badge>
-                                <Text fontFamily="$mono" fontSize={10} color={p.confidence >= 80 ? "$colorCricket" : "$colorMuted"}>{p.confidence}%</Text>
-                              </XStack>
-                            ))}
-                          </YStack>
-                        ))}
-                        {((playingXIQuery.data as any).keyChanges ?? []).length > 0 && (
-                          <YStack marginTop="$1">
-                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("key changes")}</Text>
-                            {(playingXIQuery.data as any).keyChanges.map((c: string, i: number) => (
-                              <Text key={i} fontFamily="$body" fontSize={11} color="$colorSecondary">• {c}</Text>
-                            ))}
-                          </YStack>
-                        )}
-                      </YStack>
-                    ) : (
-                      <Text {...textStyles.hint} textAlign="center">{formatUIText("no prediction available")}</Text>
-                    )}
-                  </Card>
-                </Animated.View>
-              )}
-
-              {/* Weather & Pitch — free by default, admin-togglable */}
-              {canAccess("hasPitchWeather") && (<>
-              <Card pressable padding="$4" marginBottom="$3" testID="weather-pitch-card" onPress={() => setShowPitchWeather(!showPitchWeather)}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>🌤️</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("weather & pitch report")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("conditions that affect your picks")}
-                    </Text>
-                  </YStack>
-                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showPitchWeather ? "▲" : "▼"}</Text>
-                </XStack>
-              </Card>
-              {showPitchWeather && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {pitchWeatherQuery.isLoading ? (
-                      <EggLoadingSpinner size={24} message={formatUIText("checking conditions")} />
-                    ) : pitchWeatherQuery.data ? (
-                      <YStack gap="$3">
-                        {/* Pitch */}
-                        <YStack gap="$1">
-                          <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("pitch")}</Text>
-                          <XStack alignItems="center" gap="$2">
-                            <Text fontFamily="$body" fontWeight="700" fontSize={13} color="$color">{(pitchWeatherQuery.data as any).pitch?.pitchType}</Text>
-                            <Badge variant="default" size="sm">{(pitchWeatherQuery.data as any).pitch?.paceVsSpinAdvantage}</Badge>
-                          </XStack>
-                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                            avg 1st innings: {(pitchWeatherQuery.data as any).pitch?.avgFirstInningsScore} · 2nd innings: {(pitchWeatherQuery.data as any).pitch?.avgSecondInningsScore}
-                          </Text>
-                        </YStack>
-
-                        {/* Weather */}
-                        <YStack gap="$1">
-                          <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("weather")}</Text>
-                          <XStack alignItems="center" gap="$2">
-                            <Text fontFamily="$body" fontWeight="700" fontSize={13} color="$color">{(pitchWeatherQuery.data as any).weather?.conditions}</Text>
-                            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                              {(pitchWeatherQuery.data as any).weather?.temperature} · {(pitchWeatherQuery.data as any).weather?.humidity}
-                            </Text>
-                          </XStack>
-                          {(pitchWeatherQuery.data as any).weather?.dewFactor && (
-                            <Text fontFamily="$mono" fontSize={10} color="$colorAccent">{(pitchWeatherQuery.data as any).weather.dewFactor}</Text>
-                          )}
-                        </YStack>
-                        {((pitchWeatherQuery.data as any).fantasyTips ?? []).length > 0 && (
-                          <YStack marginTop="$1">
-                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted" letterSpacing={0.5}>{formatBadgeText("fantasy tips")}</Text>
-                            {(pitchWeatherQuery.data as any).fantasyTips.map((tip: string, i: number) => (
-                              <Text key={i} fontFamily="$body" fontSize={11} color="$colorSecondary">💡 {tip}</Text>
-                            ))}
-                          </YStack>
-                        )}
-                      </YStack>
-                    ) : (
-                      <Text {...textStyles.hint} textAlign="center">{formatUIText("no data available")}</Text>
-                    )}
-                  </Card>
-                </Animated.View>
-              )}
-              </>)}
+              {/* Scoring Rules — always visible */}
+              <YStack marginBottom="$3">
+                <ScoringRulesCard format={match?.format} testID="match-scoring-rules" />
+              </YStack>
             </Animated.View>
           </>
         )}
 
-        {/* ── Stats & Analytics (draft open OR match started for post-match analytics) ── */}
-        {(match?.draftEnabled || matchStarted) && (
-        <Animated.View entering={FadeInDown.delay(300).springify()}>
-          <XStack alignItems="center" gap="$2" marginBottom="$3" marginTop="$2" testID="stats-analytics-header">
-            <Text fontSize={14}>📊</Text>
-            <Text {...textStyles.sectionHeader}>{formatUIText("stats & analytics")}</Text>
-          </XStack>
-
-          {/* Player Stats Table — Free (basic) / Pro (advanced), admin-togglable */}
-          {canAccess("hasPlayerStats") && (<>
-          <Card pressable padding="$4" marginBottom="$3" testID="player-stats-card" onPress={() => setShowPlayerStats(!showPlayerStats)}>
-            <XStack alignItems="center" gap="$3">
-              <Text fontSize={20}>📋</Text>
-              <YStack flex={1}>
-                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                  {formatUIText("player stats")}
-                </Text>
-                <Text {...textStyles.hint} marginTop={2}>
-                  {formatUIText("sortable leaderboard for all players")}
-                </Text>
-              </YStack>
-              <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showPlayerStats ? "▲" : "▼"}</Text>
-            </XStack>
-          </Card>
-          {showPlayerStats && (
-            <Animated.View entering={FadeInDown.springify()}>
-              <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                {playerStatsQuery.isLoading ? (
-                  <EggLoadingSpinner size={24} message={formatUIText("loading stats")} />
-                ) : playerStatsQuery.data && playerStatsQuery.data.length > 0 ? (
-                  <YStack gap="$2">
-                    {/* Sort buttons — adapt based on data source */}
-                    {(() => {
-                      const isProfile = playerStatsQuery.data?.[0]?.source === "profile";
-                      const sortOptions = isProfile
-                        ? [
-                            { key: "formAvg", label: "Form" },
-                            { key: "strikeRate", label: "SR" },
-                            { key: "avgRuns", label: "Bat Avg" },
-                            { key: "economyRate", label: "Econ" },
-                            { key: "matches", label: "Matches" },
-                          ]
-                        : [
-                            { key: "avgFantasyPoints", label: "FPts" },
-                            { key: "totalRuns", label: "Runs" },
-                            { key: "totalWickets", label: "Wkts" },
-                            { key: "strikeRate", label: "SR" },
-                            { key: "formAvg", label: "Form" },
-                          ];
-                      return (
-                        <XStack gap="$2" flexWrap="wrap" marginBottom="$2">
-                          {sortOptions.map((opt) => (
-                            <Badge
-                              key={opt.key}
-                              variant={statsSortBy === opt.key ? "live" : "default"}
-                              size="sm"
-                              pressable
-                              onPress={() => setStatsSortBy(opt.key)}
-                            >
-                              {formatBadgeText(opt.label)}
-                            </Badge>
-                          ))}
-                        </XStack>
-                      );
-                    })()}
-                    {/* Player rows */}
-                    {playerStatsQuery.data.slice(0, 15).map((p: any, i: number) => {
-                      const isProfile = p.source === "profile";
-                      const displayValue = (() => {
-                        if (isProfile) {
-                          // Profile stats: show career averages
-                          if (statsSortBy === "strikeRate") return p.strikeRate || "—";
-                          if (statsSortBy === "avgRuns") return p.avgRuns || "—";
-                          if (statsSortBy === "economyRate") return p.economyRate || "—";
-                          if (statsSortBy === "matches") return p.matches || "—";
-                          return p.formAvg || "—"; // default: form
-                        }
-                        // Match stats
-                        if (statsSortBy === "totalRuns") return p.totalRuns;
-                        if (statsSortBy === "totalWickets") return p.totalWickets;
-                        if (statsSortBy === "strikeRate") return p.strikeRate ?? "—";
-                        if (statsSortBy === "formAvg") return p.formAvg ?? "—";
-                        return p.avgFantasyPoints;
-                      })();
-                      const subtitle = isProfile
-                        ? `${p.matches} career matches`
-                        : `${p.matches} matches`;
-
-                      const roleShort = (p.role ?? "").replace("wicket_keeper", "wk").replace("all_rounder", "ar").replace("batsman", "bat").replace("bowler", "bowl");
-
-                      return (
-                        <XStack key={p.playerId || i} alignItems="center" paddingVertical="$2" borderBottomWidth={1} borderBottomColor="$borderColor" gap="$2">
-                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={18} textAlign="center">{i + 1}</Text>
-                          <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={28} hideBadge imageUrl={playerList.find((pl) => pl.id === p.playerId)?.photoUrl} />
-                          <YStack flex={1}>
-                            <XStack alignItems="center" gap="$1">
-                              <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1} flexShrink={1}>{p.playerName}</Text>
-                              <Text fontFamily="$mono" fontSize={8} color="$colorMuted" textTransform="uppercase">{formatUIText(roleShort)}</Text>
-                            </XStack>
-                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted" numberOfLines={1}>{p.team}</Text>
-                          </YStack>
-                          <YStack alignItems="flex-end" minWidth={50}>
-                            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
-                              {displayValue}
-                            </Text>
-                            {p.matches > 0 && (
-                              <Text fontFamily="$mono" fontSize={7} color="$colorMuted">
-                                {p.matches} {formatUIText(isProfile ? "career" : "mat")}
-                              </Text>
-                            )}
-                          </YStack>
-                        </XStack>
-                      );
-                    })}
-                  </YStack>
-                ) : (
-                  <Text {...textStyles.hint} textAlign="center">{formatUIText("no player data available")}</Text>
-                )}
-              </Card>
-            </Animated.View>
-          )}
-          </>)}
-
-          {/* Player Comparison — Pro */}
-          <Card pressable padding="$4" marginBottom="$3" testID="compare-players-card" onPress={() => {
-            if (gateFeature("hasPlayerCompare", "pro", "Compare Players", "Side-by-side player comparison tool")) return;
-            setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
-            router.push(`/match/${encodeURIComponent(matchId)}/compare`);
-          }}>
-            <XStack alignItems="center" gap="$3">
-              <Text fontSize={20}>⚖️</Text>
-              <YStack flex={1}>
-                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                  {formatUIText("compare players")}
-                </Text>
-                <Text {...textStyles.hint} marginTop={2}>
-                  {formatUIText("side-by-side player comparison")}
-                </Text>
-              </YStack>
-              {!canAccess("hasPlayerCompare") ? (
-                <TierBadge tier="pro" />
-              ) : (
-                <Text fontFamily="$mono" fontSize={12} color="$colorMuted">→</Text>
-              )}
-            </XStack>
-          </Card>
-
-          {/* Team Solver — Elite */}
-          <Card pressable padding="$4" marginBottom="$3" testID="team-solver-card" onPress={() => {
-            if (gateFeature("hasTeamSolver", "elite", "Team Solver", "Auto-pick the optimal 11 within your budget")) return;
-            setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
-            router.push(`/match/${encodeURIComponent(matchId)}/solver`);
-          }}>
-            <XStack alignItems="center" gap="$3">
-              <Text fontSize={20}>🤖</Text>
-              <YStack flex={1}>
-                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                  {formatUIText("team solver")}
-                </Text>
-                <Text {...textStyles.hint} marginTop={2}>
-                  {formatUIText("auto-pick optimal 11 within budget")}
-                </Text>
-              </YStack>
-              {!canAccess("hasTeamSolver") ? (
-                <TierBadge tier="elite" />
-              ) : (
-                <Text fontFamily="$mono" fontSize={12} color="$colorMuted">→</Text>
-              )}
-            </XStack>
-          </Card>
-
-          {/* Points Breakdown — Free (completed matches only), admin-togglable */}
-          {isCompleted && canAccess("hasPointsBreakdown") && (
-            <>
-              <Card pressable padding="$4" marginBottom="$3" onPress={() => setShowPointsBreakdown(!showPointsBreakdown)}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>🎯</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("points breakdown")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("see how each player earned their points")}
-                    </Text>
-                  </YStack>
-                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showPointsBreakdown ? "▲" : "▼"}</Text>
-                </XStack>
-              </Card>
-              {showPointsBreakdown && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {pointsBreakdownQuery.isLoading ? (
-                      <EggLoadingSpinner size={24} message={formatUIText("calculating breakdown")} />
-                    ) : pointsBreakdownQuery.data && pointsBreakdownQuery.data.length > 0 ? (
-                      <YStack gap="$3">
-                        {pointsBreakdownQuery.data.slice(0, 8).map((p: any, i: number) => (
-                          <YStack key={p.playerId || i} paddingBottom="$2" borderBottomWidth={1} borderBottomColor="$borderColor">
-                            <XStack alignItems="center" gap="$2" marginBottom="$1">
-                              <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={24} imageUrl={playerList.find((pl) => pl.id === p.playerId)?.photoUrl} />
-                              <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" flex={1} numberOfLines={1}>{p.playerName}</Text>
-                              <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground">{p.totalFantasyPoints}</Text>
-                            </XStack>
-                            <XStack flexWrap="wrap" gap="$1" paddingLeft={32}>
-                              {(p.categories ?? []).map((c: any, ci: number) => (
-                                <Badge key={ci} variant={c.points > 0 ? "role" : "default"} size="sm">
-                                  {`${c.label}: ${c.stat} (${c.points > 0 ? "+" : ""}${c.points})`}
-                                </Badge>
-                              ))}
-                            </XStack>
-                          </YStack>
-                        ))}
-                      </YStack>
-                    ) : (
-                      <Text {...textStyles.hint} textAlign="center">{formatUIText("no scoring data available")}</Text>
-                    )}
-                  </Card>
-                </Animated.View>
-              )}
-            </>
-          )}
-
-          {/* Value Tracker — Pro */}
-          <Card pressable padding="$4" marginBottom="$3" testID="value-tracker-card" onPress={() => {
-            if (gateFeature("hasValueTracker", "pro", "Value Tracker", "Track player ownership & credit changes")) return;
-            setShowValueTracker(!showValueTracker);
-          }}>
-            <XStack alignItems="center" gap="$3">
-              <Text fontSize={20}>📈</Text>
-              <YStack flex={1}>
-                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                  {formatUIText("value tracker")}
-                </Text>
-                <Text {...textStyles.hint} marginTop={2}>
-                  {formatUIText("ownership & credit changes")}
-                </Text>
-              </YStack>
-              {!canAccess("hasValueTracker") ? (
-                <TierBadge tier="pro" />
-              ) : (
-                <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showValueTracker ? "▲" : "▼"}</Text>
-              )}
-            </XStack>
-          </Card>
-          {showValueTracker && (
-            <Animated.View entering={FadeInDown.springify()}>
-              <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                {valueTrackerQuery.isLoading ? (
-                  <EggLoadingSpinner size={24} message={formatUIText("loading values")} />
-                ) : valueTrackerQuery.data && valueTrackerQuery.data.length > 0 ? (
-                  <YStack gap="$2">
-                    {/* Header row */}
-                    <XStack paddingBottom="$1" borderBottomWidth={1} borderBottomColor="$borderColor">
-                      <Text fontFamily="$mono" fontSize={9} fontWeight="600" color="$colorMuted" flex={1}>{formatBadgeText("player")}</Text>
-                      <Text fontFamily="$mono" fontSize={9} fontWeight="600" color="$colorMuted" width={45} textAlign="right">{formatBadgeText("price")}</Text>
-                      <Text fontFamily="$mono" fontSize={9} fontWeight="600" color="$colorMuted" width={45} textAlign="right">{formatBadgeText("own%")}</Text>
-                      <Text fontFamily="$mono" fontSize={9} fontWeight="600" color="$colorMuted" width={40} textAlign="right">{formatBadgeText("trend")}</Text>
-                    </XStack>
-                    {valueTrackerQuery.data.slice(0, 12).map((p: any, i: number) => (
-                      <XStack key={p.playerId || i} alignItems="center" paddingVertical={2}>
-                        <YStack flex={1}>
-                          <Text fontFamily="$body" fontSize={11} color="$color" numberOfLines={1}>{p.playerName}</Text>
+        {/* ── Points Breakdown (completed matches only) ── */}
+        {isCompleted && canAccess("hasPointsBreakdown") && (
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <Card pressable padding="$4" marginBottom="$3" onPress={() => setShowPointsBreakdown(!showPointsBreakdown)}>
+              <XStack alignItems="center" gap="$3">
+                <Text fontSize={20}>🎯</Text>
+                <YStack flex={1}>
+                  <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
+                    {formatUIText("points breakdown")}
+                  </Text>
+                  <Text {...textStyles.hint} marginTop={2}>
+                    {formatUIText("see how each player earned their points")}
+                  </Text>
+                </YStack>
+                <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showPointsBreakdown ? "▲" : "▼"}</Text>
+              </XStack>
+            </Card>
+            {showPointsBreakdown && (
+              <Animated.View entering={FadeInDown.springify()}>
+                <Card padding="$4" marginBottom="$3" marginTop={-8}>
+                  {pointsBreakdownQuery.isLoading ? (
+                    <EggLoadingSpinner size={24} message={formatUIText("calculating breakdown")} />
+                  ) : pointsBreakdownQuery.data && pointsBreakdownQuery.data.length > 0 ? (
+                    <YStack gap="$3">
+                      {pointsBreakdownQuery.data.slice(0, 8).map((p: any, i: number) => (
+                        <YStack key={p.playerId || i} paddingBottom="$2" borderBottomWidth={1} borderBottomColor="$borderColor">
+                          <XStack alignItems="center" gap="$2" marginBottom="$1">
+                            <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={24} />
+                            <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" flex={1} numberOfLines={1}>{p.playerName}</Text>
+                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground">{p.totalFantasyPoints}</Text>
+                          </XStack>
+                          <XStack flexWrap="wrap" gap="$1" paddingLeft={32}>
+                            {(p.categories ?? []).map((c: any, ci: number) => (
+                              <Badge key={ci} variant={c.points > 0 ? "role" : "default"} size="sm">
+                                {`${c.label}: ${c.stat} (${c.points > 0 ? "+" : ""}${c.points})`}
+                              </Badge>
+                            ))}
+                          </XStack>
                         </YStack>
-                        <Text fontFamily="$mono" fontSize={11} color="$color" width={45} textAlign="right">{p.currentPrice}</Text>
-                        <Text fontFamily="$mono" fontSize={11} color="$colorMuted" width={45} textAlign="right">{p.ownershipPct.toFixed(1)}%</Text>
-                        <Text fontFamily="$mono" fontSize={11} width={40} textAlign="right"
-                          color={p.trend === "rising" ? "$colorSuccess" : p.trend === "falling" ? "$colorDanger" : "$colorMuted"}
-                        >
-                          {p.trend === "rising" ? "▲" : p.trend === "falling" ? "▼" : "—"}
-                        </Text>
-                      </XStack>
-                    ))}
-                  </YStack>
-                ) : (
-                  <Text {...textStyles.hint} textAlign="center">{formatUIText("no ownership data yet")}</Text>
-                )}
-              </Card>
-            </Animated.View>
-          )}
-
-          {/* Stat Top Fives — Free, admin-togglable */}
-          {tournament && canAccess("hasStatTopFives") && (
-            <>
-              <Card pressable padding="$4" marginBottom="$3" testID="stat-top-fives-card" onPress={() => setShowStatTopFives(!showStatTopFives)}>
-                <XStack alignItems="center" gap="$3">
-                  <Text fontSize={20}>🏅</Text>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("stat top fives")}
-                    </Text>
-                    <Text {...textStyles.hint} marginTop={2}>
-                      {formatUIText("tournament leaders in every category")}
-                    </Text>
-                  </YStack>
-                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{showStatTopFives ? "▲" : "▼"}</Text>
-                </XStack>
-              </Card>
-              {showStatTopFives && (
-                <Animated.View entering={FadeInDown.springify()}>
-                  <Card padding="$4" marginBottom="$3" marginTop={-8}>
-                    {statTopFivesQuery.isLoading ? (
-                      <EggLoadingSpinner size={24} message={formatUIText("loading leaderboards")} />
-                    ) : statTopFivesQuery.data ? (
-                      <YStack gap="$4">
-                        {([
-                          { key: "topRunScorers", label: "Top Run Scorers", unit: "runs" },
-                          { key: "topWicketTakers", label: "Top Wicket Takers", unit: "wkts" },
-                          { key: "topFantasyScorers", label: "Top Fantasy Scorers", unit: "pts" },
-                          { key: "topSixHitters", label: "Most Sixes", unit: "6s" },
-                          { key: "topCatchers", label: "Most Catches", unit: "catches" },
-                          { key: "mostConsistent", label: "Most Consistent", unit: "avg pts" },
-                        ] as const).map(({ key, label, unit }) => {
-                          const entries = (statTopFivesQuery.data as any)?.[key] ?? [];
-                          if (entries.length === 0) return null;
-                          return (
-                            <YStack key={key}>
-                              <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5} marginBottom="$1">
-                                {formatBadgeText(label)}
-                              </Text>
-                              {entries.map((e: any, i: number) => (
-                                <XStack key={e.playerId || i} alignItems="center" paddingVertical={2} gap="$2">
-                                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted" width={16}>{i + 1}.</Text>
-                                  <Text fontFamily="$body" fontSize={11} color="$color" flex={1} numberOfLines={1}>{e.playerName}</Text>
-                                  <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$accentBackground">{e.value}</Text>
-                                  <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{unit}</Text>
-                                </XStack>
-                              ))}
-                            </YStack>
-                          );
-                        })}
-                      </YStack>
-                    ) : (
-                      <Text {...textStyles.hint} textAlign="center">{formatUIText("no tournament data available")}</Text>
-                    )}
-                  </Card>
-                </Animated.View>
-              )}
-            </>
-          )}
-        </Animated.View>
+                      ))}
+                    </YStack>
+                  ) : (
+                    <Text {...textStyles.hint} textAlign="center">{formatUIText("no scoring data available")}</Text>
+                  )}
+                </Card>
+              </Animated.View>
+            )}
+          </Animated.View>
         )}
 
         {/* ── Tournament link (subtle footer) ── */}
@@ -1597,6 +1053,32 @@ export default function MatchScreen() {
           </Animated.View>
         )}
       </RNScrollView>
+
+      {/* H2H Stake Picker Modal */}
+      {dbMatchUuid && (
+        <StakePickerModal
+          visible={showStakePicker}
+          onClose={() => setShowStakePicker(false)}
+          onConfirm={(stake) => {
+            setShowStakePicker(false);
+            // Defer H2H contest creation — store stake in flowState, create contest only when team is submitted
+            setFlowState({
+              step: "team_build",
+              contestType: "h2h",
+              contestName: `${user?.displayName || user?.username || "My"}'s H2H Duel`,
+              entryFee: stake,
+              stake,
+            });
+            setMatchContext({ matchId: dbMatchUuid!, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined });
+            router.push("/team/create");
+          }}
+          teamA={teamA}
+          teamB={teamB}
+          userBalance={walletQuery.data?.coinBalance ?? 0}
+          isCreating={false}
+        />
+      )}
+
       <Paywall {...paywallProps} />
     </YStack>
   );

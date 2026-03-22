@@ -23,7 +23,7 @@ import type {
 // Category inference (same logic as ESPN mapper)
 // ---------------------------------------------------------------------------
 
-function inferCategory(name: string): TournamentCategory {
+export function inferCategory(name: string): TournamentCategory {
   const n = name.toLowerCase();
 
   if (
@@ -60,14 +60,11 @@ function inferCategory(name: string): TournamentCategory {
 
 /**
  * Check if a tournament should be included.
- * Filters out: women's tournaments, minor bilateral (non-top-8 nations),
+ * Filters out: "A" team tours, minor bilateral (non-top-8 nations),
  * sub-regional qualifiers, domestic, and obscure events.
  */
 export function shouldIncludeTournament(name: string): boolean {
   const n = name.toLowerCase();
-
-  // Always exclude women's tournaments (for now)
-  if (n.includes("women") || n.includes("woman")) return false;
 
   // Exclude "A" team / Lions tours
   if (/\b[a-z]+ a\b/.test(n) || n.includes("lions")) return false;
@@ -81,16 +78,39 @@ export function shouldIncludeTournament(name: string): boolean {
   // Exclude postponed tournaments
   if (n.includes("postponed")) return false;
 
+  // Exclude U19 / youth events
+  if (n.includes("under-19") || n.includes("u-19") || n.includes("u19")) return false;
+
   const category = inferCategory(name);
+
+  const topNations = [
+    "india", "australia", "england", "south africa", "new zealand",
+    "pakistan", "sri lanka", "west indies", "bangladesh", "afghanistan",
+  ];
+
+  // Cricbuzz abbreviations for top nations (used on live scores page: "WIW v AUSW")
+  const topNationAbbrevs = [
+    "ind", "aus", "eng", "sa", "nz", "pak", "sl", "wi", "ban", "afg",
+    "indw", "ausw", "engw", "saw", "nzw", "pakw", "slw", "wiw", "banw", "afgw",
+  ];
+
+  const hasTopNation = topNations.some((nation) => n.includes(nation))
+    || topNationAbbrevs.some((abbr) => new RegExp(`\\b${abbr}\\b`).test(n));
 
   // For bilateral series, only include top cricket nations
   if (category === "bilateral") {
-    const topNations = [
-      "india", "australia", "england", "south africa", "new zealand",
-      "pakistan", "sri lanka", "west indies", "bangladesh", "afghanistan",
-    ];
-    const hasTopNation = topNations.some((nation) => n.includes(nation));
     if (!hasTopNation) return false;
+  }
+
+  // For international events (tri-series, etc.), also require at least one top nation
+  // This filters out minor events like "Portugal T20I Tri-Series", "Mexico T20I Tri-Series"
+  if (category === "international") {
+    // Keep ICC events, World Cups, Champions Trophy, Asia Cup, etc.
+    const isMajorEvent = n.includes("icc") || n.includes("world cup") || n.includes("champions trophy")
+      || n.includes("asia cup") || n.includes("wtc") || n.includes("world test");
+    if (!isMajorEvent) {
+      if (!hasTopNation) return false;
+    }
   }
 
   return category === "international" || category === "league" || category === "bilateral" || category === "qualifier";
@@ -140,8 +160,8 @@ function mapMatchState(state: string, statusText: string): AIMatchStatus {
 function formatDateFromTimestamp(tsMs: string | number): string {
   try {
     const ts = typeof tsMs === "string" ? parseInt(tsMs, 10) : tsMs;
-    const d = new Date(ts);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    // Return ISO string — the persistence layer detects ISO and skips lossy re-parsing
+    return new Date(ts).toISOString();
   } catch {
     return "";
   }
@@ -150,13 +170,8 @@ function formatDateFromTimestamp(tsMs: string | number): string {
 function formatTimeFromTimestamp(tsMs: string | number): string {
   try {
     const ts = typeof tsMs === "string" ? parseInt(tsMs, 10) : tsMs;
-    const d = new Date(ts);
-    return d.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "Asia/Kolkata",
-    }) + " IST";
+    // Return ISO string — avoids lossy timezone round-trip through display strings
+    return new Date(ts).toISOString();
   } catch {
     return "";
   }
@@ -176,7 +191,7 @@ function formatIsoDate(tsMs: string | number): string | null {
  * Year is stripped so names stay clean for users (e.g. "Indian Premier League").
  * Tournament linking uses externalId (cb-{seriesId}), not name.
  */
-function cleanSeriesName(name: string): string {
+export function cleanSeriesName(name: string): string {
   return name
     .replace(/\s*\(Postponed\)\s*/gi, " ")
     .replace(/\s*\d{4}(-\d{2,4})?\s*$/, "")
@@ -245,7 +260,7 @@ function parseDateWithYear(dateStr: string, inferredYear: number | null): string
 /**
  * Parse a date range like "Mar 14 - May 30" using year inference from series name.
  */
-function parseDateRange(
+export function parseDateRange(
   dateRange: string | null,
   seriesName: string
 ): { startDate: string | null; endDate: string | null } {
