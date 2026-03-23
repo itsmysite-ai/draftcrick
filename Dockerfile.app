@@ -20,6 +20,7 @@ RUN pnpm install --frozen-lockfile
 
 # Build
 FROM deps AS build
+COPY tamagui.config.ts ./tamagui.config.ts
 COPY apps/mobile/ ./apps/mobile/
 COPY packages/ui/ ./packages/ui/
 COPY packages/shared/ ./packages/shared/
