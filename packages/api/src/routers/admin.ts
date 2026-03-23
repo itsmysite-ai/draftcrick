@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { router, adminProcedure } from "../trpc";
+import { router, adminProcedure, supportProcedure } from "../trpc";
 import {
   tournaments,
   matches,
@@ -13,8 +13,11 @@ import {
   contests,
   fantasyTeams,
   users,
+  userProfiles,
   wallets,
   transactions,
+  subscriptions,
+  subscriptionEvents,
   dataRefreshLog,
   adminConfig,
   getDb,
@@ -1817,10 +1820,33 @@ const configRouter = router({
   getFeatureFlags: adminProcedure.query(async () => {
     return getFeatureFlags();
   }),
+
+  // Early access feature flags (elite-only → pro_and_above → all rollout)
+  getEarlyAccessFlags: adminProcedure.query(async () => {
+    const { getFeatureFlags: getEAFlags } = await import("../services/feature-flags");
+    return getEAFlags();
+  }),
+
+  updateEarlyAccessFlag: adminProcedure
+    .input(
+      z.object({
+        key: z.string().min(1),
+        access: z.enum(["elite_only", "pro_and_above", "all", "disabled"]),
+        badge: z.enum(["early_access"]).nullable().default(null),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { updateFeatureFlags } = await import("../services/feature-flags");
+      await updateFeatureFlags(
+        { [input.key]: { access: input.access, badge: input.badge } },
+        ctx.user.id
+      );
+      return { success: true };
+    }),
 });
 
 const usersRouter = router({
-  list: adminProcedure
+  list: supportProcedure
     .input(
       z.object({
         search: z.string().optional(),
@@ -1854,14 +1880,58 @@ const usersRouter = router({
       return rows;
     }),
 
+  /** Get full user detail — all DB fields, profile, wallet, subscription, events */
+  getDetail: supportProcedure
+    .input(z.object({ userId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const user = await ctx.db.query.users.findFirst({
+        where: eq(users.id, input.userId),
+      });
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
+      const profile = await ctx.db.query.userProfiles.findFirst({
+        where: eq(userProfiles.userId, input.userId),
+      });
+
+      const wallet = await ctx.db.query.wallets.findFirst({
+        where: eq(wallets.userId, input.userId),
+      });
+
+      const subscription = await ctx.db.query.subscriptions.findFirst({
+        where: eq(subscriptions.userId, input.userId),
+      });
+
+      const events = await ctx.db
+        .select()
+        .from(subscriptionEvents)
+        .where(eq(subscriptionEvents.userId, input.userId))
+        .orderBy(desc(subscriptionEvents.createdAt))
+        .limit(50);
+
+      const recentTransactions = await ctx.db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.userId, input.userId))
+        .orderBy(desc(transactions.createdAt))
+        .limit(20);
+
+      return { user, profile, wallet, subscription, events, recentTransactions };
+    }),
+
   updateRole: adminProcedure
     .input(
       z.object({
         userId: z.string().uuid(),
-        role: z.enum(["user", "admin", "moderator"]),
+        role: z.enum(["user", "admin", "moderator", "support"]),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Look up user to get firebaseUid for claims sync
+      const existingUser = await ctx.db.query.users.findFirst({
+        where: eq(users.id, input.userId),
+      });
+      if (!existingUser) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
       const [updated] = await ctx.db
         .update(users)
         .set({ role: input.role, updatedAt: new Date() })
@@ -1872,9 +1942,137 @@ const usersRouter = router({
           role: users.role,
         });
 
-      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      // Sync role to Firebase custom claims so frontend can read it
+      try {
+        const { setUserClaims } = await import("../services/auth");
+        const isStaff = input.role === "admin" || input.role === "support";
+        await setUserClaims(existingUser.firebaseUid, {
+          role: input.role,
+          admin: input.role === "admin",
+          support: input.role === "support",
+          ...(isStaff ? {} : { admin: false, support: false }),
+        });
+      } catch (err) {
+        log.warn({ userId: input.userId, error: err }, "Failed to sync Firebase claims — user may need to re-login");
+      }
+
       log.info({ userId: input.userId, newRole: input.role }, "User role updated by admin");
-      return updated;
+      return updated!;
+    }),
+
+  /** Override a user's tier — accessible to support role */
+  overrideTier: supportProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        tier: z.enum(["basic", "pro", "elite"]),
+        reason: z.string().min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { invalidateUserTierCache } = await import("../services/subscription");
+
+      const existing = await ctx.db.query.subscriptions.findFirst({
+        where: eq(subscriptions.userId, input.userId),
+      });
+
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setFullYear(periodEnd.getFullYear() + 10);
+
+      if (existing) {
+        await ctx.db
+          .update(subscriptions)
+          .set({
+            tier: input.tier,
+            status: "active",
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            cancelAtPeriodEnd: false,
+            updatedAt: now,
+          })
+          .where(eq(subscriptions.id, existing.id));
+
+        await ctx.db.insert(subscriptionEvents).values({
+          userId: input.userId,
+          subscriptionId: existing.id,
+          event: "admin_override",
+          fromTier: existing.tier,
+          toTier: input.tier,
+          metadata: { reason: input.reason, adminId: ctx.user.id },
+        });
+      } else {
+        const result = await ctx.db
+          .insert(subscriptions)
+          .values({
+            userId: input.userId,
+            tier: input.tier,
+            status: "active",
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            billingCycle: "yearly",
+            priceInPaise: "0",
+          })
+          .returning({ id: subscriptions.id });
+
+        await ctx.db.insert(subscriptionEvents).values({
+          userId: input.userId,
+          subscriptionId: result[0]!.id,
+          event: "admin_override",
+          fromTier: "basic",
+          toTier: input.tier,
+          metadata: { reason: input.reason, adminId: ctx.user.id },
+        });
+      }
+
+      await invalidateUserTierCache(input.userId);
+      log.info({ userId: input.userId, tier: input.tier, reason: input.reason, by: ctx.user.id }, "Tier overridden via support");
+      return { success: true };
+    }),
+
+  /** Grant a Day Pass — accessible to support role */
+  grantDayPass: supportProcedure
+    .input(
+      z.object({
+        userId: z.string().uuid(),
+        reason: z.string().min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { invalidateUserTierCache } = await import("../services/subscription");
+      const { DAY_PASS_CONFIG } = await import("@draftplay/shared");
+
+      const now = new Date();
+      const expiresAt = new Date(now);
+      expiresAt.setHours(expiresAt.getHours() + DAY_PASS_CONFIG.durationHours);
+
+      const sub = await ctx.db.query.subscriptions.findFirst({
+        where: eq(subscriptions.userId, input.userId),
+      });
+
+      if (!sub) throw new TRPCError({ code: "NOT_FOUND", message: "User has no subscription record" });
+
+      await ctx.db
+        .update(subscriptions)
+        .set({
+          dayPassActive: true,
+          dayPassExpiresAt: expiresAt,
+          updatedAt: now,
+        })
+        .where(eq(subscriptions.id, sub.id));
+
+      await ctx.db.insert(subscriptionEvents).values({
+        userId: input.userId,
+        subscriptionId: sub.id,
+        event: "day_pass_purchased",
+        fromTier: sub.tier,
+        toTier: sub.tier,
+        metadata: { reason: input.reason, adminId: ctx.user.id, source: "support_grant" },
+      });
+
+      await invalidateUserTierCache(input.userId);
+      log.info({ userId: input.userId, expiresAt, by: ctx.user.id }, "Day pass granted via support");
+      return { success: true, dayPassExpiresAt: expiresAt };
     }),
 });
 

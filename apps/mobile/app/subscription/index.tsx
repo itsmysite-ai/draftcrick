@@ -1,4 +1,4 @@
-import { ScrollView, RefreshControl, TextInput } from "react-native";
+import { ScrollView, RefreshControl, TextInput, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback, useEffect, useRef } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -21,25 +21,10 @@ import { useAuth } from "../../providers/AuthProvider";
 import type { TierConfig } from "@draftplay/shared";
 import { DAY_PASS_CONFIG } from "@draftplay/shared";
 import { Platform } from "react-native";
+import { getPlatform, purchaseProduct, restorePurchases, supportsNativeIAP } from "../../services/iap";
 
-/** Detect if user is likely in India (INR pricing only, no USD) */
-function useIsIndianUser(): boolean {
-  try {
-    if (Platform.OS === "web") {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (tz?.startsWith("Asia/Kolkata") || tz?.startsWith("Asia/Calcutta")) return true;
-      const lang = navigator?.language ?? "";
-      if (lang.includes("-IN") || lang === "hi") return true;
-    }
-    // On native, check locale
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale ?? "";
-    if (locale.includes("-IN") || locale.includes("_IN")) return true;
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return tz?.startsWith("Asia/Kolkata") || tz?.startsWith("Asia/Calcutta") || false;
-  } catch {
-    return true; // Default to Indian for our primary market
-  }
-}
+// India-only launch — always show INR pricing
+const isIOS = Platform.OS === "ios";
 
 interface AlertState {
   visible: boolean;
@@ -79,7 +64,6 @@ export default function SubscriptionScreen() {
   const theme = useTamaguiTheme();
 
   const { user } = useAuth();
-  const isIndianFallback = useIsIndianUser();
   const [refreshing, setRefreshing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoResult, setPromoResult] = useState<{ valid: boolean; discountDisplay?: string } | null>(null);
@@ -117,11 +101,8 @@ export default function SubscriptionScreen() {
     retry: false,
   });
 
-  // Use server-returned country (IP-based in live mode, declared in stub mode)
-  const userCountry = (myTier.data as any)?.country as string | null;
-  const pricingSource = (myTier.data as any)?.pricingSource as "ip" | "declared" | "fallback" | null;
-  const pricingMode = (myTier.data as any)?.pricingMode as "stub" | "live" | null;
-  const isIndian = userCountry ? userCountry.toUpperCase() === "IN" || userCountry.toLowerCase() === "india" : isIndianFallback;
+  // India-only launch — always INR
+  const isIndian = true;
 
   const tierConfigs = trpc.subscription.getTierConfigs.useQuery(undefined, { retry: false });
   const history = trpc.subscription.getHistory.useQuery(undefined, {
@@ -130,7 +111,32 @@ export default function SubscriptionScreen() {
   });
 
   const subscribeMutation = trpc.subscription.subscribe.useMutation({
-    onSuccess: (data: { tier: string; discountApplied: number; isTrialing?: boolean }) => {
+    onSuccess: async (data: { tier: string; discountApplied: number; isTrialing?: boolean; provider?: string; productId?: string; checkoutUrl?: string }) => {
+      // iOS: Apple IAP flow — present native payment sheet
+      if (data.provider === "apple" && data.productId) {
+        const result = await purchaseProduct(data.productId);
+        if (!result.success) {
+          if (result.error !== "Purchase cancelled") {
+            showInfo("Purchase Failed", result.error ?? "Apple payment failed");
+          }
+          return;
+        }
+        // Purchase succeeded — webhook will activate. Poll for status.
+        showInfo("Processing", "Your subscription is being activated. This may take a moment.");
+        setTimeout(() => { myTier.refetch(); history.refetch(); }, 3000);
+        return;
+      }
+
+      // Razorpay: open checkout URL (Android/Web)
+      if (data.checkoutUrl) {
+        const { Linking } = require("react-native");
+        await Linking.openURL(data.checkoutUrl);
+        // Poll for activation after user returns
+        setTimeout(() => { myTier.refetch(); history.refetch(); }, 5000);
+        return;
+      }
+
+      // Stub mode or trial: immediate activation
       myTier.refetch();
       history.refetch();
       const discount = data.discountApplied > 0 ? ` (saved ₹${(data.discountApplied / 100).toFixed(0)})` : "";
@@ -145,7 +151,30 @@ export default function SubscriptionScreen() {
   });
 
   const dayPassMutation = trpc.subscription.purchaseDayPass.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data: any) => {
+      // iOS: Apple IAP flow
+      if (data.provider === "apple" && data.productId) {
+        const result = await purchaseProduct(data.productId);
+        if (!result.success) {
+          if (result.error !== "Purchase cancelled") {
+            showInfo("Purchase Failed", result.error ?? "Apple payment failed");
+          }
+          return;
+        }
+        showInfo("Processing", "Your Day Pass is being activated.");
+        setTimeout(() => { myTier.refetch(); history.refetch(); }, 3000);
+        return;
+      }
+
+      // Razorpay checkout URL
+      if (data.checkoutUrl) {
+        const { Linking } = require("react-native");
+        await Linking.openURL(data.checkoutUrl);
+        setTimeout(() => { myTier.refetch(); history.refetch(); }, 5000);
+        return;
+      }
+
+      // Stub mode: immediate activation
       myTier.refetch();
       history.refetch();
       showInfo("Day Pass Activated", `You have Elite access for the next ${DAY_PASS_CONFIG.durationHours} hours.`);
@@ -212,7 +241,8 @@ export default function SubscriptionScreen() {
       "Subscribe",
       () => subscribeMutation.mutate({
         tier,
-        promoCode: promoResult?.valid ? promoCode : undefined,
+        promoCode: isIOS ? undefined : (promoResult?.valid ? promoCode : undefined),
+        platform: getPlatform(),
       }),
     );
   };
@@ -220,9 +250,9 @@ export default function SubscriptionScreen() {
   const handleDayPass = () => {
     showConfirm(
       "Purchase Day Pass",
-      `Get full Elite access for 24 hours at ${isIndian ? `₹${(DAY_PASS_CONFIG.priceINR / 100).toFixed(0)}` : `$${(DAY_PASS_CONFIG.priceUSD / 100).toFixed(2)}`}.`,
+      `Get full Elite access for 24 hours at ₹${((isIOS ? DAY_PASS_CONFIG.priceINR_iOS : DAY_PASS_CONFIG.priceINR) / 100).toFixed(0)}.`,
       "Buy Day Pass",
-      () => dayPassMutation.mutate(),
+      () => dayPassMutation.mutate({ platform: getPlatform() }),
     );
   };
 
@@ -319,7 +349,7 @@ export default function SubscriptionScreen() {
         <HeaderControls />
       </XStack>
 
-      {/* Geo-pricing notification */}
+      {/* TODO(geo-pricing): Restore geo-pricing banner when multi-currency launches
       {pricingMode === "live" && pricingSource === "ip" && (
         <Animated.View entering={FadeInDown.delay(20).springify()}>
           <XStack
@@ -341,6 +371,7 @@ export default function SubscriptionScreen() {
           </XStack>
         </Animated.View>
       )}
+      */}
 
       {/* Current Plan */}
       <Animated.View entering={FadeInDown.delay(40).springify()}>
@@ -504,7 +535,7 @@ export default function SubscriptionScreen() {
               {/* Price — yearly */}
               <XStack alignItems="baseline" gap="$1" marginBottom="$1">
                 <Text fontFamily="$mono" fontWeight="800" fontSize={28} color="$accentBackground">
-                  {isIndian ? `₹${((tier as any).priceYearlyINR / 100).toFixed(0)}` : `$${((tier as any).priceYearlyUSD / 100).toFixed(2)}`}
+                  {isIndian ? `₹${((isIOS ? (tier as any).priceYearlyINR_iOS : (tier as any).priceYearlyINR) / 100).toFixed(0)}` : `$${((tier as any).priceYearlyUSD / 100).toFixed(2)}`}
                 </Text>
                 <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
                   /year
@@ -512,7 +543,7 @@ export default function SubscriptionScreen() {
               </XStack>
               {!isIndian && (
                 <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginBottom="$1">
-                  ₹{((tier as any).priceYearlyINR / 100).toFixed(0)}/yr
+                  ₹{((isIOS ? (tier as any).priceYearlyINR_iOS : (tier as any).priceYearlyINR) / 100).toFixed(0)}/yr
                 </Text>
               )}
               {(tier as any).hasFreeTrial && (
@@ -644,6 +675,41 @@ export default function SubscriptionScreen() {
           ))}
         </Animated.View>
       )}
+
+      {/* Support Contact */}
+      <Animated.View entering={FadeInDown.delay(340).springify()}>
+        <Card
+          marginHorizontal="$4"
+          marginTop="$4"
+          marginBottom="$6"
+          padding="$4"
+          pressable
+          onPress={() => Linking.openURL("mailto:support@draftplay.ai?subject=DraftPlay%20Subscription%20Help")}
+          testID="support-contact-card"
+        >
+          <XStack alignItems="center" gap="$3">
+            <YStack
+              width={36}
+              height={36}
+              borderRadius={18}
+              backgroundColor="$backgroundSurface"
+              alignItems="center"
+              justifyContent="center"
+            >
+              <Text fontSize={16}>✉️</Text>
+            </YStack>
+            <YStack flex={1}>
+              <Text fontFamily="$mono" fontWeight="600" fontSize={13} color="$color">
+                {formatUIText("need help?")}
+              </Text>
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                support@draftplay.ai
+              </Text>
+            </YStack>
+            <Text fontSize={14} color="$colorMuted">→</Text>
+          </XStack>
+        </Card>
+      </Animated.View>
     </ScrollView>
 
     {/* Custom Alert Modal */}
@@ -724,8 +790,8 @@ export default function SubscriptionScreen() {
               >
                 <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$accentBackground">
                   {isIndian
-                    ? `₹${((tiers.find(t => t.id === "pro") as any)?.priceYearlyINR / 100 ?? 889).toFixed(0)}`
-                    : `$${((tiers.find(t => t.id === "pro") as any)?.priceYearlyUSD / 100 ?? 19.99).toFixed(2)}`}
+                    ? `₹${(((isIOS ? (tiers.find(t => t.id === "pro") as any)?.priceYearlyINR_iOS : (tiers.find(t => t.id === "pro") as any)?.priceYearlyINR) ?? 88900) / 100).toFixed(0)}`
+                    : `$${(((tiers.find(t => t.id === "pro") as any)?.priceYearlyUSD ?? 1999) / 100).toFixed(2)}`}
                 </Text>
                 <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
                   /year — Pro plan
@@ -765,8 +831,8 @@ export default function SubscriptionScreen() {
               >
                 <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$accentBackground">
                   {isIndian
-                    ? `₹${((tiers.find(t => t.id === "basic") as any)?.priceYearlyINR / 100 ?? 289).toFixed(0)}`
-                    : `$${((tiers.find(t => t.id === "basic") as any)?.priceYearlyUSD / 100 ?? 5.99).toFixed(2)}`}
+                    ? `₹${(((isIOS ? (tiers.find(t => t.id === "basic") as any)?.priceYearlyINR_iOS : (tiers.find(t => t.id === "basic") as any)?.priceYearlyINR) ?? 28900) / 100).toFixed(0)}`
+                    : `$${(((tiers.find(t => t.id === "basic") as any)?.priceYearlyUSD ?? 599) / 100).toFixed(2)}`}
                 </Text>
                 <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
                   /year — Basic plan

@@ -75,17 +75,24 @@ export const subscriptionRouter = router({
       z.object({
         tier: z.enum(["basic", "pro", "elite"]),
         promoCode: z.string().optional(),
+        platform: z.enum(["ios", "android", "web"]).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return subscribeTier(ctx.db, ctx.user.id, input.tier, input.promoCode, ctx.user.email);
+      return subscribeTier(ctx.db, ctx.user.id, input.tier, input.promoCode, ctx.user.email, input.platform);
     }),
 
   /**
    * Purchase a Day Pass — 24hr Elite access.
    */
-  purchaseDayPass: protectedProcedure.mutation(async ({ ctx }) => {
-    return purchaseDayPass(ctx.db, ctx.user.id, ctx.user.email);
+  purchaseDayPass: protectedProcedure
+    .input(
+      z.object({
+        platform: z.enum(["ios", "android", "web"]).optional(),
+      }).optional()
+    )
+    .mutation(async ({ ctx, input }) => {
+    return purchaseDayPass(ctx.db, ctx.user.id, ctx.user.email, input?.platform);
   }),
 
   /**
@@ -139,6 +146,15 @@ export const subscriptionRouter = router({
     return getSubscriptionHistory(ctx.db, ctx.user.id);
   }),
 
+  /**
+   * Get features available to the current user's tier, with early access badges.
+   */
+  getMyFeatures: protectedProcedure.query(async ({ ctx }) => {
+    const { getFeaturesForTier } = await import("../services/feature-flags");
+    const tier = ctx.tier ?? "basic";
+    return getFeaturesForTier(tier as any);
+  }),
+
   // -------------------------------------------------------------------------
   // Admin endpoints — tier config, promo codes, user management
   // -------------------------------------------------------------------------
@@ -162,6 +178,7 @@ export const subscriptionRouter = router({
             z.enum(["basic", "pro", "elite"]),
             z.object({
               priceYearlyINR: z.number().optional(),
+              priceYearlyINR_iOS: z.number().optional(),
               priceYearlyUSD: z.number().optional(),
               hasFreeTrial: z.boolean().optional(),
               freeTrialDays: z.number().int().min(0).optional(),
@@ -434,6 +451,15 @@ export const subscriptionRouter = router({
       }),
 
     /**
+     * Get a specific user's subscription event history (for support resolution).
+     */
+    getUserEvents: adminProcedure
+      .input(z.object({ userId: z.string().uuid() }))
+      .query(async ({ ctx, input }) => {
+        return getSubscriptionHistory(ctx.db, input.userId);
+      }),
+
+    /**
      * Expire all Day Passes that have passed their expiry time.
      */
     expireDayPasses: adminProcedure.mutation(async ({ ctx }) => {
@@ -457,6 +483,9 @@ export const subscriptionRouter = router({
         hasPlanBasic: !!process.env.RAZORPAY_PLAN_BASIC,
         hasPlanPro: !!process.env.RAZORPAY_PLAN_PRO,
         hasPlanElite: !!process.env.RAZORPAY_PLAN_ELITE,
+        // RevenueCat / Apple IAP
+        hasRevenueCatApiKey: !!process.env.EXPO_PUBLIC_REVENUECAT_API_KEY,
+        hasRevenueCatWebhookKey: !!process.env.REVENUECAT_WEBHOOK_AUTH_KEY,
       };
     }),
 

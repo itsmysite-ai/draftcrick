@@ -19,7 +19,7 @@ export const users = pgTable("users", {
   username: text("username").unique().notNull(),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
-  role: text("role").notNull().default("user"), // user, admin, moderator
+  role: text("role").notNull().default("user"), // user, admin, support, moderator
   kycStatus: text("kyc_status").notNull().default("pending"), // pending, verified, rejected
   preferredLang: text("preferred_lang").notNull().default("en"),
   ageConfirmed: boolean("age_confirmed").notNull().default(false),

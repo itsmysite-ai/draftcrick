@@ -1,7 +1,7 @@
 /**
  * Admin Config Service — cached config reader for admin-managed settings.
  *
- * Reads from Redis (5min TTL) → PostgreSQL fallback.
+ * Reads from PG cache (5min TTL) → PostgreSQL fallback.
  * Used by team.ts (rules), sports.ts (visible tournaments), and admin router.
  */
 
@@ -52,10 +52,10 @@ const DEFAULT_TEAM_RULES: TeamRules = {
 // ---------------------------------------------------------------------------
 
 /**
- * Get an admin config value by key. Uses Redis cache with PG fallback.
+ * Get an admin config value by key. Uses PG cache cache with PG fallback.
  */
 export async function getAdminConfig<T = unknown>(key: string): Promise<T | null> {
-  // 1. Try Redis cache
+  // 1. Try PG cache cache
   const cacheKey = `admin-config:${key}`;
   const cached = await getFromHotCache<T>(cacheKey);
   if (cached !== null) return cached;

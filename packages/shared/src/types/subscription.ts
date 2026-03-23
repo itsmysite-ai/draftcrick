@@ -12,6 +12,8 @@
 
 export type SubscriptionTier = "basic" | "pro" | "elite";
 export type SubscriptionStatus = "active" | "cancelled" | "expired" | "past_due" | "trialing";
+export type PaymentProvider = "razorpay" | "apple" | "google" | "admin" | "stub";
+export type PurchasePlatform = "ios" | "android" | "web";
 
 /** Feature flags per tier — every flag is admin-togglable via admin portal */
 export interface TierFeatures {
@@ -49,6 +51,7 @@ export interface TierConfig {
   name: string;
   priceYearlyINR: number;    // INR in paise: 28900, 88900, 189900 (admin-editable)
   priceYearlyUSD: number;    // USD in cents: 599, 1999, 4999 (admin-editable)
+  priceYearlyINR_iOS: number; // Apple IAP INR in paise (closest Apple price tier)
   hasFreeTrial: boolean;      // whether tier offers a free trial (Basic = yes)
   freeTrialDays: number;      // trial duration in days (Basic = 7)
   features: TierFeatures;
@@ -59,6 +62,7 @@ export interface TierConfig {
 export interface DayPassConfig {
   priceINR: number;       // paise (6900 = ₹69)
   priceUSD: number;       // cents (299 = $2.99)
+  priceINR_iOS: number;   // Apple IAP paise (7900 = ₹79, closest Apple tier)
   durationHours: number;  // 24
   effectiveTier: SubscriptionTier; // "elite"
 }
@@ -66,6 +70,7 @@ export interface DayPassConfig {
 export const DAY_PASS_CONFIG: DayPassConfig = {
   priceINR: 6900,
   priceUSD: 299,
+  priceINR_iOS: 7900,
   durationHours: 24,
   effectiveTier: "elite",
 };
@@ -77,6 +82,7 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
     name: "Basic",
     priceYearlyINR: 28900,   // ₹289/yr
     priceYearlyUSD: 599,     // $5.99/yr
+    priceYearlyINR_iOS: 29900, // ₹299/yr (closest Apple price tier)
     hasFreeTrial: true,
     freeTrialDays: 7,
     features: {
@@ -127,6 +133,7 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
     name: "Pro",
     priceYearlyINR: 88900,   // ₹889/yr
     priceYearlyUSD: 1999,    // $19.99/yr
+    priceYearlyINR_iOS: 89900, // ₹899/yr (closest Apple price tier)
     hasFreeTrial: false,
     freeTrialDays: 0,
     features: {
@@ -180,6 +187,7 @@ export const DEFAULT_TIER_CONFIGS: Record<SubscriptionTier, TierConfig> = {
     name: "Elite",
     priceYearlyINR: 189900,  // ₹1,899/yr
     priceYearlyUSD: 4999,    // $49.99/yr
+    priceYearlyINR_iOS: 189900, // ₹1,899/yr (exact Apple price tier match)
     hasFreeTrial: false,
     freeTrialDays: 0,
     features: {
@@ -249,3 +257,18 @@ export function getEffectiveTier(
 
 /** Promo code discount types */
 export type PromoDiscountType = "percentage" | "fixed_amount" | "free_trial";
+
+/** RevenueCat product IDs — must match App Store Connect / Google Play Console */
+export const REVENUECAT_PRODUCT_IDS: Record<SubscriptionTier, string> = {
+  basic: "draftplay_basic_yearly",
+  pro: "draftplay_pro_yearly",
+  elite: "draftplay_elite_yearly",
+};
+export const REVENUECAT_DAYPASS_PRODUCT_ID = "draftplay_daypass_24hr";
+
+/** RevenueCat entitlement IDs */
+export const REVENUECAT_ENTITLEMENTS: Record<SubscriptionTier, string> = {
+  basic: "basic_access",
+  pro: "pro_access",
+  elite: "elite_access",
+};

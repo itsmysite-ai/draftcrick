@@ -20,7 +20,9 @@ const btnStyle = (pending: boolean) => ({
 } as const);
 
 export default function SystemPage() {
-  const [sport, setSport] = useState<"cricket" | "f1">("cricket");
+  // TODO(f1-launch): Restore sport selector when F1 launches
+  // const [sport, setSport] = useState<"cricket" | "f1">("cricket");
+  const sport = "cricket" as const;
   const [page, setPage] = useState(0);
   const [showEspnPreview, setShowEspnPreview] = useState(false);
 
@@ -54,14 +56,26 @@ export default function SystemPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>System</h1>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select
-            value={sport}
-            onChange={(e) => setSport(e.target.value as "cricket" | "f1")}
-            style={selectStyle}
-          >
+          {/* TODO(f1-launch): Restore sport selector dropdown
+          <select value={sport} onChange={(e) => setSport(e.target.value as "cricket" | "f1")} style={selectStyle}>
             <option value="cricket">Cricket</option>
             <option value="f1">F1</option>
           </select>
+          */}
+          <span
+            style={{
+              padding: "8px 12px",
+              borderRadius: 6,
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--bg-surface)",
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "var(--font-data)",
+              color: "var(--text-primary)",
+            }}
+          >
+            Cricket
+          </span>
           <select
             value={currentDataSource}
             onChange={(e) => setDataSource.mutate({ dataSource: e.target.value as "auto" | "espn" | "jolpica" | "gemini" | "cricbuzz" })}

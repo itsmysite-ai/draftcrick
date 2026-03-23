@@ -53,6 +53,12 @@ export function SubscribersManager() {
     reason: string;
   } | null>(null);
 
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const userEvents = trpc.subscription.admin.getUserEvents.useQuery(
+    { userId: selectedUserId! },
+    { enabled: !!selectedUserId }
+  );
+
   // Compute metrics from data
   const metricData = metrics.data?.subscriptionsByTierAndStatus ?? [];
   const activeByTier = (tier: string) =>
@@ -162,6 +168,39 @@ export function SubscribersManager() {
             render: (row: any) => row.priceInPaise ? `₹${(Number(row.priceInPaise) / 100).toFixed(0)}` : "-",
           },
           {
+            key: "paymentProvider",
+            header: "Provider",
+            width: "80px",
+            render: (row: any) => {
+              const provider = row.paymentProvider ?? "razorpay";
+              const colors: Record<string, { bg: string; fg: string }> = {
+                apple: { bg: "rgba(0,0,0,0.08)", fg: "#333" },
+                razorpay: { bg: "rgba(2,123,227,0.1)", fg: "#027BE3" },
+                admin: { bg: "rgba(212,160,23,0.15)", fg: "#D4A017" },
+                stub: { bg: "var(--border)", fg: "var(--text-muted)" },
+              };
+              const c = colors[provider] ?? colors.stub;
+              return (
+                <span style={{
+                  padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600,
+                  fontFamily: "var(--font-data)", backgroundColor: c.bg, color: c.fg,
+                }}>
+                  {provider}
+                </span>
+              );
+            },
+          },
+          {
+            key: "purchasePlatform",
+            header: "Platform",
+            width: "70px",
+            render: (row: any) => (
+              <span style={{ fontSize: 11, fontFamily: "var(--font-data)", color: "var(--text-muted)" }}>
+                {row.purchasePlatform ?? "-"}
+              </span>
+            ),
+          },
+          {
             key: "currentPeriodEnd",
             header: "Period End",
             width: "110px",
@@ -175,34 +214,117 @@ export function SubscribersManager() {
           },
           {
             key: "actions",
-            header: "Override",
-            width: "100px",
+            header: "Actions",
+            width: "160px",
             render: (row: any) => (
-              <button
-                onClick={() =>
-                  setOverrideForm({
-                    userId: row.userId,
-                    username: row.user?.username ?? row.userId,
-                    tier: row.tier as "basic" | "pro" | "elite",
-                    reason: "",
-                  })
-                }
-                style={{
-                  padding: "3px 10px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 4,
-                  fontSize: 11,
-                  backgroundColor: "transparent",
-                  color: "var(--text-secondary)",
-                  cursor: "pointer",
-                }}
-              >
-                Override
-              </button>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button
+                  onClick={() => setSelectedUserId(row.userId)}
+                  style={{
+                    padding: "3px 8px",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    backgroundColor: "transparent",
+                    color: "var(--text-secondary)",
+                    cursor: "pointer",
+                  }}
+                >
+                  History
+                </button>
+                <button
+                  onClick={() =>
+                    setOverrideForm({
+                      userId: row.userId,
+                      username: row.user?.username ?? row.userId,
+                      tier: row.tier as "basic" | "pro" | "elite",
+                      reason: "",
+                    })
+                  }
+                  style={{
+                    padding: "3px 8px",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    backgroundColor: "transparent",
+                    color: "var(--text-secondary)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Override
+                </button>
+              </div>
             ),
           },
         ]}
       />
+
+      {/* User Event History Panel */}
+      {selectedUserId && (
+        <div style={sectionStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600 }}>
+              Subscription Event History
+            </h3>
+            <button
+              onClick={() => setSelectedUserId(null)}
+              style={{
+                padding: "4px 12px", border: "1px solid var(--border)", borderRadius: 4,
+                fontSize: 12, backgroundColor: "transparent", color: "var(--text-secondary)", cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+          {userEvents.isLoading ? (
+            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading events...</p>
+          ) : !userEvents.data?.length ? (
+            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>No events found for this user.</p>
+          ) : (
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, color: "var(--text-muted)" }}>Event</th>
+                  <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, color: "var(--text-muted)" }}>From</th>
+                  <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, color: "var(--text-muted)" }}>To</th>
+                  <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, color: "var(--text-muted)" }}>Date</th>
+                  <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, color: "var(--text-muted)" }}>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {userEvents.data.map((evt: any) => (
+                  <tr key={evt.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ padding: "6px 8px" }}>
+                      <span style={{
+                        padding: "2px 6px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                        fontFamily: "var(--font-data)",
+                        backgroundColor:
+                          evt.event === "admin_override" ? "rgba(212,160,23,0.15)" :
+                          evt.event === "cancelled" ? "rgba(229,72,77,0.1)" :
+                          "rgba(16,185,129,0.1)",
+                        color:
+                          evt.event === "admin_override" ? "#D4A017" :
+                          evt.event === "cancelled" ? "var(--red)" :
+                          "var(--accent)",
+                      }}>
+                        {evt.event.replace(/_/g, " ")}
+                      </span>
+                    </td>
+                    <td style={{ padding: "6px 8px", fontFamily: "var(--font-data)" }}>{evt.fromTier ?? "-"}</td>
+                    <td style={{ padding: "6px 8px", fontFamily: "var(--font-data)" }}>{evt.toTier ?? "-"}</td>
+                    <td style={{ padding: "6px 8px", color: "var(--text-muted)" }}>
+                      {new Date(evt.createdAt).toLocaleString()}
+                    </td>
+                    <td style={{ padding: "6px 8px", fontSize: 11, color: "var(--text-muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {evt.metadata ? JSON.stringify(evt.metadata) : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Override Modal */}
       {overrideForm && (

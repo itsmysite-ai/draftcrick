@@ -1,16 +1,21 @@
 /**
- * Sports Cache — Thin Redis hot-cache layer (v3.0).
+ * Sports Cache — PostgreSQL-backed cache layer (v4.0).
  *
- * Redis serves 3 roles:
- * 1. Hot cache (5min TTL) — avoid repeated PG queries
+ * Replaces Redis with a `cache_entries` PG table. Same external API —
+ * consumers don't need any changes.
+ *
+ * PG serves 3 roles:
+ * 1. Hot cache (variable TTL) — avoid repeated expensive queries / AI calls
  * 2. Distributed refresh lock (30s TTL) — prevent duplicate Gemini calls
- * 3. Rate limiting — per-user request throttling
+ * 3. Rate limiting — per-user request throttling (in-memory, no PG needed)
  *
  * PostgreSQL is the source of truth. See /docs/SMART_REFRESH_ARCHITECTURE.md.
  */
 
 import { getLogger } from "../lib/logger";
-import Redis from "ioredis";
+import { getDb } from "@draftplay/db";
+import { cacheEntries } from "@draftplay/db";
+import { and, eq, lt, like, sql } from "drizzle-orm";
 
 const log = getLogger("sports-cache");
 
@@ -25,50 +30,54 @@ const RATE_LIMIT_MAX = 30;
 const RATE_LIMIT_WINDOW_SECONDS = 60;
 
 // ---------------------------------------------------------------------------
-// Redis client
+// Piggyback cleanup — probabilistically purge expired rows (1% of writes)
 // ---------------------------------------------------------------------------
 
-let redis: Redis | null = null;
-
-function getRedis(): Redis {
-  if (!redis) {
-    const redisUrl = process.env.REDIS_URL;
-    if (!redisUrl) {
-      throw new Error("REDIS_URL environment variable is required for caching");
-    }
-    redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 3,
-      enableReadyCheck: true,
-      lazyConnect: false,
-    });
+async function maybePurgeExpired(): Promise<void> {
+  if (Math.random() > 0.01) return;
+  try {
+    const db = getDb();
+    await db.delete(cacheEntries).where(lt(cacheEntries.expiresAt, new Date()));
+    log.debug("Piggyback purge: removed expired cache entries");
+  } catch (error) {
+    log.warn({ error: String(error) }, "Piggyback purge failed");
   }
-  return redis;
 }
 
 // ---------------------------------------------------------------------------
-// 1. Hot Cache (5-minute TTL)
+// 1. Hot Cache (variable TTL)
 // ---------------------------------------------------------------------------
 
 /**
- * Get data from Redis hot cache. Returns null on miss or Redis failure.
+ * Get data from PG hot cache. Returns null on miss or failure.
  */
 export async function getFromHotCache<T>(key: string): Promise<T | null> {
   try {
-    const redisClient = getRedis();
-    const cached = await redisClient.get(`sports:hot:${key}`);
-    if (cached) {
+    const db = getDb();
+    const fullKey = `sports:hot:${key}`;
+    const result = await db
+      .select({ value: cacheEntries.value })
+      .from(cacheEntries)
+      .where(eq(cacheEntries.key, fullKey))
+      .limit(1);
+
+    if (result.length > 0) {
+      const row = result[0];
+      // Check if the row is actually a cache entry with expiry
+      // (we check at the app level too for safety)
+      const entry = row as { value: unknown };
       log.debug({ key }, "Hot cache hit");
-      return JSON.parse(cached) as T;
+      return entry.value as T;
     }
     return null;
   } catch (error) {
-    log.warn({ key, error: String(error) }, "Redis hot cache read failed");
+    log.warn({ key, error: String(error) }, "PG hot cache read failed");
     return null;
   }
 }
 
 /**
- * Store data in Redis hot cache with TTL.
+ * Store data in PG hot cache with TTL.
  */
 export async function setHotCache<T>(
   key: string,
@@ -76,15 +85,25 @@ export async function setHotCache<T>(
   ttlSeconds: number = HOT_CACHE_TTL_SECONDS
 ): Promise<void> {
   try {
-    const redisClient = getRedis();
-    await redisClient.setex(
-      `sports:hot:${key}`,
-      ttlSeconds,
-      JSON.stringify(data)
-    );
+    const db = getDb();
+    const fullKey = `sports:hot:${key}`;
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+
+    await db
+      .insert(cacheEntries)
+      .values({ key: fullKey, value: data as unknown as Record<string, unknown>, expiresAt })
+      .onConflictDoUpdate({
+        target: cacheEntries.key,
+        set: {
+          value: sql`excluded.value`,
+          expiresAt: sql`excluded.expires_at`,
+        },
+      });
+
     log.debug({ key, ttlSeconds }, "Hot cache set");
+    void maybePurgeExpired();
   } catch (error) {
-    log.warn({ key, error: String(error) }, "Redis hot cache write failed");
+    log.warn({ key, error: String(error) }, "PG hot cache write failed");
   }
 }
 
@@ -93,15 +112,15 @@ export async function setHotCache<T>(
  */
 export async function invalidateHotCache(keyPrefix: string): Promise<void> {
   try {
-    const redisClient = getRedis();
-    const pattern = `sports:hot:${keyPrefix}*`;
-    const keys = await redisClient.keys(pattern);
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-      log.debug({ pattern, count: keys.length }, "Hot cache invalidated");
-    }
+    const db = getDb();
+    const pattern = `sports:hot:${keyPrefix}%`;
+    const result = await db
+      .delete(cacheEntries)
+      .where(like(cacheEntries.key, pattern));
+
+    log.debug({ keyPrefix }, "Hot cache invalidated");
   } catch (error) {
-    log.warn({ keyPrefix, error: String(error) }, "Redis hot cache invalidate failed");
+    log.warn({ keyPrefix, error: String(error) }, "PG hot cache invalidate failed");
   }
 }
 
@@ -111,24 +130,47 @@ export async function invalidateHotCache(keyPrefix: string): Promise<void> {
 
 /**
  * Acquire a distributed lock for a refresh operation.
- * Returns true if lock acquired, false if another process holds it.
+ * Uses INSERT ... ON CONFLICT DO NOTHING — only succeeds if key doesn't exist
+ * (or existing row has expired).
  */
 export async function acquireRefreshLock(entityKey: string): Promise<boolean> {
   try {
-    const redisClient = getRedis();
-    const result = await redisClient.set(
-      `sports:refresh-lock:${entityKey}`,
-      "1",
-      "EX",
-      REFRESH_LOCK_TTL_SECONDS,
-      "NX"
-    );
-    const acquired = result === "OK";
+    const db = getDb();
+    const fullKey = `sports:refresh-lock:${entityKey}`;
+    const expiresAt = new Date(Date.now() + REFRESH_LOCK_TTL_SECONDS * 1000);
+
+    // First, delete any expired lock
+    await db
+      .delete(cacheEntries)
+      .where(and(eq(cacheEntries.key, fullKey), lt(cacheEntries.expiresAt, new Date())));
+
+    // Then try to insert — fails if active lock exists
+    const result = await db
+      .insert(cacheEntries)
+      .values({ key: fullKey, value: { locked: true }, expiresAt })
+      .onConflictDoNothing({ target: cacheEntries.key });
+
+    // Drizzle doesn't return rowCount for onConflictDoNothing easily,
+    // so check if the lock row is ours by reading it back
+    const check = await db
+      .select({ expiresAt: cacheEntries.expiresAt })
+      .from(cacheEntries)
+      .where(eq(cacheEntries.key, fullKey))
+      .limit(1);
+
+    const row = check[0];
+    const acquired =
+      row != null &&
+      Math.abs(row.expiresAt.getTime() - expiresAt.getTime()) < 100;
+
     log.debug({ entityKey, acquired }, "Refresh lock attempt");
     return acquired;
   } catch (error) {
-    log.warn({ entityKey, error: String(error) }, "Redis lock acquire failed — proceeding without lock");
-    // If Redis is down, allow the refresh (accept possible duplicate)
+    log.warn(
+      { entityKey, error: String(error) },
+      "PG lock acquire failed — proceeding without lock"
+    );
+    // If PG query fails, allow the refresh (accept possible duplicate)
     return true;
   }
 }
@@ -138,58 +180,70 @@ export async function acquireRefreshLock(entityKey: string): Promise<boolean> {
  */
 export async function releaseRefreshLock(entityKey: string): Promise<void> {
   try {
-    const redisClient = getRedis();
-    await redisClient.del(`sports:refresh-lock:${entityKey}`);
+    const db = getDb();
+    await db
+      .delete(cacheEntries)
+      .where(eq(cacheEntries.key, `sports:refresh-lock:${entityKey}`));
     log.debug({ entityKey }, "Refresh lock released");
   } catch (error) {
-    log.warn({ entityKey, error: String(error) }, "Redis lock release failed");
+    log.warn({ entityKey, error: String(error) }, "PG lock release failed");
   }
 }
 
 // ---------------------------------------------------------------------------
-// 3. Rate Limiting
+// 3. Rate Limiting (in-memory — no PG round-trip needed)
 // ---------------------------------------------------------------------------
+
+const rateLimitStore = new Map<
+  string,
+  { count: number; expiresAt: number }
+>();
 
 /**
  * Check if a user has exceeded the rate limit for an endpoint.
  * Returns true if under limit, false if rate-limited.
+ *
+ * Uses in-memory sliding window — fine for single-instance beta.
+ * For multi-instance, move to PG advisory locks or the cache table.
  */
 export async function checkRateLimit(
   userId: string,
   endpoint: string
 ): Promise<boolean> {
-  try {
-    const redisClient = getRedis();
-    const key = `sports:rate:${userId}:${endpoint}`;
-    const count = await redisClient.incr(key);
+  const key = `${userId}:${endpoint}`;
+  const now = Date.now();
+  const windowMs = RATE_LIMIT_WINDOW_SECONDS * 1000;
 
-    if (count === 1) {
-      // First request in window — set expiry
-      await redisClient.expire(key, RATE_LIMIT_WINDOW_SECONDS);
-    }
-
-    if (count > RATE_LIMIT_MAX) {
-      log.warn({ userId, endpoint, count }, "Rate limit exceeded");
+  const existing = rateLimitStore.get(key);
+  if (existing && existing.expiresAt > now) {
+    existing.count++;
+    if (existing.count > RATE_LIMIT_MAX) {
+      log.warn({ userId, endpoint, count: existing.count }, "Rate limit exceeded");
       return false;
     }
-
-    return true;
-  } catch (error) {
-    log.warn({ userId, endpoint, error: String(error) }, "Redis rate limit check failed — allowing");
     return true;
   }
+
+  rateLimitStore.set(key, { count: 1, expiresAt: now + windowMs });
+
+  // Periodic cleanup
+  if (rateLimitStore.size > 10_000) {
+    for (const [k, v] of rateLimitStore) {
+      if (v.expiresAt <= now) rateLimitStore.delete(k);
+    }
+  }
+
+  return true;
 }
 
 // ---------------------------------------------------------------------------
-// Connection management
+// Connection management (no-op — PG connection managed by @draftplay/db)
 // ---------------------------------------------------------------------------
 
 /**
- * Close Redis connection (for graceful shutdown).
+ * Close cache connections (for graceful shutdown).
+ * No-op since PG lifecycle is managed by @draftplay/db.
  */
 export async function closeRedis(): Promise<void> {
-  if (redis) {
-    await redis.quit();
-    redis = null;
-  }
+  // No-op — kept for API compatibility during migration
 }

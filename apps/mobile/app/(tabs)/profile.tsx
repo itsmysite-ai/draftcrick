@@ -1,4 +1,4 @@
-import { ScrollView } from "react-native";
+import { ScrollView, Linking } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -343,9 +343,9 @@ export default function ProfileScreen() {
         <Animated.View entering={FadeInDown.delay(240).springify()}>
           <XStack gap="$3">
             {[
-              { i: "help-circle-outline" as const, l: "Help & FAQ", route: null },
-              { i: "document-text-outline" as const, l: "Terms", route: "/legal/terms" },
-              { i: "shield-checkmark-outline" as const, l: "Privacy", route: "/legal/privacy" },
+              { i: "mail-outline" as const, l: "Support", route: null, action: () => Linking.openURL("mailto:support@draftplay.ai?subject=DraftPlay%20Support%20Request") },
+              { i: "document-text-outline" as const, l: "Terms", route: "/legal/terms", action: null },
+              { i: "shield-checkmark-outline" as const, l: "Privacy", route: "/legal/privacy", action: null },
             ].map((link, idx) => (
               <Card
                 key={idx}
@@ -353,7 +353,8 @@ export default function ProfileScreen() {
                 flex={1}
                 alignItems="center"
                 gap="$2"
-                onPress={link.route ? () => router.push(link.route as any) : undefined}
+                onPress={link.action ? link.action : link.route ? () => router.push(link.route as any) : undefined}
+                testID={`profile-link-${idx}`}
               >
                 <Ionicons name={link.i} size={18} color={theme.colorMuted.val} />
                 <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$colorMuted">

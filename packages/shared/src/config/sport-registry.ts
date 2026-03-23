@@ -236,7 +236,7 @@ export function getCompositionRules(sport: Sport) {
 }
 
 /** Sports that are fully implemented and available to users */
-export const AVAILABLE_SPORTS: Sport[] = ["cricket", "f1"];
+export const AVAILABLE_SPORTS: Sport[] = ["cricket"];
 
 /** Default sport */
 export const DEFAULT_SPORT: Sport = "cricket";

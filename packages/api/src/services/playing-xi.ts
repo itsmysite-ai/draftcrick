@@ -4,7 +4,7 @@
  * Uses recent team news, injury reports, and squad history to predict
  * the likely playing XI for both teams in an upcoming match.
  *
- * Cache: Redis (1hr TTL) → Gemini (on miss).
+ * Cache: PG (1hr TTL) → Gemini (on miss).
  */
 
 import { getLogger } from "../lib/logger";

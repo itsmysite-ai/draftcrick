@@ -46,6 +46,7 @@ export default function ConfigPage() {
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>Config</h1>
       <TeamRulesEditor rules={teamRules.data} onSave={(rules) => upsert.mutate({ key: "global_team_rules", value: rules, description: "Default team builder rules" })} saving={upsert.isPending} />
       <FeatureFlagsEditor flags={flags.data} onSave={(f) => upsert.mutate({ key: "feature_flags", value: f, description: "Global feature flags" })} saving={upsert.isPending} />
+      <EarlyAccessFlagsEditor />
     </div>
   );
 }
@@ -176,6 +177,114 @@ function FeatureFlagsEditor({ flags, onSave, saving }: { flags: any; onSave: (v:
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+const ACCESS_OPTIONS = [
+  { value: "elite_only", label: "Elite Only", color: "#D4A017" },
+  { value: "pro_and_above", label: "Pro & Above", color: "var(--accent)" },
+  { value: "all", label: "All Tiers", color: "var(--accent)" },
+  { value: "disabled", label: "Disabled", color: "var(--red)" },
+];
+
+const EA_FEATURE_LABELS: Record<string, string> = {
+  team_solver: "Team Solver (Auto-Pick)",
+  gurus_verdict: "Guru's Verdict (Team Review)",
+  confidence_intervals: "Confidence Intervals",
+  live_predictions: "Live Predictions",
+  ai_insights: "AI Insights",
+  player_compare: "Player Comparison",
+  rate_my_team: "Rate My Team",
+  projected_points: "Projected Points",
+  captain_picks: "AI Captain Picks",
+};
+
+function EarlyAccessFlagsEditor() {
+  const earlyAccessFlags = trpc.admin.config.getEarlyAccessFlags.useQuery();
+  const updateFlag = trpc.admin.config.updateEarlyAccessFlag.useMutation({
+    onSuccess: () => earlyAccessFlags.refetch(),
+  });
+
+  const flags = earlyAccessFlags.data as Record<string, { access: string; badge: string | null }> | undefined;
+
+  if (earlyAccessFlags.isLoading) {
+    return <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading early access flags...</p>;
+  }
+
+  if (!flags) return null;
+
+  return (
+    <div style={sectionStyle}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Early Access Feature Gates</h2>
+      <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 }}>
+        Control which subscription tiers can access each feature. Features start as &quot;Elite Only&quot; and can be
+        promoted to wider tiers as they mature. The &quot;Early Access&quot; badge shows on the subscription screen for gated features.
+      </p>
+
+      {Object.entries(flags).map(([key, flag]) => {
+        const accessColor = ACCESS_OPTIONS.find((o) => o.value === flag.access)?.color ?? "var(--text-muted)";
+        return (
+          <div key={key} style={{ ...labelStyle, gap: 12 }}>
+            <span style={{ flex: 1 }}>{EA_FEATURE_LABELS[key] ?? key}</span>
+
+            {flag.badge && (
+              <span
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: "var(--font-data)",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                  backgroundColor: "rgba(139,92,246,0.12)",
+                  color: "#8B5CF6",
+                }}
+              >
+                EARLY ACCESS
+              </span>
+            )}
+
+            <select
+              value={flag.access}
+              onChange={(e) =>
+                updateFlag.mutate({
+                  key,
+                  access: e.target.value as any,
+                  badge: e.target.value === "all" ? null : flag.badge,
+                })
+              }
+              disabled={updateFlag.isPending}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 6,
+                border: "1px solid var(--border)",
+                fontSize: 12,
+                fontWeight: 600,
+                backgroundColor: "var(--bg)",
+                color: accessColor,
+                fontFamily: "var(--font-data)",
+                cursor: "pointer",
+                width: 140,
+              }}
+            >
+              {ACCESS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
+
+      {updateFlag.isSuccess && (
+        <p style={{ color: "var(--accent)", fontSize: 13, marginTop: 8 }}>Flag updated.</p>
+      )}
+      {updateFlag.isError && (
+        <p style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>Error: {updateFlag.error.message}</p>
+      )}
     </div>
   );
 }

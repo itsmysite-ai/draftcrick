@@ -1,9 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
 
-dotenv.config({ path: ".env.test" });
 dotenv.config({ path: ".env.local" });
-dotenv.config({ path: ".env" });
 
 const baseURL = process.env.EXPO_PUBLIC_WEB_URL ?? "http://localhost:8081";
 

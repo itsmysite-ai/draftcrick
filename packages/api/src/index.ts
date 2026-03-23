@@ -1,10 +1,24 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 
-// Load environment variables: .env.local overrides .env
-config({ path: resolve(__dirname, "../../../.env.local"), override: true });
-config({ path: resolve(__dirname, "../../../.env") });
+// Load environment variables from root .env.local
+config({ path: resolve(__dirname, "../../../.env.local") });
 
+// Sentry — use real SDK in production, graceful no-op if not installed
+let Sentry: {
+  init: (...args: unknown[]) => void;
+  captureException: (...args: unknown[]) => void;
+  flush: (ms: number) => Promise<boolean>;
+};
+try {
+  Sentry = require("@sentry/node");
+} catch {
+  Sentry = {
+    init: () => {},
+    captureException: () => {},
+    flush: () => Promise.resolve(true),
+  };
+}
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -19,32 +33,95 @@ import { verifyIdToken, extractBearerToken } from "./services/auth";
 import { getUserTier } from "./services/subscription";
 import type { SubscriptionTier } from "@draftplay/shared";
 import { razorpayWebhook } from "./webhooks/razorpay";
+import { revenuecatWebhook } from "./webhooks/revenuecat";
+import { rateLimitMiddleware } from "./middleware/rate-limit";
+import { getLogger } from "./lib/logger";
 
 export type { AppRouter } from "./routers";
 
+const log = getLogger("api");
+
+// ---------------------------------------------------------------------------
+// Sentry — error monitoring (must init before anything else)
+// ---------------------------------------------------------------------------
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? "development",
+    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
+    beforeSend(event) {
+      // Strip PII from error reports
+      if (event.request?.headers) {
+        delete event.request.headers["authorization"];
+        delete event.request.headers["cookie"];
+      }
+      return event;
+    },
+  });
+  log.info("Sentry initialized");
+}
+
+// ---------------------------------------------------------------------------
+// Environment validation
+// ---------------------------------------------------------------------------
+
+function validateEnv(): void {
+  const required = ["DATABASE_URL"];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    log.fatal({ missing }, "Missing required environment variables — cannot start");
+    process.exit(1);
+  }
+
+  const optional = [
+    "RAZORPAY_KEY_ID",
+    "RAZORPAY_KEY_SECRET",
+    "REVENUECAT_WEBHOOK_AUTH_KEY",
+    "SENTRY_DSN",
+    "GEMINI_API_KEY",
+  ];
+  const missingOptional = optional.filter((key) => !process.env[key]);
+  if (missingOptional.length > 0) {
+    log.warn({ missing: missingOptional }, "Optional environment variables not set");
+  }
+}
+
+validateEnv();
+
+// ---------------------------------------------------------------------------
+// App setup
+// ---------------------------------------------------------------------------
+
 const app = new Hono();
+
+// CORS — configurable via env var (comma-separated origins)
+const allowedOrigins = (
+  process.env.CORS_ORIGINS ?? "http://localhost:3000,http://localhost:8081,exp://localhost:8081"
+).split(",").map((o) => o.trim());
 
 // Global middleware
 app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:8081",
-      "exp://localhost:8081",
-    ],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
+
+// Rate limiting
+app.use("/trpc/*", rateLimitMiddleware({ maxPerMinute: 100, keyPrefix: "rl:trpc" }));
+app.use("/webhooks/*", rateLimitMiddleware({ maxPerMinute: 50, keyPrefix: "rl:webhook" }));
 
 // Health check
 app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Razorpay webhook (raw Hono route — outside tRPC/auth)
+// Payment webhooks (raw Hono routes — outside tRPC/auth)
 app.route("/webhooks/razorpay", razorpayWebhook);
+app.route("/webhooks/revenuecat", revenuecatWebhook);
 
 // tRPC handler
 app.use("/trpc/*", async (c) => {
@@ -104,7 +181,7 @@ app.use("/trpc/*", async (c) => {
                 where: eq(users.firebaseUid, decoded.uid),
               });
             } catch (insertErr) {
-              console.error("[AUTH] User insert failed, retrying:", (insertErr as Error)?.message);
+              log.error({ error: (insertErr as Error)?.message }, "User insert failed, retrying");
               // Could be username or email collision — retry with different suffix
               try {
                 const retry = `${base}_${Math.random().toString(36).slice(2, 7)}`;
@@ -122,7 +199,7 @@ app.use("/trpc/*", async (c) => {
                   where: eq(users.firebaseUid, decoded.uid),
                 });
               } catch (retryErr) {
-                console.error("[AUTH] User insert retry also failed:", (retryErr as Error)?.message);
+                log.error({ error: (retryErr as Error)?.message }, "User insert retry also failed");
               }
             }
           }
@@ -139,8 +216,8 @@ app.use("/trpc/*", async (c) => {
       }
     }
   } catch (authErr) {
-    // Log auth errors for debugging — don't silently swallow
-    console.error("[AUTH] Failed to resolve user:", (authErr as Error)?.message);
+    log.error({ error: (authErr as Error)?.message }, "Failed to resolve user");
+    Sentry.captureException(authErr);
   }
 
   // Resolve subscription tier for authenticated users
@@ -172,10 +249,21 @@ const port = parseInt(process.env.PORT ?? "3001", 10);
 
 if (process.env.NODE_ENV !== "test") {
   serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`DraftPlay API running on http://localhost:${info.port}`);
-    console.log(`  tRPC:   http://localhost:${info.port}/trpc`);
-    console.log(`  Health: http://localhost:${info.port}/health`);
+    log.info({ port: info.port }, "DraftPlay API running");
+    log.info({ trpc: `http://localhost:${info.port}/trpc`, health: `http://localhost:${info.port}/health` }, "Endpoints");
   });
 }
+
+// Global unhandled error capture
+process.on("uncaughtException", (err) => {
+  log.fatal({ error: err.message }, "Uncaught exception");
+  Sentry.captureException(err);
+  Sentry.flush(2000).then(() => process.exit(1));
+});
+
+process.on("unhandledRejection", (reason) => {
+  log.error({ reason: String(reason) }, "Unhandled rejection");
+  Sentry.captureException(reason);
+});
 
 export default app;

@@ -75,6 +75,7 @@ interface TierFeatureForm {
 
 interface TierForm {
   priceYearlyINR: number;
+  priceYearlyINR_iOS: number;
   priceYearlyUSD: number;
   hasFreeTrial: boolean;
   freeTrialDays: number;
@@ -127,6 +128,7 @@ export function TierConfigEditor() {
         const c = configs.data[tier];
         initial[tier] = {
           priceYearlyINR: (c as any).priceYearlyINR ?? 0,
+          priceYearlyINR_iOS: (c as any).priceYearlyINR_iOS ?? 0,
           priceYearlyUSD: (c as any).priceYearlyUSD ?? 0,
           hasFreeTrial: (c as any).hasFreeTrial ?? false,
           freeTrialDays: (c as any).freeTrialDays ?? 0,
@@ -157,6 +159,7 @@ export function TierConfigEditor() {
     for (const tier of TIER_IDS) {
       tiers[tier] = {
         priceYearlyINR: forms[tier].priceYearlyINR,
+        priceYearlyINR_iOS: forms[tier].priceYearlyINR_iOS,
         priceYearlyUSD: forms[tier].priceYearlyUSD,
         hasFreeTrial: forms[tier].hasFreeTrial,
         freeTrialDays: forms[tier].freeTrialDays,
@@ -235,6 +238,23 @@ export function TierConfigEditor() {
               <div style={{ ...rowStyle, color: "var(--text-muted)", fontSize: 12 }}>
                 <span>Paise</span>
                 <span style={{ fontFamily: "var(--font-data)" }}>{form.priceYearlyINR}</span>
+              </div>
+              <div style={rowStyle}>
+                <span>INR iOS (₹/yr)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={Math.round(form.priceYearlyINR_iOS / 100)}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    updateTier(tier, { priceYearlyINR_iOS: v * 100 });
+                  }}
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ ...rowStyle, color: "var(--text-muted)", fontSize: 12 }}>
+                <span>Apple IAP paise</span>
+                <span style={{ fontFamily: "var(--font-data)" }}>{form.priceYearlyINR_iOS}</span>
               </div>
               <div style={rowStyle}>
                 <span>USD ($/yr)</span>

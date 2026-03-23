@@ -12,22 +12,14 @@ import {
 import { HeaderControls } from "../../components/HeaderControls";
 import { useTheme } from "../../providers/ThemeProvider";
 import { trpc } from "../../lib/trpc";
-import { COUNTRIES, INDIA_STATES } from "@draftplay/shared";
-
-const SPORTS = [
-  { key: "cricket", label: "cricket", icon: "\u{1F3CF}" },
-  { key: "f1", label: "formula 1", icon: "\u{1F3CE}\uFE0F" },
-];
+import { INDIA_STATES, INDIA_BANNED_STATES } from "@draftplay/shared";
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const theme = useTamaguiTheme();
   const { setAvailableSports, setSport } = useTheme();
-  const [step, setStep] = useState(0);
-  const [selectedSports, setSelectedSports] = useState<string[]>([]);
 
-  // Location declaration state
-  const [selectedCountry, setSelectedCountry] = useState<string>("IN");
+  // Location declaration state (India only)
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [confirmLocation, setConfirmLocation] = useState(false);
   const [confirmUpdate, setConfirmUpdate] = useState(false);
@@ -37,30 +29,30 @@ export default function OnboardingScreen() {
   const savePreferences = trpc.auth.savePreferences.useMutation();
   const acceptTermsMutation = trpc.auth.acceptTerms.useMutation();
 
+  const isBannedState = selectedState
+    ? (INDIA_BANNED_STATES as readonly string[]).includes(selectedState)
+    : false;
+
   const handleComplete = async () => {
-    const sports = selectedSports as ("cricket" | "f1")[];
     await acceptTermsMutation.mutateAsync();
     await savePreferences.mutateAsync({
-      sports,
+      sports: ["cricket"],
       preferredFormat: null,
-      country: selectedCountry,
+      country: "IN",
       state: selectedState,
     });
-    // Update theme provider so dropdown reflects selection immediately
-    setAvailableSports(sports);
-    setSport(sports[0] as any);
+    // Cricket is the only sport — set it directly
+    setAvailableSports(["cricket"]);
+    setSport("cricket" as any);
     router.replace("/(tabs)");
   };
 
-  const selectedCountryName =
-    COUNTRIES.find((c) => c.code === selectedCountry)?.name ?? selectedCountry;
   const selectedStateName =
     INDIA_STATES.find((s) => s.code === selectedState)?.name ?? selectedState;
 
-  const locationLabel =
-    selectedCountry === "IN" && selectedStateName
-      ? `${selectedStateName}, India`
-      : selectedCountryName;
+  const locationLabel = selectedStateName
+    ? `${selectedStateName}, India`
+    : "India";
 
   const isSaving = acceptTermsMutation.isPending || savePreferences.isPending;
 
@@ -68,10 +60,8 @@ export default function OnboardingScreen() {
     <YStack flex={1} backgroundColor="$background" paddingHorizontal="$6" paddingTop={60} testID="onboarding-screen">
       <XStack justifyContent="space-between" alignItems="center" marginBottom={40}>
         <XStack flex={1} />
-        <XStack justifyContent="center" gap="$2" flex={2}>
-          {[0, 1].map((i) => (
-            <YStack key={i} width={step >= i ? 24 : 8} height={8} borderRadius={4} backgroundColor={step >= i ? "$accentBackground" : "$borderColor"} />
-          ))}
+        <XStack justifyContent="center" flex={2}>
+          <YStack width={24} height={8} borderRadius={4} backgroundColor="$accentBackground" />
         </XStack>
         <XStack flex={1} justifyContent="flex-end">
           <HeaderControls hideSport />
@@ -80,127 +70,66 @@ export default function OnboardingScreen() {
 
       <AnnouncementBanner marginHorizontal={0} />
 
-      {step === 0 && (
-        <YStack flex={1}>
-          <YStack alignItems="center" marginBottom="$3">
-            <DraftPlayLogo size={48} animate />
-          </YStack>
-          <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
-            {formatUIText("pick your sports")}
-          </Text>
-          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$8">
-            {formatUIText("what do you follow?")}
-          </Text>
-          <YStack gap="$3">
-            {SPORTS.map((sport) => {
-              const selected = selectedSports.includes(sport.key);
-              return (
-                <XStack
-                  key={sport.key}
-                  borderRadius={12}
-                  paddingHorizontal="$5"
-                  paddingVertical="$4"
-                  borderWidth={1}
-                  backgroundColor={selected ? "$colorAccentLight" : "$backgroundSurface"}
-                  borderColor={selected ? "$accentBackground" : "$borderColor"}
-                  onPress={() =>
-                    setSelectedSports((prev) =>
-                      prev.includes(sport.key)
-                        ? prev.filter((s) => s !== sport.key)
-                        : [...prev, sport.key]
-                    )
-                  }
-                  cursor="pointer"
-                  pressStyle={{ scale: 0.97, opacity: 0.9 }}
-                  hoverStyle={{ backgroundColor: "$backgroundSurfaceHover" }}
-                  alignItems="center"
-                  gap="$3"
-                  testID={`sport-pill-${sport.key}`}
-                >
-                  <Text fontSize={24}>{sport.icon}</Text>
-                  <Text fontFamily="$mono" fontWeight="600" fontSize={16} color={selected ? "$accentBackground" : "$color"}>
-                    {sport.label}
-                  </Text>
-                </XStack>
-              );
-            })}
-          </YStack>
-          <YStack marginTop="auto" marginBottom={32}>
-            <Button variant="primary" size="lg" disabled={selectedSports.length === 0} disabledStyle={{ opacity: 0.5 }} onPress={() => setStep(1)} testID="onboarding-next-btn">
-              {formatUIText("next")}
-            </Button>
-          </YStack>
+      <YStack flex={1}>
+        <YStack alignItems="center" marginBottom="$3">
+          <DraftPlayLogo size={48} animate />
         </YStack>
-      )}
+        <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
+          {formatUIText("where are you located?")}
+        </Text>
+        <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$6">
+          {formatUIText("select your state")}
+        </Text>
 
-      {step === 1 && (
-        <YStack flex={1}>
-          <Text fontFamily="$mono" fontWeight="500" fontSize={24} color="$color" letterSpacing={-0.5} marginBottom="$2">
-            {formatUIText("where are you located?")}
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          {/* State picker */}
+          <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorSecondary" marginBottom="$3">
+            {formatUIText("state / union territory")}
           </Text>
-          <Text fontFamily="$body" fontSize={18} color="$colorMuted" marginBottom="$6">
-            {formatUIText("select your country and region")}
-          </Text>
-
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-            {/* Country picker */}
-            <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorSecondary" marginBottom="$3">
-              {formatUIText("country")}
-            </Text>
-            <XStack flexWrap="wrap" gap="$2" marginBottom="$6">
-              {COUNTRIES.map((c) => (
-                <XStack
-                  key={c.code}
-                  borderRadius="$round"
-                  paddingHorizontal="$4"
-                  paddingVertical="$2"
-                  borderWidth={1}
-                  backgroundColor={selectedCountry === c.code ? "$colorAccentLight" : "$backgroundSurface"}
-                  borderColor={selectedCountry === c.code ? "$accentBackground" : "$borderColor"}
-                  onPress={() => {
-                    setSelectedCountry(c.code);
-                    setSelectedState(null);
-                  }}
-                  cursor="pointer"
-                  pressStyle={{ scale: 0.96, opacity: 0.9 }}
-                >
-                  <Text fontFamily="$mono" fontWeight="500" fontSize={13} color={selectedCountry === c.code ? "$accentBackground" : "$color"}>
-                    {c.name}
-                  </Text>
-                </XStack>
-              ))}
-            </XStack>
-
-            {/* State picker (India only) */}
-            {selectedCountry === "IN" && (
-              <>
-                <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorSecondary" marginBottom="$3">
-                  {formatUIText("state / union territory")}
+          <XStack flexWrap="wrap" gap="$2" marginBottom="$6">
+            {INDIA_STATES.map((s) => (
+              <XStack
+                key={s.code}
+                borderRadius="$round"
+                paddingHorizontal="$4"
+                paddingVertical="$2"
+                borderWidth={1}
+                backgroundColor={selectedState === s.code ? "$colorAccentLight" : "$backgroundSurface"}
+                borderColor={selectedState === s.code ? "$accentBackground" : "$borderColor"}
+                onPress={() => setSelectedState(s.code)}
+                cursor="pointer"
+                pressStyle={{ scale: 0.96, opacity: 0.9 }}
+              >
+                <Text fontFamily="$mono" fontWeight="500" fontSize={13} color={selectedState === s.code ? "$accentBackground" : "$color"}>
+                  {s.name}
                 </Text>
-                <XStack flexWrap="wrap" gap="$2" marginBottom="$6">
-                  {INDIA_STATES.map((s) => (
-                    <XStack
-                      key={s.code}
-                      borderRadius="$round"
-                      paddingHorizontal="$4"
-                      paddingVertical="$2"
-                      borderWidth={1}
-                      backgroundColor={selectedState === s.code ? "$colorAccentLight" : "$backgroundSurface"}
-                      borderColor={selectedState === s.code ? "$accentBackground" : "$borderColor"}
-                      onPress={() => setSelectedState(s.code)}
-                      cursor="pointer"
-                      pressStyle={{ scale: 0.96, opacity: 0.9 }}
-                    >
-                      <Text fontFamily="$mono" fontWeight="500" fontSize={13} color={selectedState === s.code ? "$accentBackground" : "$color"}>
-                        {s.name}
-                      </Text>
-                    </XStack>
-                  ))}
-                </XStack>
-              </>
-            )}
+              </XStack>
+            ))}
+          </XStack>
 
-            {/* Legal confirmation checkboxes */}
+          {/* Banned state warning */}
+          {isBannedState && (
+            <YStack
+              backgroundColor="$red3"
+              borderRadius={12}
+              padding="$4"
+              marginBottom="$6"
+              borderWidth={1}
+              borderColor="$red7"
+            >
+              <Text fontFamily="$mono" fontWeight="600" fontSize={16} color="$red11" marginBottom="$2">
+                {formatUIText("not available in your state")}
+              </Text>
+              <Text fontFamily="$body" fontSize={14} color="$red10">
+                DraftPlay is not available in {selectedStateName} due to local regulations
+                regarding fantasy sports. We hope to serve you in the future if
+                regulations change.
+              </Text>
+            </YStack>
+          )}
+
+          {/* Legal confirmation checkboxes — hidden when banned */}
+          {!isBannedState && (
             <YStack gap="$4" marginTop="$4" marginBottom="$6">
               <XStack
                 gap="$3"
@@ -256,7 +185,7 @@ export default function OnboardingScreen() {
                 </YStack>
                 <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
                   I understand that I must update my location if I move to a
-                  different state or country.
+                  different state.
                 </Text>
               </XStack>
 
@@ -285,7 +214,7 @@ export default function OnboardingScreen() {
                   )}
                 </YStack>
                 <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
-                  I confirm I am 13 years or older.
+                  I confirm I am 18 years or older.
                 </Text>
               </XStack>
 
@@ -318,9 +247,21 @@ export default function OnboardingScreen() {
                 </Text>
               </XStack>
             </YStack>
-          </ScrollView>
+          )}
+        </ScrollView>
 
-          <YStack marginTop="auto" marginBottom={32}>
+        <YStack marginTop="auto" marginBottom={32}>
+          {isBannedState ? (
+            <Button
+              variant="primary"
+              size="lg"
+              disabled
+              disabledStyle={{ opacity: 0.5 }}
+              testID="onboarding-blocked-btn"
+            >
+              {formatUIText("not available in your state")}
+            </Button>
+          ) : (
             <Button
               variant="primary"
               size="lg"
@@ -329,7 +270,7 @@ export default function OnboardingScreen() {
                 !confirmUpdate ||
                 !ageConfirmed ||
                 !termsAccepted ||
-                (selectedCountry === "IN" && !selectedState) ||
+                !selectedState ||
                 isSaving
               }
               disabledStyle={{ opacity: 0.5 }}
@@ -338,9 +279,9 @@ export default function OnboardingScreen() {
             >
               {formatUIText(isSaving ? "saving..." : "let's go")}
             </Button>
-          </YStack>
+          )}
         </YStack>
-      )}
+      </YStack>
     </YStack>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * Sports data router — serves tournaments and matches as a read-only layer.
  *
- * Flow: Redis hot cache (5min) → PostgreSQL (source of truth).
+ * Flow: PG hot cache (5min) → PostgreSQL (source of truth).
  * All Gemini refreshes are admin-initiated only (discover, toggle visible, force refresh).
  * See /docs/SMART_REFRESH_ARCHITECTURE.md for full spec.
  */
@@ -63,7 +63,7 @@ const sportInput = z.object({
 
 /**
  * Core function: get dashboard with smart refresh.
- * 1. Check Redis hot cache
+ * 1. Check PG hot cache
  * 2. Check PostgreSQL
  * 3. Trigger Gemini refresh if stale (stale-while-revalidate)
  * 4. Cold start: wait for Gemini if no PG data
@@ -71,7 +71,7 @@ const sportInput = z.object({
 async function getSmartDashboard(sport: Sport): Promise<SportsDashboardData> {
   const cacheKey = `dashboard:${sport}`;
 
-  // 1. Redis hot cache
+  // 1. PG hot cache
   const cached = await getFromHotCache<SportsDashboardData>(cacheKey);
   if (cached) {
     return cached;
@@ -100,7 +100,7 @@ async function getSmartDashboard(sport: Sport): Promise<SportsDashboardData> {
 export const sportsRouter = router({
   /**
    * Get the full dashboard for a sport — tournaments + matches.
-   * Smart refresh: Redis hot cache → PG → Gemini (if stale).
+   * Smart refresh: PG hot cache → PG → Gemini (if stale).
    */
   dashboard: publicProcedure
     .input(sportInput)

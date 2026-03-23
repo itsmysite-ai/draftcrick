@@ -2,11 +2,17 @@
 
 import React from "react";
 import { useAuth } from "@/lib/auth-context";
+import { usePathname, useRouter } from "next/navigation";
 import { AdminSidebar } from "./_components/AdminSidebar";
 import { AdminLogin } from "./_components/AdminLogin";
 
+/** Pages that support role can access */
+const SUPPORT_ALLOWED_PATHS = ["/admin/users", "/admin/docs"];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading, isAdmin } = useAuth();
+  const { user, isLoading, isAdmin, staffRole } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
 
   if (isLoading) {
     return (
@@ -16,9 +22,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  // Not logged in or not admin — show login
-  if (!user) {
+  // Not logged in or not admin/support — show login
+  if (!user || !isAdmin) {
     return <AdminLogin />;
+  }
+
+  // Support role — restrict to allowed pages only
+  const isSupport = staffRole === "support";
+  if (isSupport && !SUPPORT_ALLOWED_PATHS.some((p) => pathname.startsWith(p))) {
+    // Redirect support users to users page
+    if (typeof window !== "undefined") {
+      router.replace("/admin/users");
+    }
+    return null;
   }
 
   return (

@@ -6,24 +6,26 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { DraftPlayLogoSVG } from "@/components/DraftPlayLogoSVG";
 
-const NAV_ITEMS = [
-  { href: "/admin", label: "Dashboard", icon: "~" },
-  { href: "/admin/tournaments", label: "Tournaments", icon: "T" },
-  { href: "/admin/matches", label: "Matches", icon: "M" },
-  { href: "/admin/players", label: "Players", icon: "P" },
-  { href: "/admin/contests", label: "Contests", icon: "C" },
-  { href: "/admin/subscriptions", label: "Subscriptions", icon: "★" },
-  { href: "/admin/config", label: "Config", icon: "#" },
+const NAV_ITEMS: { href: string; label: string; icon: string; adminOnly?: boolean }[] = [
+  { href: "/admin", label: "Dashboard", icon: "~", adminOnly: true },
+  { href: "/admin/tournaments", label: "Tournaments", icon: "T", adminOnly: true },
+  { href: "/admin/matches", label: "Matches", icon: "M", adminOnly: true },
+  { href: "/admin/players", label: "Players", icon: "P", adminOnly: true },
+  { href: "/admin/contests", label: "Contests", icon: "C", adminOnly: true },
+  { href: "/admin/subscriptions", label: "Subscriptions", icon: "★", adminOnly: true },
+  { href: "/admin/config", label: "Config", icon: "#", adminOnly: true },
   { href: "/admin/users", label: "Users", icon: "U" },
-  { href: "/admin/system", label: "System", icon: "S" },
-  { href: "/admin/revenue", label: "Revenue", icon: "$" },
-  { href: "/admin/pricing-calculator", label: "Pricing Calc", icon: "%" },
+  { href: "/admin/system", label: "System", icon: "S", adminOnly: true },
+  { href: "/admin/revenue", label: "Revenue", icon: "$", adminOnly: true },
+  { href: "/admin/pricing-calculator", label: "Pricing Calc", icon: "%", adminOnly: true },
   { href: "/admin/docs", label: "Docs", icon: "?" },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, signOut, staffRole } = useAuth();
+  const isSupport = staffRole === "support";
+  const visibleItems = isSupport ? NAV_ITEMS.filter((item) => !item.adminOnly) : NAV_ITEMS;
 
   return (
     <aside
@@ -47,7 +49,7 @@ export function AdminSidebar() {
       </div>
 
       <nav style={{ flex: 1, padding: "8px 0" }}>
-        {NAV_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
           return (
             <Link

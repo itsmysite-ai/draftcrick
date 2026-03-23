@@ -1,16 +1,14 @@
 #!/usr/bin/env npx tsx
 /**
- * Clear all sports data from PostgreSQL and Redis.
- * Usage: cd packages/api && npx tsx ../../scripts/clear-sports-data.ts
+ * Clear all sports data from PostgreSQL and cache.
+ * Usage: npx tsx scripts/clear-sports-data.ts --confirm
  */
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local", override: true });
 dotenv.config({ override: false });
 import postgres from "postgres";
-import Redis from "ioredis";
 
 const DB_URL = process.env.DATABASE_URL || "postgresql://chandanreddy@localhost:5432/draftplay_local";
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
 async function tryDelete(sql: any, table: string) {
   try {
@@ -55,20 +53,10 @@ async function main() {
   `;
   console.log(`  After: ${after[0].tournaments} tournaments, ${after[0].matches} matches, ${after[0].players} players`);
 
-  await sql.end();
+  console.log("\nClearing PG cache...");
+  await tryDelete(sql, "cache_entries");
 
-  console.log("\nClearing Redis sports cache...");
-  try {
-    const redis = new Redis(REDIS_URL);
-    const keys = await redis.keys("dashboard:*");
-    if (keys.length > 0) { await redis.del(...keys); console.log(`  Deleted ${keys.length} Redis keys`); }
-    else { console.log("  No dashboard cache keys"); }
-    const locks = await redis.keys("refresh_lock:*");
-    if (locks.length > 0) { await redis.del(...locks); console.log(`  Deleted ${locks.length} lock keys`); }
-    redis.disconnect();
-  } catch (err: any) {
-    console.log(`  Redis: ${err.message}`);
-  }
+  await sql.end();
 
   console.log("\n✓ All sports data cleared. Next dashboard request triggers fresh Gemini fetch.");
 }

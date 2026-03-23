@@ -62,6 +62,25 @@ export const adminProcedure = t.procedure.use(({ ctx, next }) => {
   });
 });
 
+/**
+ * Support procedure - requires admin or support role.
+ * Used for endpoints that support engineers need (user management, subscription overrides).
+ */
+export const supportProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.user || (ctx.user.role !== "admin" && ctx.user.role !== "support")) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Admin or support access required",
+    });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+    },
+  });
+});
+
 /** Export middleware builder for external middleware files (e.g. tier.ts) */
 export const middleware = t.middleware;
 

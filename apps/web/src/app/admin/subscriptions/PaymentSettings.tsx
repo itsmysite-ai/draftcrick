@@ -72,7 +72,7 @@ export function PaymentSettings() {
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 }}>
           {isStub
             ? "Stub mode: subscriptions activate immediately without real payment. Use this for development and testing."
-            : "Live mode: subscriptions go through Razorpay payment flow. Real money is being processed."}
+            : "Live mode: Android/Web go through Razorpay, iOS goes through Apple IAP via RevenueCat. Real money is being processed."}
         </p>
 
         <button
@@ -180,7 +180,32 @@ export function PaymentSettings() {
         <ConfigRow label="RAZORPAY_PLAN_ELITE" configured={data.hasPlanElite} />
 
         <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 16 }}>
-          These are set via environment variables on the API server. Update your .env file and restart the server to configure.
+          Razorpay is used for Android and Web payments. Set via environment variables on the API server.
+        </p>
+      </div>
+
+      {/* RevenueCat / Apple IAP Configuration Status */}
+      <div style={sectionStyle}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>RevenueCat / Apple IAP Configuration</h2>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.5 }}>
+          RevenueCat handles iOS In-App Purchases via Apple StoreKit 2. iOS users are automatically routed
+          through Apple IAP instead of Razorpay.
+        </p>
+
+        <ConfigRow label="EXPO_PUBLIC_REVENUECAT_API_KEY" configured={!!(data as any).hasRevenueCatApiKey} />
+        <ConfigRow label="REVENUECAT_WEBHOOK_AUTH_KEY" configured={!!(data as any).hasRevenueCatWebhookKey} />
+
+        <div style={{ marginTop: 16, padding: 12, borderRadius: 8, backgroundColor: "rgba(93,184,130,0.06)", border: "1px solid rgba(93,184,130,0.15)" }}>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, margin: 0 }}>
+            <strong>Platform routing:</strong><br />
+            iOS &rarr; Apple IAP via RevenueCat (30% Apple commission)<br />
+            Android &rarr; Razorpay (2% payment gateway fee)<br />
+            Web &rarr; Razorpay (2% payment gateway fee)
+          </p>
+        </div>
+
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 16 }}>
+          Configure RevenueCat dashboard at app.revenuecat.com. Product IDs must match App Store Connect.
         </p>
       </div>
     </div>

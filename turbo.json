@@ -2,7 +2,6 @@
   "$schema": "https://turbo.build/schema.json",
   "globalEnv": [
     "DATABASE_URL",
-    "REDIS_URL",
     "GEMINI_API_KEY",
     "FIREBASE_PROJECT_ID",
     "FIREBASE_PRIVATE_KEY",

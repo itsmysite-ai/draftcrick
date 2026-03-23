@@ -45,6 +45,11 @@ export const subscriptions = pgTable(
     dayPassActive: boolean("day_pass_active").notNull().default(false),
     dayPassExpiresAt: timestamp("day_pass_expires_at", { withTimezone: true }),
     dayPassRazorpayPaymentId: text("day_pass_razorpay_payment_id"),
+    // Multi-provider payment support (Razorpay for Android/Web, Apple IAP for iOS)
+    paymentProvider: text("payment_provider").notNull().default("razorpay"), // razorpay, apple, google, admin, stub
+    revenuecatCustomerId: text("revenuecat_customer_id"),
+    appleOriginalTransactionId: text("apple_original_transaction_id"),
+    purchasePlatform: text("purchase_platform"), // ios, android, web
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -57,6 +62,7 @@ export const subscriptions = pgTable(
     index("idx_subscriptions_user").on(table.userId),
     index("idx_subscriptions_status").on(table.status),
     index("idx_subscriptions_daypass").on(table.dayPassActive, table.dayPassExpiresAt),
+    index("idx_subscriptions_provider").on(table.paymentProvider),
   ]
 );
 

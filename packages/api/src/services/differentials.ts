@@ -4,7 +4,7 @@
  * Identifies players with low expected ownership but high projected points,
  * giving users an edge in head-to-head and tournament fantasy contests.
  *
- * Cache: Redis (2hr TTL) → Gemini (on miss).
+ * Cache: PG (2hr TTL) → Gemini (on miss).
  */
 
 import { getLogger } from "../lib/logger";

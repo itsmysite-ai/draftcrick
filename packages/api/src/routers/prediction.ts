@@ -430,7 +430,7 @@ export const predictionRouter = router({
       const tier: SubscriptionTier = (ctx.tier as SubscriptionTier) ?? "basic";
       const limit = DEFAULT_TIER_CONFIGS[tier].features.predictionSuggestionsPerMatch;
 
-      // Track usage in Redis (expires after 24h — longer than any match)
+      // Track usage in cache (expires after 24h — longer than any match)
       const { getFromHotCache, setHotCache } = await import("../services/sports-cache");
       const usageKey = `prediction-suggest:${ctx.user.id}:${input.matchId}`;
       const currentUsage = (await getFromHotCache<number>(usageKey)) ?? 0;

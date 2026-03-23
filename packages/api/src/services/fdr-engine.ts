@@ -5,7 +5,7 @@
  * Factors: opposition strength, venue history, recent form, head-to-head,
  * pitch type, day/night, weather, tournament stage.
  *
- * Cache: Redis hot cache (1hr) → PostgreSQL (source of truth) → Gemini (on miss).
+ * Cache: PG hot cache (1hr) → PostgreSQL (source of truth) → Gemini (on miss).
  */
 
 import { getLogger } from "../lib/logger";
@@ -280,7 +280,7 @@ export async function getFDRForMatch(
 ): Promise<MatchFDR | null> {
   const cacheKey = `fdr:${matchId}`;
 
-  // 1. Check Redis hot cache
+  // 1. Check PG hot cache
   const cached = await getFromHotCache<MatchFDR>(cacheKey);
   if (cached) {
     log.debug({ matchId }, "FDR from hot cache");

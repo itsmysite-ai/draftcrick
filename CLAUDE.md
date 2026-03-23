@@ -1,15 +1,14 @@
 # CLAUDE.md (Claude Code reads this automatically)
 
 ## Project: DraftPlay
-Fantasy cricket platform — React Native (Expo), Hono + tRPC API, 
-Drizzle ORM + PostgreSQL, Redis, Gemini AI.
+Fantasy cricket platform — React Native (Expo), Hono + tRPC API,
+Drizzle ORM + PostgreSQL, Gemini AI.
 
 ## Key Documentation
 - `/docs/NEW_PLAN.md` — Full development plan (Phase 0-8)
 - `/docs/GEO_IMPLEMENTATION_GUIDE.md` — Geo-location & regional compliance spec
 - `/docs/UI_GUIDE.md` — draftplay.ai design system guide
-- `/docs/REDIS_CACHE_ARCHITECTURE.md` — Cache architecture
-- `/docs/SMART_REFRESH_ARCHITECTURE.md` — Smart refresh pipeline (Redis → PG → Gemini)
+- `/docs/SMART_REFRESH_ARCHITECTURE.md` — Smart refresh pipeline (PG cache → PG → Gemini)
 - `/docs/LOGGING_GUIDE.md` — Structured logging & distributed tracing guide
 - `/docs/LOCAL_SETUP.md` — Local dev environment setup
 
@@ -23,13 +22,14 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 - `archive/` — Archived/deprecated code
 - `App.tsx` — Root app entry point
 - `constants.ts` — App-wide constants
-- `.env` / `.env.local` — Environment variables
+- `.env.local` — Local dev environment variables
+- `.env.production` — Production environment template
 
 ## Conventions
 - Use tRPC for all API endpoints
 - Use Drizzle ORM for all database queries
 - Use Tamagui + draftplay.ai design system for UI (see /docs/UI_GUIDE.md)
-- Use Redis for caching (24hr TTL default, see /docs/REDIS_CACHE_ARCHITECTURE.md)
+- Use PG `cache_entries` table for caching (variable TTL, see `packages/api/src/services/sports-cache.ts`)
 - Use structured logging with Pino (backend) and the shared logger service (frontend) — see `/docs/LOGGING_GUIDE.md`
 - All new backend modules must use `getLogger("module-name")`, never raw `console.log`
 - All new frontend components must use `createLogger("ComponentName")`, never raw `console.log`
@@ -41,11 +41,11 @@ Drizzle ORM + PostgreSQL, Redis, Gemini AI.
 ## E2E Testing Infrastructure
 - **Framework:** Playwright, targeting Expo web at `localhost:8081`
 - **Test location:** `tests/e2e/<feature>/<feature>.spec.ts`
-- **Config:** `playwright.config.ts` — loads `.env.test` → `.env.local` → `.env`
+- **Config:** `playwright.config.ts` — loads `.env.local`
 - **Shared helpers:** `tests/e2e/helpers/tamagui.ts` — `forceClickTab()`, `forceClickText()`, `forceClickByTestId()` (required for Tamagui components that don't respond to normal `.click()`)
 - **Auth helpers:** `tests/e2e/auth/auth-helpers.ts` — `clearEmulatorAccounts()`, `createTestAccount()`, `fillAuthForm()`, `submitAuthForm()`
 - **Firebase Auth Emulator:** `firebase.json` defines auth emulator on port 9099. Start with `npx firebase emulators:start --only auth --project demo-draftplay`
-- **Env for tests:** `.env.test` sets `EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST=localhost:9099`
+- **Env for tests:** `.env.local` sets `EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST=localhost:9099`
 
 ### Writing Tests for New Features
 1. Add `testID` props to new UI elements (renders as `data-testid` on web)
@@ -134,9 +134,8 @@ All phase details in /docs/NEW_PLAN.md. Execution prompts in /prompts-for-execut
 - **India PROGA 2025:** `PROGA_ACTIVE` flag — currently true (all India = free-to-play). Toggle when Supreme Court rules.
 - **Gemini API routing:** Region-specific Vertex AI endpoints (asia-south1 for India, us-central1 for US, global for batch jobs)
 - **Database:** Single Cloud SQL instance in asia-south1 (Mumbai). Cross-region replica only when US users > 10%.
-- **Redis:** Single Memorystore in asia-south1. No geo-distribution needed.
 - **UI:** Tamagui + draftplay.ai design system. All new screens must use design system components.
-- **Caching:** Redis with 24hr default TTL. Graceful fallback to direct Gemini API on cache miss.
+- **Caching:** PostgreSQL `cache_entries` table with variable TTL. In-memory rate limiting. No Redis dependency. Graceful fallback to direct Gemini API on cache miss.
 - **Auth:** Firebase Auth client SDK initialized in `apps/mobile/lib/firebase.ts`. Token injected into tRPC via `setTRPCToken()` in `apps/mobile/lib/trpc.ts`. Auth state managed by `AuthProvider`. Root `app/index.tsx` auth-gates: no user → `/auth/login`, authenticated → `/(tabs)`.
 
 ## What NOT to Do

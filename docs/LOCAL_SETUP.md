@@ -7,14 +7,13 @@
 | **Node.js** | >= 22.0.0 | [nodejs.org](https://nodejs.org) or `nvm install 22` |
 | **pnpm** | 9.15.4 | `corepack enable && corepack prepare pnpm@9.15.4 --activate` |
 | **PostgreSQL** | >= 15 | `brew install postgresql@15` (macOS) or [postgresql.org](https://postgresql.org) or use GCP Cloud SQL |
-| **Redis** | >= 7 | `brew install redis` (macOS) or [redis.io](https://redis.io) |
 | **Expo CLI** | latest | Comes with `npx expo` — no global install needed |
 | **Expo Go** | latest | Install on your phone from App Store / Play Store |
 
 Optional (for full feature set):
 - **Android Studio** — for Android emulator
 - **Xcode** — for iOS simulator (macOS only)
-- **Docker** — alternative for PostgreSQL + Redis
+- **Docker** — alternative for PostgreSQL
 
 ---
 
@@ -33,7 +32,7 @@ pnpm install
 **Create `.env` file in the root directory:**
 
 ```bash
-cp .env.example .env
+cp .env.production .env.local  # then edit with your local values
 ```
 
 Open `.env` and fill in the **required** values:
@@ -45,9 +44,6 @@ Open `.env` and fill in the **required** values:
 DATABASE_URL=postgresql://postgres:password@localhost:5432/draftplay
 # OR for GCP Cloud SQL:
 # DATABASE_URL=postgresql://postgres:password@YOUR_GCP_IP:5432/draftplay
-
-# Redis (required for caching - see REDIS_CACHE_ARCHITECTURE.md)
-REDIS_URL=redis://localhost:6379
 
 # AI-powered sports data (get a key at https://aistudio.google.com/apikey)
 GEMINI_API_KEY=<your-gemini-api-key>
@@ -140,33 +136,11 @@ docker run -d \
   -p 5432:5432 \
   postgres:15
 
-docker run -d \
-  --name draftplay-redis \
-  -p 6379:6379 \
-  redis:7-alpine
 ```
 
 ---
 
-## 4. Start Redis
-
-**Redis is REQUIRED for the app to work properly** (see [Redis Cache Architecture](./REDIS_CACHE_ARCHITECTURE.md) for details)
-
-```bash
-brew services start redis           # macOS
-# or: sudo systemctl start redis    # Linux
-# or: redis-server                  # manual foreground
-```
-
-Verify it's running:
-```bash
-redis-cli ping
-# → PONG
-```
-
----
-
-## 5. Run the App
+## 4. Run the App
 
 ### Everything at once (recommended)
 
@@ -202,7 +176,7 @@ pnpm --filter @draftplay/mobile dev
 
 ---
 
-## 6. Project Structure
+## 5. Project Structure
 
 ```
 draftplay/
@@ -219,9 +193,9 @@ draftplay/
 │       └── eslint/              # Shared ESLint configs
 ├── docs/                        # Documentation
 │   ├── LOCAL_SETUP.md          # This file
-│   └── REDIS_CACHE_ARCHITECTURE.md  # Cache architecture
 ├── .env                         # Your environment variables (not in git)
-├── .env.example                 # Environment variable template
+├── .env.local                   # Local dev environment variables
+├── .env.production              # Production environment template
 ├── pnpm-workspace.yaml          # Workspace definitions
 ├── turbo.json                   # Turborepo pipeline config
 └── package.json                 # Root scripts
@@ -229,7 +203,7 @@ draftplay/
 
 ---
 
-## 7. Common Commands
+## 6. Common Commands
 
 | Command | What it does |
 |---------|-------------|
@@ -253,18 +227,12 @@ pnpm --filter @draftplay/mobile lint  # Lint mobile only
 
 ---
 
-## 8. Verification & Testing
+## 7. Verification & Testing
 
 ### Check API Health
 ```bash
 curl http://localhost:3001/health
 # Should return: {"status":"ok","timestamp":"..."}
-```
-
-### Check Redis Connection
-```bash
-redis-cli ping
-# Should return: PONG
 ```
 
 ### Check Database Connection
@@ -277,13 +245,13 @@ node -e "const pg = require('postgres'); const sql = pg(process.env.DATABASE_URL
 
 ### View Cache Status
 ```bash
-# Check what's cached in Redis
-redis-cli KEYS "sports:*"
+# Check what's cached in PG
+psql $DATABASE_URL -c "SELECT key, expires_at FROM cache_entries ORDER BY expires_at DESC LIMIT 20"
 ```
 
 ---
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
 ### Port Already in Use
 
@@ -310,27 +278,12 @@ lsof -ti:8081 | xargs kill -9
 - Verify `DATABASE_URL` is properly set
 - Restart the dev server
 
-### Redis Connection Issues
-
-**Redis not running:**
-```bash
-brew services start redis           # macOS
-sudo systemctl start redis          # Linux
-```
-
-**Check Redis status:**
-```bash
-brew services list | grep redis     # macOS
-sudo systemctl status redis         # Linux
-```
-
 ### API Returns 503 Errors
 
 This usually means database connection failed:
 1. Verify `.env` file exists
 2. Check DATABASE_URL is accessible
-3. Ensure Redis is running
-4. Restart dev server: `pnpm dev`
+3. Restart dev server: `pnpm dev`
 
 ### Metro Bundler Cache Issues
 
@@ -367,14 +320,10 @@ Update your tRPC URL in the mobile app to use your IP address.
 
 ---
 
-## 10. Important Notes
+## 9. Important Notes
 
-### Redis is Required
-The app uses Redis for caching Gemini API responses. Without Redis:
-- ❌ App will fail to start
-- ❌ Every request calls Gemini API (slow + expensive)
-
-See [REDIS_CACHE_ARCHITECTURE.md](./REDIS_CACHE_ARCHITECTURE.md) for details on why Redis is essential for serverless deployment.
+### Caching
+The app uses a PostgreSQL `cache_entries` table for caching Gemini API responses. No Redis required. Expired rows are cleaned up automatically (piggyback cleanup on writes, or via `pg_cron` in production).
 
 ### Environment Variable Loading
 - The app uses `dotenv` to load `.env` from the root directory
@@ -388,7 +337,7 @@ See [REDIS_CACHE_ARCHITECTURE.md](./REDIS_CACHE_ARCHITECTURE.md) for details on 
 
 ---
 
-## 11. Next Steps
+## 10. Next Steps
 
 1. ✅ Verify all services start: `pnpm dev`
 2. ✅ Test API health: http://localhost:3001/health
@@ -400,7 +349,6 @@ See [REDIS_CACHE_ARCHITECTURE.md](./REDIS_CACHE_ARCHITECTURE.md) for details on 
 
 ## 📚 Additional Resources
 
-- **Redis Cache Architecture**: [REDIS_CACHE_ARCHITECTURE.md](./REDIS_CACHE_ARCHITECTURE.md)
 - **Database Management**: Run `pnpm db:studio` for GUI
 - **API Documentation**: Check `/packages/api/src/routers/` for available endpoints
 - **Tamagui UI**: Browse components in `/packages/ui/src/`

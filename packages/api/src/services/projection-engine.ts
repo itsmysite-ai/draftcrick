@@ -4,7 +4,7 @@
  * Generates fantasy point projections for every player in a match using Gemini.
  * Includes confidence intervals, breakdown, captain rank, differential score.
  *
- * Cache: Redis (1hr) → PostgreSQL → Gemini (on miss).
+ * Cache: PG cache (1hr) → PostgreSQL → Gemini (on miss).
  */
 
 import { getLogger } from "../lib/logger";
@@ -304,7 +304,7 @@ export async function getProjectionsForMatch(
 ): Promise<MatchProjections | null> {
   const cacheKey = `projections:${matchId}`;
 
-  // 1. Redis hot cache
+  // 1. PG cache hot cache
   const cached = await getFromHotCache<MatchProjections>(cacheKey);
   if (cached) {
     log.debug({ matchId }, "Projections from hot cache");

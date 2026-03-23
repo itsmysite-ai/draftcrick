@@ -8,7 +8,7 @@
  * Tier configs are admin-configurable via admin_config ("subscription_tiers" key).
  * Falls back to DEFAULT_TIER_CONFIGS from shared types if no admin override exists.
  *
- * Uses Redis cache (5min TTL) for tier lookups to avoid DB hits on every request.
+ * Uses PG cache (5min TTL) for tier lookups to avoid DB hits on every request.
  */
 
 import { eq, and, sql, lt } from "drizzle-orm";
@@ -24,8 +24,11 @@ import {
   type SubscriptionTier,
   type TierConfig,
   type TierFeatures,
+  type PurchasePlatform,
   DEFAULT_TIER_CONFIGS,
   DAY_PASS_CONFIG,
+  REVENUECAT_PRODUCT_IDS,
+  REVENUECAT_DAYPASS_PRODUCT_ID,
   tierAtLeast,
   getEffectiveTier,
 } from "@draftplay/shared";
@@ -252,7 +255,8 @@ export async function subscribeTier(
   userId: string,
   tier: SubscriptionTier,
   promoCode?: string,
-  userEmail?: string | null
+  userEmail?: string | null,
+  platform?: PurchasePlatform
 ): Promise<{
   subscriptionId: string;
   tier: SubscriptionTier;
@@ -260,6 +264,8 @@ export async function subscribeTier(
   paymentMode: "stub" | "live";
   checkoutUrl?: string;
   isTrialing?: boolean;
+  provider?: "razorpay" | "apple";
+  productId?: string;
 }> {
   const configs = await getTierConfigs();
   const tierConfig = configs[tier];
@@ -294,6 +300,67 @@ export async function subscribeTier(
 
   const finalPrice = Math.max(0, tierConfig.priceYearlyINR - discountApplied);
   const now = new Date();
+
+  // ── iOS: route to Apple IAP via RevenueCat ──
+  // On iOS, we don't process payment server-side. We return the product ID
+  // so the client can initiate the Apple payment sheet via RevenueCat SDK.
+  // The RevenueCat webhook will activate the subscription once Apple confirms.
+  if (platform === "ios") {
+    const productId = REVENUECAT_PRODUCT_IDS[tier];
+
+    // Create or update subscription record as "pending" (awaiting Apple confirmation)
+    let subscriptionId: string;
+    if (existing) {
+      const result = await db
+        .update(subscriptions)
+        .set({
+          tier,
+          status: "pending",
+          paymentProvider: "apple",
+          purchasePlatform: "ios",
+          cancelAtPeriodEnd: false,
+          promoCodeId,
+          updatedAt: now,
+        })
+        .where(eq(subscriptions.id, existing.id))
+        .returning({ id: subscriptions.id });
+      subscriptionId = result[0]!.id;
+    } else {
+      const result = await db
+        .insert(subscriptions)
+        .values({
+          userId,
+          tier,
+          status: "pending",
+          billingCycle: "yearly",
+          paymentProvider: "apple",
+          purchasePlatform: "ios",
+          promoCodeId,
+        })
+        .returning({ id: subscriptions.id });
+      subscriptionId = result[0]!.id;
+    }
+
+    await db.insert(subscriptionEvents).values({
+      userId,
+      subscriptionId,
+      event: "created",
+      fromTier: (existing?.tier ?? "basic") as string,
+      toTier: tier,
+      metadata: { provider: "apple", productId, platform: "ios", status: "pending_apple_iap" },
+    });
+
+    log.info({ userId, tier, productId, platform: "ios" }, "iOS subscription initiated — awaiting Apple IAP");
+
+    return {
+      subscriptionId,
+      tier,
+      discountApplied: 0, // Apple handles pricing
+      paymentMode: "live",
+      provider: "apple",
+      productId,
+    };
+  }
 
   // Check if this is a free trial eligible subscription
   const isNewBasicTrial = tier === "basic" && tierConfig.hasFreeTrial && !existing;
@@ -421,17 +488,32 @@ export async function subscribeTier(
 export async function purchaseDayPass(
   db: Database,
   userId: string,
-  userEmail?: string | null
+  userEmail?: string | null,
+  platform?: PurchasePlatform
 ): Promise<{
   success: boolean;
   dayPassExpiresAt: Date;
   paymentMode: "stub" | "live";
   checkoutUrl?: string;
   orderId?: string;
+  provider?: "razorpay" | "apple";
+  productId?: string;
 }> {
   const now = new Date();
   const expiresAt = new Date(now);
   expiresAt.setHours(expiresAt.getHours() + DAY_PASS_CONFIG.durationHours);
+
+  // ── iOS: route to Apple IAP via RevenueCat ──
+  if (platform === "ios") {
+    log.info({ userId, platform: "ios" }, "iOS Day Pass initiated — awaiting Apple IAP");
+    return {
+      success: true,
+      dayPassExpiresAt: expiresAt,
+      paymentMode: "live",
+      provider: "apple",
+      productId: REVENUECAT_DAYPASS_PRODUCT_ID,
+    };
+  }
 
   const paymentMode = await getPaymentMode();
   const isLive = paymentMode === "live";
@@ -590,6 +672,28 @@ export async function cancelSubscription(db: Database, userId: string, reason?: 
   }
 
   const paymentMode = await getPaymentMode();
+
+  // Apple IAP: cancellation is managed by Apple via Settings app.
+  // We only mark it locally — RevenueCat webhook will handle the actual expiry.
+  if (sub.paymentProvider === "apple") {
+    await db
+      .update(subscriptions)
+      .set({ cancelAtPeriodEnd: true, updatedAt: new Date() })
+      .where(eq(subscriptions.id, sub.id));
+
+    await db.insert(subscriptionEvents).values({
+      userId,
+      subscriptionId: sub.id,
+      event: "cancelled",
+      fromTier: sub.tier,
+      toTier: sub.tier,
+      metadata: { provider: "apple", note: "User must cancel via Apple Settings", ...(reason && { reason }), ...(reasonCategory && { reasonCategory }) },
+    });
+
+    await invalidateUserTierCache(userId);
+    log.info({ userId, tier: sub.tier, provider: "apple" }, "Apple subscription cancel requested (user must cancel via Apple Settings)");
+    return;
+  }
 
   if (paymentMode === "live" && sub.razorpaySubscriptionId) {
     // Live mode: mark for cancellation at period end, let Razorpay webhook handle expiry

@@ -160,7 +160,24 @@
       "Bash(printf 'y\\\\ny\\\\ny\\\\ny\\\\ny\\\\n')",
       "Bash(DATABASE_URL=postgresql://chandanreddy@localhost:5432/draftplay_local npx drizzle-kit push)",
       "Bash(/opt/homebrew/bin/psql postgresql://chandanreddy@localhost:5432/draftplay_local -c \"ALTER TABLE matches ADD COLUMN IF NOT EXISTS prediction_deadline timestamp with time zone;\")",
-      "Bash(/opt/homebrew/opt/postgresql@16/bin/psql postgresql://chandanreddy@localhost:5432/draftplay_local -c \"ALTER TABLE matches ADD COLUMN IF NOT EXISTS prediction_deadline timestamp with time zone;\")"
+      "Bash(/opt/homebrew/opt/postgresql@16/bin/psql postgresql://chandanreddy@localhost:5432/draftplay_local -c \"ALTER TABLE matches ADD COLUMN IF NOT EXISTS prediction_deadline timestamp with time zone;\")",
+      "Bash(npx -y pg-meta)",
+      "Bash(DATABASE_URL=\"postgresql://chandanreddy@localhost:5432/draftplay_local\" npx tsx scripts/migrate-0013.ts)",
+      "Bash(sed -i '' 's/Redis hot cache/PG hot cache/g' packages/api/src/routers/sports.ts)",
+      "Bash(sed -i '' 's/Redis hot cache/PG hot cache/g' packages/api/src/services/fdr-engine.ts)",
+      "Bash(sed -i '' 's/Redis/PG cache/g' packages/api/src/services/admin-config.ts)",
+      "Bash(sed -i '' 's/Redis-cached/PG-cached/g' packages/api/src/services/feature-flags.ts)",
+      "Bash(sed -i '' 's/Redis cache/PG cache/g' packages/api/src/services/subscription.ts)",
+      "Bash(/opt/homebrew/opt/postgresql@16/bin/psql \"postgresql://chandanreddy@localhost:5432/draftplay_local\" -f /Users/chandanreddy/Documents/draftcrick/packages/db/src/migrations/0014_cache_entries.sql)",
+      "Bash(chmod +x /Users/chandanreddy/Documents/draftcrick/scripts/deploy-api.sh)",
+      "Bash(chmod +x /Users/chandanreddy/Documents/draftcrick/scripts/deploy-web.sh /Users/chandanreddy/Documents/draftcrick/scripts/deploy-app.sh)",
+      "Bash(chmod +x /Users/chandanreddy/Documents/draftcrick/scripts/deploy-all.sh)",
+      "Bash(chmod +x /Users/chandanreddy/Documents/draftcrick/scripts/deploy-common.sh)",
+      "Bash(gcloud --version)",
+      "Bash(gcloud auth:*)",
+      "Bash(gcloud services:*)",
+      "Bash(./scripts/deploy-api.sh 0.1.0 --skip-branch)",
+      "Bash(gcloud projects:*)"
     ],
     "additionalDirectories": [
       "/tmp",
@@ -168,7 +185,8 @@
       "/Users/chandanreddy/Documents/draftcrick/apps/web/src/app/admin/players",
       "/Users/chandanreddy/Documents/draftcrick/tests/e2e/cricket-story/screenshots",
       "/Users/chandanreddy/Library/Caches/ms-playwright",
-      "/Users/chandanreddy/Documents/draftcrick/apps/mobile/app/match"
+      "/Users/chandanreddy/Documents/draftcrick/apps/mobile/app/match",
+      "/private/tmp/claude-501/-Users-chandanreddy-Documents-draftcrick/tasks"
     ]
   }
 }

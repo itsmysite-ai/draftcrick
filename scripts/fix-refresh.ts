@@ -1,10 +1,10 @@
 #!/usr/bin/env npx tsx
 /**
- * Fix stuck refresh entries and clear stale state so a fresh cold start can succeed.
+ * Fix stuck refresh entries and clear stale cache so a fresh cold start can succeed.
  */
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
 import postgres from "postgres";
-import Redis from "ioredis";
 
 const DB_URL = process.env.DATABASE_URL || "postgresql://postgres:Dreamproject@34.57.117.132:5432/draftplay";
 
@@ -15,19 +15,12 @@ async function main() {
   const fixed = await sql`UPDATE data_refresh_log SET status = 'failed', error_message = 'manually cleaned up', completed_at = NOW() WHERE status = 'in_progress' RETURNING id`;
   console.log(`Fixed ${fixed.length} stuck refresh log entries`);
 
-  // 2. Clear all Redis state
+  // 2. Clear all cache entries (including stale locks)
   try {
-    const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
-    const allKeys = await redis.keys("*");
-    if (allKeys.length > 0) {
-      await redis.del(...allKeys);
-      console.log(`Cleared ${allKeys.length} Redis keys`);
-    } else {
-      console.log("Redis already empty");
-    }
-    redis.disconnect();
+    const result = await sql`DELETE FROM cache_entries`;
+    console.log("Cleared all cache entries");
   } catch (e: any) {
-    console.log("Redis:", e.message);
+    console.log("Cache clear:", e.message);
   }
 
   await sql.end();

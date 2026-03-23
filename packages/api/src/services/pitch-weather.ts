@@ -4,7 +4,7 @@
  * Generates pitch conditions, weather forecasts, and actionable fantasy tips
  * for upcoming matches. Uses Google Search for real-time weather data.
  *
- * Cache: Redis (1hr TTL) → Gemini (on miss).
+ * Cache: PG (1hr TTL) → Gemini (on miss).
  */
 
 import { getLogger } from "../lib/logger";

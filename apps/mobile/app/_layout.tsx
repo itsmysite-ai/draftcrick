@@ -2,12 +2,51 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, Platform } from "react-native";
+// Sentry — no-op stub (install @sentry/react-native to enable)
+const Sentry = {
+  init: (..._args: unknown[]) => {},
+  captureException: (..._args: unknown[]) => {},
+  wrap: (component: any) => component,
+};
 import { AuthProvider, useAuth } from "../providers/AuthProvider";
 import { NotificationProvider } from "../providers/NotificationProvider";
 import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
 import { ColorsLight, FontFamily } from "../lib/design";
+import { initializeRevenueCat, identifyUser } from "../services/iap";
+import Constants from "expo-constants";
+
+// Initialize Sentry for crash reporting
+const SENTRY_DSN = Constants.expoConfig?.extra?.sentryDsn
+  ?? process.env.EXPO_PUBLIC_SENTRY_DSN;
+
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: __DEV__ ? "development" : "production",
+    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+    enableAutoSessionTracking: true,
+    attachScreenshot: true,
+  });
+}
+
+/** Initialize RevenueCat and identify user when auth state is ready */
+function RevenueCatInit() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    initializeRevenueCat();
+  }, []);
+
+  useEffect(() => {
+    if (user?.uid) {
+      identifyUser(user.uid);
+    }
+  }, [user?.uid]);
+
+  return null;
+}
 
 /** Syncs user preferences from the API into ThemeProvider on mount */
 function PreferenceSyncer() {
@@ -37,6 +76,7 @@ function InnerLayout() {
 
   return (
     <>
+      <RevenueCatInit />
       <PreferenceSyncer />
       <StatusBar style={mode === "light" ? "dark" : "light"} />
       <Stack
@@ -85,7 +125,7 @@ function InnerLayout() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -156,3 +196,6 @@ export default function RootLayout() {
     </trpc.Provider>
   );
 }
+
+// Wrap with Sentry error boundary for crash reporting
+export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;

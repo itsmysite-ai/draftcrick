@@ -67,15 +67,21 @@ export default function AdminDashboard() {
 }
 
 function RefreshButton() {
-  const [sport, setSport] = React.useState<"cricket" | "f1">("cricket");
+  // TODO(f1-launch): Restore sport selector when F1 launches
+  // const [sport, setSport] = React.useState<"cricket" | "f1">("cricket");
+  const sport = "cricket" as const;
   const discover = trpc.admin.tournaments.discover.useMutation();
   const refresh = trpc.admin.system.triggerRefresh.useMutation();
 
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-      <select
-        value={sport}
-        onChange={(e) => setSport(e.target.value as "cricket" | "f1")}
+      {/* TODO(f1-launch): Restore sport selector dropdown
+      <select value={sport} onChange={(e) => setSport(e.target.value as "cricket" | "f1")} style={...}>
+        <option value="cricket">Cricket</option>
+        <option value="f1">F1</option>
+      </select>
+      */}
+      <span
         style={{
           padding: "10px 14px",
           borderRadius: 8,
@@ -83,12 +89,12 @@ function RefreshButton() {
           backgroundColor: "var(--bg-surface)",
           fontSize: 14,
           fontWeight: 500,
-          cursor: "pointer",
+          fontFamily: "var(--font-data)",
+          color: "var(--text-primary)",
         }}
       >
-        <option value="cricket">Cricket</option>
-        <option value="f1">F1</option>
-      </select>
+        Cricket
+      </span>
       <button
         onClick={() => discover.mutate({ sport })}
         disabled={discover.isPending}

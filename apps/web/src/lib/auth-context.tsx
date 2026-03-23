@@ -8,10 +8,14 @@ import {
 } from "firebase/auth";
 import { auth } from "./firebase";
 
+type AdminRole = "admin" | "support" | null;
+
 interface AuthContextType {
   user: FirebaseUser | null;
   isLoading: boolean;
   isAdmin: boolean;
+  /** The user's staff role: "admin", "support", or null */
+  staffRole: AdminRole;
   token: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -21,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isAdmin: false,
+  staffRole: null,
   token: null,
   signIn: async () => {},
   signOut: async () => {},
@@ -31,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [staffRole, setStaffRole] = useState<AdminRole>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -38,12 +44,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (firebaseUser) {
         const idToken = await firebaseUser.getIdToken();
         setToken(idToken);
-        // Check admin claim from token (set by server)
+        // Check admin/support claim from token (set by server)
         const tokenResult = await firebaseUser.getIdTokenResult();
-        setIsAdmin(tokenResult.claims.admin === true || tokenResult.claims.role === "admin");
+        const role = tokenResult.claims.role as string | undefined;
+        const hasAdmin = tokenResult.claims.admin === true || role === "admin";
+        const hasSupport = role === "support";
+        setIsAdmin(hasAdmin || hasSupport); // both can access admin panel
+        setStaffRole(hasAdmin ? "admin" : hasSupport ? "support" : null);
       } else {
         setToken(null);
         setIsAdmin(false);
+        setStaffRole(null);
       }
       setIsLoading(false);
     });
@@ -59,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAdmin, token, signIn, signOut: handleSignOut }}>
+    <AuthContext.Provider value={{ user, isLoading, isAdmin, staffRole, token, signIn, signOut: handleSignOut }}>
       {children}
     </AuthContext.Provider>
   );

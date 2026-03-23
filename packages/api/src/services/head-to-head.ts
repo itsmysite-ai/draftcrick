@@ -4,7 +4,7 @@
  * Provides historical head-to-head records between two cricket teams using Gemini.
  * Includes overall record, format-specific record, recent matches, venue record, and key insight.
  *
- * Cache: Redis (6hr TTL) — historical data changes slowly.
+ * Cache: PG (6hr TTL) — historical data changes slowly.
  */
 
 import { getLogger } from "../lib/logger";

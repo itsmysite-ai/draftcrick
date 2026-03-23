@@ -1,5 +1,6 @@
 #!/usr/bin/env npx tsx
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
 import postgres from "postgres";
 
 const DB_URL = process.env.DATABASE_URL || "postgresql://postgres:Dreamproject@34.57.117.132:5432/draftplay";

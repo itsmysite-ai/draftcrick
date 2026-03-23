@@ -62,6 +62,20 @@ export async function verifyIdToken(token: string) {
 }
 
 /**
+ * Set custom claims on a Firebase user (e.g., role: "admin" | "support").
+ * The frontend reads these claims to determine sidebar visibility.
+ */
+export async function setUserClaims(firebaseUid: string, claims: Record<string, any>) {
+  try {
+    const auth = await getFirebaseAuth();
+    await auth.setCustomUserClaims(firebaseUid, claims);
+  } catch (err: any) {
+    console.error("[AUTH] setUserClaims failed:", err.code || err.message || err);
+    throw err;
+  }
+}
+
+/**
  * Extract Firebase ID token from request headers.
  * Supports: Authorization: Bearer <token>
  */

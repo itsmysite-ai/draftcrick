@@ -2,7 +2,8 @@
  * Cleanup script: Reset matches, delete test users, delete all contests.
  * Usage: DATABASE_URL=postgresql://chandanreddy@localhost:5432/draftplay_local npx tsx scripts/cleanup-test-data.ts
  */
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
 import { getDb } from "../packages/db/src/index";
 import { sql } from "drizzle-orm";
 
