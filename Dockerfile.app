@@ -5,15 +5,18 @@ FROM node:22-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
-# Install dependencies
+# Install ALL dependencies (Expo needs hoisted peer deps like @expo/vector-icons)
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY patches/ ./patches/
 COPY apps/mobile/package.json ./apps/mobile/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/api/package.json ./packages/api/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
+COPY packages/db/package.json ./packages/db/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/config/ ./packages/config/
-RUN pnpm install --frozen-lockfile --filter @draftplay/mobile...
+RUN pnpm install --frozen-lockfile
 
 # Build
 FROM deps AS build
