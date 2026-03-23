@@ -5,8 +5,9 @@ FROM node:22-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
-# Install ALL dependencies (Expo needs hoisted peer deps like @expo/vector-icons)
+# Install ALL dependencies with .npmrc hoisting config
 FROM base AS deps
+COPY .npmrc ./
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 COPY patches/ ./patches/
 COPY apps/mobile/package.json ./apps/mobile/package.json
