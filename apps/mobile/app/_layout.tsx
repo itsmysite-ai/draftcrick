@@ -15,19 +15,12 @@ import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
 import { ColorsLight, FontFamily } from "../lib/design";
 import { initializeRevenueCat, identifyUser } from "../services/iap";
-import Constants from "expo-constants";
-
-// Initialize Sentry for crash reporting
-const SENTRY_DSN = Constants.expoConfig?.extra?.sentryDsn
-  ?? process.env.EXPO_PUBLIC_SENTRY_DSN;
+// Initialize Sentry for crash reporting (no-op until @sentry/react-native is installed)
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
 if (SENTRY_DSN) {
   Sentry.init({
     dsn: SENTRY_DSN,
-    environment: __DEV__ ? "development" : "production",
-    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
-    enableAutoSessionTracking: true,
-    attachScreenshot: true,
   });
 }
 

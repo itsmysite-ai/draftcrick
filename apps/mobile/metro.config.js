@@ -25,10 +25,24 @@ config.resolver.unstable_conditionNames = [
   "default",
 ];
 
+// Native-only modules that need web shims (registerWebModule fails in static export)
+const nativeOnlyModules = new Set([
+  "expo-haptics",
+  "expo-device",
+  "expo-location",
+  "expo-notifications",
+  "expo-constants",
+]);
+const webShimPath = path.resolve(projectRoot, "web-shims/expo-modules.js");
+
 // Custom resolver to handle ESM-only packages that lack a "main" field
 // and to handle pnpm's node_modules structure
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // On web, redirect native-only Expo modules to no-op shim
+  if (platform === "web" && nativeOnlyModules.has(moduleName)) {
+    return { filePath: webShimPath, type: "sourceFile" };
+  }
   // Map of ESM-only packages to their entry files (relative to package dir)
   const esmOnlyPackages = {
     "copy-anything": "dist/index.js",
