@@ -97,7 +97,7 @@ export default function TermsScreen() {
 
           <LegalSection
             title="10. contact"
-            body="For questions about these terms, contact us at support@draftplay.ai"
+            body="For questions about these terms, contact us at support@playorparty.com"
           />
         </Card>
       </ScrollView>

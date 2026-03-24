@@ -35,7 +35,14 @@ export default function OnboardingScreen() {
     });
     setAvailableSports(["cricket"]);
     setSport("cricket" as any);
-    router.replace("/(tabs)");
+    // Check for redirect (e.g. Day Pass → login → onboarding → subscription)
+    const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
+    if (redirect) {
+      sessionStorage.removeItem("auth_redirect");
+      router.replace(redirect as any);
+    } else {
+      router.replace("/(tabs)");
+    }
   };
 
   const isSaving = acceptTermsMutation.isPending || savePreferences.isPending;

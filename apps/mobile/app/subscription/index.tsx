@@ -64,6 +64,14 @@ export default function SubscriptionScreen() {
   const theme = useTamaguiTheme();
 
   const { user } = useAuth();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!user && typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem("auth_redirect", "/subscription");
+      router.replace("/auth/login");
+    }
+  }, [user]);
   const [refreshing, setRefreshing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoResult, setPromoResult] = useState<{ valid: boolean; discountDisplay?: string } | null>(null);

@@ -55,7 +55,14 @@ export default function LoginScreen() {
     setIsSubmitting(true);
     try {
       await signIn(email, password);
-      router.replace("/(tabs)");
+      // Check if there's a redirect URL (e.g. from Day Pass link)
+      const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
+      if (redirect) {
+        sessionStorage.removeItem("auth_redirect");
+        router.replace(redirect as any);
+      } else {
+        router.replace("/");
+      }
     } catch (e: any) {
       setLocalError(e.message ?? "Sign in failed");
     } finally {

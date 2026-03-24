@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useEffect, useMemo } from "react";
+import { Platform } from "react-native";
 import { Gradients, Radius, FontFamily } from "../lib/design";
 import { useTheme } from "../providers/ThemeProvider";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
@@ -113,26 +114,37 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             { backgroundColor: t.bgSurface, borderColor: t.border },
           ]}
         >
-          {state.routes.map((route, index) => (
-            <TabItem
-              key={route.key}
-              route={route.name}
-              isFocused={state.index === index}
-              onPress={() => {
-                const event = navigation.emit({
-                  type: "tabPress",
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (state.index !== index && !event.defaultPrevented) {
-                  navigation.navigate(route.name, route.params);
-                }
-              }}
-              onLongPress={() => {
-                navigation.emit({ type: "tabLongPress", target: route.key });
-              }}
-            />
-          ))}
+          {state.routes
+            .filter((route) => {
+              // On web, buzz lives in the sidebar — hide it from tab bar
+              if (route.name === "buzz" && Platform.OS === "web") {
+                return false;
+              }
+              return true;
+            })
+            .map((route) => {
+              const idx = state.routes.findIndex((r) => r.key === route.key);
+              return (
+                <TabItem
+                  key={route.key}
+                  route={route.name}
+                  isFocused={state.index === idx}
+                  onPress={() => {
+                    const event = navigation.emit({
+                      type: "tabPress",
+                      target: route.key,
+                      canPreventDefault: true,
+                    });
+                    if (state.index !== idx && !event.defaultPrevented) {
+                      navigation.navigate(route.name, route.params);
+                    }
+                  }}
+                  onLongPress={() => {
+                    navigation.emit({ type: "tabLongPress", target: route.key });
+                  }}
+                />
+              );
+            })}
         </View>
       </View>
     </View>

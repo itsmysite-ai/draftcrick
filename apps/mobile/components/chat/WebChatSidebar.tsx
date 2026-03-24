@@ -57,8 +57,8 @@ function WebLayout({ children }: { children: React.ReactNode }) {
       {/* App frame — fixed phone width */}
       <View
         style={{
-          width: 420,
-          minWidth: 380,
+          width: 504,
+          minWidth: 456,
           minHeight: "100vh" as any,
           borderLeftWidth: 1,
           borderRightWidth: 1,
@@ -72,8 +72,8 @@ function WebLayout({ children }: { children: React.ReactNode }) {
       <View
         style={{
           flex: 1,
-          minWidth: 280,
-          maxWidth: 420,
+          minWidth: 336,
+          maxWidth: 504,
           minHeight: "100vh" as any,
           borderRightWidth: 1,
           borderColor,

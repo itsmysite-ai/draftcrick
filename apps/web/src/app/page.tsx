@@ -115,7 +115,7 @@ export default function HomePage() {
         </a>
 
         <Link
-          href="/register"
+          href="https://app.draftplay.ai/auth/register"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -189,7 +189,7 @@ export default function HomePage() {
           <span style={{ color: "#E5484D" }}>Not Gambling.</span>
           <br />
           <a
-            href="#"
+            href="https://app.draftplay.ai/subscription"
             style={{
               display: "inline-block",
               color: "#F7F5F0",
@@ -226,7 +226,7 @@ export default function HomePage() {
         {/* CTA */}
         <div className="landing-hero-cta" style={{ marginBottom: 16 }}>
           <Link
-            href="/register"
+            href="https://app.draftplay.ai/auth/register"
             style={{
               backgroundColor: "#5DB882",
               color: "#0A0B09",
@@ -671,7 +671,7 @@ export default function HomePage() {
           Join thousands of sports fans who chose intelligence over gambling.
         </p>
         <Link
-          href="/register"
+          href="https://app.draftplay.ai/auth/register"
           style={{
             backgroundColor: "#5DB882",
             color: "#0A0B09",
@@ -703,12 +703,12 @@ export default function HomePage() {
         }}
       >
         <div style={{ display: "flex", justifyContent: "center", gap: 24, marginBottom: 8 }}>
-          <Link href="/legal/terms" style={{ color: "#5E5D5A", fontSize: 13 }}>
+          <a href="https://app.draftplay.ai/legal/terms" style={{ color: "#5E5D5A", fontSize: 13, textDecoration: "none" }}>
             Terms of Service
-          </Link>
-          <Link href="/legal/privacy" style={{ color: "#5E5D5A", fontSize: 13 }}>
+          </a>
+          <a href="https://app.draftplay.ai/legal/privacy" style={{ color: "#5E5D5A", fontSize: 13, textDecoration: "none" }}>
             Privacy Policy
-          </Link>
+          </a>
         </div>
         &copy; {new Date().getFullYear()} DraftPlay.ai. All rights reserved.
       </footer>

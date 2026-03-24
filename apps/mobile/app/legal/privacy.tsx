@@ -97,7 +97,7 @@ export default function PrivacyScreen() {
 
           <LegalSection
             title="10. contact"
-            body="For privacy-related questions or data requests, contact us at privacy@draftplay.ai"
+            body="For privacy-related questions or data requests, contact us at support@playorparty.com"
           />
         </Card>
       </ScrollView>
