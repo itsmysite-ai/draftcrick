@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack } from "tamagui";
 import { Text } from "../../components/SportText";
@@ -10,6 +11,7 @@ export default function SportsSettingsScreen() {
   const insets = useSafeAreaInsets();
 
   return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
     <YStack flex={1} paddingTop={insets.top} backgroundColor="$background" testID="sports-settings-screen">
       <XStack
         justifyContent="space-between"
@@ -68,5 +70,6 @@ export default function SportsSettingsScreen() {
         </YStack>
       </YStack>
     </YStack>
+    </ScrollView>
   );
 }

@@ -1,4 +1,4 @@
-import { TextInput, Pressable, Alert } from "react-native";
+import { TextInput, Pressable, Alert, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,7 +15,7 @@ import {
 } from "@draftplay/ui";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
-import { trpc } from "../../lib/trpc";
+
 
 /** Convert raw Firebase error messages into user-friendly text */
 function friendlyAuthError(msg: string): string {
@@ -42,7 +42,7 @@ export default function RegisterScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const acceptTermsMutation = trpc.auth.acceptTerms.useMutation();
+
 
   const rawError = localError ?? error;
   const displayError = rawError ? friendlyAuthError(rawError) : null;
@@ -52,8 +52,7 @@ export default function RegisterScreen() {
     setIsSubmitting(true);
     try {
       await signUp(email, password);
-      await acceptTermsMutation.mutateAsync();
-      router.replace("/(tabs)");
+      router.replace("/auth/onboarding");
     } catch (e: any) {
       setLocalError(e.message ?? "Sign up failed");
     } finally {
@@ -74,6 +73,11 @@ export default function RegisterScreen() {
   };
 
   return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ flexGrow: 1 }}
+      keyboardShouldPersistTaps="handled"
+    >
     <YStack flex={1} backgroundColor="$background">
       {/* ── Inline Header ── */}
       <XStack
@@ -205,7 +209,7 @@ export default function RegisterScreen() {
                   )}
                 </YStack>
                 <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
-                  {formatUIText("i confirm i am 13 years or older")}
+                  {formatUIText("i confirm i am 18 years or older")}
                 </Text>
               </XStack>
             </Pressable>
@@ -294,5 +298,6 @@ export default function RegisterScreen() {
         </YStack>
       </YStack>
     </YStack>
+    </ScrollView>
   );
 }

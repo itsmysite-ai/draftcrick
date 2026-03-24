@@ -14,6 +14,7 @@ import { NotificationProvider } from "../providers/NotificationProvider";
 import { ThemeProvider, useTheme } from "../providers/ThemeProvider";
 import { trpc, getTRPCClient } from "../lib/trpc";
 import { ColorsLight, FontFamily } from "../lib/design";
+import { WebLayoutWrapper } from "../components/chat/WebChatSidebar";
 import { initializeRevenueCat, identifyUser } from "../services/iap";
 // Initialize Sentry for crash reporting (no-op until @sentry/react-native is installed)
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
@@ -44,7 +45,7 @@ function RevenueCatInit() {
 /** Syncs user preferences from the API into ThemeProvider on mount */
 function PreferenceSyncer() {
   const { setAvailableSports, setSport, sport } = useTheme();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const isLoggedIn = !!user;
   const { data: prefs } = trpc.auth.getPreferences.useQuery(undefined, {
     staleTime: 60_000 * 5, // 5 min cache
@@ -58,6 +59,10 @@ function PreferenceSyncer() {
       if (!sports.includes(sport as any)) {
         setSport(sports[0]);
       }
+    }
+    // Sync DB display name into auth user
+    if (prefs?.displayName && user && user.displayName !== prefs.displayName) {
+      setUser({ ...user, displayName: prefs.displayName, username: prefs.username ?? user.username });
     }
   }, [prefs]);
 
@@ -181,7 +186,9 @@ function RootLayout() {
         <AuthProvider>
           <NotificationProvider>
             <ThemeProvider>
-              <InnerLayout />
+              <WebLayoutWrapper>
+                <InnerLayout />
+              </WebLayoutWrapper>
             </ThemeProvider>
           </NotificationProvider>
         </AuthProvider>

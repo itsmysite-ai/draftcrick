@@ -57,7 +57,7 @@ export default function TermsScreen() {
 
           <LegalSection
             title="2. eligibility"
-            body="You must be at least 13 years old to use DraftPlay. By creating an account, you confirm that you meet this age requirement. Users under 18 may need parental consent depending on their jurisdiction."
+            body="You must be at least 18 years old to use DraftPlay. By creating an account, you confirm that you meet this age requirement."
           />
 
           <LegalSection

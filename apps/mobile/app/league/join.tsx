@@ -1,4 +1,4 @@
-import { TextInput } from "react-native";
+import { TextInput, ScrollView } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +29,7 @@ export default function JoinLeagueScreen() {
   });
 
   return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
     <YStack flex={1} backgroundColor="$background" testID="join-league-screen">
       {/* ── Inline Header ── */}
       <XStack
@@ -73,5 +74,6 @@ export default function JoinLeagueScreen() {
         )}
       </YStack>
     </YStack>
+    </ScrollView>
   );
 }

@@ -22,3 +22,4 @@ export * from "./guru";
 export * from "./admin-config";
 export * from "./subscriptions";
 export * from "./cache";
+export * from "./chat";

@@ -36,6 +36,7 @@ import { razorpayWebhook } from "./webhooks/razorpay";
 import { revenuecatWebhook } from "./webhooks/revenuecat";
 import { rateLimitMiddleware } from "./middleware/rate-limit";
 import { getLogger } from "./lib/logger";
+import { generateFunkyName } from "./services/funky-names";
 
 export type { AppRouter } from "./routers";
 
@@ -146,11 +147,7 @@ app.use("/trpc/*", async (c) => {
         // Auto-create user record if authenticated but not yet synced
         if (!dbUser) {
           const email = decoded.email ?? null;
-          const suffix = Math.random().toString(36).slice(2, 6);
-          const base = email
-            ? email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 14)
-            : `user_${decoded.uid.slice(0, 8)}`;
-          const username = `${base}_${suffix}`;
+          const username = await generateFunkyName(email);
 
           // If email exists (e.g., re-created Firebase account), update firebaseUid
           if (email) {
@@ -173,7 +170,7 @@ app.use("/trpc/*", async (c) => {
                   firebaseUid: decoded.uid,
                   email,
                   username,
-                  displayName: decoded.name ?? username,
+                  displayName: username,
                 })
                 .onConflictDoNothing({ target: users.firebaseUid })
                 .returning();
@@ -182,16 +179,16 @@ app.use("/trpc/*", async (c) => {
               });
             } catch (insertErr) {
               log.error({ error: (insertErr as Error)?.message }, "User insert failed, retrying");
-              // Could be username or email collision — retry with different suffix
+              // Could be username collision — retry with a new AI name
               try {
-                const retry = `${base}_${Math.random().toString(36).slice(2, 7)}`;
+                const retry = await generateFunkyName(email);
                 const [created] = await db
                   .insert(users)
                   .values({
                     firebaseUid: decoded.uid,
                     email,
                     username: retry,
-                    displayName: decoded.name ?? retry,
+                    displayName: retry,
                   })
                   .onConflictDoNothing({ target: users.firebaseUid })
                   .returning();

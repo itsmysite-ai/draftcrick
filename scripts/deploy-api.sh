@@ -34,7 +34,7 @@ cloud_build "Dockerfile.api" "$IMAGE" "$VERSION"
 # 3. Deploy with server-side env vars
 echo ""
 echo "3. Deploying to Cloud Run..."
-ENV_VARS="$(get_server_env_vars),PORT=8080"
+ENV_FILE_PATH="$(get_server_env_file)"
 
 gcloud run deploy "$SERVICE" \
   --image "${IMAGE}:v${VERSION}" \
@@ -48,7 +48,9 @@ gcloud run deploy "$SERVICE" \
   --max-instances 10 \
   --concurrency 80 \
   --timeout 60s \
-  --set-env-vars "$ENV_VARS"
+  --env-vars-file "$ENV_FILE_PATH"
+
+rm -f "$ENV_FILE_PATH"
 
 # 4. Verify
 verify_deployment "$SERVICE" "$VERSION" "/health"

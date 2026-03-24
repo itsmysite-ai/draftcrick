@@ -163,24 +163,22 @@ get_next_substitutions() {
   echo "$subs"
 }
 
-get_server_env_vars() {
-  local vars=""
+get_server_env_file() {
+  local env_file="/tmp/cloudrun-env-$$.yaml"
+  echo "# Auto-generated Cloud Run env vars" > "$env_file"
   while IFS= read -r line; do
     [[ -z "$line" || "$line" =~ ^# ]] && continue
     [[ "$line" =~ ^EXPO_PUBLIC_ ]] && continue
     [[ "$line" =~ ^NEXT_PUBLIC_ ]] && continue
     [[ "$line" =~ ^GCP_ACCOUNT ]] && continue
     [[ "$line" =~ ^GCP_REGION ]] && continue
+    [[ "$line" =~ ^PORT= ]] && continue
     local key=$(echo "$line" | cut -d'=' -f1)
     local val=$(echo "$line" | cut -d'=' -f2-)
     [[ -z "$val" ]] && continue
-    if [[ -n "$vars" ]]; then
-      vars="${vars},${key}=${val}"
-    else
-      vars="${key}=${val}"
-    fi
+    echo "${key}: \"${val}\"" >> "$env_file"
   done < "$ENV_FILE"
-  echo "$vars"
+  echo "$env_file"
 }
 
 verify_deployment() {

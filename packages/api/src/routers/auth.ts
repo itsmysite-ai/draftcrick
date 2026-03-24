@@ -102,9 +102,13 @@ export const authRouter = router({
     try {
       const row = await ctx.db.query.users.findFirst({
         where: eq(users.id, ctx.user.id),
-        columns: { preferences: true },
+        columns: { preferences: true, displayName: true, username: true },
       });
-      return row?.preferences ?? null;
+      return {
+        ...(row?.preferences ?? {}),
+        displayName: row?.displayName ?? null,
+        username: row?.username ?? null,
+      };
     } catch {
       // Column may not exist yet if migration hasn't run
       return null;
@@ -157,4 +161,28 @@ export const authRouter = router({
 
     return { success: true };
   }),
+
+  /** Update display name (the funky anonymous name shown in chat) */
+  updateDisplayName: protectedProcedure
+    .input(z.object({
+      displayName: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_ ]+$/, "Only letters, numbers, underscores and spaces"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const name = input.displayName.trim();
+
+      // Check uniqueness — no two users should have the same display name
+      const existing = await ctx.db.query.users.findFirst({
+        where: eq(users.displayName, name),
+        columns: { id: true },
+      });
+      if (existing && existing.id !== ctx.user.id) {
+        return { ok: false, error: "This name is already taken. Try another one!" };
+      }
+
+      await ctx.db
+        .update(users)
+        .set({ displayName: name, username: name, updatedAt: new Date() })
+        .where(eq(users.id, ctx.user.id));
+      return { ok: true };
+    }),
 });

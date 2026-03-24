@@ -1,4 +1,4 @@
-import { TextInput, Pressable } from "react-native";
+import { TextInput, Pressable, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,6 +64,11 @@ export default function LoginScreen() {
   };
 
   return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ flexGrow: 1 }}
+      keyboardShouldPersistTaps="handled"
+    >
     <YStack flex={1} backgroundColor="$background">
       {/* ── Inline Header ── */}
       <XStack
@@ -237,5 +242,6 @@ export default function LoginScreen() {
         </YStack>
       </YStack>
     </YStack>
+    </ScrollView>
   );
 }

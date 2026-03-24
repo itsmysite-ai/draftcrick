@@ -68,8 +68,11 @@ export const INDIA_STATES = [
   { code: "WB", name: "West Bengal" },
 ] as const;
 
-/** States where fantasy sports with real money is banned. */
-export const INDIA_BANNED_STATES = ["AP", "TG", "AS", "OD"] as const;
+/** States where fantasy sports with real money is banned.
+ *  Disabled — DraftPlay is free-to-play (no real-money entry fees),
+ *  so state-level gaming bans do not apply. Re-enable if monetization
+ *  model changes to include real-money contests. */
+export const INDIA_BANNED_STATES = [] as const;
 
 /** States requiring a special license for real-money fantasy. */
 export const INDIA_LICENSE_REQUIRED_STATES = ["SK", "NL"] as const;

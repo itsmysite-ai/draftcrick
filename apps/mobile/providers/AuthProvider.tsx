@@ -18,6 +18,7 @@ interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
+  setUser: (user: AuthUser | null) => void;
   isLoading: boolean;
   firebaseToken: string | null;
   error: string | null;
@@ -28,6 +29,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  setUser: () => {},
   isLoading: true,
   firebaseToken: null,
   error: null,
@@ -109,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, firebaseToken, error, signIn, signUp, signOut: handleSignOut }}
+      value={{ user, setUser, isLoading, firebaseToken, error, signIn, signUp, signOut: handleSignOut }}
     >
       {children}
     </AuthContext.Provider>

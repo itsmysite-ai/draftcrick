@@ -1,4 +1,4 @@
-import { ScrollView, Linking } from "react-native";
+import { ScrollView, Linking, TextInput, Pressable } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -84,7 +84,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { mode, toggleMode } = useTheme();
   const theme = useTamaguiTheme();
-  const { user, signOut } = useAuth();
+  const { user, setUser, signOut } = useAuth();
   const isLoggedIn = !!user;
   const wallet = trpc.wallet.getBalance.useQuery(undefined, { retry: false, enabled: isLoggedIn });
   const myTier = trpc.subscription.getMyTier.useQuery(undefined, { retry: false, enabled: isLoggedIn });
@@ -93,7 +93,41 @@ export default function ProfileScreen() {
   const prefs = trpc.auth.getPreferences.useQuery(undefined, { retry: false, enabled: isLoggedIn });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
+  const updateNameMutation = trpc.auth.updateDisplayName.useMutation({
+    onSuccess: (data: any) => {
+      if (data && !data.ok && data.error) {
+        setNameError(data.error);
+      } else {
+        setNameError(null);
+        setIsEditingName(false);
+        // Update auth user immediately so avatar color changes
+        if (user) {
+          setUser({ ...user, displayName: editName.trim(), username: editName.trim() });
+        }
+        prefs.refetch();
+      }
+    },
+  });
+
+  const displayName = user?.displayName || user?.username || "Player";
+  // Generate consistent avatar color from display name
+  const avatarColor = (() => {
+    let h1 = 0, h2 = 0;
+    for (let i = 0; i < displayName.length; i++) {
+      h1 = ((h1 << 5) - h1) + displayName.charCodeAt(i);
+      h1 |= 0;
+      h2 = ((h2 << 7) + h2) ^ displayName.charCodeAt(i);
+      h2 |= 0;
+    }
+    const hue = Math.abs(h1) % 360;
+    const sat = 45 + (Math.abs(h2) % 40);
+    const lit = 35 + (Math.abs(h1 ^ h2) % 25);
+    return `hsl(${hue}, ${sat}%, ${lit}%)`;
+  })();
 
   const sportsLabel = availableSports.map((s) => s === "cricket" ? "Cricket" : "F1").join(", ");
   const locationLabel = prefs.data?.country
@@ -114,30 +148,94 @@ export default function ProfileScreen() {
             paddingVertical="$8"
             marginBottom="$3"
           >
+            {/* Avatar — colored circle with initial */}
             <YStack
               width={72}
               height={72}
               borderRadius={36}
-              borderWidth={2}
-              borderColor="$borderColor"
-              backgroundColor="$backgroundSurface"
               alignItems="center"
               justifyContent="center"
               marginBottom="$4"
+              // @ts-ignore — dynamic HSL color
+              style={isLoggedIn ? { backgroundColor: avatarColor } : undefined}
+              backgroundColor={isLoggedIn ? undefined : "$backgroundSurface"}
+              borderWidth={isLoggedIn ? 0 : 2}
+              borderColor="$borderColor"
             >
-              <Ionicons
-                name={isLoggedIn ? "person" : "person-outline"}
-                size={24}
-                color={isLoggedIn ? theme.accentBackground.val : theme.colorMuted.val}
-              />
+              {isLoggedIn ? (
+                <Text fontSize={28} fontWeight="700" color="white">
+                  {displayName[0]?.toUpperCase() ?? "?"}
+                </Text>
+              ) : (
+                <Ionicons name="person-outline" size={24} color={theme.colorMuted?.val} />
+              )}
             </YStack>
-            <Text fontFamily="$heading" fontSize={22} color="$color" marginBottom={4} testID="profile-username">
-              {isLoggedIn ? (user.displayName || user.username || "Player") : "Guest User"}
-            </Text>
+
+            {/* Funky name with edit */}
+            {isLoggedIn && !isEditingName ? (
+              <Pressable
+                onPress={() => { setEditName(displayName); setIsEditingName(true); }}
+                style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}
+              >
+                <Text fontFamily="$heading" fontSize={22} color="$color" testID="profile-username">
+                  {displayName}
+                </Text>
+                <Ionicons name="pencil-outline" size={14} color={theme.colorMuted?.val} />
+              </Pressable>
+            ) : isLoggedIn && isEditingName ? (
+              <YStack alignItems="center" marginBottom={4} gap="$1">
+                <XStack gap="$2" alignItems="center">
+                  <TextInput
+                    value={editName}
+                    onChangeText={(t) => { setEditName(t); setNameError(null); }}
+                    maxLength={30}
+                    autoFocus
+                    style={{
+                      fontSize: 20,
+                      fontWeight: "700",
+                      color: theme.color?.val,
+                      borderBottomWidth: 2,
+                      borderBottomColor: nameError ? "#d93025" : theme.accentBackground?.val,
+                      paddingVertical: 4,
+                      paddingHorizontal: 8,
+                      minWidth: 150,
+                      textAlign: "center",
+                    }}
+                    onSubmitEditing={() => {
+                      if (editName.trim().length >= 3) {
+                        updateNameMutation.mutate({ displayName: editName.trim() });
+                      }
+                    }}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      if (editName.trim().length >= 3) {
+                        updateNameMutation.mutate({ displayName: editName.trim() });
+                      }
+                    }}
+                  >
+                    <Ionicons name="checkmark-circle" size={24} color={theme.accentBackground?.val} />
+                  </Pressable>
+                  <Pressable onPress={() => { setIsEditingName(false); setNameError(null); }}>
+                    <Ionicons name="close-circle" size={24} color={theme.colorMuted?.val} />
+                  </Pressable>
+                </XStack>
+                {nameError && (
+                  <Text fontFamily="$body" fontSize={12} color="#d93025">
+                    {nameError}
+                  </Text>
+                )}
+              </YStack>
+            ) : (
+              <Text fontFamily="$heading" fontSize={22} color="$color" marginBottom={4} testID="profile-username">
+                Guest User
+              </Text>
+            )}
+
             <Text fontFamily="$body" fontSize={14} color="$colorSecondary" marginBottom="$5">
               {isLoggedIn
-                ? formatUIText("Fantasy cricket champion in the making")
-                : formatUIText("Sign in to track your journey")}
+                ? formatUIText("fantasy sports champion in the making")
+                : formatUIText("sign in to track your journey")}
             </Text>
             {!isLoggedIn && (
               <Button

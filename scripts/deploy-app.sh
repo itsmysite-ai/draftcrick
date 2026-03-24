@@ -1,12 +1,30 @@
 #!/usr/bin/env bash
 # ===========================================
-# DraftPlay User App (Web) — Deploy Expo web to Cloud Run
+# DraftPlay User App (Web) — Deploy to Cloudflare Pages
 # ===========================================
 # Usage:
 #   ./scripts/deploy-app.sh 0.1.0
 #   ./scripts/deploy-app.sh 0.1.0 --skip-branch
 
-source "$(dirname "$0")/deploy-common.sh"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="${ROOT_DIR}/.env.production"
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "ERROR: .env.production not found"
+  exit 1
+fi
+
+# Load env vars from .env.production
+while IFS= read -r line; do
+  [[ -z "$line" || "$line" =~ ^# ]] && continue
+  key=$(echo "$line" | cut -d'=' -f1)
+  val=$(echo "$line" | cut -d'=' -f2-)
+  [[ -z "$val" ]] && continue
+  export "$key=$val"
+done < "$ENV_FILE"
 
 VERSION="${1:-}"
 SKIP_BRANCH=false
@@ -17,38 +35,71 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-SERVICE="draftplay-app"
-IMAGE="${REGISTRY}/app"
+if [[ -z "${CF_API_TOKEN:-}" || -z "${CF_ACCOUNT_ID:-}" ]]; then
+  echo "ERROR: CF_API_TOKEN and CF_ACCOUNT_ID must be set in .env.production"
+  exit 1
+fi
 
 echo "=== DraftPlay App (Web) Deploy v${VERSION} ==="
 echo ""
 
-# 1. Release branch
-create_release_branch "$VERSION" "$SKIP_BRANCH"
+# 1. Release branch (optional)
+if [[ "$SKIP_BRANCH" != true ]]; then
+  echo "1. Creating release branch..."
+  branch="release/v${VERSION}"
+  git checkout -b "$branch" 2>/dev/null || git checkout "$branch"
+  git tag -a "v${VERSION}" -m "Release v${VERSION}" 2>/dev/null || true
+  git push origin "$branch" --tags
+  echo "   Branch: $branch"
+else
+  echo "1. Skipping branch creation"
+fi
 
-# 2. Build on Cloud Build with EXPO_PUBLIC_ args
+# 2. Build Expo web export
 echo ""
-echo "2. Building and pushing image..."
-SUBS="$(get_expo_substitutions)"
-[[ -n "$SUBS" ]] && SUBS="${SUBS},"
-SUBS="${SUBS}_EXPO_PUBLIC_API_URL=https://api.draftplay.ai/trpc"
-cloud_build "Dockerfile.app" "$IMAGE" "$VERSION" "$SUBS"
+echo "2. Building Expo web export..."
 
-# 3. Deploy
+# Set prod env vars
+export EXPO_PUBLIC_API_URL="https://draftplay-api-445576271033.asia-south1.run.app/trpc"
+
+# CRITICAL: Hide .env.local during prod build so emulator vars don't leak
+[[ -f "${ROOT_DIR}/apps/mobile/.env.local" ]] && mv "${ROOT_DIR}/apps/mobile/.env.local" "${ROOT_DIR}/apps/mobile/.env.local.bak"
+[[ -f "${ROOT_DIR}/.env.local" ]] && mv "${ROOT_DIR}/.env.local" "${ROOT_DIR}/.env.local.bak"
+
+unset EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST
+unset FIREBASE_AUTH_EMULATOR_HOST
+
+cd "${ROOT_DIR}/apps/mobile"
+npx expo export --platform web --clear
+cd "$ROOT_DIR"
+
+# Restore .env.local files
+[[ -f "${ROOT_DIR}/apps/mobile/.env.local.bak" ]] && mv "${ROOT_DIR}/apps/mobile/.env.local.bak" "${ROOT_DIR}/apps/mobile/.env.local"
+[[ -f "${ROOT_DIR}/.env.local.bak" ]] && mv "${ROOT_DIR}/.env.local.bak" "${ROOT_DIR}/.env.local"
+echo "   Built: apps/mobile/dist/"
+
+# 3. Deploy to Cloudflare Pages
 echo ""
-echo "3. Deploying to Cloud Run..."
-gcloud run deploy "$SERVICE" \
-  --image "${IMAGE}:v${VERSION}" \
-  --region "$REGION" \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 8080 \
-  --memory 128Mi \
-  --cpu 1 \
-  --min-instances 0 \
-  --max-instances 5 \
-  --concurrency 200 \
-  --timeout 30s
+echo "3. Deploying to Cloudflare Pages..."
+
+CLOUDFLARE_API_TOKEN="$CF_API_TOKEN" \
+CLOUDFLARE_ACCOUNT_ID="$CF_ACCOUNT_ID" \
+npx wrangler@latest pages deploy "${ROOT_DIR}/apps/mobile/dist" \
+  --project-name=draftplay-app \
+  --branch=main \
+  --commit-message="v${VERSION}" \
+  --commit-dirty=true
 
 # 4. Verify
-verify_deployment "$SERVICE" "$VERSION" "/"
+echo ""
+echo "4. Verifying..."
+sleep 5
+if curl -sf "https://app.draftplay.ai" -o /dev/null -w "   HTTP %{http_code}\n"; then
+  echo ""
+  echo "=== draftplay-app v${VERSION} DEPLOYED ==="
+  echo "   https://app.draftplay.ai"
+else
+  echo ""
+  echo "=== WARNING: app.draftplay.ai not responding (DNS may still be propagating) ==="
+  echo "   Try: https://draftplay-app.pages.dev"
+fi
