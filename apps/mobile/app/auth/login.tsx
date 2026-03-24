@@ -59,9 +59,12 @@ export default function LoginScreen() {
       const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
       if (redirect) {
         sessionStorage.removeItem("auth_redirect");
-        router.replace(redirect as any);
+      }
+      // Use window.location on web for a clean navigation (avoids SPA routing issues)
+      if (typeof window !== "undefined") {
+        window.location.href = redirect || "/";
       } else {
-        router.replace("/");
+        router.replace(redirect ? (redirect as any) : "/(tabs)");
       }
     } catch (e: any) {
       setLocalError(e.message ?? "Sign in failed");
