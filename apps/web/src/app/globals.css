@@ -40,14 +40,16 @@
 
 html {
   color-scheme: light dark;
+  scroll-behavior: smooth;
 }
 
 body {
   font-family: var(--font-body);
-  background-color: var(--bg);
-  color: var(--text-primary);
+  background-color: var(--lp-bg, #0A0B09);
+  color: var(--text-primary, #F7F5F0);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -60,10 +62,10 @@ a {
 }
 
 a:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
-/* DraftPlay logo play-bounce animation — subtle press-in */
+/* DraftPlay logo play-bounce animation */
 @keyframes playBounce {
   0%, 85% { transform: scale(1) translateX(0); }
   90% { transform: scale(0.93) translateX(-0.5px); }
@@ -75,14 +77,485 @@ a:hover {
   transform-origin: left center;
 }
 
-/* Landing page responsive */
-.landing-hero-cta { display: flex; gap: 16px; }
-.landing-comparison-cell { padding: 16px 24px; font-size: 14px; }
+/* ============================================
+   LANDING PAGE THEME (dark default, light toggle)
+   ============================================ */
+
+/* Dark theme (default) */
+:root, [data-theme="dark"] {
+  --lp-bg: #0A0B09;
+  --lp-bg-alt: #0F110E;
+  --lp-card-bg: rgba(255,255,255,0.03);
+  --lp-border: rgba(255,255,255,0.06);
+  --lp-accent: #5DB882;
+  --lp-red: #E5484D;
+  --lp-gold: #D4A43D;
+  --lp-secondary: #9A9894;
+  --lp-muted: #5E5D5A;
+  --lp-glow: rgba(93, 184, 130, 0.06);
+  --text-primary: #F7F5F0;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --lp-bg: #F7F5F0;
+  --lp-bg-alt: #EDEAE4;
+  --lp-card-bg: #FFFFFF;
+  --lp-border: rgba(0,0,0,0.1);
+  --lp-accent: #2D8755;
+  --lp-red: #C4232A;
+  --lp-gold: #A6810F;
+  --lp-secondary: #4A4945;
+  --lp-muted: #8A8884;
+  --lp-glow: rgba(45, 135, 85, 0.08);
+  --text-primary: #1A1B19;
+}
+
+.landing-root {
+  background: var(--lp-bg);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================
+   ANIMATED BACKGROUND — Particle constellation
+   ============================================ */
+
+/* Canvas fills the viewport behind everything */
+.particle-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* All page content above canvas */
+.landing-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hero spotlight glow */
+.hero-glow {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 700px;
+  height: 500px;
+  background: radial-gradient(ellipse, rgba(93, 184, 130, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+[data-theme="light"] .hero-glow {
+  background: radial-gradient(ellipse, rgba(61, 153, 104, 0.06) 0%, transparent 70%);
+}
+
+/* Shimmer line under hero heading */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.shimmer-line {
+  display: block;
+  height: 2px;
+  width: 200px;
+  margin: 24px auto 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--lp-accent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  border-radius: 2px;
+  opacity: 0.6;
+}
+
+/* ============================================
+   APPLE-INSPIRED MARKETING PAGE STYLES
+   ============================================ */
+
+/* --- Scroll Reveal Animations --- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered children */
+.reveal-stagger .reveal-child {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal-stagger.visible .reveal-child {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-stagger.visible .reveal-child:nth-child(1) { transition-delay: 0ms; }
+.reveal-stagger.visible .reveal-child:nth-child(2) { transition-delay: 80ms; }
+.reveal-stagger.visible .reveal-child:nth-child(3) { transition-delay: 160ms; }
+.reveal-stagger.visible .reveal-child:nth-child(4) { transition-delay: 240ms; }
+.reveal-stagger.visible .reveal-child:nth-child(5) { transition-delay: 320ms; }
+.reveal-stagger.visible .reveal-child:nth-child(6) { transition-delay: 400ms; }
+
+/* --- Sticky Nav (frosted glass) --- */
+.nav-sticky {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 12px 32px;
+  background: color-mix(in srgb, var(--lp-bg) 72%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--lp-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.3s ease, transform 0.3s ease;
+  transform: translateY(-100%);
+}
+
+.nav-sticky.visible {
+  transform: translateY(0);
+}
+
+[data-theme="light"] .nav-sticky {
+  background: rgba(247, 245, 240, 0.85);
+  border-bottom-color: rgba(0,0,0,0.08);
+}
+
+[data-theme="light"] .nav-sticky.visible {
+  box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+}
+
+/* --- Buttons --- */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--lp-accent);
+  color: var(--lp-bg);
+  padding: 16px 36px;
+  border-radius: 980px;
+  font-weight: 700;
+  font-size: 16px;
+  font-family: var(--font-data);
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 24px rgba(93, 184, 130, 0.25);
+  filter: brightness(1.1);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: transparent;
+  color: var(--lp-accent);
+  padding: 16px 36px;
+  border-radius: 980px;
+  font-weight: 600;
+  font-size: 16px;
+  font-family: var(--font-data);
+  text-decoration: none;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-secondary:hover {
+  transform: scale(1.04);
+  background-color: color-mix(in srgb, var(--lp-accent) 8%, transparent);
+}
+
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #D4A43D 0%, #C4942D 100%);
+  color: #F7F5F0;
+  padding: 14px 32px;
+  border-radius: 980px;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: var(--font-data);
+  text-decoration: none;
+  letter-spacing: 0.5px;
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 30px rgba(212, 164, 61, 0.2);
+}
+
+.btn-gold:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 40px rgba(212, 164, 61, 0.4);
+}
+
+/* --- Feature Cards --- */
+.feature-card {
+  background-color: var(--lp-card-bg);
+  padding: 32px;
+  border-radius: 20px;
+  border: 1px solid var(--lp-border);
+  text-align: left;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.3s ease,
+              box-shadow 0.3s ease,
+              background-color 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--lp-accent) 25%, transparent);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+  background-color: var(--lp-card-bg);
+}
+
+[data-theme="light"] .feature-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .feature-card:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* --- Pricing Cards --- */
+.pricing-card {
+  background-color: var(--lp-card-bg);
+  padding: 36px 28px;
+  border-radius: 24px;
+  border: 1px solid var(--lp-border);
+  text-align: left;
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
+}
+
+.pricing-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .pricing-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .pricing-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+.pricing-card.accent {
+  background: rgba(93, 184, 130, 0.06);
+  border-color: rgba(93, 184, 130, 0.25);
+}
+
+.pricing-card.accent:hover {
+  border-color: rgba(93, 184, 130, 0.4);
+  box-shadow: 0 12px 48px rgba(93, 184, 130, 0.15);
+}
+
+/* --- Comparison Rows --- */
+.comparison-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  transition: background-color 0.2s ease;
+}
+
+.comparison-row:hover {
+  background-color: rgba(255,255,255,0.02);
+}
+
+.comparison-cell {
+  padding: 20px 28px;
+  font-size: 15px;
+}
+
+/* --- App Store Buttons --- */
+.store-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--lp-card-bg);
+  border: 1px solid var(--lp-border);
+  padding: 8px 16px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.store-btn:hover {
+  transform: scale(1.04);
+  border-color: color-mix(in srgb, var(--lp-accent) 30%, transparent);
+}
+
+[data-theme="light"] .store-btn {
+  background: #FFFFFF;
+  border-color: rgba(0,0,0,0.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] .store-btn:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* --- Section spacing (Apple-style massive padding) --- */
+.section-spacing {
+  padding: 120px 32px;
+}
+
+/* --- Badge pill --- */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--lp-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lp-accent) 15%, transparent);
+  padding: 8px 20px;
+  border-radius: 980px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-data);
+  color: var(--lp-accent);
+  letter-spacing: 0.5px;
+}
+
+/* --- Section label (small green uppercase) --- */
+.section-label {
+  font-family: var(--font-data);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lp-accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* --- Footer links --- */
+.footer-link {
+  color: var(--lp-muted);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+  color: var(--lp-secondary);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+/* Two-column editorial grid → stacks on mobile */
+.editorial-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 48px;
+  align-items: start;
+}
 
 @media (max-width: 768px) {
-  .landing-subheader { justify-content: center !important; gap: 8px !important; padding: 8px 12px !important; }
-  .landing-subheader-tagline { display: none !important; }
-  .landing-hero-cta { flex-direction: column; align-items: stretch; width: 100%; }
-  .landing-hero-cta a { text-align: center; padding: 14px 24px !important; }
-  .landing-comparison-cell { padding: 12px 8px; font-size: 13px; }
+  .nav-sticky {
+    padding: 10px 16px;
+  }
+
+  .nav-sticky .nav-tagline {
+    display: none;
+  }
+
+  .section-spacing {
+    padding: 80px 20px;
+  }
+
+  .landing-hero-cta {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .landing-hero-cta a,
+  .landing-hero-cta .btn-primary,
+  .landing-hero-cta .btn-secondary {
+    text-align: center;
+    width: 100%;
+  }
+
+  .comparison-cell {
+    padding: 14px 12px;
+    font-size: 13px;
+  }
+
+  .store-btn span:first-child {
+    display: none;
+  }
+
+  .editorial-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .section-spacing {
+    padding: 64px 16px;
+  }
 }
