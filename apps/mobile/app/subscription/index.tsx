@@ -1,5 +1,6 @@
 import { ScrollView, RefreshControl, TextInput, Linking } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeBack } from "../../hooks/useSafeBack";
 import { useState, useCallback, useEffect, useRef } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,6 +65,7 @@ export default function SubscriptionScreen() {
   const theme = useTamaguiTheme();
 
   const { user, isLoading } = useAuth();
+  const safeBack = useSafeBack();
 
   // Redirect to login if not authenticated (wait for auth to finish loading)
   useEffect(() => {
@@ -356,7 +358,7 @@ export default function SubscriptionScreen() {
         paddingBottom="$3"
       >
         <XStack alignItems="center" gap="$3">
-          <BackButton onPress={() => router.back()} />
+          <BackButton onPress={safeBack} />
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
             {formatUIText("subscription")}
           </Text>
