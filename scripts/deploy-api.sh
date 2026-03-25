@@ -47,7 +47,7 @@ gcloud run deploy "$SERVICE" \
   --min-instances 0 \
   --max-instances 10 \
   --concurrency 80 \
-  --timeout 60s \
+  --timeout 300s \
   --env-vars-file "$ENV_FILE_PATH"
 
 rm -f "$ENV_FILE_PATH"
