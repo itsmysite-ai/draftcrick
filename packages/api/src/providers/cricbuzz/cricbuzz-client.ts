@@ -270,7 +270,12 @@ const TEAM_MAP: Record<string, CricbuzzTeam> = {
  */
 export function resolveTeam(teamName: string): CricbuzzTeam | null {
   const lower = teamName.toLowerCase().trim();
-  return TEAM_MAP[lower] ?? null;
+  // Direct match
+  if (TEAM_MAP[lower]) return TEAM_MAP[lower];
+  // Strip "women" / "men" suffix and retry (e.g. "New Zealand Women" → "new zealand")
+  const stripped = lower.replace(/\s+(women|men|w|m)$/i, "").trim();
+  if (stripped !== lower && TEAM_MAP[stripped]) return TEAM_MAP[stripped];
+  return null;
 }
 
 // ---------------------------------------------------------------------------
