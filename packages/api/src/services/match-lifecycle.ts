@@ -83,6 +83,15 @@ export async function onPhaseTransition(
       .where(eq(matches.id, matchId));
     actions.push("Draft enabled");
 
+    // Open all upcoming contests for this match
+    const openedContests = await db.update(contests)
+      .set({ status: "open" })
+      .where(and(eq(contests.matchId, matchId), eq(contests.status, "upcoming")))
+      .returning({ id: contests.id });
+    if (openedContests.length > 0) {
+      actions.push(`Opened ${openedContests.length} contest(s)`);
+    }
+
     // Notify ALL users that a new match is open for drafting
     const allUsers = await db.query.users.findMany({ columns: { id: true } });
     const allUserIds = allUsers.map(u => u.id);
