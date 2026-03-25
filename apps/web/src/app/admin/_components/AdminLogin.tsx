@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import { DraftPlayLogoSVG } from "@/components/DraftPlayLogoSVG";
 
 export function AdminLogin() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +121,42 @@ export function AdminLogin() {
           }}
         >
           {loading ? "Signing in..." : "Sign In"}
+        </button>
+
+        <div style={{ display: "flex", alignItems: "center", margin: "16px 0", gap: 12 }}>
+          <div style={{ flex: 1, height: 1, backgroundColor: "var(--border)" }} />
+          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>or</span>
+          <div style={{ flex: 1, height: 1, backgroundColor: "var(--border)" }} />
+        </div>
+
+        <button
+          type="button"
+          disabled={loading}
+          onClick={async () => {
+            setError(null);
+            setLoading(true);
+            try {
+              await signInWithGoogle();
+            } catch (err: any) {
+              setError(err.message ?? "Google sign in failed");
+            } finally {
+              setLoading(false);
+            }
+          }}
+          style={{
+            width: "100%",
+            padding: "10px",
+            backgroundColor: "transparent",
+            color: "var(--text-primary)",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.7 : 1,
+          }}
+        >
+          Continue with Google
         </button>
       </form>
     </div>
