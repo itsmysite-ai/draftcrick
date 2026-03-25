@@ -413,12 +413,6 @@ export async function enrichTournamentsWithGemini(
 ): Promise<AITournament[]> {
   if (rawTournaments.length === 0) return [];
 
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.API_KEY;
-  if (!apiKey) {
-    log.warn("No Gemini API key — skipping tournament enrichment");
-    return rawTournaments;
-  }
-
   const today = new Date().toISOString().split("T")[0];
 
   // Build a list of raw entries for Gemini to resolve
@@ -1504,13 +1498,8 @@ export async function enrichPlayersWithGemini(
   players: Array<{ name: string; team: string; role: string }>,
   tournamentName: string
 ): Promise<PlayerEnrichmentData[]> {
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.API_KEY;
-  if (!apiKey) {
-    log.warn("No Gemini API key — skipping enrichment");
-    return [];
-  }
-
-  const ai = await getAI();
+  const { createGeminiClient } = await import("./gemini-client");
+  const ai = await createGeminiClient("IN");
   const model = "gemini-3.1-flash-lite-preview";
   const allResults: PlayerEnrichmentData[] = [];
 
@@ -1563,13 +1552,8 @@ export async function resolveNationalitiesWithGemini(
 ): Promise<NationalityResult[]> {
   if (players.length === 0) return [];
 
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.API_KEY;
-  if (!apiKey) {
-    log.warn("No Gemini API key — skipping nationality resolution");
-    return [];
-  }
-
-  const ai = await getAI();
+  const { createGeminiClient } = await import("./gemini-client");
+  const ai = await createGeminiClient("IN");
   const model = "gemini-3.1-flash-lite-preview";
   const BATCH_SIZE = 30;
   const allResults: NationalityResult[] = [];
