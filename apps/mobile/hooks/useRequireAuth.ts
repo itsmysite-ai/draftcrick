@@ -4,7 +4,7 @@ import { useAuth } from "../providers/AuthProvider";
 
 /**
  * Redirects to login if not authenticated.
- * After login, the user is sent back to the original page.
+ * After login, the user is sent back to the original page (with query params).
  * Returns true if authenticated, false if redirecting.
  */
 export function useRequireAuth(): boolean {
@@ -14,9 +14,17 @@ export function useRequireAuth(): boolean {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      // Store the intended destination so login can redirect back
-      if (typeof sessionStorage !== "undefined") {
-        sessionStorage.setItem("auth_redirect", pathname);
+      // Store full URL (with query params) so login can redirect back
+      if (typeof globalThis.sessionStorage !== "undefined") {
+        try {
+          const w = globalThis as any;
+          const fullPath = w.location?.pathname && w.location?.search
+            ? w.location.pathname + w.location.search
+            : pathname;
+          globalThis.sessionStorage.setItem("auth_redirect", fullPath);
+        } catch {
+          // Native — no window.location
+        }
       }
       router.replace("/auth/login");
     }

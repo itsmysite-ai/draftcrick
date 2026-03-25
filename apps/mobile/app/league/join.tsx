@@ -15,6 +15,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { HeaderControls } from "../../components/HeaderControls";
+import { useRequireAuth } from "../../hooks/useRequireAuth";
 
 export default function JoinLeagueScreen() {
   const router = useRouter();
@@ -23,6 +24,9 @@ export default function JoinLeagueScreen() {
   const { code } = useLocalSearchParams<{ code?: string }>();
   const [inviteCode, setInviteCode] = useState("");
   const [autoJoining, setAutoJoining] = useState(false);
+
+  // Redirect to login if not authenticated, preserving the invite code
+  const isAuthed = useRequireAuth();
 
   const joinMutation = trpc.league.join.useMutation({
     onSuccess: (league) => {
