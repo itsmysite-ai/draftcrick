@@ -1,6 +1,6 @@
 import { TextInput, ScrollView } from "react-native";
-import { useState } from "react";
-import { useRouter } from "expo-router";
+import { useState, useEffect } from "react";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
@@ -20,13 +20,31 @@ export default function JoinLeagueScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
+  const { code } = useLocalSearchParams<{ code?: string }>();
   const [inviteCode, setInviteCode] = useState("");
+  const [autoJoining, setAutoJoining] = useState(false);
 
   const joinMutation = trpc.league.join.useMutation({
     onSuccess: (league) => {
       router.replace(`/league/${league!.id}` as any);
     },
   });
+
+  // Auto-fill and auto-join if code is in URL params
+  useEffect(() => {
+    if (code && code.trim()) {
+      setInviteCode(code.trim());
+      setAutoJoining(true);
+    }
+  }, [code]);
+
+  // Auto-join after code is set from URL
+  useEffect(() => {
+    if (autoJoining && inviteCode && !joinMutation.isPending && !joinMutation.error) {
+      joinMutation.mutate({ inviteCode: inviteCode.trim() });
+      setAutoJoining(false);
+    }
+  }, [autoJoining, inviteCode]);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
@@ -54,7 +72,9 @@ export default function JoinLeagueScreen() {
           {formatUIText("join a league")}
         </Text>
         <Text fontFamily="$body" fontSize={15} color="$colorMuted" textAlign="center" marginBottom="$8">
-          {formatUIText("enter the invite code shared by your league commissioner")}
+          {code
+            ? formatUIText("joining league...")
+            : formatUIText("enter the invite code or use a shared link")}
         </Text>
         <TextInput
           value={inviteCode}

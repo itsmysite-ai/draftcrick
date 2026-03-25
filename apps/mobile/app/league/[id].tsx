@@ -19,6 +19,7 @@ import {
   formatBadgeText,
   DraftPlayLogo,
 } from "@draftplay/ui";
+import QRCode from "react-native-qrcode-svg";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
@@ -77,7 +78,9 @@ export default function LeagueDetailScreen() {
   const myMembership = league.members?.find((m: any) => m.userId === user?.id);
   const isOwner = myMembership?.role === "owner";
   const isAdmin = myMembership?.role === "admin" || isOwner;
-  const shareInvite = () => { Share.share({ message: `${formatUIText("join my draftplay league")} "${league.name}"! ${formatUIText("invite code")}: ${league.inviteCode}` }); };
+  const shareLink = `https://app.draftplay.ai/league/join?code=${league.inviteCode}`;
+  const shareInvite = () => { Share.share({ message: `${formatUIText("join my draftplay league")} "${league.name}"!\n${shareLink}` }); };
+  const [showQR, setShowQR] = useState(false);
   const handleStartDraft = (type: "snake_draft" | "auction") => {
     Alert.alert(
       formatUIText(`start ${type === "auction" ? "auction" : "snake draft"}?`),
@@ -130,18 +133,31 @@ export default function LeagueDetailScreen() {
             </Text>
           </Card>
 
-          <Card testID="league-invite-code" pressable onPress={shareInvite} marginBottom="$4" padding="$4">
-            <XStack justifyContent="space-between" alignItems="center">
+          <Card testID="league-invite-code" marginBottom="$4" padding="$4">
+            <XStack justifyContent="space-between" alignItems="center" marginBottom={showQR ? 16 : 0}>
               <YStack>
-                <Text {...textStyles.hint}>{formatBadgeText("invite code")}</Text>
-                <Text fontFamily="$mono" fontSize={20} fontWeight="700" color="$accentBackground" letterSpacing={2}>
+                <Text {...textStyles.hint}>{formatBadgeText("invite friends")}</Text>
+                <Text fontFamily="$mono" fontSize={16} fontWeight="700" color="$accentBackground" letterSpacing={2}>
                   {league.inviteCode}
                 </Text>
               </YStack>
-              <Text fontFamily="$mono" fontSize={14} color="$accentBackground">
-                {formatUIText("share")}
-              </Text>
+              <XStack gap="$2">
+                <Button variant="secondary" size="sm" onPress={() => setShowQR(!showQR)}>
+                  {showQR ? formatUIText("hide qr") : formatUIText("qr code")}
+                </Button>
+                <Button variant="primary" size="sm" onPress={shareInvite}>
+                  {formatUIText("share link")}
+                </Button>
+              </XStack>
             </XStack>
+            {showQR && (
+              <YStack alignItems="center" paddingVertical="$3" gap="$2">
+                <QRCode value={shareLink} size={180} backgroundColor="transparent" color="#5DB882" />
+                <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center">
+                  {formatUIText("scan to join this league")}
+                </Text>
+              </YStack>
+            )}
           </Card>
 
           {isAdmin && (
