@@ -43,6 +43,7 @@ export default function LeagueDetailScreen() {
   const { user } = useAuth();
   const theme = useTamaguiTheme();
   const [tab, setTab] = useState<"members" | "standings" | "contests">("contests");
+  const [showQR, setShowQR] = useState(false);
   const { data: league, isLoading, refetch } = trpc.league.getById.useQuery({ id: id! });
   const standings = trpc.league.memberStandings.useQuery({ leagueId: id! }, { enabled: !!id });
   const leagueContests = trpc.league.leagueContests.useQuery({ leagueId: id! }, { enabled: !!id });
@@ -80,7 +81,6 @@ export default function LeagueDetailScreen() {
   const isAdmin = myMembership?.role === "admin" || isOwner;
   const shareLink = `https://app.draftplay.ai/league/join?code=${league.inviteCode}`;
   const shareInvite = () => { Share.share({ message: `${formatUIText("join my draftplay league")} "${league.name}"!\n${shareLink}` }); };
-  const [showQR, setShowQR] = useState(false);
   const handleStartDraft = (type: "snake_draft" | "auction") => {
     Alert.alert(
       formatUIText(`start ${type === "auction" ? "auction" : "snake draft"}?`),
