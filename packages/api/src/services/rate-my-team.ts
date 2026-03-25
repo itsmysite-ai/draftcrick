@@ -57,11 +57,19 @@ async function getAI() {
 
 // ── Prompt ────────────────────────────────────────────────────
 
+export interface TournamentContext {
+  tournamentName?: string;
+  tournamentYear?: number;
+  tournamentRules?: { overseasRule?: { enabled: boolean; hostCountry?: string; maxOverseas?: number } };
+  availableSquad?: Array<{ name: string; team: string; role: string; nationality: string | null; credits: number }>;
+}
+
 function buildRatingPrompt(
   team: Array<{ name: string; role: string; credits: number; isCaptain: boolean; isViceCaptain: boolean }>,
   matchInfo: { teamA: string; teamB: string; format: string; venue: string | null },
   projections?: Array<{ playerName: string; projected: number }>,
-  fdr?: { teamAFdr: number; teamBFdr: number }
+  fdr?: { teamAFdr: number; teamBFdr: number },
+  tournamentCtx?: TournamentContext
 ): string {
   const teamList = team
     .map(
@@ -71,6 +79,36 @@ function buildRatingPrompt(
     .join("\n");
 
   let contextBlock = "";
+
+  // Tournament context
+  if (tournamentCtx?.tournamentName) {
+    contextBlock += `\nTournament: ${tournamentCtx.tournamentName}`;
+    if (tournamentCtx.tournamentYear) contextBlock += ` (${tournamentCtx.tournamentYear})`;
+    contextBlock += "\n";
+  }
+
+  // Tournament rules (e.g. overseas limit)
+  if (tournamentCtx?.tournamentRules?.overseasRule?.enabled) {
+    const rule = tournamentCtx.tournamentRules.overseasRule;
+    const maxOverseas = rule.maxOverseas ?? 4;
+    contextBlock += `\nIMPORTANT RULE: Maximum ${maxOverseas} overseas (non-${rule.hostCountry ?? "domestic"}) players allowed in playing XI.\n`;
+  }
+
+  // Available squad with teams and nationality
+  if (tournamentCtx?.availableSquad?.length) {
+    contextBlock += `\nAvailable Squad (ONLY suggest transfers from these players):\n`;
+    const byTeam: Record<string, string[]> = {};
+    for (const p of tournamentCtx.availableSquad) {
+      const key = p.team;
+      if (!byTeam[key]) byTeam[key] = [];
+      const overseas = p.nationality && p.nationality !== (tournamentCtx.tournamentRules?.overseasRule?.hostCountry ?? "India") ? " [OVERSEAS]" : "";
+      byTeam[key]!.push(`  - ${p.name} (${p.role}, ${p.credits} cr)${overseas}`);
+    }
+    for (const [teamName, players] of Object.entries(byTeam)) {
+      contextBlock += `\n${teamName}:\n${players.join("\n")}\n`;
+    }
+  }
+
   if (projections?.length) {
     contextBlock += "\nProjected Points (all available players):\n";
     for (const p of projections.slice(0, 30)) {
@@ -83,6 +121,7 @@ function buildRatingPrompt(
 
   return `
 You are a fantasy cricket expert. Rate this user's team for the upcoming match.
+IMPORTANT: Use ONLY the squad data provided below. Do NOT rely on your own knowledge about which players play for which team — rosters change every season.
 
 Match: ${matchInfo.teamA} vs ${matchInfo.teamB}
 Format: ${matchInfo.format}
@@ -220,7 +259,8 @@ export async function rateTeam(
   team: Array<{ name: string; role: string; credits: number; isCaptain: boolean; isViceCaptain: boolean }>,
   matchInfo: { teamA: string; teamB: string; format: string; venue: string | null },
   projections?: Array<{ playerName: string; projected: number }>,
-  fdr?: { teamAFdr: number; teamBFdr: number }
+  fdr?: { teamAFdr: number; teamBFdr: number },
+  tournamentCtx?: TournamentContext
 ): Promise<TeamRating | null> {
   const cacheKey = buildCacheKey(team, matchInfo);
 
@@ -236,7 +276,7 @@ export async function rateTeam(
   }
 
   const ai = await getAI();
-  const prompt = buildRatingPrompt(team, matchInfo, projections, fdr);
+  const prompt = buildRatingPrompt(team, matchInfo, projections, fdr, tournamentCtx);
 
   try {
     log.info(

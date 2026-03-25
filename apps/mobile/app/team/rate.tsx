@@ -85,7 +85,7 @@ export default function RateMyTeamScreen() {
     if (!teamForRating || !matchInfo) return;
     if (gate("pro", "Rate My Team", "Get AI-powered analysis of your fantasy team")) return;
     try {
-      await rateMutation.mutateAsync({ team: teamForRating, matchInfo });
+      await rateMutation.mutateAsync({ team: teamForRating, matchInfo, matchId: matchId ?? undefined });
     } catch {
       // Error handled by mutation state
     }

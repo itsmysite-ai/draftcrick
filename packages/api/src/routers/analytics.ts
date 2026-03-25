@@ -1,6 +1,11 @@
 import { z } from "zod";
+import { eq, and, inArray } from "drizzle-orm";
+import { matches, tournaments, players } from "@draftplay/db";
 import { router, publicProcedure, protectedProcedure, proProcedure, eliteProcedure } from "../trpc";
 import { tierAtLeast, type SubscriptionTier } from "@draftplay/shared";
+import { getLogger } from "../lib/logger";
+
+const log = getLogger("analytics-router");
 import { getFDRForMatch, batchGenerateFDR } from "../services/fdr-engine";
 import { getProjectionsForMatch } from "../services/projection-engine";
 import { rateTeam } from "../services/rate-my-team";
@@ -230,6 +235,7 @@ export const analyticsRouter = router({
           format: z.string(),
           venue: z.string().nullable().default(null),
         }),
+        matchId: z.string().uuid().optional(),
         projections: z
           .array(z.object({ playerName: z.string(), projected: z.number() }))
           .optional(),
@@ -238,12 +244,53 @@ export const analyticsRouter = router({
           .optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // Build tournament context from match data
+      let tournamentCtx: import("../services/rate-my-team").TournamentContext | undefined;
+
+      if (input.matchId) {
+        try {
+          const match = await ctx.db.query.matches.findFirst({
+            where: eq(matches.id, input.matchId),
+          });
+
+          if (match?.tournamentId) {
+            const tournament = await ctx.db.query.tournaments.findFirst({
+              where: eq(tournaments.id, match.tournamentId),
+            });
+
+            // Fetch full squad for both teams in this match
+            const squadPlayers = await ctx.db.query.players.findMany({
+              where: and(
+                inArray(players.team, [input.matchInfo.teamA, input.matchInfo.teamB]),
+                eq(players.isDisabled, false),
+              ),
+            });
+
+            tournamentCtx = {
+              tournamentName: tournament?.name,
+              tournamentYear: tournament?.startDate ? new Date(tournament.startDate).getFullYear() : undefined,
+              tournamentRules: tournament?.tournamentRules as any,
+              availableSquad: squadPlayers.map((p) => ({
+                name: p.name,
+                team: p.team,
+                role: p.role ?? "all_rounder",
+                nationality: p.nationality,
+                credits: p.stats && typeof p.stats === "object" && "credits" in (p.stats as any) ? Number((p.stats as any).credits) : 8,
+              })),
+            };
+          }
+        } catch (err) {
+          log.warn({ matchId: input.matchId, error: String(err) }, "Failed to build tournament context for rate-my-team");
+        }
+      }
+
       const rating = await rateTeam(
         input.team,
         input.matchInfo,
         input.projections,
-        input.fdr
+        input.fdr,
+        tournamentCtx
       );
       return rating;
     }),
