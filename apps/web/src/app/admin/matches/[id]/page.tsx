@@ -226,11 +226,11 @@ export default function MatchDetailPage() {
           </button>
 
           <button
-            onClick={() => seedScores.mutate({ matchId })}
-            disabled={isPending || players.length === 0}
-            style={btnStyle("var(--accent)")}
+            disabled={true}
+            title="Disabled — use Refresh Live Scores instead"
+            style={{ ...btnStyle("#666"), opacity: 0.4, cursor: "not-allowed" }}
           >
-            Seed Random Scores ({players.length} players)
+            Seed Random Scores (disabled)
           </button>
 
           <button
