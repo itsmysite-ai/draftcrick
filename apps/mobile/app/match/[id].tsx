@@ -843,7 +843,14 @@ export default function MatchScreen() {
                 prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "glory"}
                 entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
                 spots={`${contest.maxEntries - contest.currentEntries}`}
-                highlight={i === 0}
+                highlight={(() => {
+                  if (contest.currentEntries >= contest.maxEntries) return false; // full — show "FULL" not "POPULAR"
+                  const fillRate = contest.maxEntries > 0 ? contest.currentEntries / contest.maxEntries : 0;
+                  if (fillRate < 0.5) return false;
+                  const eligibleContests = (matchContests ?? []).filter((c: any) => c.currentEntries < c.maxEntries && c.maxEntries > 0);
+                  const maxFill = Math.max(...eligibleContests.map((c: any) => c.currentEntries / c.maxEntries), 0);
+                  return fillRate === maxFill;
+                })()}
                 testID={`contest-${i}`}
               />
             ))}
