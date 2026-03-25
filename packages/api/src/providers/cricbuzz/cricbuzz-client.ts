@@ -1393,44 +1393,70 @@ export async function fetchSeriesSquadPlayers(
 ): Promise<SquadPlayer[]> {
   let browser;
   try {
-    // Dynamic import — Playwright may not be available in all environments
-    const { chromium } = await import("playwright");
+    const puppeteer = await import("puppeteer-core");
 
-    browser = await chromium.launch({
+    // In Docker/Cloud Run, use @sparticuz/chromium; locally, use system Chrome
+    let executablePath: string;
+    try {
+      const chromium = await import("@sparticuz/chromium");
+      executablePath = await chromium.default.executablePath();
+      log.info("Using @sparticuz/chromium for headless browser");
+    } catch {
+      // Fallback to system Chrome on macOS for local dev
+      const possiblePaths = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+      ];
+      executablePath = possiblePaths.find((p) => {
+        try { require("fs").accessSync(p); return true; } catch { return false; }
+      }) ?? possiblePaths[0];
+      log.info({ executablePath }, "Using system Chrome for headless browser");
+    }
+
+    browser = await puppeteer.default.launch({
       headless: true,
-      channel: "chrome", // Use system Chrome to avoid bot detection
-      args: ["--disable-blink-features=AutomationControlled"],
+      executablePath,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-blink-features=AutomationControlled",
+        "--single-process",
+      ],
     });
 
-    const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      viewport: { width: 1280, height: 800 },
-    });
+    const page = await browser.newPage();
+    await page.setUserAgent(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    );
+    await page.setViewport({ width: 1280, height: 800 });
 
-    await context.addInitScript(() => {
+    // Hide webdriver
+    await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, "webdriver", { get: () => false });
     });
 
-    const page = await context.newPage();
     const url = `https://www.cricbuzz.com/cricket-series/${seriesId}/${seriesSlug}/squads`;
-    log.info({ url, teamName }, "Fetching series squad via Playwright");
+    log.info({ url, teamName }, "Fetching series squad via Puppeteer");
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
 
     // Check if blocked
     const title = await page.title();
     if (title.includes("Access Denied")) {
-      log.warn({ seriesId }, "Cricbuzz blocked Playwright request for squads page");
+      log.warn({ seriesId }, "Cricbuzz blocked request for squads page");
       return [];
     }
 
     // Wait for squad data to load (first team is auto-selected)
-    await page.waitForTimeout(4000);
+    await new Promise((r) => setTimeout(r, 4000));
 
     // If a specific team is requested, click on it
     if (teamName) {
-      const teamClicked = await page.evaluate((target) => {
+      const teamClicked = await page.evaluate((target: string) => {
         const buttons = document.querySelectorAll('div[class*="cursor-pointer"] span');
         for (const btn of buttons) {
           const text = btn.textContent?.trim() || "";
@@ -1443,7 +1469,7 @@ export async function fetchSeriesSquadPlayers(
       }, teamName);
 
       if (teamClicked) {
-        await page.waitForTimeout(3000); // Wait for squad data to reload
+        await new Promise((r) => setTimeout(r, 3000)); // Wait for squad data to reload
       } else {
         log.warn({ teamName, seriesId }, "Team not found on Cricbuzz squads page");
       }
@@ -1477,12 +1503,12 @@ export async function fetchSeriesSquadPlayers(
       return results;
     });
 
-    log.info({ seriesId, teamName, playerCount: players.length }, "Squad players extracted via Playwright");
+    log.info({ seriesId, teamName, playerCount: players.length }, "Squad players extracted via Puppeteer");
     return players;
   } catch (err) {
     log.warn(
       { seriesId, error: err instanceof Error ? err.message : String(err) },
-      "Playwright squad fetch failed"
+      "Puppeteer squad fetch failed"
     );
     return [];
   } finally {
