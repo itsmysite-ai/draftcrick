@@ -39,7 +39,7 @@ function friendlyAuthError(msg: string): string {
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signIn, error } = useAuth();
+  const { signIn, signInWithGoogle, error } = useAuth();
   const theme = useTamaguiTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -232,14 +232,26 @@ export default function LoginScreen() {
             <YStack flex={1} height={1} backgroundColor="$borderColor" />
           </XStack>
 
-          <XStack gap="$3">
-            <Button variant="secondary" size="md" flex={1}>
-              {formatUIText("google")}
-            </Button>
-            <Button variant="secondary" size="md" flex={1}>
-              {formatUIText("apple")}
-            </Button>
-          </XStack>
+          <Button variant="secondary" size="md" onPress={async () => {
+            setLocalError(null);
+            setIsSubmitting(true);
+            try {
+              await signInWithGoogle();
+              const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
+              if (redirect) sessionStorage.removeItem("auth_redirect");
+              if (typeof window !== "undefined") {
+                (window as any).location.href = redirect || "/";
+              } else {
+                router.replace(redirect ? (redirect as any) : "/(tabs)");
+              }
+            } catch (e: any) {
+              setLocalError(e.message ?? "Google sign in failed");
+            } finally {
+              setIsSubmitting(false);
+            }
+          }} disabled={isSubmitting}>
+            {formatUIText("continue with google")}
+          </Button>
 
           <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/register")} cursor="pointer">
             <Text fontFamily="$body" fontSize={14} color="$colorMuted">

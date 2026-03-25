@@ -33,7 +33,7 @@ function friendlyAuthError(msg: string): string {
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signUp, error } = useAuth();
+  const { signUp, signInWithGoogle, error } = useAuth();
   const theme = useTamaguiTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,16 +60,29 @@ export default function RegisterScreen() {
     }
   };
 
-  const handleSocialSignUp = () => {
-    if (!ageConfirmed || !termsAccepted) {
+  const handleGoogleSignUp = async () => {
+    if (!termsAccepted) {
       Alert.alert(
         "one more step",
-        "please confirm your age and accept the terms of service to continue.",
+        "please accept the terms of service to continue.",
         [{ text: "ok" }]
       );
       return;
     }
-    // TODO: implement Google/Apple sign-in
+    setLocalError(null);
+    setIsSubmitting(true);
+    try {
+      await signInWithGoogle();
+      if (typeof (globalThis as any).window !== "undefined") {
+        (globalThis as any).window.location.href = "/";
+      } else {
+        router.replace("/(tabs)");
+      }
+    } catch (e: any) {
+      setLocalError(e.message ?? "Google sign up failed");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -278,14 +291,9 @@ export default function RegisterScreen() {
             <YStack flex={1} height={1} backgroundColor="$borderColor" />
           </XStack>
 
-          <XStack gap="$3">
-            <Button variant="secondary" size="md" flex={1} onPress={handleSocialSignUp} disabled={isSubmitting}>
-              {formatUIText("google")}
-            </Button>
-            <Button variant="secondary" size="md" flex={1} onPress={handleSocialSignUp} disabled={isSubmitting}>
-              {formatUIText("apple")}
-            </Button>
-          </XStack>
+          <Button variant="secondary" size="md" onPress={handleGoogleSignUp} disabled={isSubmitting}>
+            {formatUIText("continue with google")}
+          </Button>
 
           <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/login")} cursor="pointer">
             <Text fontFamily="$body" fontSize={14} color="$colorMuted">

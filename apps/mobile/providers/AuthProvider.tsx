@@ -3,6 +3,9 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider,
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { setTRPCToken } from "../lib/trpc";
@@ -24,6 +27,7 @@ interface AuthContextType {
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -35,6 +39,7 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
   signIn: async () => {},
   signUp: async () => {},
+  signInWithGoogle: async () => {},
   signOut: async () => {},
 });
 
@@ -99,6 +104,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleSignInWithGoogle = async () => {
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      // Set token immediately
+      const token = await result.user.getIdToken();
+      setFirebaseToken(token);
+      setTRPCToken(token);
+    } catch (e: any) {
+      setError(e.message ?? "Google sign in failed");
+      throw e;
+    }
+  };
+
   const handleSignOut = async () => {
     setError(null);
     try {
@@ -111,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, setUser, isLoading, firebaseToken, error, signIn, signUp, signOut: handleSignOut }}
+      value={{ user, setUser, isLoading, firebaseToken, error, signIn, signUp, signInWithGoogle: handleSignInWithGoogle, signOut: handleSignOut }}
     >
       {children}
     </AuthContext.Provider>
