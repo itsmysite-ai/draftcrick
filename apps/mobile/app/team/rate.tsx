@@ -1,6 +1,6 @@
-import { ScrollView as RNScrollView } from "react-native";
+import { ScrollView as RNScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
@@ -20,7 +20,6 @@ import {
   formatBadgeText,
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
-import { useNavigationStore } from "../../lib/navigation-store";
 import { HeaderControls } from "../../components/HeaderControls";
 import { usePaywall } from "../../hooks/usePaywall";
 
@@ -41,52 +40,75 @@ function getGradeColor(grade: string): string {
 
 export default function RateMyTeamScreen() {
   const router = useRouter();
-  const navCtx = useNavigationStore((s) => s.matchContext);
-  const params = {
-    matchId: navCtx?.matchId,
-    teamA: navCtx?.teamA,
-    teamB: navCtx?.teamB,
-    format: navCtx?.format,
-  };
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
   const { gate, hasAccess, paywallProps } = usePaywall();
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
-  // Demo team for display purposes — in production this comes from team builder state
-  const [demoTeam] = useState([
-    { name: "Virat Kohli", role: "BAT", credits: 10.5, isCaptain: true, isViceCaptain: false },
-    { name: "Rohit Sharma", role: "BAT", credits: 10, isCaptain: false, isViceCaptain: true },
-    { name: "Shubman Gill", role: "BAT", credits: 9, isCaptain: false, isViceCaptain: false },
-    { name: "KL Rahul", role: "WK", credits: 9, isCaptain: false, isViceCaptain: false },
-    { name: "Hardik Pandya", role: "AR", credits: 9.5, isCaptain: false, isViceCaptain: false },
-    { name: "Ravindra Jadeja", role: "AR", credits: 9, isCaptain: false, isViceCaptain: false },
-    { name: "Jasprit Bumrah", role: "BOWL", credits: 9, isCaptain: false, isViceCaptain: false },
-    { name: "Mohammed Shami", role: "BOWL", credits: 8.5, isCaptain: false, isViceCaptain: false },
-    { name: "Ravichandran Ashwin", role: "BOWL", credits: 8.5, isCaptain: false, isViceCaptain: false },
-    { name: "Kuldeep Yadav", role: "BOWL", credits: 8, isCaptain: false, isViceCaptain: false },
-    { name: "Mohammed Siraj", role: "BOWL", credits: 8, isCaptain: false, isViceCaptain: false },
-  ]);
+  // Fetch user's teams
+  const { data: myTeams, isLoading: teamsLoading } = trpc.team.myTeams.useQuery();
+
+  // Fetch players for the selected team's match to resolve names
+  const selectedTeam = useMemo(() => myTeams?.find((t: any) => t.id === selectedTeamId), [myTeams, selectedTeamId]);
+  const matchId = selectedTeam?.contest?.match?.id ?? selectedTeam?.matchId;
+  const { data: matchPlayers } = trpc.team.getTeamPlayers.useQuery(
+    { teamId: selectedTeamId! },
+    { enabled: !!selectedTeamId }
+  );
+
+  // Build the team data for the API
+  const teamForRating = useMemo(() => {
+    if (!matchPlayers || !selectedTeam) return null;
+    return matchPlayers.map((p: any) => ({
+      name: p.name,
+      role: p.role ?? "all_rounder",
+      credits: p.credits ?? 8,
+      isCaptain: p.playerId === selectedTeam.captainId,
+      isViceCaptain: p.playerId === selectedTeam.viceCaptainId,
+    }));
+  }, [matchPlayers, selectedTeam]);
+
+  const matchInfo = useMemo(() => {
+    const match = selectedTeam?.contest?.match;
+    if (!match) return null;
+    return {
+      teamA: match.teamHome ?? "Team A",
+      teamB: match.teamAway ?? "Team B",
+      format: match.format ?? "T20",
+      venue: match.venue ?? null,
+    };
+  }, [selectedTeam]);
 
   const rateMutation = trpc.analytics.rateMyTeam.useMutation();
 
   const handleRate = async () => {
+    if (!teamForRating || !matchInfo) return;
     if (gate("pro", "Rate My Team", "Get AI-powered analysis of your fantasy team")) return;
     try {
-      await rateMutation.mutateAsync({
-        team: demoTeam,
-        matchInfo: {
-          teamA: params.teamA ?? "India",
-          teamB: params.teamB ?? "Australia",
-          format: params.format ?? "T20",
-          venue: null,
-        },
-      });
+      await rateMutation.mutateAsync({ team: teamForRating, matchInfo });
     } catch {
       // Error handled by mutation state
     }
   };
 
   const rating = rateMutation.data;
+
+  // Teams grouped by match for easier selection
+  const teamsByMatch = useMemo(() => {
+    if (!myTeams) return [];
+    const groups: Record<string, { match: any; teams: any[] }> = {};
+    for (const t of myTeams as any[]) {
+      const match = t.contest?.match;
+      const key = match?.id ?? "unknown";
+      if (!groups[key]) groups[key] = { match, teams: [] };
+      groups[key].teams.push(t);
+    }
+    return Object.values(groups).sort((a, b) => {
+      const timeA = a.match?.startTime ? new Date(a.match.startTime).getTime() : 0;
+      const timeB = b.match?.startTime ? new Date(b.match.startTime).getTime() : 0;
+      return timeB - timeA; // most recent first
+    });
+  }, [myTeams]);
 
   return (
     <YStack flex={1} paddingTop={insets.top} backgroundColor="$background" testID="rate-team-screen">
@@ -111,30 +133,103 @@ export default function RateMyTeamScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
       >
-        {/* Team Summary */}
-        <Animated.View entering={FadeIn.delay(0)}>
-          <Card padding="$4" marginBottom="$4" testID="team-summary-card">
-            <XStack alignItems="center" gap="$2" marginBottom="$3">
-              <CricketBatIcon size={16} />
-              <Text {...textStyles.sectionHeader}>{formatUIText("your team")}</Text>
-              <Badge variant="default" size="sm">{demoTeam.length} players</Badge>
-            </XStack>
-            {demoTeam.map((p) => (
-              <XStack key={p.name} justifyContent="space-between" paddingVertical="$1">
-                <XStack alignItems="center" gap="$2">
-                  <Badge variant="role" size="sm">{formatBadgeText(p.role)}</Badge>
-                  <Text fontFamily="$body" fontSize={13} color="$color">{p.name}</Text>
-                  {p.isCaptain && <Badge variant="captain" size="sm">{formatBadgeText("C")}</Badge>}
-                  {p.isViceCaptain && <Badge variant="default" size="sm">{formatBadgeText("VC")}</Badge>}
-                </XStack>
-                <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{p.credits}</Text>
-              </XStack>
+        {/* Team Picker */}
+        {!selectedTeamId && !rating && (
+          <Animated.View entering={FadeIn.delay(0)}>
+            <Text {...textStyles.sectionHeader} marginBottom="$2">
+              {formatUIText("pick a team to rate")}
+            </Text>
+            <Text fontFamily="$body" fontSize={14} color="$colorMuted" marginBottom="$4">
+              {formatUIText("select one of your fantasy teams for AI analysis")}
+            </Text>
+
+            {teamsLoading && (
+              <YStack alignItems="center" paddingVertical="$6">
+                <EggLoadingSpinner size={40} message={formatUIText("loading your teams...")} />
+              </YStack>
+            )}
+
+            {!teamsLoading && teamsByMatch.length === 0 && (
+              <Card padding="$5" marginBottom="$4">
+                <YStack alignItems="center" gap="$3">
+                  <CricketBatIcon size={32} />
+                  <Text fontFamily="$body" fontSize={14} color="$colorMuted" textAlign="center">
+                    {formatUIText("no teams yet. create a team in a contest first, then come back to get it rated!")}
+                  </Text>
+                  <Button variant="primary" size="sm" onPress={() => router.push("/(tabs)/contests" as any)}>
+                    {formatUIText("browse contests")}
+                  </Button>
+                </YStack>
+              </Card>
+            )}
+
+            {teamsByMatch.map((group, gi) => (
+              <Animated.View key={group.match?.id ?? gi} entering={FadeInDown.delay(gi * 80).springify()}>
+                <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginBottom="$2" marginTop={gi > 0 ? "$3" : 0}>
+                  {group.match?.teamHome ?? "?"} vs {group.match?.teamAway ?? "?"} · {group.match?.format ?? ""}
+                </Text>
+                {group.teams.map((team: any) => (
+                  <Pressable key={team.id} onPress={() => setSelectedTeamId(team.id)}>
+                    <Card padding="$3" marginBottom="$2" borderWidth={1} borderColor="$borderColor">
+                      <XStack justifyContent="space-between" alignItems="center">
+                        <YStack>
+                          <Text fontFamily="$mono" fontWeight="600" fontSize={14} color="$color">
+                            {team.name || formatUIText("my team")}
+                          </Text>
+                          <Text fontFamily="$body" fontSize={12} color="$colorMuted">
+                            {(team.players as any[])?.length ?? 11} {formatUIText("players")} · {team.creditsUsed ?? "—"} {formatUIText("credits")}
+                          </Text>
+                        </YStack>
+                        <Badge variant="default" size="sm">
+                          {team.totalPoints > 0 ? `${team.totalPoints} pts` : formatUIText("rate")}
+                        </Badge>
+                      </XStack>
+                    </Card>
+                  </Pressable>
+                ))}
+              </Animated.View>
             ))}
-          </Card>
-        </Animated.View>
+          </Animated.View>
+        )}
+
+        {/* Selected Team Summary */}
+        {selectedTeamId && teamForRating && (
+          <Animated.View entering={FadeIn.delay(0)}>
+            <Card padding="$4" marginBottom="$4" testID="team-summary-card">
+              <XStack alignItems="center" justifyContent="space-between" marginBottom="$3">
+                <XStack alignItems="center" gap="$2">
+                  <CricketBatIcon size={16} />
+                  <Text {...textStyles.sectionHeader}>{selectedTeam?.name || formatUIText("your team")}</Text>
+                  <Badge variant="default" size="sm">{teamForRating.length} players</Badge>
+                </XStack>
+                {!rating && (
+                  <Pressable onPress={() => { setSelectedTeamId(null); rateMutation.reset(); }}>
+                    <Text fontFamily="$mono" fontSize={12} color="$accentBackground">{formatUIText("change")}</Text>
+                  </Pressable>
+                )}
+              </XStack>
+              {matchInfo && (
+                <Text fontFamily="$mono" fontSize={11} color="$colorMuted" marginBottom="$3">
+                  {matchInfo.teamA} vs {matchInfo.teamB} · {matchInfo.format}
+                </Text>
+              )}
+              {teamForRating.map((p: any) => (
+                <XStack key={p.name} justifyContent="space-between" paddingVertical="$1">
+                  <XStack alignItems="center" gap="$2">
+                    <Badge variant="role" size="sm">{formatBadgeText(p.role)}</Badge>
+                    <Text fontFamily="$body" fontSize={13} color="$color">{p.name}</Text>
+                    {p.isCaptain && <Badge variant="captain" size="sm">{formatBadgeText("C")}</Badge>}
+                    {p.isViceCaptain && <Badge variant="default" size="sm">{formatBadgeText("VC")}</Badge>}
+                  </XStack>
+                  <Text fontFamily="$mono" fontSize={12} color="$colorMuted">{p.credits}</Text>
+                </XStack>
+              ))}
+            </Card>
+          </Animated.View>
+        )}
 
         {/* Rate Button */}
-        {!rating && (
+        {selectedTeamId && teamForRating && !rating && (
           <Animated.View entering={FadeInDown.delay(100).springify()}>
             <Button
               variant="primary"
@@ -160,6 +255,8 @@ export default function RateMyTeamScreen() {
             <Text fontFamily="$body" fontSize={13} color="$colorError">
               {rateMutation.error?.message?.includes("UNAUTHORIZED")
                 ? formatUIText("you need to be logged in to rate your team")
+                : rateMutation.error?.message?.includes("PAYWALL")
+                ? formatUIText("upgrade to pro to use rate my team")
                 : formatUIText("couldn't rate your team right now. try again?")}
             </Text>
             <Button variant="secondary" size="sm" marginTop="$3" onPress={handleRate}>
@@ -194,7 +291,7 @@ export default function RateMyTeamScreen() {
                 <Text fontSize={14}>📊</Text>
                 <Text {...textStyles.sectionHeader}>{formatUIText("category scores")}</Text>
               </XStack>
-              {Object.entries(rating.categoryScores).map(([key, cat], i) => (
+              {Object.entries(rating.categoryScores).map(([key, cat]: [string, any], i) => (
                 <Animated.View key={key} entering={FadeInDown.delay(150 + i * 30).springify()}>
                   <Card padding="$3" marginBottom="$2" testID={`category-${key}`}>
                     <XStack justifyContent="space-between" alignItems="center">
@@ -223,7 +320,7 @@ export default function RateMyTeamScreen() {
                   <Text fontSize={14}>⚠️</Text>
                   <Text {...textStyles.sectionHeader}>{formatUIText("weak spots")}</Text>
                 </XStack>
-                {rating.weakSpots.map((spot, i) => (
+                {rating.weakSpots.map((spot: string, i: number) => (
                   <Card key={i} padding="$3" marginBottom="$2">
                     <Text fontFamily="$body" fontSize={13} color="$color">{spot}</Text>
                   </Card>
@@ -238,7 +335,7 @@ export default function RateMyTeamScreen() {
                   <Text fontSize={14}>🔄</Text>
                   <Text {...textStyles.sectionHeader}>{formatUIText("suggested transfers")}</Text>
                 </XStack>
-                {rating.suggestedTransfers.map((transfer, i) => (
+                {rating.suggestedTransfers.map((transfer: any, i: number) => (
                   <Card key={i} padding="$4" marginBottom="$2" testID={`transfer-${i}`}>
                     <XStack alignItems="center" gap="$3">
                       <YStack flex={1}>
@@ -264,18 +361,28 @@ export default function RateMyTeamScreen() {
               </Animated.View>
             )}
 
-            {/* Rate Again */}
+            {/* Rate Again / Pick Different Team */}
             <Animated.View entering={FadeInDown.delay(550).springify()}>
-              <Button
-                variant="secondary"
-                size="md"
-                marginTop="$4"
-                onPress={handleRate}
-                disabled={rateMutation.isPending}
-                testID="rate-again-btn"
-              >
-                {formatUIText("rate again")}
-              </Button>
+              <XStack gap="$3" marginTop="$4">
+                <Button
+                  variant="secondary"
+                  size="md"
+                  flex={1}
+                  onPress={() => { setSelectedTeamId(null); rateMutation.reset(); }}
+                >
+                  {formatUIText("pick another team")}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  flex={1}
+                  onPress={handleRate}
+                  disabled={rateMutation.isPending}
+                  testID="rate-again-btn"
+                >
+                  {formatUIText("rate again")}
+                </Button>
+              </XStack>
             </Animated.View>
           </>
         )}

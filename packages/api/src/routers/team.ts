@@ -644,8 +644,38 @@ export const teamRouter = router({
   }),
 
   /**
-   * Generate a personal question for AI team naming — asks about the user's cricket identity.
+   * Get resolved player details for a specific team (names, roles, credits)
    */
+  getTeamPlayers: protectedProcedure
+    .input(z.object({ teamId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const team = await ctx.db.query.fantasyTeams.findFirst({
+        where: and(eq(fantasyTeams.id, input.teamId), eq(fantasyTeams.userId, ctx.user.id)),
+      });
+      if (!team) throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
+
+      const playerEntries = (team.players as Array<{ playerId: string; role?: string }>) ?? [];
+      if (playerEntries.length === 0) return [];
+
+      const playerIds = playerEntries.map((p) => p.playerId);
+      const playerRows = await ctx.db.query.players.findMany({
+        where: inArray(players.id, playerIds),
+      });
+
+      const playerMap = new Map(playerRows.map((p) => [p.id, p]));
+      return playerEntries.map((entry) => {
+        const player = playerMap.get(entry.playerId);
+        return {
+          playerId: entry.playerId,
+          name: player?.name ?? "Unknown",
+          role: player?.role ?? entry.role ?? "all_rounder",
+          credits: player?.credits ? Number(player.credits) : 8,
+          isCaptain: entry.playerId === team.captainId,
+          isViceCaptain: entry.playerId === team.viceCaptainId,
+        };
+      });
+    }),
+
   /**
    * Generate AI-powered team names — single call, no questions needed.
    * Uses match context + user profile + region for personalized names.
