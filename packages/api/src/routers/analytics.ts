@@ -22,9 +22,6 @@ import { getValueTracker } from "../services/value-tracker";
 import { getStatTopFives } from "../services/stat-topfives";
 import { getFromHotCache, setHotCache } from "../services/sports-cache";
 import { eq } from "drizzle-orm";
-import { getLogger } from "../lib/logger";
-
-const log = getLogger("analytics-router");
 
 export const analyticsRouter = router({
   /**
