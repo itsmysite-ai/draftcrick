@@ -68,7 +68,7 @@ export async function generateGuruMessages(matchId: string | null): Promise<void
       ? `Here's the recent chat:\n${chatContext}\n\nGenerate 1-2 contextual responses. React to what people are saying, or drop a hot take.`
       : `The chat is empty. Generate 1 welcoming/engaging message to kick things off. Ask a fun cricket question or drop a hot take about current cricket.`;
 
-    const genAI = await createGeminiClient("IN");
+    const genAI = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
     const response = await genAI.models.generateContent({
       model: GEMINI_MODEL,
       contents: prompt,

@@ -31,7 +31,7 @@ Respond with ONLY the username, nothing else.`;
 export async function generateFunkyName(email: string | null): Promise<string> {
   try {
     const hint = email ? (email.split("@")[0] ?? "new user") : "new user";
-    const genAI = await createGeminiClient("IN");
+    const genAI = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
     const prompt = PROMPT.replace("{hint}", hint);
     const response = await genAI.models.generateContent({
       model: GEMINI_MODEL,

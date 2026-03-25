@@ -89,7 +89,10 @@ export async function createGeminiClientGlobal() {
 }
 
 /** Default model for all Gemini API calls */
-export const GEMINI_MODEL = "gemini-2.5-flash";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+/** Default region for server-side Gemini calls */
+export const GEMINI_DEFAULT_REGION = process.env.GEMINI_DEFAULT_REGION || "IN";
 
 /** Standard Google Search grounding tool */
 export const GEMINI_SEARCH_TOOLS = [{ googleSearch: {} }];

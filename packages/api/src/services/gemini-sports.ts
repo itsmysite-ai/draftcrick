@@ -1499,7 +1499,7 @@ export async function enrichPlayersWithGemini(
   tournamentName: string
 ): Promise<PlayerEnrichmentData[]> {
   const { createGeminiClient } = await import("./gemini-client");
-  const ai = await createGeminiClient("IN");
+  const ai = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
   const model = "gemini-2.5-flash";
   const allResults: PlayerEnrichmentData[] = [];
 
@@ -1553,7 +1553,7 @@ export async function resolveNationalitiesWithGemini(
   if (players.length === 0) return [];
 
   const { createGeminiClient } = await import("./gemini-client");
-  const ai = await createGeminiClient("IN");
+  const ai = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
   const model = "gemini-2.5-flash";
   const BATCH_SIZE = 30;
   const allResults: NationalityResult[] = [];
