@@ -63,15 +63,22 @@ export default function SubscriptionScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
 
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (wait for auth to finish loading)
   useEffect(() => {
-    if (!user && typeof sessionStorage !== "undefined") {
-      sessionStorage.setItem("auth_redirect", "/subscription");
-      router.replace("/auth/login");
+    if (!isLoading && !user) {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.setItem("auth_redirect", "/subscription");
+      }
+      // Use window.location on web to avoid "navigate before mount" error
+      if (typeof window !== "undefined") {
+        window.location.href = "/auth/login";
+      } else {
+        router.replace("/auth/login");
+      }
     }
-  }, [user]);
+  }, [user, isLoading]);
   const [refreshing, setRefreshing] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoResult, setPromoResult] = useState<{ valid: boolean; discountDisplay?: string } | null>(null);
