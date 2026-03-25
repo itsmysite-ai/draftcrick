@@ -669,7 +669,7 @@ export const teamRouter = router({
           playerId: entry.playerId,
           name: player?.name ?? "Unknown",
           role: player?.role ?? entry.role ?? "all_rounder",
-          credits: player?.credits ? Number(player.credits) : 8,
+          credits: player?.stats && typeof player.stats === "object" && "credits" in (player.stats as any) ? Number((player.stats as any).credits) : 8,
           isCaptain: entry.playerId === team.captainId,
           isViceCaptain: entry.playerId === team.viceCaptainId,
         };
