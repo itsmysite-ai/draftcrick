@@ -175,10 +175,8 @@ async function generateDynamicQuestion(
   leagueSize: number,
   userRegion?: string | null,
 ): Promise<{ question: string; options: string[] }> {
-  const { GoogleGenAI } = await import("@google/genai");
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "",
-  });
+  const { createGeminiClient } = await import("../services/gemini-client");
+  const ai = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
 
   const resolvedRegion = resolveStateName(userRegion);
   const lang = resolvedRegion ? REGION_LANG[resolvedRegion] : null;
@@ -253,10 +251,8 @@ async function generateLeagueNameWithAI(
   tournament: string,
   userContext?: { crewVibe?: string; groupName?: string; leagueSize?: number; userRegion?: string | null },
 ): Promise<string[]> {
-  const { GoogleGenAI } = await import("@google/genai");
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "",
-  });
+  const { createGeminiClient } = await import("../services/gemini-client");
+  const ai = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
 
   const formatDesc = format === "salary_cap" ? "salary cap fantasy (pick players within a budget)"
     : format === "draft" ? "snake draft (take turns picking)"

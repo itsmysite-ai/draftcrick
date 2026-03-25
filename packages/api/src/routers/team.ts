@@ -677,10 +677,8 @@ export const teamRouter = router({
         ? `User is from ${resolvedRegion}. Use YOUR OWN KNOWLEDGE to give 1-2 names a ${resolvedRegion} flavor — a local word, cricket slang from the region, or a cultural nod. Be creative, don't just use the obvious references.`
         : "";
 
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({
-        apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "",
-      });
+      const { createGeminiClient } = await import("../services/gemini-client");
+      const ai = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
 
       const prompt = `Generate 5 fantasy cricket team names for ${input.teamA} vs ${input.teamB} (${input.tournament}).
 

@@ -23,8 +23,8 @@ const log = getLogger("gemini-sports");
 let _ai: any = null;
 async function getAI() {
   if (!_ai) {
-    const { GoogleGenAI } = await import("@google/genai");
-    _ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_CLOUD_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY || "" });
+    const { createGeminiClient } = await import("./gemini-client");
+    _ai = await createGeminiClient(process.env.GEMINI_DEFAULT_REGION || "IN");
   }
   return _ai;
 }
