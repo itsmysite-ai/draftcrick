@@ -304,7 +304,7 @@ export default function GuruScreen() {
       {/* Typing indicator */}
       {isSending && (
         <XStack paddingHorizontal="$4" paddingBottom="$2" gap="$2" alignItems="center">
-          <EggLoadingSpinner size={16} />
+          <EggLoadingSpinner size={16} message="" />
           <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
             {formatUIText("guru is thinking...")}
           </Text>
