@@ -13,7 +13,7 @@ import { getFromHotCache, setHotCache } from "./sports-cache";
 
 const log = getLogger("differentials");
 
-const MODEL = "gemini-3.1-flash-lite-preview";
+const MODEL = "gemini-2.5-flash";
 const DIFFERENTIALS_CACHE_TTL = 7200; // 2 hours
 
 // ── Types ────────────────────────────────────────────────────

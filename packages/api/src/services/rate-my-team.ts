@@ -12,7 +12,7 @@ import type { Database } from "@draftplay/db";
 
 const log = getLogger("rate-my-team");
 
-const MODEL = "gemini-3.1-flash-lite-preview";
+const MODEL = "gemini-2.5-flash";
 const RATING_CACHE_TTL = 14400; // 4 hours — rating only changes if team composition changes (different cache key)
 
 // ── Types ────────────────────────────────────────────────────

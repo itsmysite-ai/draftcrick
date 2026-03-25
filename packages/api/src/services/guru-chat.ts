@@ -16,7 +16,7 @@ import type { Database } from "@draftplay/db";
 
 const log = getLogger("guru-chat");
 
-const MODEL = "gemini-3.1-flash-lite-preview";
+const MODEL = "gemini-2.5-flash";
 const MAX_MESSAGES_PER_HOUR = 10;
 const MAX_CONVERSATION_MESSAGES = 40; // Trim older messages to stay in context window
 

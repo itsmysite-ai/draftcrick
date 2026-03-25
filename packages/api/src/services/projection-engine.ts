@@ -16,7 +16,7 @@ import type { Database } from "@draftplay/db";
 const log = getLogger("projection-engine");
 
 const PROJECTION_CACHE_TTL = 3600;
-const MODEL = "gemini-3.1-flash-lite-preview";
+const MODEL = "gemini-2.5-flash";
 
 // ── Types ────────────────────────────────────────────────────
 

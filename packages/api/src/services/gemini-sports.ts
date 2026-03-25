@@ -1,7 +1,7 @@
 /**
  * Gemini AI sports data service with Google Search grounding.
  * Sport-agnostic: pass any SportPromptConfig to fetch data for that sport.
- * Uses gemini-3.1-flash-lite-preview with googleSearch tool for real-time data.
+ * Uses gemini-2.5-flash with googleSearch tool for real-time data.
  */
 
 import type {
@@ -233,7 +233,7 @@ export async function fetchSportsData(sport: Sport = DEFAULT_SPORT, activeTourna
   }
 
   const ai = await getAI();
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
   const prompt = buildPrompt(sport, config.displayName, config.knownTournaments, activeTournaments);
 
   try {
@@ -352,7 +352,7 @@ export async function discoverTournaments(sport: Sport = DEFAULT_SPORT): Promise
   }
 
   const ai = await getAI();
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
   const prompt = buildDiscoveryPrompt(sport, config.displayName, config.knownTournaments);
 
   try {
@@ -472,7 +472,7 @@ RULES:
 
   try {
     const ai = await getAI();
-    const model = "gemini-3.1-flash-lite-preview";
+    const model = "gemini-2.5-flash";
 
     const response = await ai.models.generateContent({
       model,
@@ -973,7 +973,7 @@ export async function fetchPlayersByTeams(
   if (!apiKey) return [];
 
   const ai = await getAI();
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
   const allPlayers: AIPlayer[] = [];
 
   for (let i = 0; i < teamNames.length; i += TEAM_BATCH_SIZE) {
@@ -1017,7 +1017,7 @@ export async function fetchSinglePlayer(
   if (!apiKey) return null;
 
   const ai = await getAI();
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
 
   const prompt = `
 Search for the latest stats and information about the ${config.displayName.toLowerCase()} player "${playerName}" who plays for "${teamName}" in the "${tournamentName}" tournament.
@@ -1100,7 +1100,7 @@ export async function fetchSingleMatchStatus(
   if (!apiKey) return null;
 
   const ai = await getAI();
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
 
   const dateStr = new Date(startTime).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
@@ -1195,7 +1195,7 @@ export async function fetchPlayerRosters(
   }
 
   const ai = await getAI();
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
   const allPlayers: AIPlayer[] = [];
 
   // Batch tournaments to avoid token limits
@@ -1360,7 +1360,7 @@ export async function fetchTournamentStandings(
   }
 
   const ai = await getAI();
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
   const result = new Map<string, AITeamStanding[]>();
 
   for (let i = 0; i < tournamentNames.length; i += STANDINGS_BATCH_SIZE) {
@@ -1500,7 +1500,7 @@ export async function enrichPlayersWithGemini(
 ): Promise<PlayerEnrichmentData[]> {
   const { createGeminiClient } = await import("./gemini-client");
   const ai = await createGeminiClient("IN");
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
   const allResults: PlayerEnrichmentData[] = [];
 
   for (let i = 0; i < players.length; i += ENRICHMENT_BATCH_SIZE) {
@@ -1554,7 +1554,7 @@ export async function resolveNationalitiesWithGemini(
 
   const { createGeminiClient } = await import("./gemini-client");
   const ai = await createGeminiClient("IN");
-  const model = "gemini-3.1-flash-lite-preview";
+  const model = "gemini-2.5-flash";
   const BATCH_SIZE = 30;
   const allResults: NationalityResult[] = [];
 

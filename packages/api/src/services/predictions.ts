@@ -119,7 +119,7 @@ Include a mix of difficulties. Questions about first innings should use "innings
 Return valid JSON only, no markdown or explanation.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-lite-preview",
+    model: "gemini-2.5-flash",
     contents: prompt,
     config: { temperature: 0.7, tools: [{ googleSearch: {} }] },
   });
