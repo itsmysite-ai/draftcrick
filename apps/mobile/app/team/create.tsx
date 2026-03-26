@@ -94,8 +94,8 @@ function generateTeamName(teamA?: string, teamB?: string): string {
 
 const MAX_BUDGET = 100;
 const TEAM_SIZE = 11;
-const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = { wicket_keeper: { min: 1, max: 4, label: "WK" }, batsman: { min: 1, max: 6, label: "BAT" }, all_rounder: { min: 1, max: 6, label: "AR" }, bowler: { min: 1, max: 6, label: "BOWL" } };
-const TABS = [{ key: "wicket_keeper", label: "WK" }, { key: "batsman", label: "BAT" }, { key: "all_rounder", label: "AR" }, { key: "bowler", label: "BOWL" }] as const;
+const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = { wicket_keeper: { min: 1, max: 4, label: "Keeper" }, batsman: { min: 1, max: 6, label: "Batter" }, all_rounder: { min: 1, max: 6, label: "All-Rounder" }, bowler: { min: 1, max: 6, label: "Bowler" } };
+const TABS = [{ key: "wicket_keeper", label: "Keeper" }, { key: "batsman", label: "Batter" }, { key: "all_rounder", label: "All-Rounder" }, { key: "bowler", label: "Bowler" }] as const;
 type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number; photoUrl?: string | null };
 
 export default function TeamBuilderScreen() {

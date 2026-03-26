@@ -284,25 +284,24 @@ export function AIInsightsSheet({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       {/* Backdrop */}
-      <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", ...(Platform.OS === "web" ? { alignItems: "center" } : {}) } as any}>
-        <Pressable style={{ flex: 1, ...(Platform.OS === "web" ? { width: 550, alignSelf: "center" } : {}) } as any} onPress={onClose} />
+      <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
       </Animated.View>
 
-      {/* Sheet — constrained to app frame width on web */}
+      {/* Sheet */}
       <Animated.View
         entering={SlideInDown.duration(300).springify()}
         style={{
           position: "absolute",
           bottom: 0,
-          ...(Platform.OS === "web"
-            ? { left: "50%", transform: [{ translateX: -275 }], width: 550 }
-            : { left: 0, right: 0 }),
+          left: 0,
+          right: 0,
           maxHeight: SCREEN_HEIGHT * 0.75,
           backgroundColor: theme.background?.val,
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           paddingBottom: insets.bottom + 8,
-        } as any}
+        }}
       >
         {/* Handle */}
         <YStack alignItems="center" paddingTop="$3" paddingBottom="$2">

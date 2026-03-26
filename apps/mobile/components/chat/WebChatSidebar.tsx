@@ -169,6 +169,29 @@ function WebLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Global modal constraint — keeps all modals within the app frame on wide screens
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const styleId = "dp-modal-constraint";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      @media (min-width: 1024px) {
+        [role="dialog"],
+        .css-view-175oi2r[style*="position: fixed"],
+        div[style*="position:fixed"][style*="z-index"] {
+          max-width: 550px !important;
+          left: 50% !important;
+          right: auto !important;
+          transform: translateX(-50%) !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.getElementById(styleId)?.remove(); };
+  }, []);
+
   const borderColor = mode === "light" ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.12)";
 
   // Mobile / narrow: no sidebar, no constraint
