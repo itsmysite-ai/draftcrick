@@ -171,25 +171,28 @@ function WebLayout({ children }: { children: React.ReactNode }) {
 
   // Global modal constraint — keeps all modals within the app frame on wide screens
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    const doc = (globalThis as any).document;
+    if (!doc) return;
     const styleId = "dp-modal-constraint";
-    if (document.getElementById(styleId)) return;
-    const style = document.createElement("style");
+    if (doc.getElementById(styleId)) return;
+    const style = doc.createElement("style");
     style.id = styleId;
     style.textContent = `
       @media (min-width: 1024px) {
-        [role="dialog"],
-        .css-view-175oi2r[style*="position: fixed"],
-        div[style*="position:fixed"][style*="z-index"] {
+        /* Constrain all RN Web modals (position:fixed, zIndex:9999) to app frame */
+        div[style*="position: fixed"][style*="z-index: 9999"],
+        div[style*="position:fixed"][style*="z-index:9999"],
+        div[style*="position: fixed"][style*="z-index:9999"],
+        [role="dialog"] {
           max-width: 550px !important;
           left: 50% !important;
           right: auto !important;
-          transform: translateX(-50%) !important;
+          margin-left: -275px !important;
         }
       }
     `;
-    document.head.appendChild(style);
-    return () => { document.getElementById(styleId)?.remove(); };
+    doc.head.appendChild(style);
+    return () => { doc.getElementById(styleId)?.remove(); };
   }, []);
 
   const borderColor = mode === "light" ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.12)";

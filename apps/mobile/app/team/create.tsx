@@ -94,8 +94,8 @@ function generateTeamName(teamA?: string, teamB?: string): string {
 
 const MAX_BUDGET = 100;
 const TEAM_SIZE = 11;
-const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = { wicket_keeper: { min: 1, max: 4, label: "Keeper" }, batsman: { min: 1, max: 6, label: "Batter" }, all_rounder: { min: 1, max: 6, label: "All-Rounder" }, bowler: { min: 1, max: 6, label: "Bowler" } };
-const TABS = [{ key: "wicket_keeper", label: "Keeper" }, { key: "batsman", label: "Batter" }, { key: "all_rounder", label: "All-Rounder" }, { key: "bowler", label: "Bowler" }] as const;
+const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = { wicket_keeper: { min: 1, max: 4, label: "keeper" }, batsman: { min: 1, max: 6, label: "batter" }, all_rounder: { min: 1, max: 6, label: "all-rounder" }, bowler: { min: 1, max: 6, label: "bowler" } };
+const TABS = [{ key: "wicket_keeper", label: "keeper" }, { key: "batsman", label: "batter" }, { key: "all_rounder", label: "all-rounder" }, { key: "bowler", label: "bowler" }] as const;
 type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number; photoUrl?: string | null };
 
 export default function TeamBuilderScreen() {
@@ -1966,7 +1966,7 @@ export default function TeamBuilderScreen() {
             <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{pitchBannerExpanded ? "▲" : "▼"}</Text>
           </XStack>
           {pitchBannerExpanded && pitchSummary.tips.length > 0 && (
-            <YStack backgroundColor="$backgroundSurface" paddingHorizontal="$4" paddingBottom="$2" gap="$1">
+            <YStack backgroundColor="$backgroundSurface" paddingHorizontal="$4" paddingTop="$3" paddingBottom="$2" gap="$2">
               {pitchSummary.tips.map((tip: string, i: number) => (
                 <XStack key={i} gap="$2" alignItems="flex-start">
                   <Text fontFamily="$mono" fontSize={10} color="$accentBackground">•</Text>
@@ -2005,10 +2005,7 @@ export default function TeamBuilderScreen() {
           return (
             <FilterPill key={tab.key} active={isActive} onPress={() => setSelectedTab(tab.key)}>
               <Text fontFamily="$body" fontWeight="700" fontSize={13} color={isActive ? "$background" : "$colorSecondary"}>
-                {tab.label}
-              </Text>
-              <Text fontFamily="$mono" fontSize={10} color={isActive ? "$background" : "$colorMuted"} marginTop={2}>
-                {count}
+                {tab.label}{count > 0 ? ` · ${count}` : ""}
               </Text>
             </FilterPill>
           );
