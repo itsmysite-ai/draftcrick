@@ -436,7 +436,7 @@ export default function MatchScreen() {
   );
   const matchStarted = isLive || isCompleted;
   const myContestsQuery = trpc.contest.myContests.useQuery(undefined, {
-    enabled: !!user && matchStarted,
+    enabled: !!user,
     retry: false,
   });
   const allDbContests = contestsQuery.data ?? [];
