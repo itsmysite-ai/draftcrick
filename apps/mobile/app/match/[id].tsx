@@ -158,6 +158,8 @@ function ContestOption({
   entry,
   spots,
   highlight,
+  joined,
+  onPlay,
   testID,
 }: {
   title: string;
@@ -166,6 +168,8 @@ function ContestOption({
   entry: string;
   spots: string;
   highlight?: boolean;
+  joined?: boolean;
+  onPlay?: () => void;
   testID?: string;
 }) {
   return (
@@ -173,14 +177,19 @@ function ContestOption({
       padding={0}
       overflow="hidden"
       marginBottom="$3"
-      borderWidth={highlight ? 2 : 1}
-      borderColor={highlight ? "$colorAccent" : "$borderColor"}
+      borderWidth={highlight ? 2 : joined ? 2 : 1}
+      borderColor={highlight ? "$colorAccent" : joined ? "$accentBackground" : "$borderColor"}
       testID={testID}
     >
       <YStack padding="$4" paddingBottom="$3" gap="$2">
-        <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" numberOfLines={2}>
-          {title}
-        </Text>
+        <XStack justifyContent="space-between" alignItems="center">
+          <Text fontFamily="$body" fontWeight="600" fontSize={14} color="$color" numberOfLines={2} flex={1}>
+            {title}
+          </Text>
+          {joined && (
+            <Badge variant="success" size="sm">{formatBadgeText("JOINED")}</Badge>
+          )}
+        </XStack>
         <XStack alignItems="center" gap="$2">
           {highlight && (
             <Badge variant="live" size="sm">{formatBadgeText("popular")}</Badge>
@@ -189,12 +198,12 @@ function ContestOption({
             {formatUIText(subtitle)}
           </Text>
           {entry !== "free" && (
-            <Badge variant="default" size="sm">{formatUIText(`${entry} PC`)}</Badge>
+            <Badge variant="default" size="sm">{formatUIText(`${entry} pc`)}</Badge>
           )}
         </XStack>
       </YStack>
 
-      {/* Prize + Spots strip */}
+      {/* Prize + Spots + Play strip */}
       <XStack
         backgroundColor="$backgroundSurfaceAlt"
         paddingVertical="$2"
@@ -204,22 +213,29 @@ function ContestOption({
         borderTopWidth={1}
         borderTopColor="$borderColor"
       >
-        <XStack alignItems="center" gap="$2">
-          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-            {formatUIText("prize")}
-          </Text>
-          <Text fontFamily="$mono" fontSize={11} fontWeight="700" color="$colorAccent">
-            {prize}
-          </Text>
+        <XStack alignItems="center" gap="$4">
+          <XStack alignItems="center" gap="$2">
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+              {formatUIText("prize")}
+            </Text>
+            <Text fontFamily="$mono" fontSize={11} fontWeight="700" color="$colorAccent">
+              {prize}
+            </Text>
+          </XStack>
+          <XStack alignItems="center" gap="$2">
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+              {formatUIText("spots")}
+            </Text>
+            <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$color">
+              {spots}
+            </Text>
+          </XStack>
         </XStack>
-        <XStack alignItems="center" gap="$2">
-          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-            {formatUIText("spots")}
-          </Text>
-          <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$color">
-            {spots}
-          </Text>
-        </XStack>
+        {onPlay && !joined && (
+          <Button variant="primary" size="sm" onPress={onPlay}>
+            {formatUIText("play")}
+          </Button>
+        )}
       </XStack>
     </Card>
   );
@@ -720,22 +736,14 @@ export default function MatchScreen() {
           <Animated.View entering={FadeInDown.delay(50).springify()}>
             {match?.draftEnabled ? (
               <YStack gap="$2" marginBottom="$5">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onPress={() => goToTeamCreate()}
-                  testID="primary-create-team-btn"
-                >
-                  {formatUIText("play this match")}
-                </Button>
                 {user && dbMatchUuid && (
                   <Button
-                    variant="secondary"
-                    size="md"
+                    variant="primary"
+                    size="lg"
                     onPress={() => setShowStakePicker(true)}
                     testID="challenge-friend-btn"
                   >
-                    {formatUIText("challenge a friend")}
+                    {formatUIText("challenge a friend to a duel")}
                   </Button>
                 )}
               </YStack>
@@ -835,25 +843,31 @@ export default function MatchScreen() {
                 {formatUIText("contests")}
               </Text>
             </XStack>
-            {dbContests.map((contest: any, i: number) => (
-              <ContestOption
-                key={contest.id}
-                title={contest.name}
-                subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
-                prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} PC` : "glory"}
-                entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
-                spots={`${contest.maxEntries - contest.currentEntries}`}
-                highlight={(() => {
-                  if (contest.currentEntries >= contest.maxEntries) return false; // full — show "FULL" not "POPULAR"
-                  const fillRate = contest.maxEntries > 0 ? contest.currentEntries / contest.maxEntries : 0;
-                  if (fillRate < 0.5) return false;
-                  const eligibleContests = (matchContests ?? []).filter((c: any) => c.currentEntries < c.maxEntries && c.maxEntries > 0);
-                  const maxFill = Math.max(...eligibleContests.map((c: any) => c.currentEntries / c.maxEntries), 0);
-                  return fillRate === maxFill;
-                })()}
-                testID={`contest-${i}`}
-              />
-            ))}
+            {dbContests.map((contest: any, i: number) => {
+              const isJoined = myContestIds.has(contest.id);
+              const isFull = contest.currentEntries >= contest.maxEntries;
+              return (
+                <ContestOption
+                  key={contest.id}
+                  title={contest.name}
+                  subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
+                  prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} pc` : "glory"}
+                  entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
+                  spots={`${contest.maxEntries - contest.currentEntries}`}
+                  joined={isJoined}
+                  onPlay={!isJoined && !isFull && match?.draftEnabled ? () => goToTeamCreate(contest.id) : undefined}
+                  highlight={(() => {
+                    if (isFull) return false;
+                    const fillRate = contest.maxEntries > 0 ? contest.currentEntries / contest.maxEntries : 0;
+                    if (fillRate < 0.5) return false;
+                    const eligibleContests = (matchContests ?? []).filter((c: any) => c.currentEntries < c.maxEntries && c.maxEntries > 0);
+                    const maxFill = Math.max(...eligibleContests.map((c: any) => c.currentEntries / c.maxEntries), 0);
+                    return fillRate === maxFill;
+                  })()}
+                  testID={`contest-${i}`}
+                />
+              );
+            })}
           </Animated.View>
         )}
 
