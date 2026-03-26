@@ -61,14 +61,18 @@ export async function autoCreateContestsForLeague(
   const league = await db.query.leagues.findFirst({ where: eq(leagues.id, leagueId) });
   const leagueName = league?.name || "League";
 
+  // Inherit entry fee from league rules if set, otherwise free
+  const leagueEntryFee = (league?.rules as any)?.entryFee ?? 0;
+  const isPublicLeague = league?.isPrivate === false;
+
   const contestValues = newMatches.map((m) => ({
     matchId: m.id,
     leagueId,
     name: leagueName,
-    entryFee: 0,
+    entryFee: leagueEntryFee,
     prizePool: 0,
     maxEntries: maxMembers,
-    contestType: "private" as const,
+    contestType: isPublicLeague ? "public" as const : "private" as const,
     isGuaranteed: false,
     prizeDistribution: [] as { rank: number; amount: number }[],
     status: m.draftEnabled ? "open" as const : "upcoming" as const,

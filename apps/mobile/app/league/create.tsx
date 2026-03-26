@@ -203,6 +203,7 @@ export default function CreateLeagueScreen() {
       tournament,
       maxMembers,
       isPrivate,
+      rules: { entryFee },
     });
   };
 
