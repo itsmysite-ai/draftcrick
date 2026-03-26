@@ -168,7 +168,7 @@ export default function LoginScreen() {
 
         <YStack gap="$4">
           {/* Google Sign-In — primary */}
-          <Button variant="primary" size="lg" onPress={async () => {
+          <Button variant="primary" size="lg" maxWidth={320} alignSelf="center" onPress={async () => {
             setLocalError(null);
             setIsSubmitting(true);
             try {

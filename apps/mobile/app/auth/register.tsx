@@ -195,7 +195,7 @@ export default function RegisterScreen() {
           </Pressable>
 
           {/* Google Sign-Up — primary */}
-          <Button variant="primary" size="lg" onPress={handleGoogleSignUp} disabled={isSubmitting || !termsAccepted} opacity={!termsAccepted ? 0.4 : 1} testID="google-signup-btn">
+          <Button variant="primary" size="lg" maxWidth={320} alignSelf="center" onPress={handleGoogleSignUp} disabled={isSubmitting || !termsAccepted} opacity={!termsAccepted ? 0.4 : 1} testID="google-signup-btn">
             {isSubmitting ? formatUIText("creating account...") : formatUIText("sign up with google")}
           </Button>
 
