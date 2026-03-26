@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 import { createContestSchema } from "@draftplay/shared";
-import { eq, and, or, desc, sql } from "drizzle-orm";
-import { contests, fantasyTeams, matches, users } from "@draftplay/db";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { contests, fantasyTeams, matches, users, leagueMembers } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { calculatePrizeDistribution } from "../services/settlement";
 import { deductCoins } from "../services/pop-coins";
@@ -24,13 +24,13 @@ export const contestRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      // Get all contests for this match
       const conditions = [eq(contests.matchId, input.matchId)];
-
       if (input.contestType) {
         conditions.push(eq(contests.contestType, input.contestType));
       }
 
-      const result = await ctx.db.query.contests.findMany({
+      const allContests = await ctx.db.query.contests.findMany({
         where: and(...conditions),
         orderBy: [desc(contests.prizePool)],
         limit: input.limit,
@@ -41,7 +41,45 @@ export const contestRouter = router({
         },
       });
 
-      return result.map((c) => ({
+      // Filter: public contests visible to all, private/h2h only if user is a member
+      const userId = ctx.user?.id;
+      let userLeagueIds = new Set<string>();
+      let userContestIds = new Set<string>();
+
+      if (userId) {
+        // Get leagues user is a member of
+        const memberships = await ctx.db.query.leagueMembers.findMany({
+          where: eq(leagueMembers.userId, userId),
+          columns: { leagueId: true },
+        });
+        userLeagueIds = new Set(memberships.map((m) => m.leagueId));
+
+        // Get contests user has joined (via fantasy teams)
+        const userTeams = await ctx.db.query.fantasyTeams.findMany({
+          where: eq(fantasyTeams.userId, userId),
+          columns: { contestId: true },
+        });
+        userContestIds = new Set(userTeams.map((t) => t.contestId).filter(Boolean) as string[]);
+      }
+
+      const visibleContests = allContests.filter((c) => {
+        // Public contests — visible to everyone
+        if (c.contestType === "public") return true;
+        // Not logged in — only public
+        if (!userId) return false;
+        // Private — only if user is in the league
+        if (c.contestType === "private" && c.leagueId) {
+          return userLeagueIds.has(c.leagueId);
+        }
+        // H2H — only if user has joined
+        if (c.contestType === "h2h") {
+          return userContestIds.has(c.id);
+        }
+        // Fallback — user has joined this contest
+        return userContestIds.has(c.id);
+      });
+
+      return visibleContests.map((c) => ({
         ...c,
         entryFee: c.entryFee,
         prizePool: c.prizePool,

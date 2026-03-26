@@ -449,10 +449,12 @@ export default function MatchScreen() {
     if (!dbMatchUuid || !myTeamsQuery.data) return null;
     return (myTeamsQuery.data as any[]).find((t: any) => t.matchId === dbMatchUuid && t.contestId) ?? null;
   }, [dbMatchUuid, myTeamsQuery.data]);
-  // Once match starts, only show contests user joined
+  // Build set of user's joined contest IDs
   const myContestIds = new Set(
     (myContestsQuery.data ?? []).map((mc: any) => mc.contestId ?? mc.contest?.id).filter(Boolean)
   );
+  // Server already filters: public + user's private + user's h2h.
+  // After match starts, further filter to only joined contests.
   const dbContests = matchStarted && user
     ? allDbContests.filter((c: any) => myContestIds.has(c.id))
     : allDbContests;
@@ -860,7 +862,7 @@ export default function MatchScreen() {
                     if (isFull) return false;
                     const fillRate = contest.maxEntries > 0 ? contest.currentEntries / contest.maxEntries : 0;
                     if (fillRate < 0.5) return false;
-                    const eligibleContests = (matchContests ?? []).filter((c: any) => c.currentEntries < c.maxEntries && c.maxEntries > 0);
+                    const eligibleContests = (dbContests ?? []).filter((c: any) => c.currentEntries < c.maxEntries && c.maxEntries > 0);
                     const maxFill = Math.max(...eligibleContests.map((c: any) => c.currentEntries / c.maxEntries), 0);
                     return fillRate === maxFill;
                   })()}

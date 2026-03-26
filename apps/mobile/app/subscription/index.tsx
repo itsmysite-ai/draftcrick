@@ -240,20 +240,22 @@ export default function SubscriptionScreen() {
   const baseTier = myTier.data?.baseTier ?? myTier.data?.tier ?? "basic";
   // subTier = actual subscription tier from DB (preserves "elite" even when cancelled)
   const subTier = (myTier.data?.tier as string) ?? "basic";
-  const subStatus = (myTier.data?.status as string) ?? "expired";
+  const subStatus = (myTier.data?.status as string) ?? "none";
   const isActive = subStatus === "active" || subStatus === "trialing";
+  const isTrialing = subStatus === "trialing" || (myTier.data?.isTrialing ?? false);
   const isCancelled = subStatus === "cancelled" || subStatus === "expired";
+  const isNewUser = subStatus === "none" || !myTier.data?.status;
   // For display & cancel flow: show actual tier when active, show actual when cancelled too
   const displayTier = isActive ? baseTier : subTier;
-  const isTrialing = myTier.data?.isTrialing ?? false;
-  const tiers = ((tierConfigs.data as any)?.tiers ?? []) as TierConfig[];
   const tierRank: Record<string, number> = { basic: 0, pro: 1, elite: 2 };
+  const tiers = (((tierConfigs.data as any)?.tiers ?? []) as TierConfig[])
+    .sort((a, b) => (tierRank[a.id] ?? 0) - (tierRank[b.id] ?? 0));
 
   const handleSubscribe = (tier: "basic" | "pro" | "elite") => {
     const promoNote = promoResult?.valid ? ` Promo: ${promoResult.discountDisplay}` : "";
     const trialNote = tier === "basic" ? " Includes a 7-day free trial." : "";
     showConfirm(
-      `${tier === displayTier ? (isCancelled ? "Resubscribe to" : "Renew") : (tierRank[tier] ?? 0) > (tierRank[displayTier] ?? 0) ? "Upgrade to" : "Downgrade to"} ${tier.toUpperCase()}`,
+      `${isNewUser || isTrialing ? "Start" : tier === displayTier ? (isCancelled ? "Resubscribe to" : "Renew") : (tierRank[tier] ?? 0) > (tierRank[displayTier] ?? 0) ? "Upgrade to" : "Downgrade to"} ${tier.toUpperCase()}`,
       `This will start your yearly ${tier} subscription.${promoNote}${trialNote}`,
       "Subscribe",
       () => subscribeMutation.mutate({
@@ -407,7 +409,8 @@ export default function SubscriptionScreen() {
           <Text fontFamily="$body" fontWeight="700" fontSize={22} color="$color">
             {displayTier === "basic" ? "Basic" : displayTier === "pro" ? "Pro" : "Elite"}
             {isTrialing && " (Trial)"}
-            {isCancelled && " (Cancelled)"}
+            {isNewUser && " (Free)"}
+            {isCancelled && !isNewUser && " (Cancelled)"}
           </Text>
           {myTier.data?.currentPeriodEnd && (
             <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop="$1">
@@ -639,7 +642,7 @@ export default function SubscriptionScreen() {
                     : formatUIText(`subscribe to ${tier.name.toLowerCase()}`)}
                 </Button>
               )}
-              {isCurrent && isCancelled && (
+              {isCurrent && isCancelled && !isNewUser && (
                 <Button
                   variant="primary"
                   size="md"

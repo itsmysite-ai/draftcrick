@@ -27,7 +27,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./routers";
 import type { TRPCContext } from "./trpc";
 import { getDb } from "@draftplay/db";
-import { users } from "@draftplay/db";
+import { users, subscriptions } from "@draftplay/db";
 import { eq } from "drizzle-orm";
 import { verifyIdToken, extractBearerToken } from "./services/auth";
 import { getUserTier } from "./services/subscription";
@@ -177,6 +177,25 @@ app.use("/trpc/*", async (c) => {
               dbUser = created ?? await db.query.users.findFirst({
                 where: eq(users.firebaseUid, decoded.uid),
               });
+
+              // Auto-create 7-day free trial subscription for new users
+              if (created) {
+                try {
+                  const trialEnd = new Date();
+                  trialEnd.setDate(trialEnd.getDate() + 7);
+                  await db.insert(subscriptions).values({
+                    userId: created.id,
+                    tier: "basic",
+                    status: "trialing",
+                    trialEndsAt: trialEnd,
+                    currentPeriodStart: new Date(),
+                    currentPeriodEnd: trialEnd,
+                  }).onConflictDoNothing();
+                  log.info({ userId: created.id, trialEndsAt: trialEnd.toISOString() }, "Created 7-day trial subscription for new user");
+                } catch (subErr) {
+                  log.warn({ userId: created.id, error: (subErr as Error)?.message }, "Failed to create trial subscription");
+                }
+              }
             } catch (insertErr) {
               log.error({ error: (insertErr as Error)?.message }, "User insert failed, retrying");
               // Could be username collision — retry with a new AI name
@@ -195,6 +214,22 @@ app.use("/trpc/*", async (c) => {
                 dbUser = created ?? await db.query.users.findFirst({
                   where: eq(users.firebaseUid, decoded.uid),
                 });
+
+                // Auto-create trial subscription on retry path too
+                if (created) {
+                  try {
+                    const trialEnd = new Date();
+                    trialEnd.setDate(trialEnd.getDate() + 7);
+                    await db.insert(subscriptions).values({
+                      userId: created.id,
+                      tier: "basic",
+                      status: "trialing",
+                      trialEndsAt: trialEnd,
+                      currentPeriodStart: new Date(),
+                      currentPeriodEnd: trialEnd,
+                    }).onConflictDoNothing();
+                  } catch { /* non-blocking */ }
+                }
               } catch (retryErr) {
                 log.error({ error: (retryErr as Error)?.message }, "User insert retry also failed");
               }
