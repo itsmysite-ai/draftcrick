@@ -743,7 +743,7 @@ export default function TeamBuilderScreen() {
           paddingBottom="$3"
         >
           <XStack alignItems="center" gap="$3">
-            <BackButton onPress={() => router.back()} />
+            <SafeBackButton />
             <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
               {formatUIText("build team")}
             </Text>
@@ -1567,7 +1567,7 @@ export default function TeamBuilderScreen() {
           paddingBottom="$3"
         >
           <XStack alignItems="center" gap="$3">
-            <BackButton onPress={() => router.back()} />
+            <SafeBackButton />
             <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
               {formatUIText("build team")}
             </Text>
@@ -1907,7 +1907,7 @@ export default function TeamBuilderScreen() {
         paddingBottom="$3"
       >
         <XStack alignItems="center" gap="$3">
-          <BackButton onPress={() => router.back()} />
+          <SafeBackButton />
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
             {formatUIText("build team")}
           </Text>

@@ -100,7 +100,7 @@ export default function RegisterScreen() {
         paddingTop={insets.top + 8}
         paddingBottom="$2"
       >
-        <BackButton onPress={() => router.back()} />
+        <SafeBackButton />
         <HeaderControls />
       </XStack>
 

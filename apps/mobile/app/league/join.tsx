@@ -61,7 +61,7 @@ export default function JoinLeagueScreen() {
         paddingTop={insets.top + 8}
         paddingBottom="$2"
       >
-        <BackButton onPress={() => router.back()} />
+        <SafeBackButton />
         <HeaderControls />
       </XStack>
 

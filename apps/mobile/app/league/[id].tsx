@@ -108,7 +108,7 @@ export default function LeagueDetailScreen() {
             marginBottom="$3"
           >
             <XStack alignItems="center" gap="$3">
-              <BackButton onPress={() => router.back()} />
+              <SafeBackButton />
             </XStack>
             <HeaderControls />
           </XStack>
