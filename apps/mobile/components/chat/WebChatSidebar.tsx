@@ -177,37 +177,26 @@ function WebLayout({ children }: { children: React.ReactNode }) {
     if (doc.getElementById(styleId)) return;
     const style = doc.createElement("style");
     style.id = styleId;
-    // RN Web Modal uses JS inline styles with position:fixed.
-    // MutationObserver constrains modal + all its fixed descendants.
-    const constrain = (el: any) => {
-      if (!el?.style) return;
-      el.style.maxWidth = '550px';
-      el.style.left = '50%';
-      el.style.right = 'auto';
-      el.style.transform = 'translateX(-50%)';
-    };
-    const MO = (globalThis as any).MutationObserver;
-    if (!MO) return;
-    const observer = new MO(() => {
-      // Find all fixed-position portal divs added to body
-      doc.querySelectorAll('body > div').forEach((el: any) => {
-        const s = el.style;
-        if (s?.position === 'fixed' && (parseInt(s?.zIndex) >= 9999 || s?.zIndex === '9999') && !el.dataset.dpConstrained) {
-          el.dataset.dpConstrained = 'true';
-          constrain(el);
-          // Also constrain any fixed children (backdrop, sheet, etc.)
-          el.querySelectorAll('div').forEach((child: any) => {
-            if (child.style?.position === 'fixed' || child.style?.position === 'absolute') {
-              constrain(child);
-            }
-          });
+    // RN Web Modal renders with position:fixed and inline styles.
+    // Use !important CSS on a parent-level selector to constrain all modals.
+    // The #root div contains the app; modals are siblings of #root in body.
+    style.textContent = `
+      @media (min-width: 1024px) {
+        body > div:not(#root):not([data-dp-bg]) {
+          max-width: 550px !important;
+          left: 50% !important;
+          right: auto !important;
+          transform: translateX(-50%) !important;
+          width: 550px !important;
         }
-      });
-    });
-    observer.observe(doc.body, { childList: true, subtree: true });
-    style.textContent = ''; // keep style element for cleanup tracking
+        body > div:not(#root):not([data-dp-bg]) > div {
+          max-width: 550px !important;
+          width: 100% !important;
+        }
+      }
+    `;
     doc.head.appendChild(style);
-    return () => { observer.disconnect(); doc.getElementById(styleId)?.remove(); };
+    return () => { doc.getElementById(styleId)?.remove(); };
   }, []);
 
   const borderColor = mode === "light" ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.12)";
