@@ -167,72 +167,8 @@ export default function LoginScreen() {
         )}
 
         <YStack gap="$4">
-          <TextInput
-            testID="email-input"
-            placeholder={formatUIText("email")}
-            placeholderTextColor={theme.placeholderColor.val}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            style={{
-              backgroundColor: theme.backgroundSurface.val,
-              borderRadius: DesignSystem.radius.lg,
-              padding: 16,
-              color: theme.color.val,
-              fontSize: 16,
-              borderWidth: 1,
-              borderColor: theme.borderColor.val,
-                outlineColor: "#3D9968",
-            }}
-          />
-
-          <YStack>
-            <TextInput
-              testID="password-input"
-              placeholder={formatUIText("password")}
-              placeholderTextColor={theme.placeholderColor.val}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              style={{
-                backgroundColor: theme.backgroundSurface.val,
-                borderRadius: DesignSystem.radius.lg,
-                padding: 16,
-                paddingRight: 48,
-                color: theme.color.val,
-                fontSize: 16,
-                borderWidth: 1,
-                borderColor: theme.borderColor.val,
-                outlineColor: "#3D9968",
-              }}
-            />
-            <Pressable
-              onPress={() => setShowPassword(!showPassword)}
-              style={{ position: "absolute", right: 14, top: 16 }}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={22}
-                color={theme.colorMuted.val}
-              />
-            </Pressable>
-          </YStack>
-
-          <Button testID="submit-button" variant="primary" size="lg" onPress={handleLogin} disabled={isSubmitting} opacity={isSubmitting ? 0.6 : 1}>
-            {isSubmitting ? formatUIText("signing in...") : formatUIText("sign in")}
-          </Button>
-
-          <XStack alignItems="center" marginVertical="$2">
-            <YStack flex={1} height={1} backgroundColor="$borderColor" />
-            <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
-              {formatUIText("or continue with")}
-            </Text>
-            <YStack flex={1} height={1} backgroundColor="$borderColor" />
-          </XStack>
-
-          <Button variant="secondary" size="md" onPress={async () => {
+          {/* Google Sign-In — primary */}
+          <Button variant="primary" size="lg" onPress={async () => {
             setLocalError(null);
             setIsSubmitting(true);
             try {
@@ -249,9 +185,76 @@ export default function LoginScreen() {
             } finally {
               setIsSubmitting(false);
             }
-          }} disabled={isSubmitting}>
-            {formatUIText("continue with google")}
+          }} disabled={isSubmitting} testID="google-signin-btn">
+            {isSubmitting ? formatUIText("signing in...") : formatUIText("sign in with google")}
           </Button>
+
+          {/* Email/password sign-in — commented out for now, Google-only for beta
+          <XStack alignItems="center" marginVertical="$2">
+            <YStack flex={1} height={1} backgroundColor="$borderColor" />
+            <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
+              {formatUIText("or sign in with email")}
+            </Text>
+            <YStack flex={1} height={1} backgroundColor="$borderColor" />
+          </XStack>
+
+          <TextInput
+            testID="email-input"
+            placeholder={formatUIText("email")}
+            placeholderTextColor={theme.placeholderColor?.val}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            style={{
+              backgroundColor: theme.backgroundSurface?.val,
+              borderRadius: DesignSystem.radius.lg,
+              padding: 16,
+              color: theme.color?.val,
+              fontSize: 16,
+              borderWidth: 1,
+              borderColor: theme.borderColor?.val,
+              outlineColor: "#3D9968",
+            }}
+          />
+
+          <YStack>
+            <TextInput
+              testID="password-input"
+              placeholder={formatUIText("password")}
+              placeholderTextColor={theme.placeholderColor?.val}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              style={{
+                backgroundColor: theme.backgroundSurface?.val,
+                borderRadius: DesignSystem.radius.lg,
+                padding: 16,
+                paddingRight: 48,
+                color: theme.color?.val,
+                fontSize: 16,
+                borderWidth: 1,
+                borderColor: theme.borderColor?.val,
+                outlineColor: "#3D9968",
+              }}
+            />
+            <Pressable
+              onPress={() => setShowPassword(!showPassword)}
+              style={{ position: "absolute", right: 14, top: 16 }}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={22}
+                color={theme.colorMuted?.val}
+              />
+            </Pressable>
+          </YStack>
+
+          <Button testID="submit-button" variant="primary" size="lg" onPress={handleLogin} disabled={isSubmitting} opacity={isSubmitting ? 0.6 : 1}>
+            {isSubmitting ? formatUIText("signing in...") : formatUIText("sign in")}
+          </Button>
+          */}
 
           <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/register")} cursor="pointer">
             <Text fontFamily="$body" fontSize={14} color="$colorMuted">
