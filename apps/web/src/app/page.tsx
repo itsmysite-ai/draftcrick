@@ -297,7 +297,7 @@ export default function HomePage() {
         </span>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <StoreButtons />
-          <Link href={`${APP_URL}/auth/register`} className="btn-primary" style={{ padding: "10px 20px", fontSize: 13, borderRadius: 980 }}>
+          <Link href={`${APP_URL}/auth/login`} className="btn-primary" style={{ padding: "10px 20px", fontSize: 13, borderRadius: 980 }}>
             Start Free Trial
           </Link>
           <ThemeToggle theme={theme} toggle={toggleTheme} />
@@ -379,7 +379,7 @@ export default function HomePage() {
 
         {/* CTAs */}
         <div className="landing-hero-cta" style={{ display: "flex", gap: 16, marginBottom: 16, animation: "fadeInUp 0.8s ease 0.6s both" }}>
-          <Link href={`${APP_URL}/auth/register`} className="btn-primary">
+          <Link href={`${APP_URL}/auth/login`} className="btn-primary">
             Start 7-Day Free Trial
           </Link>
           <a href="#pricing" className="btn-secondary">
@@ -595,7 +595,7 @@ export default function HomePage() {
             Join thousands of sports fans who chose intelligence over betting.
           </p>
           <div style={{ position: "relative", marginBottom: 24 }}>
-            <Link href={`${APP_URL}/auth/register`} className="btn-primary" style={{ fontSize: 18, padding: "18px 48px" }}>
+            <Link href={`${APP_URL}/auth/login`} className="btn-primary" style={{ fontSize: 18, padding: "18px 48px" }}>
               Start 7-Day Free Trial
             </Link>
           </div>

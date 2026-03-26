@@ -116,11 +116,11 @@ export default function LoginScreen() {
           fantasy gaming.
         </Text>
         <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$error" letterSpacing={-0.5} textAlign="center" marginBottom="$3">
-          not gambling.
+          not betting.
         </Text>
 
         <Text fontFamily="$body" fontSize={13} color="$colorMuted" textAlign="center" marginBottom="$3">
-          {formatUIText("sign in to your draftplay account")}
+          {formatUIText("sign in or create your account")}
         </Text>
 
         {/* Day Pass + Free Trial */}
@@ -256,14 +256,16 @@ export default function LoginScreen() {
           </Button>
           */}
 
-          <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/register")} cursor="pointer">
-            <Text fontFamily="$body" fontSize={14} color="$colorMuted">
-              {formatUIText("don't have an account?")}{" "}
+          <Text fontFamily="$body" fontSize={11} color="$colorMuted" textAlign="center" marginTop="$2" lineHeight={16}>
+            {formatUIText("by continuing, you agree to our ")}{" "}
+            <Text fontSize={11} color="$accentBackground" onPress={() => router.push("/legal/terms" as any)}>
+              {formatUIText("terms")}
             </Text>
-            <Text fontFamily="$body" fontSize={14} color="$accentBackground" fontWeight="600">
-              {formatUIText("sign up")}
+            {" & "}
+            <Text fontSize={11} color="$accentBackground" onPress={() => router.push("/legal/privacy" as any)}>
+              {formatUIText("privacy policy")}
             </Text>
-          </XStack>
+          </Text>
         </YStack>
       </YStack>
     </YStack>
