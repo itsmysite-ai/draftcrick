@@ -8,7 +8,7 @@ import { useTheme } from "../../providers/ThemeProvider";
 import { useEffect, useState, useRef } from "react";
 
 /** Particle constellation — renders behind everything on wide web screens */
-function ParticleCanvas() {
+function ParticleCanvas({ isDark }: { isDark: boolean }) {
   const canvasRef = useRef<any>(null);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ function ParticleCanvas() {
     function draw() {
       if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const c = "93, 184, 130";
+      const c = isDark ? "93, 184, 130" : "35, 100, 60";
 
       for (const p of particles) {
         p.x += p.vx;
@@ -188,7 +188,7 @@ function WebLayout({ children }: { children: React.ReactNode }) {
         position: "relative" as any,
       }}
     >
-      <ParticleCanvas />
+      <ParticleCanvas isDark={mode !== "light"} />
       {/* App frame — fixed phone width */}
       <View
         style={{
