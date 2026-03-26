@@ -177,22 +177,25 @@ function WebLayout({ children }: { children: React.ReactNode }) {
     if (doc.getElementById(styleId)) return;
     const style = doc.createElement("style");
     style.id = styleId;
-    style.textContent = `
-      @media (min-width: 1024px) {
-        /* Constrain all RN Web modals (position:fixed, zIndex:9999) to app frame */
-        div[style*="position: fixed"][style*="z-index: 9999"],
-        div[style*="position:fixed"][style*="z-index:9999"],
-        div[style*="position: fixed"][style*="z-index:9999"],
-        [role="dialog"] {
-          max-width: 550px !important;
-          left: 50% !important;
-          right: auto !important;
-          margin-left: -275px !important;
+    // RN Web Modal uses JS inline styles, not CSS attributes.
+    // Use a MutationObserver to detect and constrain modals dynamically.
+    const observer = new MutationObserver(() => {
+      const fixedDivs = doc.querySelectorAll('body > div');
+      fixedDivs.forEach((el: any) => {
+        const s = el.style;
+        if (s?.position === 'fixed' && s?.zIndex >= 9999 && !el.dataset.dpConstrained) {
+          el.dataset.dpConstrained = 'true';
+          el.style.maxWidth = '550px';
+          el.style.left = '50%';
+          el.style.right = 'auto';
+          el.style.marginLeft = '-275px';
         }
-      }
-    `;
+      });
+    });
+    observer.observe(doc.body, { childList: true, subtree: false });
+    style.textContent = ''; // keep style element for cleanup tracking
     doc.head.appendChild(style);
-    return () => { doc.getElementById(styleId)?.remove(); };
+    return () => { observer.disconnect(); doc.getElementById(styleId)?.remove(); };
   }, []);
 
   const borderColor = mode === "light" ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.12)";
