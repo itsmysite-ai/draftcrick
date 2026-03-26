@@ -821,8 +821,8 @@ export default function ContestDetailScreen() {
                 {formatUIText(showSwap ? "cancel swap" : "swap team")}
               </Button>
             ) : (
-              <Button variant="secondary" size="lg" testID="join-contest-btn" disabled opacity={0.7}>
-                {formatUIText("joined")} {"\u2713"}
+              <Button variant="secondary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="change-team-btn">
+                {formatUIText("change team")}
               </Button>
             )
           ) : (
