@@ -181,8 +181,7 @@ export default function LoginScreen() {
       contentContainerStyle={{ flexGrow: 1 }}
       keyboardShouldPersistTaps="handled"
     >
-    <YStack flex={1} backgroundColor="$background" position="relative">
-      <ParticleBackground />
+    <YStack flex={1} backgroundColor="$background">
       {/* ── Inline Header ── */}
       <XStack
         justifyContent="space-between"
