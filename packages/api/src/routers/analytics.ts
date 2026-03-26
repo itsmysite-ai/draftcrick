@@ -181,6 +181,19 @@ export const analyticsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      // If players not provided, look them up from DB to avoid URL-too-long on GET
+      if (!input.players?.length && input.matchId) {
+        const match = await ctx.db.query.matches.findFirst({ where: eq(matches.id, input.matchId) });
+        if (match) {
+          const dbPlayers = await ctx.db.query.players.findMany({
+            where: and(
+              inArray(players.team, [match.teamHome, match.teamAway]),
+              eq(players.isDisabled, false),
+            ),
+          });
+          input.players = dbPlayers.map(p => ({ id: p.id, name: p.name, role: p.role ?? "all_rounder", team: p.team }));
+        }
+      }
       const projections = await getProjectionsForMatch(
         ctx.db,
         input.matchId,
@@ -349,7 +362,20 @@ export const analyticsRouter = router({
         ).default([]),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // If players not provided, look them up from DB
+      if (!input.players?.length && input.matchId) {
+        const match = await ctx.db.query.matches.findFirst({ where: eq(matches.id, input.matchId) });
+        if (match) {
+          const dbPlayers = await ctx.db.query.players.findMany({
+            where: and(
+              inArray(players.team, [match.teamHome, match.teamAway]),
+              eq(players.isDisabled, false),
+            ),
+          });
+          input.players = dbPlayers.map(p => ({ name: p.name, role: p.role ?? "all_rounder", team: p.team }));
+        }
+      }
       return getDifferentials(
         input.matchId, input.teamA, input.teamB,
         input.format, input.venue, input.tournament, input.players

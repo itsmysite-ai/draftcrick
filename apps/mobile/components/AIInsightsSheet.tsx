@@ -96,7 +96,7 @@ export function AIInsightsSheet({
   );
 
   const differentialsQuery = trpc.analytics.getDifferentials.useQuery(
-    { matchId, teamA, teamB, format, venue, tournament: tournament || "unknown", players },
+    { matchId, teamA, teamB, format, venue, tournament: tournament || "unknown", players: [] },
     { enabled: visible && activeTab === "differentials" && canAccess("hasDifferentials"), staleTime: 2 * 60 * 60_000, retry: 1 },
   );
 

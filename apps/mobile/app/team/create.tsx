@@ -423,9 +423,9 @@ export default function TeamBuilderScreen() {
       format: format || "T20",
       venue: venue || null,
       tournament: tournament || "unknown",
-      players: projPlayerList,
+      players: [],
     },
-    { enabled: projPlayerList.length > 0 && !!teamA && !!teamB, staleTime: 60 * 60_000, retry: 1 },
+    { enabled: !!matchId && !!teamA && !!teamB, staleTime: 60 * 60_000, retry: 1 },
   );
 
   const projectionsByPlayerId = useMemo(() => {
@@ -499,8 +499,8 @@ export default function TeamBuilderScreen() {
 
   // ── Differentials query — for filter chip + review uniqueness ──
   const differentialsQuery = trpc.analytics.getDifferentials.useQuery(
-    { matchId: matchId!, teamA: teamA || "", teamB: teamB || "", format: format || "T20", venue: venue || null, tournament: tournament || "unknown", players: insightsPlayerList },
-    { enabled: !!matchId && !!teamA && !!teamB && insightsPlayerList.length > 0 && canAccess("hasDifferentials"), staleTime: 2 * 60 * 60_000, retry: 1 },
+    { matchId: matchId!, teamA: teamA || "", teamB: teamB || "", format: format || "T20", venue: venue || null, tournament: tournament || "unknown", players: [] },
+    { enabled: !!matchId && !!teamA && !!teamB && canAccess("hasDifferentials"), staleTime: 2 * 60 * 60_000, retry: 1 },
   );
 
   // Differential player names set for filtering

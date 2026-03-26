@@ -108,8 +108,8 @@ export default function TeamSolverScreen() {
 
   // Get projections for solver input
   const projectionsQuery = trpc.analytics.getPlayerProjections.useQuery(
-    { matchId, teamA, teamB, format, venue, tournament, players: playerList.map((p) => ({ id: p.id, name: p.name, role: p.role, team: p.team })) },
-    { enabled: playerList.length > 0 && !!matchId, staleTime: 60 * 60_000 },
+    { matchId, teamA, teamB, format, venue, tournament, players: [] },
+    { enabled: !!matchId && !!teamA && !!teamB, staleTime: 60 * 60_000 },
   );
 
   // Build solver input
