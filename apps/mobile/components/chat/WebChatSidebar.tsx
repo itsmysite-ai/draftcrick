@@ -177,22 +177,34 @@ function WebLayout({ children }: { children: React.ReactNode }) {
     if (doc.getElementById(styleId)) return;
     const style = doc.createElement("style");
     style.id = styleId;
-    // RN Web Modal uses JS inline styles, not CSS attributes.
-    // Use a MutationObserver to detect and constrain modals dynamically.
-    const observer = new MutationObserver(() => {
-      const fixedDivs = doc.querySelectorAll('body > div');
-      fixedDivs.forEach((el: any) => {
+    // RN Web Modal uses JS inline styles with position:fixed.
+    // MutationObserver constrains modal + all its fixed descendants.
+    const constrain = (el: any) => {
+      if (!el?.style) return;
+      el.style.maxWidth = '550px';
+      el.style.left = '50%';
+      el.style.right = 'auto';
+      el.style.transform = 'translateX(-50%)';
+    };
+    const MO = (globalThis as any).MutationObserver;
+    if (!MO) return;
+    const observer = new MO(() => {
+      // Find all fixed-position portal divs added to body
+      doc.querySelectorAll('body > div').forEach((el: any) => {
         const s = el.style;
-        if (s?.position === 'fixed' && s?.zIndex >= 9999 && !el.dataset.dpConstrained) {
+        if (s?.position === 'fixed' && (parseInt(s?.zIndex) >= 9999 || s?.zIndex === '9999') && !el.dataset.dpConstrained) {
           el.dataset.dpConstrained = 'true';
-          el.style.maxWidth = '550px';
-          el.style.left = '50%';
-          el.style.right = 'auto';
-          el.style.marginLeft = '-275px';
+          constrain(el);
+          // Also constrain any fixed children (backdrop, sheet, etc.)
+          el.querySelectorAll('div').forEach((child: any) => {
+            if (child.style?.position === 'fixed' || child.style?.position === 'absolute') {
+              constrain(child);
+            }
+          });
         }
       });
     });
-    observer.observe(doc.body, { childList: true, subtree: false });
+    observer.observe(doc.body, { childList: true, subtree: true });
     style.textContent = ''; // keep style element for cleanup tracking
     doc.head.appendChild(style);
     return () => { observer.disconnect(); doc.getElementById(styleId)?.remove(); };
