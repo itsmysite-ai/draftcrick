@@ -816,14 +816,17 @@ export default function ContestDetailScreen() {
                   </Button>
                 </XStack>
               </Card>
-            ) : swappableTeams.length > 0 ? (
-              <Button variant={showSwap ? "secondary" : "primary"} size="lg" onPress={() => setShowSwap(!showSwap)} testID="swap-team-btn">
-                {formatUIText(showSwap ? "cancel swap" : "swap team")}
-              </Button>
             ) : (
-              <Button variant="secondary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="change-team-btn">
-                {formatUIText("change team")}
-              </Button>
+              <YStack gap="$2">
+                <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="change-team-btn">
+                  {formatUIText("change team")}
+                </Button>
+                {swappableTeams.length > 0 && (
+                  <Button variant="secondary" size="md" onPress={() => setShowSwap(!showSwap)} testID="swap-team-btn">
+                    {formatUIText(showSwap ? "cancel swap" : "swap with another team")}
+                  </Button>
+                )}
+              </YStack>
             )
           ) : (
             <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="join-contest-btn">
