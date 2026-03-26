@@ -124,10 +124,9 @@ export default function TeamBuilderScreen() {
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
   const [step, setStep] = useState<"contest_select" | "pick" | "captain" | "review">(() => {
-    // Skip contest picker if contestId already set (came from contest page or H2H)
-    if (contestId) return "pick";
     // Skip contest picker for deferred H2H — user already picked stake
     if (flowState?.contestType === "h2h") return "pick";
+    // Always show contest selection — pre-selected contest will be highlighted
     return "contest_select";
   });
   const [teamName, setTeamName] = useState(() => generateTeamName(navCtx?.teamA, navCtx?.teamB));
@@ -769,13 +768,15 @@ export default function TeamBuilderScreen() {
             </YStack>
           ) : contests.length > 0 ? (
             <YStack gap="$2">
-              {contests.map((c: any) => (
+              {contests.map((c: any) => {
+                const isPreSelected = c.id === contestId;
+                return (
                 <Card
                   key={c.id}
                   pressable
                   padding="$4"
-                  borderWidth={1}
-                  borderColor="$borderColor"
+                  borderWidth={isPreSelected ? 2 : 1}
+                  borderColor={isPreSelected ? "$accentBackground" : "$borderColor"}
                   onPress={() => {
                     // Set contestId in nav store and advance
                     const ctx = navCtx;
@@ -817,7 +818,8 @@ export default function TeamBuilderScreen() {
                     </YStack>
                   </XStack>
                 </Card>
-              ))}
+                );
+              })}
 
             </YStack>
           ) : (
