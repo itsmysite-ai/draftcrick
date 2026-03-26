@@ -249,7 +249,7 @@ export default function MatchScreen() {
   const theme = useTamaguiTheme();
 
   const { sport } = useSport();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
 
   // Reuse dashboard data to find the match
@@ -430,18 +430,11 @@ export default function MatchScreen() {
   }, [matchId, dbMatches, match, fallbackDbMatch]);
 
   // Fetch real contests from DB
+  // Wait for auth before fetching contests so server can filter private ones
   const contestsQuery = trpc.contest.listByMatch.useQuery(
     { matchId: dbMatchUuid! },
-    { enabled: !!dbMatchUuid, staleTime: 30_000 },
+    { enabled: !!dbMatchUuid && !authLoading, staleTime: 30_000 },
   );
-  // Refetch contests when auth state changes (direct URL access may miss user on first load)
-  const prevUserId = useRef(user?.id);
-  useEffect(() => {
-    if (user?.id && user.id !== prevUserId.current && dbMatchUuid) {
-      prevUserId.current = user.id;
-      contestsQuery.refetch();
-    }
-  }, [user?.id, dbMatchUuid]);
   const matchStarted = isLive || isCompleted;
   const myContestsQuery = trpc.contest.myContests.useQuery(undefined, {
     enabled: !!user,

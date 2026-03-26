@@ -123,12 +123,15 @@ export default function TeamBuilderScreen() {
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
-  const [step, setStep] = useState<"contest_select" | "pick" | "captain" | "review">(() => {
-    // Skip contest picker for deferred H2H — user already picked stake
-    if (flowState?.contestType === "h2h") return "pick";
-    // Always show contest selection — pre-selected contest will be highlighted
-    return "contest_select";
-  });
+  const [step, setStep] = useState<"contest_select" | "pick" | "captain" | "review">("contest_select");
+  // Reset to contest_select on mount (handles SPA re-navigation)
+  useEffect(() => {
+    if (flowState?.contestType === "h2h") {
+      setStep("pick");
+    } else {
+      setStep("contest_select");
+    }
+  }, [matchId]);
   const [teamName, setTeamName] = useState(() => generateTeamName(navCtx?.teamA, navCtx?.teamB));
   // AI team naming flow
   const [teamNameStep, setTeamNameStep] = useState<"default" | "picking" | "done">("default");
