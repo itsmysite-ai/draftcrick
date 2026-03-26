@@ -70,7 +70,7 @@ export async function autoCreateContestsForLeague(
     leagueId,
     name: leagueName,
     entryFee: leagueEntryFee,
-    prizePool: 0,
+    prizePool: leagueEntryFee * maxMembers,
     maxEntries: maxMembers,
     contestType: isPublicLeague ? "public" as const : "private" as const,
     isGuaranteed: false,
