@@ -282,7 +282,7 @@ export default function ContestsScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<"contests" | "my teams">("contests");
-  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "live" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "live" | "completed">("live");
 
   const myContests = trpc.contest.myContests.useQuery(undefined, {
     enabled: !!user,
@@ -359,7 +359,7 @@ export default function ContestsScreen() {
             <SegmentTab
               key={v}
               active={view === v}
-              onPress={() => { setView(v); setStatusFilter("all"); }}
+              onPress={() => { setView(v); setStatusFilter("live"); }}
               testID={`view-${v.replace(" ", "-")}`}
             >
               <Text fontFamily="$body" fontWeight="600" fontSize={13} color={view === v ? "$color" : "$colorMuted"}>
@@ -376,7 +376,7 @@ export default function ContestsScreen() {
       {/* Status filter chips */}
       {user && activeItems.length > 0 && (
         <XStack marginHorizontal="$5" marginBottom="$3" borderRadius="$3" backgroundColor="$backgroundSurfaceAlt" padding="$1" gap="$1">
-          {(["all", "upcoming", "live", "completed"] as const).map((f) => (
+          {(["live", "upcoming", "completed", "all"] as const).map((f) => (
             <SegmentTab
               key={f}
               active={statusFilter === f}
