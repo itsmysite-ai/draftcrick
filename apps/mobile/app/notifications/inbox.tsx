@@ -1,3 +1,4 @@
+import { SafeBackButton } from "../../components/SafeBackButton";
 import { FlatList } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

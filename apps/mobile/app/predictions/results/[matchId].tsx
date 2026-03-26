@@ -1,3 +1,4 @@
+import { SafeBackButton } from "../../../components/SafeBackButton";
 import { ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";

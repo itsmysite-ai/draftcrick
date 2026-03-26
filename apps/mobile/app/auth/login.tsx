@@ -1,3 +1,4 @@
+import { SafeBackButton } from "../../components/SafeBackButton";
 import { TextInput, Pressable, ScrollView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useEffect, useRef } from "react";

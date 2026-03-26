@@ -1,3 +1,4 @@
+import { SafeBackButton } from "../../../components/SafeBackButton";
 import { FlatList, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";

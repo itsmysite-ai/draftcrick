@@ -1,3 +1,4 @@
+import { SafeBackButton } from "../../components/SafeBackButton";
 import { FlatList, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
