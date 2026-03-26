@@ -1,6 +1,6 @@
-import { TextInput, Pressable, ScrollView } from "react-native";
+import { TextInput, Pressable, ScrollView, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
@@ -15,6 +15,108 @@ import {
 } from "@draftplay/ui";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+
+/** Particle constellation background — web only */
+function ParticleBackground() {
+  const canvasRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const canvas = canvasRef.current as any;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d") as any;
+    if (!ctx) return;
+
+    let animationId: any;
+    const particles: Array<{ x: number; y: number; vx: number; vy: number; r: number; o: number }> = [];
+    const COUNT = 100;
+    const DIST = 160;
+    const win = globalThis as any;
+
+    function resize() {
+      if (!canvas) return;
+      canvas.width = canvas.parentElement?.clientWidth ?? win.innerWidth ?? 800;
+      canvas.height = canvas.parentElement?.clientHeight ?? win.innerHeight ?? 600;
+    }
+
+    function init() {
+      if (!canvas) return;
+      for (let i = 0; i < COUNT; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+          r: Math.random() * 1.8 + 0.5,
+          o: Math.random() * 0.4 + 0.2,
+        });
+      }
+    }
+
+    function draw() {
+      if (!ctx || !canvas) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const c = "93, 184, 130";
+
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${c}, ${p.o})`;
+        ctx.fill();
+      }
+
+      for (let i = 0; i < particles.length; i++) {
+        const a = particles[i]!;
+        for (let j = i + 1; j < particles.length; j++) {
+          const b = particles[j]!;
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < DIST) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = `rgba(${c}, ${(1 - d / DIST) * 0.15})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+      animationId = requestAnimationFrame(draw);
+    }
+
+    resize();
+    init();
+    animationId = requestAnimationFrame(draw);
+    win.addEventListener?.("resize", resize);
+    return () => {
+      cancelAnimationFrame(animationId);
+      win.removeEventListener?.("resize", resize);
+    };
+  }, []);
+
+  if (Platform.OS !== "web") return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: "absolute" as any,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        pointerEvents: "none" as any,
+        zIndex: 0,
+      }}
+    />
+  );
+}
 
 /** Convert raw Firebase error messages into user-friendly text */
 function friendlyAuthError(msg: string): string {
@@ -79,7 +181,8 @@ export default function LoginScreen() {
       contentContainerStyle={{ flexGrow: 1 }}
       keyboardShouldPersistTaps="handled"
     >
-    <YStack flex={1} backgroundColor="$background">
+    <YStack flex={1} backgroundColor="$background" position="relative">
+      <ParticleBackground />
       {/* ── Inline Header ── */}
       <XStack
         justifyContent="space-between"
@@ -95,35 +198,38 @@ export default function LoginScreen() {
       <AnnouncementBanner />
 
       {/* ── Form ── */}
-      <YStack flex={1} justifyContent="center" paddingHorizontal="$6">
-        {/* Logo + brand name — matches landing page header */}
-        <YStack alignItems="center" marginBottom="$4">
-          <XStack alignItems="center" gap="$2">
-            <DraftPlayLogo size={48} animate />
-            <YStack>
-              <Text fontFamily="$mono" fontWeight="800" fontSize={28} color="$color" letterSpacing={-0.3}>
-                DraftPlay<Text color="$accent">.ai</Text>
-              </Text>
-              <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={1.5} marginTop={2}>
-                {formatUIText("all thrill. pure skill.")}
-              </Text>
-            </YStack>
-          </XStack>
+      <YStack flex={1} justifyContent="center" paddingHorizontal="$6" paddingBottom="$10">
+        {/* Logo */}
+        <YStack alignItems="center" marginBottom="$5">
+          <DraftPlayLogo size={48} animate />
         </YStack>
 
-        {/* Moat tagline */}
-        <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$color" letterSpacing={-0.5} textAlign="center" marginBottom="$1">
-          fantasy gaming.
-        </Text>
-        <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$error" letterSpacing={-0.5} textAlign="center" marginBottom="$3">
-          not betting.
+        {/* Brand + tagline — consistent sizing */}
+        <YStack alignItems="center" gap="$1" marginBottom="$5">
+          <Text fontFamily="$mono" fontWeight="800" fontSize={26} color="$color" letterSpacing={-0.3} textAlign="center">
+            DraftPlay<Text color="$accent">.ai</Text>
+          </Text>
+          <Text fontFamily="$mono" fontSize={11} color="$colorMuted" letterSpacing={2} textAlign="center">
+            ALL THRILL. PURE SKILL.
+          </Text>
+        </YStack>
+
+        {/* Hero text — symmetrical two-liner */}
+        <YStack alignItems="center" gap={2} marginBottom="$4">
+          <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$color" letterSpacing={-0.5} textAlign="center">
+            fantasy gaming.
+          </Text>
+          <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$error" letterSpacing={-0.5} textAlign="center">
+            not betting.
+          </Text>
+        </YStack>
+
+        {/* Subtitle */}
+        <Text fontFamily="$body" fontSize={14} color="$colorMuted" textAlign="center" marginBottom="$4">
+          sign in or create your account
         </Text>
 
-        <Text fontFamily="$body" fontSize={13} color="$colorMuted" textAlign="center" marginBottom="$3">
-          {formatUIText("sign in or create your account")}
-        </Text>
-
-        {/* Day Pass + Free Trial */}
+        {/* Badges — compact, same line */}
         <XStack gap="$2" justifyContent="center" marginBottom="$5">
           <XStack
             backgroundColor="$accentBackground"
