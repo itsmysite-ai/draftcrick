@@ -611,7 +611,7 @@ export default function SubscriptionScreen() {
                     : formatUIText(`upgrade to ${tier.name.toLowerCase()}`)}
                 </Button>
               )}
-              {isCurrent && isActive && !myTier.data?.cancelAtPeriodEnd && (
+              {isCurrent && isActive && !isTrialing && !isNewUser && !myTier.data?.cancelAtPeriodEnd && (
                 <Button
                   variant="secondary"
                   size="md"
