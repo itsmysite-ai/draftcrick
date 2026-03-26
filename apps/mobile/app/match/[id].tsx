@@ -1,6 +1,6 @@
 import { ScrollView as RNScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
@@ -432,8 +432,16 @@ export default function MatchScreen() {
   // Fetch real contests from DB
   const contestsQuery = trpc.contest.listByMatch.useQuery(
     { matchId: dbMatchUuid! },
-    { enabled: !!dbMatchUuid, staleTime: 60_000 },
+    { enabled: !!dbMatchUuid, staleTime: 30_000 },
   );
+  // Refetch contests when auth state changes (direct URL access may miss user on first load)
+  const prevUserId = useRef(user?.id);
+  useEffect(() => {
+    if (user?.id && user.id !== prevUserId.current && dbMatchUuid) {
+      prevUserId.current = user.id;
+      contestsQuery.refetch();
+    }
+  }, [user?.id, dbMatchUuid]);
   const matchStarted = isLive || isCompleted;
   const myContestsQuery = trpc.contest.myContests.useQuery(undefined, {
     enabled: !!user,

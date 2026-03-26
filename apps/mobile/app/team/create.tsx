@@ -682,18 +682,12 @@ export default function TeamBuilderScreen() {
   ) : null;
 
   // ── Step Indicator ──
-  const stepConfig = contestId
-    ? [
-        { key: "pick" as const, label: "players" },
-        { key: "captain" as const, label: "captain" },
-        { key: "review" as const, label: "review" },
-      ]
-    : [
-        { key: "contest_select" as const, label: "contest" },
-        { key: "pick" as const, label: "players" },
-        { key: "captain" as const, label: "captain" },
-        { key: "review" as const, label: "review" },
-      ];
+  const stepConfig = [
+    { key: "contest_select" as const, label: "contest" },
+    { key: "pick" as const, label: "players" },
+    { key: "captain" as const, label: "captain" },
+    { key: "review" as const, label: "review" },
+  ];
   const currentStepIndex = stepConfig.findIndex((s) => s.key === step);
 
   const StepIndicator = (
