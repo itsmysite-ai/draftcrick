@@ -162,11 +162,10 @@ export default function TeamBuilderScreen() {
     if (cap) setCaptainId(cap.playerId);
     if (vc) setViceCaptainId(vc.playerId);
 
-    // Skip to captain step since all 11 are picked (also skips contest_select)
-    if (picks.length === 11 && cap && vc) {
-      setStep("captain");
-    } else if (picks.length === 11) {
-      setStep("captain");
+    // If all 11 picked from solver, advance to captain — but only after contest is selected
+    // Don't override contest_select step
+    if (picks.length === 11 && contestId) {
+      setStep(cap && vc ? "review" : "captain");
     }
   }, [navCtx?.solverPicks]);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
