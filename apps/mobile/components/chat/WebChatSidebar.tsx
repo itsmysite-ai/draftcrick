@@ -177,24 +177,8 @@ function WebLayout({ children }: { children: React.ReactNode }) {
     if (doc.getElementById(styleId)) return;
     const style = doc.createElement("style");
     style.id = styleId;
-    // RN Web Modal renders with position:fixed and inline styles.
-    // Use !important CSS on a parent-level selector to constrain all modals.
-    // The #root div contains the app; modals are siblings of #root in body.
-    style.textContent = `
-      @media (min-width: 1024px) {
-        body > div:not(#root):not([data-dp-bg]) {
-          max-width: 550px !important;
-          left: 50% !important;
-          right: auto !important;
-          transform: translateX(-50%) !important;
-          width: 550px !important;
-        }
-        body > div:not(#root):not([data-dp-bg]) > div {
-          max-width: 550px !important;
-          width: 100% !important;
-        }
-      }
-    `;
+    // Modal constraint removed — handled per-component instead.
+    style.textContent = '';
     doc.head.appendChild(style);
     return () => { doc.getElementById(styleId)?.remove(); };
   }, []);

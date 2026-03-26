@@ -294,14 +294,15 @@ export function AIInsightsSheet({
         style={{
           position: "absolute",
           bottom: 0,
-          left: 0,
-          right: 0,
+          ...(Platform.OS === "web"
+            ? { alignSelf: "center" as any, width: 550, left: "50%" as any, marginLeft: -275 }
+            : { left: 0, right: 0 }),
           maxHeight: SCREEN_HEIGHT * 0.75,
           backgroundColor: theme.background?.val,
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           paddingBottom: insets.bottom + 8,
-        }}
+        } as any}
       >
         {/* Handle */}
         <YStack alignItems="center" paddingTop="$3" paddingBottom="$2">
