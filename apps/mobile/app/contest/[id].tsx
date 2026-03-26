@@ -797,27 +797,9 @@ export default function ContestDetailScreen() {
                   </Button>
                 </XStack>
               </Card>
-            ) : c.currentEntries < c.maxEntries ? (
-              <Card padding="$4" alignItems="center" borderColor="$colorAccent" borderWidth={1} gap="$2">
-                <Text fontFamily="$mono" fontSize={12} fontWeight="600" color="$color">
-                  {formatUIText(`${c.maxEntries - c.currentEntries} spots left — invite friends`)}
-                </Text>
-                <XStack gap="$2" marginTop="$1">
-                  <Button variant="primary" size="md" flex={1} onPress={() => {
-                    const link = `draftplay://contest/${c.id}`;
-                    RNShare.share({ message: `Join my fantasy contest "${c.name}" on DraftPlay! ${link}` });
-                  }} testID="share-contest-btn">
-                    {formatUIText("invite friends")}
-                  </Button>
-                  <Button variant="secondary" size="md" onPress={() => {
-                    Clipboard.setString(`draftplay://contest/${c.id}`);
-                  }} testID="copy-contest-link-btn">
-                    {formatUIText("copy link")}
-                  </Button>
-                </XStack>
-              </Card>
             ) : (
-              <YStack gap="$2">
+              <YStack gap="$3">
+                {/* Change team — always visible when joined */}
                 <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="change-team-btn">
                   {formatUIText("change team")}
                 </Button>
@@ -825,6 +807,27 @@ export default function ContestDetailScreen() {
                   <Button variant="secondary" size="md" onPress={() => setShowSwap(!showSwap)} testID="swap-team-btn">
                     {formatUIText(showSwap ? "cancel swap" : "swap with another team")}
                   </Button>
+                )}
+                {/* Invite friends when spots available */}
+                {c.currentEntries < c.maxEntries && (
+                  <Card padding="$3" alignItems="center" borderColor="$borderColor" borderWidth={1} gap="$2">
+                    <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
+                      {formatUIText(`${c.maxEntries - c.currentEntries} spots left — invite friends`)}
+                    </Text>
+                    <XStack gap="$2">
+                      <Button variant="secondary" size="sm" flex={1} onPress={() => {
+                        const link = `https://app.draftplay.ai/contest/${c.id}`;
+                        RNShare.share({ message: `Join my fantasy contest "${c.name}" on DraftPlay! ${link}` });
+                      }} testID="share-contest-btn">
+                        {formatUIText("invite friends")}
+                      </Button>
+                      <Button variant="secondary" size="sm" onPress={() => {
+                        Clipboard.setString(`https://app.draftplay.ai/contest/${c.id}`);
+                      }} testID="copy-contest-link-btn">
+                        {formatUIText("copy link")}
+                      </Button>
+                    </XStack>
+                  </Card>
                 )}
               </YStack>
             )
