@@ -478,7 +478,9 @@ export default function MatchScreen() {
   };
 
   const goToTeamCreate = (contestId?: string) => {
-    setMatchContext({ matchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined, ...(contestId ? { contestId } : {}) });
+    // Use DB UUID so team create can query contests correctly
+    const resolvedMatchId = dbMatchUuid || matchId;
+    setMatchContext({ matchId: resolvedMatchId, teamA, teamB, format, venue: venue || undefined, tournament: tournament || undefined, ...(contestId ? { contestId } : {}) });
     router.push("/team/create");
   };
 

@@ -273,7 +273,7 @@ function LiveMatchCard({
             variant="primary"
             fontFamily="$mono"
           >
-            {isLive ? formatUIText("watch live") : formatUIText("view match")}
+            {isLive ? formatUIText("watch live") : match.draftEnabled ? formatUIText("play") : formatUIText("view match")}
           </Button>
         </XStack>
       </Card>

@@ -232,10 +232,14 @@ function TournamentMatchCard({
           borderTopColor="$borderColor"
         >
           <Text {...textStyles.hint} flex={1} numberOfLines={2}>
-            {match.venue || match.time || ""}
+            {match.venue || ""}
           </Text>
           <Text {...textStyles.hint}>
-            {match.date || ""}
+            {startTime.getTime() > 0
+              ? startTime.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" }) +
+                " · " +
+                startTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+              : match.date || ""}
           </Text>
         </XStack>
       </Card>
