@@ -21,6 +21,8 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { HeaderControls } from "../../components/HeaderControls";
+import { useNavigationStore } from "../../lib/navigation-store";
+import { Button } from "@draftplay/ui";
 
 function formatRoleShort(role?: string): string {
   if (!role) return "";
@@ -142,10 +144,35 @@ export default function TeamDetailScreen() {
         </XStack>
 
         {t.contest && (
-          <XStack marginTop="$3" justifyContent="center" gap="$2" alignItems="center">
-            <Badge variant="role" size="sm">{formatBadgeText(t.contest.status ?? "")}</Badge>
-            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{t.contest.name}</Text>
-          </XStack>
+          <YStack marginTop="$3" gap="$3" alignItems="center">
+            <XStack justifyContent="center" gap="$2" alignItems="center">
+              <Badge variant="role" size="sm">{formatBadgeText(t.contest.status ?? "")}</Badge>
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{t.contest.name}</Text>
+            </XStack>
+            {(t.contest.status === "open" || t.contest.status === "upcoming") && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={() => {
+                  const matchData = t.match;
+                  if (matchData) {
+                    useNavigationStore.getState().setMatchContext({
+                      matchId: matchData.id,
+                      teamA: matchData.teamHome,
+                      teamB: matchData.teamAway,
+                      format: matchData.format,
+                      venue: matchData.venue ?? undefined,
+                      tournament: matchData.tournament ?? undefined,
+                      contestId: t.contest?.id,
+                    });
+                    router.push("/team/create");
+                  }
+                }}
+              >
+                {formatUIText("change team")}
+              </Button>
+            )}
+          </YStack>
         )}
         {!t.contest && (
           <XStack marginTop="$3" justifyContent="center">
