@@ -839,40 +839,61 @@ export default function MatchScreen() {
           );
         })()}
 
-        {/* ── Your Contests (before match starts — show all with join info) ── */}
-        {!matchStarted && dbContests.length > 0 && (
+        {/* ── Contests (before match starts) ── */}
+        {!matchStarted && (
           <Animated.View entering={FadeInDown.delay(100).springify()}>
-            <XStack alignItems="center" gap="$2" marginBottom="$3">
-              <Text fontSize={14}>🏟️</Text>
-              <Text {...textStyles.sectionHeader}>
-                {formatUIText("contests")}
-              </Text>
-            </XStack>
-            {dbContests.map((contest: any, i: number) => {
-              const isJoined = myContestIds.has(contest.id);
-              const isFull = contest.currentEntries >= contest.maxEntries;
-              return (
-                <ContestOption
-                  key={contest.id}
-                  title={contest.name}
-                  subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
-                  prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} pc` : "glory"}
-                  entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
-                  spots={`${contest.maxEntries - contest.currentEntries}`}
-                  joined={isJoined}
-                  onPlay={!isJoined && !isFull && match?.draftEnabled ? () => goToTeamCreate(contest.id) : undefined}
-                  highlight={(() => {
-                    if (isFull) return false;
-                    const fillRate = contest.maxEntries > 0 ? contest.currentEntries / contest.maxEntries : 0;
-                    if (fillRate < 0.5) return false;
-                    const eligibleContests = (dbContests ?? []).filter((c: any) => c.currentEntries < c.maxEntries && c.maxEntries > 0);
-                    const maxFill = Math.max(...eligibleContests.map((c: any) => c.currentEntries / c.maxEntries), 0);
-                    return fillRate === maxFill;
-                  })()}
-                  testID={`contest-${i}`}
-                />
-              );
-            })}
+            {dbContests.length > 0 ? (
+              <>
+                <XStack alignItems="center" gap="$2" marginBottom="$3">
+                  <Text fontSize={14}>🏟️</Text>
+                  <Text {...textStyles.sectionHeader}>
+                    {formatUIText("contests")}
+                  </Text>
+                </XStack>
+                {dbContests.map((contest: any, i: number) => {
+                  const isJoined = myContestIds.has(contest.id);
+                  const isFull = contest.currentEntries >= contest.maxEntries;
+                  return (
+                    <ContestOption
+                      key={contest.id}
+                      title={contest.name}
+                      subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
+                      prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} pc` : "glory"}
+                      entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
+                      spots={`${contest.maxEntries - contest.currentEntries}`}
+                      joined={isJoined}
+                      onPlay={!isJoined && !isFull && match?.draftEnabled ? () => goToTeamCreate(contest.id) : undefined}
+                      highlight={(() => {
+                        if (isFull) return false;
+                        const fillRate = contest.maxEntries > 0 ? contest.currentEntries / contest.maxEntries : 0;
+                        if (fillRate < 0.5) return false;
+                        const eligibleContests = (dbContests ?? []).filter((c: any) => c.currentEntries < c.maxEntries && c.maxEntries > 0);
+                        const maxFill = Math.max(...eligibleContests.map((c: any) => c.currentEntries / c.maxEntries), 0);
+                        return fillRate === maxFill;
+                      })()}
+                      testID={`contest-${i}`}
+                    />
+                  );
+                })}
+              </>
+            ) : match?.draftEnabled && user && (
+              <Card padding="$5" marginBottom="$3" alignItems="center" borderColor="$borderColor" borderWidth={1}>
+                <Text fontFamily="$mono" fontSize={13} fontWeight="600" color="$color" textAlign="center" marginBottom="$1">
+                  {formatUIText("no contests yet")}
+                </Text>
+                <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center" marginBottom="$4">
+                  {formatUIText("create a league or join one to play this match")}
+                </Text>
+                <Button
+                  variant="primary"
+                  size="md"
+                  testID="play-this-match-btn"
+                  onPress={() => goToTeamCreate()}
+                >
+                  {formatUIText("play this match")}
+                </Button>
+              </Card>
+            )}
           </Animated.View>
         )}
 

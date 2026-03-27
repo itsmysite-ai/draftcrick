@@ -183,9 +183,11 @@ export const teamRouter = router({
         });
 
         if (existingTeam) {
-          // User already has a team in this contest — create unlinked, they can swap from contest page
+          // User already has a team in this contest — auto-swap: unlink old, link new
           relevantContestId = input.contestId;
-          input = { ...input, contestId: undefined };
+          // Unlink old team from contest
+          await ctx.db.update(fantasyTeams).set({ contestId: null }).where(eq(fantasyTeams.id, existingTeam.id));
+          // Keep contestId so the new team gets linked
         }
       } else if (input.matchId) {
         // Resolve tournament from matchId (when creating team without contest)

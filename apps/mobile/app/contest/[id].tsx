@@ -105,6 +105,23 @@ export default function ContestDetailScreen() {
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "predictions">(section === "predictions" ? "predictions" : "overview");
 
+  // Track if user just arrived from team creation
+  const [justJoined, setJustJoined] = useState(false);
+  const justJoinedChecked = useRef(false);
+  useEffect(() => {
+    if (justJoinedChecked.current) return;
+    if (!contest.data || myContests.isLoading || myPosition.isLoading || myTeam.isLoading) return;
+    justJoinedChecked.current = true;
+    // Detect "just joined" by checking sessionStorage flag set by team builder
+    try {
+      const flag = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("draftplay_just_joined") : null;
+      if (flag === id) {
+        setJustJoined(true);
+        sessionStorage.removeItem("draftplay_just_joined");
+      }
+    } catch {}
+  }, [contest.data, myContests.isLoading, myPosition.isLoading, myTeam.isLoading, id]);
+
   // Score flash animation when prediction points update
   const scoreFlash = useSharedValue(1);
   const scoreFlashStyle = useAnimatedStyle(() => ({
@@ -168,7 +185,9 @@ export default function ContestDetailScreen() {
     }
   }, [isSettled, prizeWon]);
 
-  if (contest.isLoading) return (
+  // Wait for all essential data before rendering — prevents flash of incomplete UI
+  const essentialLoading = contest.isLoading || (!!user && (myContests.isLoading || myPosition.isLoading || myTeam.isLoading));
+  if (essentialLoading) return (
     <YStack flex={1} backgroundColor="$background" justifyContent="center" alignItems="center">
       <EggLoadingSpinner size={48} message={formatUIText("loading contest")} />
     </YStack>
@@ -402,6 +421,57 @@ export default function ContestDetailScreen() {
                 <Badge variant="role" size="sm">{formatBadgeText("joined")}</Badge>
               )}
             </XStack>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* Just Joined Success Banner */}
+      {justJoined && hasJoined && (
+        <Animated.View entering={FadeInDown.delay(0).springify()}>
+          <Card marginHorizontal="$4" marginBottom="$4" padding="$5" borderColor="$accentBackground" borderWidth={2} alignItems="center">
+            <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$accentBackground" marginBottom="$1">
+              {formatUIText("you're in!")}
+            </Text>
+            <Text fontFamily="$body" fontSize={13} color="$color" textAlign="center" marginBottom="$2">
+              {formatUIText(`your team has been entered into "${c.name}"`)}
+            </Text>
+            {myTeam.data && (
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted" marginBottom="$3">
+                team: {myTeam.data.name}
+              </Text>
+            )}
+
+            <YStack gap="$2" width="100%">
+              {/* H2H: share challenge link */}
+              {isH2H && c.currentEntries < c.maxEntries && (
+                <Button variant="primary" size="md" onPress={() => {
+                  const link = `https://app.draftplay.ai/contest/${c.id}`;
+                  RNShare.share({ message: `I challenged you to a Head-to-Head fantasy duel on DraftPlay! Join here: ${link}` });
+                }} testID="success-share-btn">
+                  {formatUIText("share challenge with friend")}
+                </Button>
+              )}
+              {/* League contest: share with league members */}
+              {!isH2H && c.currentEntries < c.maxEntries && (
+                <Button variant="primary" size="md" onPress={() => {
+                  const link = `https://app.draftplay.ai/contest/${c.id}`;
+                  RNShare.share({ message: `I just created my team for "${c.name}" on DraftPlay! Join the contest: ${link}` });
+                }} testID="success-invite-btn">
+                  {formatUIText("invite friends to join")}
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" onPress={() => {
+                if (match) {
+                  useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament });
+                  router.push("/team/create");
+                }
+              }} testID="success-change-team-btn">
+                {formatUIText("change team")}
+              </Button>
+              <Button variant="secondary" size="sm" onPress={() => setJustJoined(false)} testID="success-dismiss-btn">
+                {formatUIText("view contest details")}
+              </Button>
+            </YStack>
           </Card>
         </Animated.View>
       )}

@@ -99,26 +99,29 @@ export function AdminLogin() {
           {loading ? "Signing in..." : "Sign in with Google"}
         </button>
 
-        {/* Email/password — commented out for beta, Google-only
-        <div style={{ display: "flex", alignItems: "center", margin: "16px 0", gap: 12 }}>
-          <div style={{ flex: 1, height: 1, backgroundColor: "var(--border)" }} />
-          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>or sign in with email</span>
-          <div style={{ flex: 1, height: 1, backgroundColor: "var(--border)" }} />
-        </div>
+        {/* Email/password — dev only (emulator doesn't support Google OAuth) */}
+        {process.env.NODE_ENV === "development" && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", margin: "16px 0", gap: 12 }}>
+              <div style={{ flex: 1, height: 1, backgroundColor: "var(--border)" }} />
+              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>or sign in with email</span>
+              <div style={{ flex: 1, height: 1, backgroundColor: "var(--border)" }} />
+            </div>
 
-        <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-          style={{ width: "100%", padding: "10px 12px", marginBottom: 16, border: "1px solid var(--border)", borderRadius: 6, fontSize: 14, backgroundColor: "var(--bg)", color: "var(--text-primary)" }} />
+            <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+              style={{ width: "100%", padding: "10px 12px", marginBottom: 16, border: "1px solid var(--border)", borderRadius: 6, fontSize: 14, backgroundColor: "var(--bg)", color: "var(--text-primary)" }} />
 
-        <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Password</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-          style={{ width: "100%", padding: "10px 12px", marginBottom: 24, border: "1px solid var(--border)", borderRadius: 6, fontSize: 14, backgroundColor: "var(--bg)", color: "var(--text-primary)" }} />
+            <label style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+              style={{ width: "100%", padding: "10px 12px", marginBottom: 24, border: "1px solid var(--border)", borderRadius: 6, fontSize: 14, backgroundColor: "var(--bg)", color: "var(--text-primary)" }} />
 
-        <button type="submit" disabled={loading}
-          style={{ width: "100%", padding: "10px", backgroundColor: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
-          {loading ? "Signing in..." : "Sign In"}
-        </button>
-        */}
+            <button type="submit" disabled={loading}
+              style={{ width: "100%", padding: "10px", backgroundColor: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </>
+        )}
       </form>
     </div>
   );

@@ -295,72 +295,75 @@ export default function LoginScreen() {
             {isSubmitting ? formatUIText("signing in...") : formatUIText("sign in with google")}
           </Button>
 
-          {/* Email/password sign-in — commented out for now, Google-only for beta
-          <XStack alignItems="center" marginVertical="$2">
-            <YStack flex={1} height={1} backgroundColor="$borderColor" />
-            <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
-              {formatUIText("or sign in with email")}
-            </Text>
-            <YStack flex={1} height={1} backgroundColor="$borderColor" />
-          </XStack>
+          {/* Email/password sign-in — dev only (emulator doesn't support Google OAuth) */}
+          {__DEV__ && (
+            <>
+              <XStack alignItems="center" marginVertical="$2">
+                <YStack flex={1} height={1} backgroundColor="$borderColor" />
+                <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
+                  {formatUIText("or sign in with email")}
+                </Text>
+                <YStack flex={1} height={1} backgroundColor="$borderColor" />
+              </XStack>
 
-          <TextInput
-            testID="email-input"
-            placeholder={formatUIText("email")}
-            placeholderTextColor={theme.placeholderColor?.val}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            style={{
-              backgroundColor: theme.backgroundSurface?.val,
-              borderRadius: DesignSystem.radius.lg,
-              padding: 16,
-              color: theme.color?.val,
-              fontSize: 16,
-              borderWidth: 1,
-              borderColor: theme.borderColor?.val,
-              outlineColor: "#3D9968",
-            }}
-          />
-
-          <YStack>
-            <TextInput
-              testID="password-input"
-              placeholder={formatUIText("password")}
-              placeholderTextColor={theme.placeholderColor?.val}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              style={{
-                backgroundColor: theme.backgroundSurface?.val,
-                borderRadius: DesignSystem.radius.lg,
-                padding: 16,
-                paddingRight: 48,
-                color: theme.color?.val,
-                fontSize: 16,
-                borderWidth: 1,
-                borderColor: theme.borderColor?.val,
-                outlineColor: "#3D9968",
-              }}
-            />
-            <Pressable
-              onPress={() => setShowPassword(!showPassword)}
-              style={{ position: "absolute", right: 14, top: 16 }}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={22}
-                color={theme.colorMuted?.val}
+              <TextInput
+                testID="email-input"
+                placeholder={formatUIText("email")}
+                placeholderTextColor={theme.placeholderColor?.val}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                style={{
+                  backgroundColor: theme.backgroundSurface?.val,
+                  borderRadius: DesignSystem.radius.lg,
+                  padding: 16,
+                  color: theme.color?.val,
+                  fontSize: 16,
+                  borderWidth: 1,
+                  borderColor: theme.borderColor?.val,
+                  outlineColor: "#3D9968",
+                }}
               />
-            </Pressable>
-          </YStack>
 
-          <Button testID="submit-button" variant="primary" size="lg" onPress={handleLogin} disabled={isSubmitting} opacity={isSubmitting ? 0.6 : 1}>
-            {isSubmitting ? formatUIText("signing in...") : formatUIText("sign in")}
-          </Button>
-          */}
+              <YStack>
+                <TextInput
+                  testID="password-input"
+                  placeholder={formatUIText("password")}
+                  placeholderTextColor={theme.placeholderColor?.val}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  style={{
+                    backgroundColor: theme.backgroundSurface?.val,
+                    borderRadius: DesignSystem.radius.lg,
+                    padding: 16,
+                    paddingRight: 48,
+                    color: theme.color?.val,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: theme.borderColor?.val,
+                    outlineColor: "#3D9968",
+                  }}
+                />
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={{ position: "absolute", right: 14, top: 16 }}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={22}
+                    color={theme.colorMuted?.val}
+                  />
+                </Pressable>
+              </YStack>
+
+              <Button testID="submit-button" variant="primary" size="lg" onPress={handleLogin} disabled={isSubmitting} opacity={isSubmitting ? 0.6 : 1}>
+                {isSubmitting ? formatUIText("signing in...") : formatUIText("sign in")}
+              </Button>
+            </>
+          )}
 
           <Text fontFamily="$body" fontSize={11} color="$colorMuted" textAlign="center" marginTop="$2" lineHeight={16}>
             {formatUIText("by continuing, you agree to our ")}{" "}

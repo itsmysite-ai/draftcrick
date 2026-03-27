@@ -96,7 +96,7 @@ const MAX_BUDGET = 100;
 const TEAM_SIZE = 11;
 const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = { wicket_keeper: { min: 1, max: 4, label: "keeper" }, batsman: { min: 1, max: 6, label: "batter" }, all_rounder: { min: 1, max: 6, label: "all-rounder" }, bowler: { min: 1, max: 6, label: "bowler" } };
 const TABS = [{ key: "wicket_keeper", label: "keeper" }, { key: "batsman", label: "batter" }, { key: "all_rounder", label: "all-rounder" }, { key: "bowler", label: "bowler" }] as const;
-type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number; photoUrl?: string | null };
+type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number; photoUrl?: string | null; nationality?: string };
 
 export default function TeamBuilderScreen() {
   const navCtx = useNavigationStore((s) => s.matchContext);
@@ -325,6 +325,8 @@ export default function TeamBuilderScreen() {
   const navigateAfterCreate = (linkedContestId?: string | null) => {
     const cId = linkedContestId || contestId;
     if (cId) {
+      // Signal to contest page that user just joined — triggers success banner
+      try { if (typeof sessionStorage !== "undefined") sessionStorage.setItem("draftplay_just_joined", cId); } catch {}
       router.replace(`/contest/${cId}`);
     } else if (matchId) {
       router.replace(`/match/${matchId}`);
@@ -604,13 +606,19 @@ export default function TeamBuilderScreen() {
   const currentRoleLimit = ROLE_LIMITS[selectedTab];
   const canSelectMore = selectedPlayers.length < TEAM_SIZE;
 
-  function togglePlayer(player: { id: string; name: string; team: string; role: string; credits: number; photoUrl?: string | null }) {
+  const overseasCount = useMemo(() => {
+    if (!overseasRule?.enabled) return 0;
+    return selectedPlayers.filter((p) => p.nationality && p.nationality !== overseasRule.hostCountry).length;
+  }, [selectedPlayers, overseasRule]);
+
+  function togglePlayer(player: { id: string; name: string; team: string; role: string; credits: number; photoUrl?: string | null; nationality?: string }) {
     if (selectedIds.has(player.id)) { setSelectedPlayers((prev) => prev.filter((p) => p.playerId !== player.id)); if (captainId === player.id) setCaptainId(null); if (viceCaptainId === player.id) setViceCaptainId(null); return; }
     if (!canSelectMore) { showAlert(formatUIText("team full"), formatUIText(`you've already selected ${TEAM_SIZE} players`)); return; }
     const roleCount = roleCounts[player.role] ?? 0; const limit = ROLE_LIMITS[player.role]; if (limit && roleCount >= limit.max) { showAlert(formatUIText("role limit"), formatUIText(`max ${limit.max} ${limit.label} players allowed`)); return; }
     if (player.credits > creditsRemaining) { showAlert(formatUIText("budget exceeded"), `${player.name} ${formatUIText("costs")} ${player.credits} ${formatUIText("credits, but you only have")} ${creditsRemaining.toFixed(1)} ${formatUIText("remaining")}`); return; }
     const playerTeamCount = teamCounts[player.team] ?? 0; if (playerTeamCount >= 7) { showAlert(formatUIText("team limit"), formatUIText(`max 7 players from ${player.team}`)); return; }
-    setSelectedPlayers((prev) => [...prev, { playerId: player.id, role: player.role, name: player.name, team: player.team, credits: player.credits, photoUrl: player.photoUrl }]);
+    if (overseasRule?.enabled && player.nationality && player.nationality !== overseasRule.hostCountry && overseasCount >= 4) { showAlert(formatUIText("overseas limit"), formatUIText(`max 4 overseas players allowed`)); return; }
+    setSelectedPlayers((prev) => [...prev, { playerId: player.id, role: player.role, name: player.name, team: player.team, credits: player.credits, photoUrl: player.photoUrl, nationality: player.nationality }]);
   }
   function handleContinue() { for (const [role, limits] of Object.entries(ROLE_LIMITS)) { const count = roleCounts[role] ?? 0; if (count < limits.min) { showAlert(formatUIText("missing roles"), formatUIText(`need at least ${limits.min} ${limits.label} player(s), have ${count}`)); return; } } setStep("captain"); }
   function handleGoToReview() { if (!captainId || !viceCaptainId) { showAlert(formatUIText("select captain & vc"), formatUIText("please select both captain and vice-captain")); return; } if (captainId === viceCaptainId) { showAlert(formatUIText("invalid"), formatUIText("captain and vice-captain must be different")); return; } setStep("review"); }
@@ -1607,6 +1615,7 @@ export default function TeamBuilderScreen() {
               </YStack>
               <Pressable
                 onPress={() => {
+                  if (gate("elite", "AI Team Names", "Let AI generate a creative team name for you.")) return;
                   if (!resolvedTournament || !resolvedTeamA || !resolvedTeamB) return;
                   generateTeamNames.mutate(
                     { teamA: resolvedTeamA, teamB: resolvedTeamB, tournament: resolvedTournament },
@@ -1637,7 +1646,10 @@ export default function TeamBuilderScreen() {
                   {generateTeamNames.isPending ? (
                     <ActivityIndicator size="small" color={theme.accentBackground?.val} />
                   ) : (
-                    <Text fontFamily="$mono" fontSize={11} color="$accentBackground" fontWeight="600">✨</Text>
+                    <XStack alignItems="center" gap="$1">
+                      <Text fontFamily="$mono" fontSize={11} color="$accentBackground" fontWeight="600">✨</Text>
+                      <TierBadge tier="elite" size="sm" />
+                    </XStack>
                   )}
                 </YStack>
               </Pressable>
@@ -2128,7 +2140,7 @@ export default function TeamBuilderScreen() {
                       )}
                     </XStack>
                     {player.formNote && (
-                      <Text fontFamily="$body" fontSize={9} color="$accentBackground" opacity={0.6} marginTop={2} numberOfLines={2}>
+                      <Text fontFamily="$body" fontSize={9} color="$accentBackground" opacity={0.6} marginTop={2} numberOfLines={3}>
                         {player.formNote}
                       </Text>
                     )}

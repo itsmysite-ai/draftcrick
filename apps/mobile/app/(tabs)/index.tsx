@@ -267,8 +267,19 @@ function MyContestsSection({
   // Sort: live first, then upcoming (by match date), then recently settled (max 2)
   const sorted = useMemo(() => {
     const statusOrder: Record<string, number> = { live: 0, locked: 1, open: 2, settling: 3, settled: 4, cancelled: 5 };
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const active = contests
       .filter((c) => c.contest) // Only contest-linked teams
+      .filter((c) => {
+        // Hide settled contests older than 1 day
+        if (c.contest?.status === "settled") {
+          const settledAt = c.contest?.settledAt ? new Date(c.contest.settledAt).getTime() : 0;
+          const matchTime = c.match?.startTime ? new Date(c.match.startTime).getTime() : 0;
+          const refTime = settledAt || matchTime;
+          if (refTime && refTime < oneDayAgo) return false;
+        }
+        return c.contest?.status !== "cancelled";
+      })
       .sort((a, b) => {
         const sa = statusOrder[a.contest?.status] ?? 9;
         const sb = statusOrder[b.contest?.status] ?? 9;
@@ -277,7 +288,7 @@ function MyContestsSection({
         const db = b.match?.startTime ? new Date(b.match.startTime).getTime() : 0;
         return da - db;
       });
-    const nonSettled = active.filter((c) => c.contest?.status !== "settled" && c.contest?.status !== "cancelled");
+    const nonSettled = active.filter((c) => c.contest?.status !== "settled");
     const settled = active.filter((c) => c.contest?.status === "settled").slice(0, 2);
     return [...nonSettled.slice(0, 3), ...settled].slice(0, 4);
   }, [contests]);
@@ -308,11 +319,16 @@ function MyContestsSection({
             : null;
 
           const points = entry.totalPoints?.toFixed(0) ?? "0";
-          const rankText = entry.rank != null ? `#${entry.rank}` : "—";
           const totalText = entry.totalEntries ?? "?";
+          const isOpen = contest?.status === "open";
+          const isPreMatch = isOpen && !isLive && !isSettled;
+          const hasWon = isSettled && entry.prizeWon > 0;
 
-          const ctaLabel = isLive ? "watch live" : isSettled ? "view results" : "view contest";
           const entryText = contest?.entryFee === 0 ? "free entry" : contest?.entryFee ? `${contest.entryFee} PC entry` : null;
+
+          // Countdown for pre-match
+          const countdownText = matchDate ? formatCountdown(matchDate) : null;
+          const spotsLeft = contest?.maxEntries && contest?.currentEntries != null ? contest.maxEntries - contest.currentEntries : null;
 
           return (
             <Card
@@ -343,47 +359,99 @@ function MyContestsSection({
                       </Text>
                     )}
                   </Text>
-                  <Badge variant={isLive ? "live" : "default"} size="sm">
-                    {formatBadgeText(contest?.status || "open")}
-                  </Badge>
+                  <XStack gap="$1" alignItems="center">
+                    {isSettled && entry.rank === 1 && !hasWon && (
+                      <Badge variant="success" size="sm">{formatBadgeText("won glory")}</Badge>
+                    )}
+                    {hasWon && (
+                      <Badge variant="success" size="sm">{formatBadgeText(`won ${entry.prizeWon} pc`)}</Badge>
+                    )}
+                    <Badge variant={isLive ? "live" : "default"} size="sm">
+                      {formatBadgeText(contest?.status || "open")}
+                    </Badge>
+                  </XStack>
                 </XStack>
 
-                {/* Row 2: Rank + Pts centered */}
-                <XStack justifyContent="center" alignItems="center" gap="$5">
-                  <YStack alignItems="center">
-                    <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
-                      {entry.rank ?? "—"}<Text fontWeight="400" fontSize={13} color="$colorMuted">/{totalText}</Text>
-                    </Text>
-                    <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                      {formatUIText("rank")}
-                    </Text>
-                  </YStack>
-
-                  <YStack width={1} height={28} backgroundColor="$borderColor" />
-
-                  <YStack alignItems="center">
-                    <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
-                      {points}
-                    </Text>
-                    <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                      {formatUIText("points")}
-                    </Text>
-                  </YStack>
-
-                  {isSettled && entry.prizeWon > 0 && (
-                    <>
-                      <YStack width={1} height={24} backgroundColor="$borderColor" />
+                {/* Row 2: Context-aware content */}
+                {isPreMatch ? (
+                  /* Pre-match: show countdown, spots, and change team hint */
+                  <YStack gap="$2">
+                    <XStack justifyContent="center" alignItems="center" gap="$4">
+                      {countdownText && (
+                        <YStack alignItems="center">
+                          <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$accentBackground">
+                            {countdownText}
+                          </Text>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatUIText("starts in")}
+                          </Text>
+                        </YStack>
+                      )}
+                      <YStack width={1} height={28} backgroundColor="$borderColor" />
                       <YStack alignItems="center">
-                        <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$colorSuccess">
-                          {entry.prizeWon}
+                        <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
+                          {contest?.currentEntries ?? 0}<Text fontWeight="400" fontSize={13} color="$colorMuted">/{contest?.maxEntries ?? "?"}</Text>
                         </Text>
                         <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                          {formatUIText("won")}
+                          {formatUIText("joined")}
                         </Text>
                       </YStack>
-                    </>
-                  )}
-                </XStack>
+                      {spotsLeft != null && spotsLeft > 0 && (
+                        <>
+                          <YStack width={1} height={28} backgroundColor="$borderColor" />
+                          <YStack alignItems="center">
+                            <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$colorCricket">
+                              {spotsLeft}
+                            </Text>
+                            <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                              {formatUIText("spots left")}
+                            </Text>
+                          </YStack>
+                        </>
+                      )}
+                    </XStack>
+                    <Text fontFamily="$mono" fontSize={10} color="$colorMuted" textAlign="center">
+                      {formatUIText("tap to change team or invite friends")}
+                    </Text>
+                  </YStack>
+                ) : (
+                  /* Live/Settled: show rank + points */
+                  <XStack justifyContent="center" alignItems="center" gap="$5">
+                    <YStack alignItems="center">
+                      <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
+                        {entry.rank ?? "—"}<Text fontWeight="400" fontSize={13} color="$colorMuted">/{totalText}</Text>
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                        {formatUIText("rank")}
+                      </Text>
+                    </YStack>
+
+                    <YStack width={1} height={28} backgroundColor="$borderColor" />
+
+                    <YStack alignItems="center">
+                      <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
+                        {points}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                        {formatUIText("points")}
+                      </Text>
+                    </YStack>
+
+                    {hasWon && (
+                      <>
+                        <YStack width={1} height={24} backgroundColor="$borderColor" />
+                        <YStack alignItems="center">
+                          <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$colorSuccess">
+                            {entry.prizeWon}
+                          </Text>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatUIText("prize")}
+                          </Text>
+                        </YStack>
+                      </>
+                    )}
+                  </XStack>
+                )}
               </YStack>
 
               {/* Bottom strip — match info (mirrors match card CTA bar) */}
@@ -694,7 +762,8 @@ export default function HomeScreen() {
       return getTime(a) - getTime(b);
     });
   const nextMatch = upcomingMatches[0] ?? null;
-  const otherMatches = upcomingMatches.slice(1, 4);
+  const draftOpenMatches = upcomingMatches.filter((m: any) => m.draftEnabled);
+  const otherMatches = upcomingMatches.filter((m: any) => !m.draftEnabled).slice(0, 4);
   const activeTournaments = dashboardQuery.data?.tournaments ?? [];
 
   // Build team logo lookup from tournament teams data
@@ -905,15 +974,33 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
-        {/* ── Featured Match with CTA ── */}
-        {nextMatch && (
+        {/* ── Draft Open Matches — create your team ── */}
+        {draftOpenMatches.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(60).springify()}>
+            <Text {...textStyles.sectionHeader} marginBottom="$2">
+              {formatUIText(sport === "f1" ? "build your grid" : "create your team")}
+            </Text>
+            <YStack gap="$3">
+              {draftOpenMatches.map((m: any) => (
+                <FeaturedMatchCard
+                  key={m.id}
+                  match={m}
+                  sport={sport}
+                  getTeamLogo={getTeamLogo}
+                  onPress={() => router.push(`/match/${encodeURIComponent(m.dbId || m.id)}`)}
+                />
+              ))}
+            </YStack>
+          </Animated.View>
+        )}
+
+        {/* ── Next Match (no draft open) ── */}
+        {draftOpenMatches.length === 0 && nextMatch && (
           <Animated.View entering={FadeInDown.delay(60).springify()}>
             <Text {...textStyles.sectionHeader} marginBottom="$2">
               {formatUIText(nextMatch.status === "live"
                 ? "live now — join the action"
-                : nextMatch.draftEnabled
-                  ? (sport === "f1" ? "next race — build your grid" : "next match — create your team")
-                  : (sport === "f1" ? "next race" : "next match"))}
+                : (sport === "f1" ? "next race" : "next match"))}
             </Text>
             <FeaturedMatchCard
               match={nextMatch}
