@@ -14,6 +14,7 @@ import {
   formatUIText,
   DraftPlayLogo,
 } from "@draftplay/ui";
+import { Redirect } from "expo-router";
 import { trpc } from "../../lib/trpc";
 import { HeaderControls } from "../../components/HeaderControls";
 import { useRequireAuth } from "../../hooks/useRequireAuth";
@@ -28,6 +29,7 @@ export default function JoinLeagueScreen() {
 
   // Redirect to login if not authenticated, preserving the invite code
   const isAuthed = useRequireAuth();
+  if (!isAuthed) return <Redirect href="/auth/login" />;
 
   const joinMutation = trpc.league.join.useMutation({
     onSuccess: (league) => {

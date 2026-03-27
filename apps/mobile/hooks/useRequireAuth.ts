@@ -1,15 +1,16 @@
 import { useEffect } from "react";
-import { useRouter, usePathname } from "expo-router";
+import { usePathname } from "expo-router";
 import { useAuth } from "../providers/AuthProvider";
 
 /**
- * Redirects to login if not authenticated.
- * After login, the user is sent back to the original page (with query params).
- * Returns true if authenticated, false if redirecting.
+ * Checks if user is authenticated. Stores redirect URL for post-login return.
+ * Returns true if authenticated, false if not (caller should render a Redirect).
+ *
+ * IMPORTANT: Do NOT call router.replace() here — it crashes if the root layout
+ * hasn't mounted yet. Callers should use <Redirect href="/auth/login" /> instead.
  */
 export function useRequireAuth(): boolean {
   const { user, isLoading } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -26,9 +27,8 @@ export function useRequireAuth(): boolean {
           // Native — no window.location
         }
       }
-      router.replace("/auth/login");
     }
   }, [user, isLoading, pathname]);
 
-  return !!user;
+  return !isLoading && !!user;
 }

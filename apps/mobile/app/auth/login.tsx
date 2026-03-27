@@ -142,13 +142,24 @@ function friendlyAuthError(msg: string): string {
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signIn, signInWithGoogle, error } = useAuth();
+  const { signIn, signInWithGoogle, error, user, isLoading } = useAuth();
   const theme = useTamaguiTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (Platform.OS === "web") {
+        (globalThis as any).location.href = "/";
+      } else {
+        router.replace("/(tabs)");
+      }
+    }
+  }, [isLoading, user]);
 
   const rawError = localError ?? error;
   const displayError = rawError ? friendlyAuthError(rawError) : null;
