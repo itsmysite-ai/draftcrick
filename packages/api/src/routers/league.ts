@@ -450,6 +450,38 @@ export const leagueRouter = router({
       return { names: uniqueNames };
     }),
 
+  previewInvite: protectedProcedure
+    .input(z.object({ inviteCode: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const league = await ctx.db.query.leagues.findFirst({
+        where: eq(leagues.inviteCode, input.inviteCode),
+      });
+      if (!league) return null;
+
+      const memberCount = await ctx.db
+        .select({ count: count() })
+        .from(leagueMembers)
+        .where(eq(leagueMembers.leagueId, league.id));
+
+      const existingMember = await ctx.db.query.leagueMembers.findFirst({
+        where: and(
+          eq(leagueMembers.leagueId, league.id),
+          eq(leagueMembers.userId, ctx.user.id),
+        ),
+      });
+
+      return {
+        id: league.id,
+        name: league.name,
+        format: league.format,
+        tournament: league.tournament,
+        maxMembers: league.maxMembers,
+        memberCount: memberCount[0]?.count ?? 0,
+        isFull: (memberCount[0]?.count ?? 0) >= league.maxMembers,
+        alreadyMember: !!existingMember,
+      };
+    }),
+
   join: protectedProcedure
     .input(z.object({ inviteCode: z.string() }))
     .mutation(async ({ ctx, input }) => {
