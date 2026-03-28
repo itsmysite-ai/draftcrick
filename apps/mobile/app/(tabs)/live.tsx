@@ -173,8 +173,8 @@ function LiveMatchCard({
   const teamB = formatTeamName(rawTeamB);
   const tournament = match.tournamentName || match.tournament || "cricket";
   const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary, rawTeamA, rawTeamB);
-  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, rawTeamA);
-  const teamAWon = didTeamAWin(match.result, teamA);
+  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, rawTeamA, match.scoreSummary, rawTeamB);
+  const teamAWon = didTeamAWin(match.result, rawTeamA);
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>

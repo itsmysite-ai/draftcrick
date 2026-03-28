@@ -398,7 +398,7 @@ export default function MatchScreen() {
   const scoreB = scoreData.scoreB;
   const oversA = scoreData.oversA;
   const oversB = scoreData.oversB;
-  const teamARole = getTeamRole(match?.tossWinner, match?.tossDecision, rawTeamA);
+  const teamARole = getTeamRole(match?.tossWinner, match?.tossDecision, rawTeamA, match?.scoreSummary, rawTeamB);
   const teamAWon = didTeamAWin(match?.result, rawTeamA);
 
   // FDR query

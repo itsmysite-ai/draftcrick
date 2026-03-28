@@ -51,7 +51,23 @@ export function parseTeamScores(scoreSummary: string | null | undefined, teamA?:
   return { scoreA, scoreB, oversA, oversB };
 }
 
-export function getTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
+export function getTeamRole(
+  tossWinner: string | null, tossDecision: string | null, teamA: string,
+  scoreSummary?: string | null, teamB?: string,
+): "bat" | "bowl" | null {
+  // Detect current batting team from score summary (handles 2nd innings)
+  if (scoreSummary) {
+    const parts = scoreSummary.split(/\s*\|\s*/);
+    const lastPart = parts[parts.length - 1] ?? "";
+    const abbr = lastPart.replace(/[:\s].*$/, "").toLowerCase().trim();
+    if (abbr) {
+      const isA = teamMatchesAbbr(abbr, teamA);
+      const isB = teamB ? teamMatchesAbbr(abbr, teamB) : false;
+      if (isA) return "bat";
+      if (isB) return "bowl";
+    }
+  }
+  // Fallback: toss info
   if (!tossWinner || !tossDecision) return null;
   const winnerChoseBat = tossDecision.toLowerCase().includes("bat");
   const t = teamA.toLowerCase();
@@ -59,6 +75,15 @@ export function getTeamRole(tossWinner: string | null, tossDecision: string | nu
   const teamAWonToss = w.includes(t) || t.includes(w.slice(0, 4)) || w.includes(t.slice(0, 4));
   if (teamAWonToss) return winnerChoseBat ? "bat" : "bowl";
   return winnerChoseBat ? "bowl" : "bat";
+}
+
+function teamMatchesAbbr(abbr: string, team: string): boolean {
+  const t = team.toLowerCase();
+  if (abbr === t) return true;
+  const names = TEAM_ABBREV_MAP[abbr];
+  if (names?.some((n) => t.includes(n) || n.includes(t))) return true;
+  const entry = Object.entries(TEAM_ABBREV_MAP).find(([, ns]) => ns.some((n) => t.includes(n) || n.includes(t)));
+  return entry?.[0] === abbr;
 }
 
 export function didTeamAWin(result: string | null, teamA: string): boolean | null {

@@ -1,6 +1,7 @@
 import { SafeBackButton } from "../../components/SafeBackButton";
 import { ScrollView as RNScrollView, RefreshControl } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { parseTeamScores, getTeamRole, didTeamAWin } from "../../lib/score-utils";
 import { useState, useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
@@ -81,7 +82,7 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `until ${fmt(end!)}`;
 }
 
-function parseTeamScores(scoreSummary: string | null | undefined) {
+function _localParseTeamScores(scoreSummary: string | null | undefined) {
   if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
   const parts = scoreSummary.split(/\s+vs\s+/i);
   const extract = (part: string) => {
@@ -94,14 +95,14 @@ function parseTeamScores(scoreSummary: string | null | undefined) {
   return { scoreA: a.score, scoreB: b.score, oversA: a.overs, oversB: b.overs };
 }
 
-function didTeamAWin(result: string | null, teamA: string): boolean | null {
+function _localDidTeamAWin(result: string | null, teamA: string): boolean | null {
   if (!result) return null;
   const r = result.toLowerCase();
   if (r.includes("no result") || r.includes("tied") || r.includes("draw")) return null;
   return r.includes(teamA.toLowerCase().slice(0, 4));
 }
 
-function getTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
+function _localGetTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
   if (!tossWinner || !tossDecision) return null;
   const winnerChoseBat = tossDecision.toLowerCase().includes("bat");
   const teamAWonToss = tossWinner.toLowerCase().includes(teamA.toLowerCase().slice(0, 4));
@@ -122,13 +123,15 @@ function TournamentMatchCard({
   getTeamLogo?: (name: string) => string | undefined;
 }) {
   const isLive = match.status === "live";
-  const teamA = formatTeamName(match.teamA || match.teamHome || "TBA");
-  const teamB = formatTeamName(match.teamB || match.teamAway || "TBA");
+  const rawTeamA = match.teamA || match.teamHome || "TBA";
+  const rawTeamB = match.teamB || match.teamAway || "TBA";
+  const teamA = formatTeamName(rawTeamA);
+  const teamB = formatTeamName(rawTeamB);
   const startTime = parseSafeDate(match.date, match.time);
   const isCompleted = match.status === "completed";
-  const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary);
-  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, teamA);
-  const teamAWon = didTeamAWin(match.result, teamA);
+  const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary, rawTeamA, rawTeamB);
+  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, rawTeamA, match.scoreSummary, rawTeamB);
+  const teamAWon = didTeamAWin(match.result, rawTeamA);
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>

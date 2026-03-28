@@ -150,8 +150,8 @@ function FeaturedMatchCard({
   const isCompleted = match.status === "completed";
   // Pass both abbreviated and full names so parser can match either
   const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary, rawTeamA, rawTeamB);
-  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, rawTeamA);
-  const teamAWon = didTeamAWin(match.result, teamA);
+  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, rawTeamA, match.scoreSummary, rawTeamB);
+  const teamAWon = didTeamAWin(match.result, rawTeamA);
 
   return (
     <Card pressable live={isLive} onPress={onPress} padding={0} overflow="hidden" testID="featured-match-card">
