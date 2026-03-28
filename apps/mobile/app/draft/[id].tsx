@@ -1,6 +1,7 @@
-import { FlatList, Alert } from "react-native";
+import { FlatList } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect } from "react";
+import { SafeBackButton } from "../../components/SafeBackButton";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
@@ -11,6 +12,7 @@ import {
   InitialsAvatar,
   FilterPill,
   HatchModal,
+  AlertModal,
   AnnouncementBanner,
   EggLoadingSpinner,
   CricketBallIcon,
@@ -48,15 +50,34 @@ export default function DraftRoomScreen() {
   const { user } = useAuth();
   const theme = useTamaguiTheme();
 
-  const { data: draftState, refetch: refetchState } = trpc.draft.getState.useQuery({ roomId: roomId! }, { refetchInterval: 3000 });
-  const { data: picks, refetch: refetchPicks } = trpc.draft.getPicks.useQuery({ roomId: roomId! });
+  // Get DB user ID (user.id is Firebase UID, draft uses DB UUIDs)
+  const { data: profile } = trpc.auth.getProfile.useQuery();
+  const dbUserId = (profile as any)?.userId ?? user?.id;
+
+  const { data: draftState, refetch: refetchState } = trpc.draft.getState.useQuery({ roomId: roomId! }, { refetchInterval: 5000 });
+  const { data: picks, refetch: refetchPicks } = trpc.draft.getPicks.useQuery({ roomId: roomId! }, { refetchInterval: 5000 });
   const { data: room } = trpc.draft.getRoom.useQuery({ roomId: roomId! });
-  const { data: players } = trpc.player.list.useQuery(undefined);
+
+  // Filter players by tournament
+  const leagueId = (room as any)?.leagueId;
+  const { data: leagueData } = trpc.league.getById.useQuery({ id: leagueId! }, { enabled: !!leagueId });
+  const tournamentName = (leagueData as any)?.tournament;
+  const { data: tournamentPlayers } = trpc.player.listByTournament.useQuery(
+    { tournamentName: tournamentName! },
+    { enabled: !!tournamentName },
+  );
+  const { data: allPlayers } = trpc.player.list.useQuery(undefined, { enabled: !tournamentName });
+  const players = tournamentPlayers ?? allPlayers;
+
   const startMutation = trpc.draft.start.useMutation({ onSuccess: () => { refetchState(); refetchPicks(); } });
-  const pickMutation = trpc.draft.makePick.useMutation({ onSuccess: () => { refetchState(); refetchPicks(); } });
+  const pickMutation = trpc.draft.makePick.useMutation({
+    onSuccess: () => { refetchState(); refetchPicks(); },
+    onError: (err) => setAlert({ title: "pick failed", message: err.message }),
+  });
   const [countdown, setCountdown] = useState<number | null>(null);
   const [hatchPlayer, setHatchPlayer] = useState<any>(null);
   const [roleFilter, setRoleFilter] = useState<"all" | RoleKey>("all");
+  const [alert, setAlert] = useState<{ title: string; message: string; onConfirm?: () => void } | null>(null);
 
   useEffect(() => {
     if (!draftState?.currentPickDeadline) { setCountdown(null); return; }
@@ -67,7 +88,7 @@ export default function DraftRoomScreen() {
     return () => clearInterval(interval);
   }, [draftState?.currentPickDeadline]);
 
-  const isMyTurn = draftState?.currentDrafter === user?.id;
+  const isMyTurn = draftState?.currentDrafter === dbUserId;
   const pickedIds = new Set(draftState?.pickedPlayerIds ?? []);
   const availablePlayers = (players ?? []).filter((p: any) => !pickedIds.has(p.id));
   const filteredPlayers = roleFilter === "all"
@@ -78,25 +99,20 @@ export default function DraftRoomScreen() {
       });
 
   const handlePick = (playerId: string, player: any) => {
-    Alert.alert(
-      formatUIText("draft pick"),
-      `${formatUIText("select")} ${player.name}?`,
-      [
-        { text: formatUIText("cancel"), style: "cancel" },
-        {
-          text: formatUIText("pick"),
-          onPress: () => {
-            setHatchPlayer({
-              name: player.name,
-              role: (player.role ?? "BAT").toUpperCase() as RoleKey,
-              team: player.team ?? "",
-              ovr: player.credits ?? 80,
-            });
-            pickMutation.mutate({ roomId: roomId!, playerId });
-          },
-        },
-      ],
-    );
+    setAlert({
+      title: "draft pick",
+      message: `Select ${player.name}?`,
+      onConfirm: () => {
+        setAlert(null);
+        setHatchPlayer({
+          name: player.name,
+          role: (player.role ?? "BAT").toUpperCase() as RoleKey,
+          team: player.team ?? "",
+          ovr: player.credits ?? 80,
+        });
+        pickMutation.mutate({ roomId: roomId!, playerId });
+      },
+    });
   };
 
   return (
@@ -104,8 +120,10 @@ export default function DraftRoomScreen() {
       {/* Header */}
       <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
-          <YStack>
-            <Text testID="draft-round-info" fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
+          <XStack alignItems="center" gap="$2">
+            <SafeBackButton />
+            <YStack>
+              <Text testID="draft-round-info" fontFamily="$mono" fontSize={12} fontWeight="600" color="$colorMuted">
               {formatUIText("round")} {draftState?.currentRound ?? 0} {formatUIText("of")} {draftState?.maxRounds ?? 0}
             </Text>
             <Text testID="draft-turn-status" fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
@@ -117,7 +135,8 @@ export default function DraftRoomScreen() {
                     ? formatUIText("your pick!")
                     : formatUIText("waiting for pick...")}
             </Text>
-          </YStack>
+            </YStack>
+          </XStack>
           <XStack alignItems="center" gap="$3">
             {countdown !== null && draftState?.status === "in_progress" && (
               <YStack
@@ -194,7 +213,7 @@ export default function DraftRoomScreen() {
                   padding="$3"
                   marginHorizontal="$2"
                   marginBottom="$1"
-                  borderColor={item.userId === user?.id ? "$colorAccentLight" : "$borderColor"}
+                  borderColor={item.userId === dbUserId ? "$colorAccentLight" : "$borderColor"}
                 >
                   <XStack alignItems="center" gap="$2">
                     <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
@@ -286,6 +305,21 @@ export default function DraftRoomScreen() {
         <HatchModal
           player={hatchPlayer}
           onClose={() => setHatchPlayer(null)}
+        />
+      )}
+      {alert && (
+        <AlertModal
+          visible
+          title={alert.title}
+          message={alert.message}
+          onDismiss={() => setAlert(null)}
+          actions={alert.onConfirm
+            ? [
+                { label: "cancel", variant: "ghost", onPress: () => setAlert(null) },
+                { label: "pick", variant: "primary", onPress: alert.onConfirm },
+              ]
+            : [{ label: "ok", variant: "primary", onPress: () => setAlert(null) }]
+          }
         />
       )}
     </YStack>

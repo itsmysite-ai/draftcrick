@@ -134,6 +134,33 @@ export const draftRouter = router({
       const newState = applyPick(state, ctx.user.id, input.playerId);
       await updateDraftRoom(ctx.db, newState);
 
+      // Notify next drafter it's their turn
+      if (newState.status !== "completed") {
+        const nextDrafter = getCurrentDrafter(newState);
+        if (nextDrafter && nextDrafter !== ctx.user.id) {
+          const pickedPlayer = await ctx.db.query.players.findFirst({
+            where: eq(players.id, input.playerId),
+            columns: { name: true },
+          });
+          sendPushNotification(
+            ctx.db, nextDrafter, NOTIFICATION_TYPES.URGENT_DEADLINE,
+            "Your Turn!",
+            `${pickedPlayer?.name ?? "A player"} was just drafted. It's your pick now!`,
+            { roomId: input.roomId, type: "snake_draft" },
+          ).catch(() => {});
+        }
+      }
+
+      // Notify all if draft is complete
+      if (newState.status === "completed") {
+        sendBatchNotifications(
+          ctx.db, state.pickOrder, NOTIFICATION_TYPES.STATUS_ALERT,
+          "Draft Complete!",
+          "All squads are locked. Check your report card!",
+          { roomId: input.roomId, type: "snake_draft" },
+        ).catch(() => {});
+      }
+
       return {
         pickNumber: newState.picks.length,
         currentRound: newState.currentRound,
@@ -536,6 +563,18 @@ export const draftRouter = router({
         ).catch(() => {});
       }
 
+      // Generate buzz commentary (non-blocking, best-effort)
+      let buzzMessages: Array<{ message: string; type: string }> = [];
+      if (wasSold && state.currentPlayerId) {
+        const { generateAuctionBuzz } = await import("../services/auction-ai");
+        const pName = (await ctx.db.query.players.findFirst({ where: eq(players.id, state.currentPlayerId), columns: { name: true } }))?.name;
+        buzzMessages = await generateAuctionBuzz("sold", {
+          playerName: pName ?? "Player",
+          amount: state.highestBid?.amount,
+          soldCount: current.soldPlayers.length,
+        }).catch(() => []);
+      }
+
       return {
         phase: current.phase,
         previousPhase: originalPhase,
@@ -543,6 +582,7 @@ export const draftRouter = router({
         soldPlayerId: wasSold ? state.currentPlayerId : null,
         buyerId: wasSold ? state.highestBid?.userId : null,
         amount: wasSold ? state.highestBid?.amount : null,
+        buzzMessages,
       };
     }),
 });

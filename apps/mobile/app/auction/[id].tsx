@@ -82,6 +82,7 @@ export default function AuctionRoomScreen() {
   const { data: allPlayers } = trpc.player.list.useQuery(undefined, { enabled: !tournamentName });
   const players = tournamentPlayers ?? allPlayers;
   const hasFinalised = useRef(false);
+  const [buzzFeed, setBuzzFeed] = useState<Array<{ message: string; type: string; ts: number }>>([]);
 
   const nominateMutation = trpc.draft.nominate.useMutation({
     onSuccess: () => refetch(),
@@ -93,6 +94,14 @@ export default function AuctionRoomScreen() {
       refetch().then(() => {
         hasFinalised.current = false;
       });
+
+      // Add buzz messages to feed
+      if (data?.buzzMessages?.length > 0) {
+        setBuzzFeed((prev) => [
+          ...data.buzzMessages.map((m: any) => ({ ...m, ts: Date.now() })),
+          ...prev,
+        ].slice(0, 20)); // keep last 20
+      }
 
       // If the server phase is now "sold", auto-advance to "nominating" after 3s
       if (data?.phase === "sold") {
@@ -654,6 +663,32 @@ export default function AuctionRoomScreen() {
             ListEmptyComponent={
               <Text fontFamily="$body" fontSize={11} color="$colorMuted">{formatUIText("no players yet")}</Text>
             }
+          />
+        </YStack>
+      )}
+
+      {/* Buzz Bot Feed */}
+      {buzzFeed.length > 0 && (
+        <YStack backgroundColor="$backgroundSurface" borderBottomWidth={1} borderBottomColor="$borderColor" paddingHorizontal="$3" paddingVertical="$2">
+          <FlatList
+            data={buzzFeed.slice(0, 3)}
+            keyExtractor={(_, i) => `buzz-${i}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item }: { item: any }) => (
+              <XStack
+                backgroundColor="$backgroundPress"
+                borderRadius={DesignSystem.radius.md}
+                paddingHorizontal="$3"
+                paddingVertical="$1"
+                marginRight="$2"
+                alignItems="center"
+                gap="$1"
+              >
+                <Text fontFamily="$mono" fontSize={10} color="$accentBackground">guru</Text>
+                <Text fontFamily="$body" fontSize={11} color="$color" numberOfLines={1}>{item.message}</Text>
+              </XStack>
+            )}
           />
         </YStack>
       )}

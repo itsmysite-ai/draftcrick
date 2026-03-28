@@ -28,7 +28,7 @@ type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
 
 const FORMATS: { value: LeagueFormat; label: string; desc: string; comingSoon?: boolean }[] = [
   { value: "salary_cap", label: "salary cap", desc: "pick players within budget each match" },
-  { value: "draft", label: "snake draft", desc: "take turns picking players for the season", comingSoon: true },
+  { value: "draft", label: "snake draft", desc: "take turns picking players for the season" },
   { value: "auction", label: "auction", desc: "bid on players — squad carries forward" },
   { value: "prediction", label: "prediction", desc: "predict match outcomes", comingSoon: true },
 ];
