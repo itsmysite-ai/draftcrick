@@ -52,9 +52,22 @@ function formatCountdown(date: Date): string {
   return `${mins}m`;
 }
 
+// IPL team abbreviation ↔ name mapping for score parsing
+const TEAM_ABBREV_MAP: Record<string, string[]> = {
+  "rcb": ["royal challengers bengaluru", "royal challengers bangalore"],
+  "srh": ["sunrisers hyderabad"],
+  "csk": ["chennai super kings"],
+  "mi": ["mumbai indians"],
+  "kkr": ["kolkata knight riders"],
+  "rr": ["rajasthan royals"],
+  "dc": ["delhi capitals"],
+  "pbks": ["punjab kings"],
+  "lsg": ["lucknow super giants"],
+  "gt": ["gujarat titans"],
+};
+
 function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
   if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
-  // Split on " | " (Cricbuzz format) or " vs " (legacy)
   const parts = scoreSummary.split(/\s*\|\s*|\s+vs\s+/i);
   const extract = (part: string) => {
     const s = part.match(/(\d+\/\d+|\d+(?=\s*\())/);
@@ -62,17 +75,23 @@ function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string
     return { score: s ? s[1] : null, overs: o ? o[1] : null, raw: part };
   };
 
-  // Map each score part to the correct team by matching team name/abbreviation
   const parsed = parts.map((p) => extract(p));
   let scoreA: string | null = null, oversA: string | null = null;
   let scoreB: string | null = null, oversB: string | null = null;
 
   const matchesTeam = (raw: string, team?: string) => {
     if (!team) return false;
+    const abbr = raw.toLowerCase().split(":")[0]!.trim(); // "srh" from "SRH: 88/3"
     const t = team.toLowerCase();
-    const r = raw.toLowerCase();
-    // Check full name, first word, or common abbreviations
-    return r.includes(t) || r.includes(t.split(" ")[0]!) || t.includes(r.split(":")[0]!.trim());
+    // Direct: "srh" === "srh" or "sunrisers hyderabad" === "sunrisers hyderabad"
+    if (abbr === t) return true;
+    // Abbreviation lookup: "srh" matches "sunrisers hyderabad"
+    const abbrNames = TEAM_ABBREV_MAP[abbr];
+    if (abbrNames && abbrNames.some((n) => t.includes(n) || n.includes(t))) return true;
+    // Reverse: team is "srh", raw abbr is in the map
+    const teamAbbr = Object.entries(TEAM_ABBREV_MAP).find(([, names]) => names.some((n) => t.includes(n)));
+    if (teamAbbr && teamAbbr[0] === abbr) return true;
+    return false;
   };
 
   for (const p of parsed) {
@@ -120,13 +139,16 @@ function FeaturedMatchCard({
   getTeamLogo?: (name: string) => string | undefined;
 }) {
   const isCricket = sport === "cricket";
-  const teamA = formatTeamName(match.teamA || match.teamHome || "TBA");
-  const teamB = formatTeamName(match.teamB || match.teamAway || "TBA");
+  const rawTeamA = match.teamA || match.teamHome || "TBA";
+  const rawTeamB = match.teamB || match.teamAway || "TBA";
+  const teamA = formatTeamName(rawTeamA);
+  const teamB = formatTeamName(rawTeamB);
   const startTime = parseSafeDate(match.date, match.time);
   const isLive = match.status === "live";
   const isCompleted = match.status === "completed";
-  const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary, teamA, teamB);
-  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, teamA);
+  // Pass both abbreviated and full names so parser can match either
+  const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary, rawTeamA, rawTeamB);
+  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, rawTeamA);
   const teamAWon = didTeamAWin(match.result, teamA);
 
   return (
@@ -796,7 +818,7 @@ export default function HomeScreen() {
     });
   const nextMatch = upcomingMatches[0] ?? null;
   const draftOpenMatches = upcomingMatches.filter((m: any) => m.draftEnabled);
-  const otherMatches = upcomingMatches.filter((m: any) => !m.draftEnabled).slice(0, 4);
+  const otherMatches = upcomingMatches.filter((m: any) => !m.draftEnabled && m.status !== "live").slice(0, 4);
   const activeTournaments = dashboardQuery.data?.tournaments ?? [];
 
   // Build team logo lookup from tournament teams data
