@@ -187,6 +187,11 @@ export const teamRouter = router({
           relevantContestId = input.contestId;
           // Unlink old team from contest
           await ctx.db.update(fantasyTeams).set({ contestId: null }).where(eq(fantasyTeams.id, existingTeam.id));
+          // Decrement entry count (the new team will increment it back)
+          await ctx.db
+            .update(contests)
+            .set({ currentEntries: sql`GREATEST(${contests.currentEntries} - 1, 0)` })
+            .where(eq(contests.id, input.contestId));
           // Keep contestId so the new team gets linked
         }
       } else if (input.matchId) {
