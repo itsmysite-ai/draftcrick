@@ -1,11 +1,11 @@
 import { SafeBackButton } from "../../../components/SafeBackButton";
-import { FlatList, Alert } from "react-native";
+import { FlatList } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack } from "tamagui";
 import { Text } from "../../../components/SportText";
-import { Card, Badge, BackButton, Button, DesignSystem, formatUIText, formatBadgeText } from "@draftplay/ui";
+import { Card, Badge, BackButton, Button, AlertModal, DesignSystem, formatUIText, formatBadgeText } from "@draftplay/ui";
 import { trpc } from "../../../lib/trpc";
 import { useAuth } from "../../../providers/AuthProvider";
 import { HeaderControls } from "../../../components/HeaderControls";
@@ -16,9 +16,19 @@ export default function LeagueTradesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { data: myTrades, refetch } = trpc.trade.myTrades.useQuery({ leagueId: leagueId! });
-  const { data: leagueTrades } = trpc.trade.leagueTrades.useQuery({ leagueId: leagueId! });
+  const { data: profile } = trpc.auth.getProfile.useQuery();
+  const dbUserId = (profile as any)?.userId ?? user?.id;
+  const { data: myTrades, refetch } = trpc.trade.myTrades.useQuery({ leagueId: leagueId! }, { refetchInterval: 10000 });
+  const { data: leagueTrades } = trpc.trade.leagueTrades.useQuery({ leagueId: leagueId! }, { refetchInterval: 10000 });
   const { data: players } = trpc.player.list.useQuery(undefined);
+  const { data: leagueData } = trpc.league.getById.useQuery({ id: leagueId! }, { enabled: !!leagueId });
+  const memberNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const m of ((leagueData as any)?.members ?? [])) {
+      map[m.userId] = m.user?.displayName ?? m.user?.username ?? "member";
+    }
+    return map;
+  }, [leagueData]);
   const acceptMutation = trpc.trade.accept.useMutation({ onSuccess: () => refetch() });
   const rejectMutation = trpc.trade.reject.useMutation({ onSuccess: () => refetch() });
   const cancelMutation = trpc.trade.cancel.useMutation({ onSuccess: () => refetch() });
@@ -41,19 +51,30 @@ export default function LeagueTradesScreen() {
 
   const getPlayerName = (pid: string) => playerNames[pid] ?? `Player ${pid.slice(0, 6)}`;
 
+  const [confirmAction, setConfirmAction] = useState<{ title: string; message: string; onConfirm: () => void; variant?: "primary" | "danger" } | null>(null);
+
   const handleAccept = (tradeId: string) => {
-    Alert.alert("Accept Trade?", "This will swap the players between teams.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Accept", onPress: () => acceptMutation.mutate({ tradeId }) },
-    ]);
+    setConfirmAction({
+      title: "accept trade?",
+      message: "This will swap the players between teams.",
+      onConfirm: () => { setConfirmAction(null); acceptMutation.mutate({ tradeId }); },
+    });
   };
   const handleReject = (tradeId: string) => {
-    Alert.alert("Reject Trade?", "The trade will be declined.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Reject", style: "destructive", onPress: () => rejectMutation.mutate({ tradeId }) },
-    ]);
+    setConfirmAction({
+      title: "reject trade?",
+      message: "The trade will be declined.",
+      variant: "danger",
+      onConfirm: () => { setConfirmAction(null); rejectMutation.mutate({ tradeId }); },
+    });
   };
-  const handleCancel = (tradeId: string) => { cancelMutation.mutate({ tradeId }); };
+  const handleCancel = (tradeId: string) => {
+    setConfirmAction({
+      title: "cancel trade?",
+      message: "Your trade offer will be withdrawn.",
+      onConfirm: () => { setConfirmAction(null); cancelMutation.mutate({ tradeId }); },
+    });
+  };
 
   const statusConfig: Record<string, { color: string; bg: string }> = {
     pending: { color: "$colorCricket", bg: "$colorCricketLight" },
@@ -91,16 +112,22 @@ export default function LeagueTradesScreen() {
           </YStack>
         }
         renderItem={({ item }: { item: any }) => {
-          const isSender = item.fromUserId === user?.id;
-          const isReceiver = item.toUserId === user?.id;
+          const isSender = item.fromUserId === dbUserId;
+          const isReceiver = item.toUserId === dbUserId;
           const isPending = item.status === "pending";
           const cfg = statusConfig[item.status] ?? statusConfig.expired!;
+          const partnerName = isSender ? memberNames[item.toUserId] : memberNames[item.fromUserId];
           return (
             <Card testID={`trade-card-${item.id}`} marginBottom="$3" padding="$4">
-              <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
-                <Badge testID={`trade-status-${item.id}`} backgroundColor={cfg.bg as any} color={cfg.color as any} size="sm" fontWeight="700">
-                  {item.status.toUpperCase()}
-                </Badge>
+              <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+                <XStack alignItems="center" gap="$2">
+                  <Badge testID={`trade-status-${item.id}`} backgroundColor={cfg.bg as any} color={cfg.color as any} size="sm" fontWeight="700">
+                    {item.status.toUpperCase()}
+                  </Badge>
+                  <Text fontFamily="$body" fontSize={11} color="$colorMuted">
+                    {isSender ? `to ${partnerName ?? "member"}` : `from ${partnerName ?? "member"}`}
+                  </Text>
+                </XStack>
                 <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
                   {new Date(item.createdAt).toLocaleDateString()}
                 </Text>
@@ -108,7 +135,7 @@ export default function LeagueTradesScreen() {
               <XStack gap="$3">
                 <YStack flex={1}>
                   <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" marginBottom="$1">
-                    {isSender ? "YOU OFFER" : "THEY OFFER"}
+                    {isSender ? "YOU OFFER" : "YOU GET"}
                   </Text>
                   {(item.playersOffered ?? []).map((pid: string, idx: number) => (
                     <YStack key={idx} backgroundColor="$colorAccentLight" borderRadius="$2" padding="$2" marginBottom={2}>
@@ -123,7 +150,7 @@ export default function LeagueTradesScreen() {
                 </YStack>
                 <YStack flex={1}>
                   <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" marginBottom="$1">
-                    {isSender ? "YOU WANT" : "THEY WANT"}
+                    {isSender ? "YOU WANT" : "THEY WANT FROM YOU"}
                   </Text>
                   {(item.playersRequested ?? []).map((pid: string, idx: number) => (
                     <YStack key={idx} backgroundColor="$colorCricketLight" borderRadius="$2" padding="$2" marginBottom={2}>
@@ -135,7 +162,7 @@ export default function LeagueTradesScreen() {
                 </YStack>
               </XStack>
               {/* AI Trade Evaluation */}
-              {isPending && (isReceiver || isSender) && (
+              {isPending && (
                 <TradeEvalCard
                   leagueId={leagueId!}
                   offeredPlayerIds={item.playersOffered ?? []}
@@ -148,17 +175,17 @@ export default function LeagueTradesScreen() {
                 <XStack gap="$2" marginTop="$3">
                   {isReceiver && (
                     <>
-                      <Button testID={`trade-accept-btn-${item.id}`} variant="primary" size="sm" flex={1} onPress={() => handleAccept(item.id)} disabled={acceptMutation.isPending}>
-                        Accept
+                      <Button testID={`trade-accept-btn-${item.id}`} variant="primary" size="sm" flex={1} onPress={() => handleAccept(item.id)} disabled={acceptMutation.isPending} opacity={acceptMutation.isPending ? 0.5 : 1}>
+                        {acceptMutation.isPending ? formatUIText("accepting...") : formatUIText("accept")}
                       </Button>
-                      <Button testID={`trade-reject-btn-${item.id}`} variant="danger" size="sm" flex={1} onPress={() => handleReject(item.id)} disabled={rejectMutation.isPending}>
-                        Reject
+                      <Button testID={`trade-reject-btn-${item.id}`} variant="danger" size="sm" flex={1} onPress={() => handleReject(item.id)} disabled={rejectMutation.isPending} opacity={rejectMutation.isPending ? 0.5 : 1}>
+                        {rejectMutation.isPending ? formatUIText("rejecting...") : formatUIText("reject")}
                       </Button>
                     </>
                   )}
                   {isSender && (
-                    <Button testID={`trade-cancel-btn-${item.id}`} variant="secondary" size="sm" flex={1} onPress={() => handleCancel(item.id)} disabled={cancelMutation.isPending}>
-                      Cancel Trade
+                    <Button testID={`trade-cancel-btn-${item.id}`} variant="secondary" size="sm" flex={1} onPress={() => handleCancel(item.id)} disabled={cancelMutation.isPending} opacity={cancelMutation.isPending ? 0.5 : 1}>
+                      {cancelMutation.isPending ? formatUIText("cancelling...") : formatUIText("cancel trade")}
                     </Button>
                   )}
                 </XStack>
@@ -239,6 +266,18 @@ export default function LeagueTradesScreen() {
           ) : null
         }
       />
+      {confirmAction && (
+        <AlertModal
+          visible
+          title={confirmAction.title}
+          message={confirmAction.message}
+          onDismiss={() => setConfirmAction(null)}
+          actions={[
+            { label: "cancel", variant: "ghost", onPress: () => setConfirmAction(null) },
+            { label: confirmAction.title.split(" ")[0] ?? "confirm", variant: confirmAction.variant ?? "primary", onPress: confirmAction.onConfirm },
+          ]}
+        />
+      )}
     </YStack>
   );
 }

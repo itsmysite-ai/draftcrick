@@ -50,6 +50,27 @@ export const tradeRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Trade window is closed" });
       }
 
+      // Check trade deadline — block trades X hours before next match
+      const deadlineHours = (transferRules.tradeDeadlineHoursBeforeMatch as number) ?? 1;
+      if (deadlineHours > 0 && league?.tournament) {
+        const { matches: matchesTable } = await import("@draftplay/db");
+        const { ilike } = await import("drizzle-orm");
+        const nextMatch = await ctx.db.query.matches.findFirst({
+          where: and(
+            ilike(matchesTable.tournament, league.tournament),
+            eq(matchesTable.status, "upcoming"),
+          ),
+          orderBy: [matchesTable.startTime],
+          columns: { startTime: true },
+        });
+        if (nextMatch?.startTime) {
+          const cutoff = new Date(new Date(nextMatch.startTime).getTime() - deadlineHours * 60 * 60 * 1000);
+          if (new Date() > cutoff) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `Trade window closes ${deadlineHours}h before match. Next match starts soon.` });
+          }
+        }
+      }
+
       // Create trade with 48-hour expiry
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 

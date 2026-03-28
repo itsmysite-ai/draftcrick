@@ -12,7 +12,6 @@ import {
   Badge,
   Button,
   InitialsAvatar,
-  StatLabel,
   AnnouncementBanner,
   EggLoadingSpinner,
   AlertModal,
@@ -764,7 +763,12 @@ export default function AuctionRoomScreen() {
                   <Text {...textStyles.playerName} fontSize={12} numberOfLines={1}>
                     {(player as any)?.name ?? formatUIText("unknown")}
                   </Text>
-                  <StatLabel label={formatUIText("credits")} value={item.amount} />
+                  <XStack justifyContent="space-between" alignItems="center" marginTop={2}>
+                    <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
+                    <Text fontFamily="$mono" fontSize={8} color={item.userId === dbUserId ? "$colorAccent" : "$colorMuted"}>
+                      {item.userId === dbUserId ? "you" : `#${item.pickNumber}`}
+                    </Text>
+                  </XStack>
                 </Card>
               );
             }}
