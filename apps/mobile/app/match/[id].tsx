@@ -124,7 +124,7 @@ function _legacyParseTeamScores(scoreSummary: string | null | undefined, teamA?:
  * Determine bat/bowl role for each team from toss info.
  * Returns "bat" or "bowl" for teamA (teamB is the opposite).
  */
-function getTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
+function _localGetTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
   if (!tossWinner || !tossDecision) return null;
   const winnerChoseBat = tossDecision.toLowerCase().includes("bat");
   const teamAWonToss = tossWinner.toLowerCase().includes(teamA.toLowerCase().slice(0, 4));
@@ -133,7 +133,7 @@ function getTeamRole(tossWinner: string | null, tossDecision: string | null, tea
 }
 
 /** Check if teamA won from result string like "India won by 7 runs" */
-function didTeamAWin(result: string | null, teamA: string): boolean | null {
+function _localDidTeamAWin(result: string | null, teamA: string): boolean | null {
   if (!result) return null;
   const r = result.toLowerCase();
   if (r.includes("no result") || r.includes("tied") || r.includes("draw")) return null;
