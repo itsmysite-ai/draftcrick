@@ -365,7 +365,7 @@ export default function LiveScreen() {
             ...ai,
             tossWinner: ai.tossWinner || db?.tossWinner || null,
             tossDecision: ai.tossDecision || db?.tossDecision || null,
-            scoreSummary: ai.scoreSummary || db?.scoreSummary || null,
+            scoreSummary: db?.scoreSummary || ai.scoreSummary || null,
             result: ai.result || db?.result || null,
           };
         })
