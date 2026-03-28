@@ -1,5 +1,6 @@
 import { ScrollView as RNScrollView, RefreshControl, ScrollView } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { parseTeamScores, getTeamRole, didTeamAWin } from "../../lib/score-utils";
 import { useState, useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
@@ -53,7 +54,7 @@ function formatCountdown(date: Date): string {
 }
 
 // IPL team abbreviation ↔ name mapping for score parsing
-const TEAM_ABBREV_MAP: Record<string, string[]> = {
+const _LOCAL_TEAM_ABBREV_MAP: Record<string, string[]> = {
   "rcb": ["royal challengers bengaluru", "royal challengers bangalore"],
   "srh": ["sunrisers hyderabad"],
   "csk": ["chennai super kings"],
@@ -66,7 +67,7 @@ const TEAM_ABBREV_MAP: Record<string, string[]> = {
   "gt": ["gujarat titans"],
 };
 
-function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
+function _localParseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
   if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
   const parts = scoreSummary.split(/\s*\|\s*|\s+vs\s+/i);
   const extract = (part: string) => {
@@ -112,14 +113,14 @@ function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string
   return { scoreA, scoreB, oversA, oversB };
 }
 
-function didTeamAWin(result: string | null, teamA: string): boolean | null {
+function _localDidTeamAWin(result: string | null, teamA: string): boolean | null {
   if (!result) return null;
   const r = result.toLowerCase();
   if (r.includes("no result") || r.includes("tied") || r.includes("draw")) return null;
   return r.includes(teamA.toLowerCase().slice(0, 4));
 }
 
-function getTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
+function _localGetTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
   if (!tossWinner || !tossDecision) return null;
   const winnerChoseBat = tossDecision.toLowerCase().includes("bat");
   const teamAWonToss = tossWinner.toLowerCase().includes(teamA.toLowerCase().slice(0, 4));

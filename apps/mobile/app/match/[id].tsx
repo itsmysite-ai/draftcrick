@@ -47,10 +47,10 @@ function parseSafeDate(dateStr?: string, timeStr?: string): Date {
   return isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
-/**
- * Parse "India 253/7 (20 ov) vs England 246/7 (20 ov)" into per-team scores with overs.
- */
-function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
+import { parseTeamScores, getTeamRole, didTeamAWin } from "../../lib/score-utils";
+
+// Legacy parseTeamScores — kept but unused (shadowed by import above)
+function _legacyParseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
   if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
   const parts = scoreSummary.split(/\s+vs\s+/i);
   const extract = (part: string) => {
@@ -333,7 +333,7 @@ export default function MatchScreen() {
         ...rawMatch,
         tossWinner: rawMatch.tossWinner || db?.tossWinner || null,
         tossDecision: rawMatch.tossDecision || db?.tossDecision || null,
-        scoreSummary: rawMatch.scoreSummary || db?.scoreSummary || null,
+        scoreSummary: db?.scoreSummary || rawMatch.scoreSummary || null,
         result: rawMatch.result || db?.result || null,
         draftEnabled: db?.draftEnabled ?? false,
       };
