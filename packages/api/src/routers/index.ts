@@ -19,6 +19,7 @@ import { notificationRouter } from "./notifications";
 import { adminRouter } from "./admin";
 import { subscriptionRouter } from "./subscription";
 import { chatRouter } from "./chat";
+import { auctionAiRouter } from "./auction-ai";
 import { seedCricketData } from "../services/cricket-data";
 
 export const appRouter = router({
@@ -42,6 +43,7 @@ export const appRouter = router({
   admin: adminRouter,
   subscription: subscriptionRouter,
   chat: chatRouter,
+  auctionAi: auctionAiRouter,
 
   seed: publicProcedure.mutation(async ({ ctx }) => {
     return seedCricketData(ctx.db);

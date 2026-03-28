@@ -52,17 +52,44 @@ function formatCountdown(date: Date): string {
   return `${mins}m`;
 }
 
-function parseTeamScores(scoreSummary: string | null | undefined) {
+function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
   if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
-  const parts = scoreSummary.split(/\s+vs\s+/i);
+  // Split on " | " (Cricbuzz format) or " vs " (legacy)
+  const parts = scoreSummary.split(/\s*\|\s*|\s+vs\s+/i);
   const extract = (part: string) => {
-    const s = part.match(/(\d+\/\d+)/);
+    const s = part.match(/(\d+\/\d+|\d+(?=\s*\())/);
     const o = part.match(/\(([^)]+)\)/);
-    return { score: s ? s[1] : null, overs: o ? o[1] : null };
+    return { score: s ? s[1] : null, overs: o ? o[1] : null, raw: part };
   };
-  const a = parts[0] ? extract(parts[0]) : { score: null, overs: null };
-  const b = parts[1] ? extract(parts[1]) : { score: null, overs: null };
-  return { scoreA: a.score, scoreB: b.score, oversA: a.overs, oversB: b.overs };
+
+  // Map each score part to the correct team by matching team name/abbreviation
+  const parsed = parts.map((p) => extract(p));
+  let scoreA: string | null = null, oversA: string | null = null;
+  let scoreB: string | null = null, oversB: string | null = null;
+
+  const matchesTeam = (raw: string, team?: string) => {
+    if (!team) return false;
+    const t = team.toLowerCase();
+    const r = raw.toLowerCase();
+    // Check full name, first word, or common abbreviations
+    return r.includes(t) || r.includes(t.split(" ")[0]!) || t.includes(r.split(":")[0]!.trim());
+  };
+
+  for (const p of parsed) {
+    if (!p.score) continue;
+    if (teamA && matchesTeam(p.raw, teamA)) {
+      scoreA = p.score; oversA = p.overs ?? null;
+    } else if (teamB && matchesTeam(p.raw, teamB)) {
+      scoreB = p.score; oversB = p.overs ?? null;
+    } else if (!scoreA) {
+      // Fallback: first unmatched goes to A, second to B
+      scoreA = p.score; oversA = p.overs ?? null;
+    } else {
+      scoreB = p.score; oversB = p.overs ?? null;
+    }
+  }
+
+  return { scoreA, scoreB, oversA, oversB };
 }
 
 function didTeamAWin(result: string | null, teamA: string): boolean | null {
@@ -98,7 +125,7 @@ function FeaturedMatchCard({
   const startTime = parseSafeDate(match.date, match.time);
   const isLive = match.status === "live";
   const isCompleted = match.status === "completed";
-  const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary);
+  const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary, teamA, teamB);
   const teamARole = getTeamRole(match.tossWinner, match.tossDecision, teamA);
   const teamAWon = didTeamAWin(match.result, teamA);
 
@@ -683,6 +710,12 @@ export default function HomeScreen() {
     staleTime: 30_000,
   });
 
+  // Check for active auctions across user's leagues
+  const activeAuctionsQuery = trpc.league.myActiveAuctions.useQuery(undefined, {
+    enabled: !!user,
+    refetchInterval: 10_000,
+  });
+
   const myLeaguesQuery = trpc.league.myLeagues.useQuery(undefined, {
     enabled: !!user,
     retry: false,
@@ -840,6 +873,38 @@ export default function HomeScreen() {
         }
         contentContainerStyle={{ padding: 20, paddingTop: 10, paddingBottom: 120 }}
       >
+        {/* ── Live Auction Banner ── */}
+        {(activeAuctionsQuery.data ?? []).map((auction: any) => (
+          <Animated.View key={auction.roomId} entering={FadeInDown.delay(0).springify()}>
+            <Card
+              testID="live-auction-banner"
+              marginBottom="$4"
+              padding="$4"
+              borderWidth={2}
+              borderColor="$accentBackground"
+              pressable
+              onPress={() => router.push(`/auction/${auction.roomId}` as any)}
+            >
+              <XStack alignItems="center" justifyContent="space-between">
+                <XStack alignItems="center" gap="$3" flex={1}>
+                  <YStack width={40} height={40} borderRadius={20} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
+                    <Text fontSize={20}>🔨</Text>
+                  </YStack>
+                  <YStack flex={1}>
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                      {formatUIText("auction is live!")}
+                    </Text>
+                    <Text fontFamily="$body" fontSize={12} color="$colorMuted" numberOfLines={1}>
+                      {auction.leagueName} — {formatUIText("tap to join and bid")}
+                    </Text>
+                  </YStack>
+                </XStack>
+                <Badge variant="live" size="sm">LIVE</Badge>
+              </XStack>
+            </Card>
+          </Animated.View>
+        ))}
+
         {/* ── My Contests (authenticated, has contests) ── */}
         {user && (myContestsQuery.data?.length ?? 0) > 0 && (
           <YStack marginBottom="$4">

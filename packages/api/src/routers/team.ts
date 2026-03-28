@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { createTeamSchema } from "@draftplay/shared";
 import { eq, and, inArray, sql } from "drizzle-orm";
-import { fantasyTeams, contests, players, matches, playerMatchScores, leagueMembers, users } from "@draftplay/db";
+import { fantasyTeams, contests, players, matches, playerMatchScores, leagueMembers, users, leagues, draftRooms, draftPicks } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { getPlayerCredits } from "../services/cricket-data";
 import { getEffectiveTeamRules } from "../services/admin-config";
@@ -303,6 +303,56 @@ export const teamRouter = router({
           code: "BAD_REQUEST",
           message: `Found ${playerRecords.length} valid players, need exactly 11`,
         });
+      }
+
+      // --- Auction/Draft roster enforcement ---
+      // In auction or draft leagues, players must come from the user's drafted roster
+      const contestForRoster = input.contestId
+        ? await ctx.db.query.contests.findFirst({
+            where: eq(contests.id, input.contestId),
+            columns: { leagueId: true },
+          })
+        : null;
+
+      if (contestForRoster?.leagueId) {
+        const league = await ctx.db.query.leagues.findFirst({
+          where: eq(leagues.id, contestForRoster.leagueId),
+          columns: { id: true, format: true },
+        });
+
+        if (league && (league.format === "auction" || league.format === "draft")) {
+          const draftRoom = await ctx.db.query.draftRooms.findFirst({
+            where: and(
+              eq(draftRooms.leagueId, league.id),
+              eq(draftRooms.status, "completed"),
+            ),
+            columns: { id: true },
+          });
+
+          if (!draftRoom) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Draft has not been completed for this league yet",
+            });
+          }
+
+          const userPicks = await ctx.db.query.draftPicks.findMany({
+            where: and(
+              eq(draftPicks.roomId, draftRoom.id),
+              eq(draftPicks.userId, ctx.user.id),
+            ),
+            columns: { playerId: true },
+          });
+          const rosterPlayerIds = new Set(userPicks.map((p) => p.playerId));
+
+          const invalidPlayers = playerIds.filter((id) => !rosterPlayerIds.has(id));
+          if (invalidPlayers.length > 0) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `${invalidPlayers.length} player(s) are not in your drafted roster`,
+            });
+          }
+        }
       }
 
       // Role count validation

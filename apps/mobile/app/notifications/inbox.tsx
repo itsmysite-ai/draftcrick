@@ -82,6 +82,12 @@ export default function NotificationInboxScreen() {
       utils.notification.getUnreadCount.invalidate();
     },
   });
+  const clearAllMutation = trpc.notification.clearAll.useMutation({
+    onSuccess: () => {
+      utils.notification.getInbox.invalidate();
+      utils.notification.getUnreadCount.invalidate();
+    },
+  });
 
   const setMatchContext = useNavigationStore((s) => s.setMatchContext);
 
@@ -136,6 +142,25 @@ export default function NotificationInboxScreen() {
       return;
     }
 
+    // Auction/draft room — route based on type
+    if (data?.roomId) {
+      const route = data?.type === "snake_draft" ? `/draft/${data.roomId}` : `/auction/${data.roomId}`;
+      router.push(route as never);
+      return;
+    }
+
+    // Trade notifications — go to league trades page
+    if (data?.tradeId && data?.leagueId) {
+      router.push(`/league/${data.leagueId}/trades` as never);
+      return;
+    }
+
+    // League notifications — go to league page
+    if (data?.leagueId) {
+      router.push(`/league/${data.leagueId}` as never);
+      return;
+    }
+
     if (data?.matchId) {
       router.push(`/match/${data.matchId}` as never);
     } else if (data?.contestId) {
@@ -158,18 +183,28 @@ export default function NotificationInboxScreen() {
             {formatUIText("notifications")}
           </Text>
         </XStack>
-        <XStack alignItems="center" gap="$3">
+        <XStack alignItems="center" gap="$2">
           {items.some((i) => !i.isRead) && (
-            <Text
-              fontFamily="$mono"
-              fontSize={12}
-              color="$colorAccent"
+            <Button
+              variant="secondary"
+              size="sm"
               onPress={() => markAllReadMutation.mutate()}
-              cursor="pointer"
               testID="notification-mark-all-read"
+              disabled={markAllReadMutation.isPending}
             >
               {formatUIText("mark all read")}
-            </Text>
+            </Button>
+          )}
+          {items.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              onPress={() => clearAllMutation.mutate()}
+              testID="notification-clear-all"
+              disabled={clearAllMutation.isPending}
+            >
+              {formatUIText("clear all")}
+            </Button>
           )}
           <HeaderControls hideNotifications />
         </XStack>

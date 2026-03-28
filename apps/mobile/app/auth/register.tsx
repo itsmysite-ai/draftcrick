@@ -200,92 +200,95 @@ export default function RegisterScreen() {
             {isSubmitting ? formatUIText("creating account...") : formatUIText("sign up with google")}
           </Button>
 
-          {/* Email/password sign-up — commented out for beta, Google-only
-          <XStack alignItems="center" marginVertical="$2">
-            <YStack flex={1} height={1} backgroundColor="$borderColor" />
-            <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
-              {formatUIText("or sign up with email")}
-            </Text>
-            <YStack flex={1} height={1} backgroundColor="$borderColor" />
-          </XStack>
+          {/* Email/password sign-up — dev only (local testing), Google-only in production */}
+          {__DEV__ && (
+            <>
+              <XStack alignItems="center" marginVertical="$2">
+                <YStack flex={1} height={1} backgroundColor="$borderColor" />
+                <Text fontFamily="$body" fontSize={13} color="$colorMuted" paddingHorizontal="$3">
+                  {formatUIText("or sign up with email")}
+                </Text>
+                <YStack flex={1} height={1} backgroundColor="$borderColor" />
+              </XStack>
 
-          <TextInput
-            testID="email-input"
-            placeholder={formatUIText("email")}
-            placeholderTextColor={theme.placeholderColor?.val}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={{
-              backgroundColor: theme.backgroundSurface?.val,
-              borderRadius: DesignSystem.radius.lg,
-              padding: 16,
-              color: theme.color?.val,
-              fontSize: 16,
-              borderWidth: 1,
-              borderColor: theme.borderColor?.val,
-              outlineColor: "#3D9968",
-            }}
-          />
-          <YStack>
-            <TextInput
-              testID="password-input"
-              placeholder={formatUIText("password (8+ characters)")}
-              placeholderTextColor={theme.placeholderColor?.val}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              style={{
-                backgroundColor: theme.backgroundSurface?.val,
-                borderRadius: DesignSystem.radius.lg,
-                padding: 16,
-                paddingRight: 48,
-                color: theme.color?.val,
-                fontSize: 16,
-                borderWidth: 1,
-                borderColor: theme.borderColor?.val,
-                outlineColor: "#3D9968",
-              }}
-            />
-            <Pressable
-              onPress={() => setShowPassword(!showPassword)}
-              style={{ position: "absolute", right: 14, top: 16 }}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={22}
-                color={theme.colorMuted?.val}
+              <TextInput
+                testID="email-input"
+                placeholder={formatUIText("email")}
+                placeholderTextColor={theme.placeholderColor?.val}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={{
+                  backgroundColor: theme.backgroundSurface?.val,
+                  borderRadius: DesignSystem.radius.lg,
+                  padding: 16,
+                  color: theme.color?.val,
+                  fontSize: 16,
+                  borderWidth: 1,
+                  borderColor: theme.borderColor?.val,
+                  outlineColor: "#3D9968",
+                }}
               />
-            </Pressable>
-          </YStack>
-
-          <Pressable
-            onPress={() => setAgeConfirmed(!ageConfirmed)}
-            testID="age-confirm-checkbox"
-          >
-            <XStack gap="$3" alignItems="flex-start">
-              <YStack
-                width={22} height={22} borderRadius={4} borderWidth={2}
-                borderColor={ageConfirmed ? "$accentBackground" : "$borderColor"}
-                backgroundColor={ageConfirmed ? "$accentBackground" : "transparent"}
-                alignItems="center" justifyContent="center" marginTop={2}
-              >
-                {ageConfirmed && <Ionicons name="checkmark" size={14} color="white" />}
+              <YStack>
+                <TextInput
+                  testID="password-input"
+                  placeholder={formatUIText("password (8+ characters)")}
+                  placeholderTextColor={theme.placeholderColor?.val}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  style={{
+                    backgroundColor: theme.backgroundSurface?.val,
+                    borderRadius: DesignSystem.radius.lg,
+                    padding: 16,
+                    paddingRight: 48,
+                    color: theme.color?.val,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: theme.borderColor?.val,
+                    outlineColor: "#3D9968",
+                  }}
+                />
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={{ position: "absolute", right: 14, top: 16 }}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={22}
+                    color={theme.colorMuted?.val}
+                  />
+                </Pressable>
               </YStack>
-              <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
-                {formatUIText("i confirm i am 13 years or older")}
-              </Text>
-            </XStack>
-          </Pressable>
 
-          <Button testID="submit-button" variant="primary" size="lg" onPress={handleRegister}
-            disabled={isSubmitting || !ageConfirmed || !termsAccepted}
-            opacity={isSubmitting || !ageConfirmed || !termsAccepted ? 0.4 : 1}
-          >
-            {isSubmitting ? formatUIText("creating account...") : formatUIText("create account")}
-          </Button>
-          */}
+              <Pressable
+                onPress={() => setAgeConfirmed(!ageConfirmed)}
+                testID="age-confirm-checkbox"
+              >
+                <XStack gap="$3" alignItems="flex-start">
+                  <YStack
+                    width={22} height={22} borderRadius={4} borderWidth={2}
+                    borderColor={ageConfirmed ? "$accentBackground" : "$borderColor"}
+                    backgroundColor={ageConfirmed ? "$accentBackground" : "transparent"}
+                    alignItems="center" justifyContent="center" marginTop={2}
+                  >
+                    {ageConfirmed && <Ionicons name="checkmark" size={14} color="white" />}
+                  </YStack>
+                  <Text fontFamily="$body" fontSize={13} color="$colorSecondary" flex={1}>
+                    {formatUIText("i confirm i am 13 years or older")}
+                  </Text>
+                </XStack>
+              </Pressable>
+
+              <Button testID="submit-button" variant="primary" size="lg" onPress={handleRegister}
+                disabled={isSubmitting || !ageConfirmed || !termsAccepted}
+                opacity={isSubmitting || !ageConfirmed || !termsAccepted ? 0.4 : 1}
+              >
+                {isSubmitting ? formatUIText("creating account...") : formatUIText("create account")}
+              </Button>
+            </>
+          )}
 
           <XStack justifyContent="center" marginTop="$2" onPress={() => router.push("/auth/login")} cursor="pointer">
             <Text fontFamily="$body" fontSize={14} color="$colorMuted">

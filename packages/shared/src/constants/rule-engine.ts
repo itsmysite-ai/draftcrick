@@ -173,6 +173,8 @@ export interface AuctionSpecificRules {
   maxPlayersPerTeam: number;
   unsoldPlayerReAuction: boolean;
   rightToMatchEnabled: boolean;
+  basePriceMode: "flat" | "credits" | "percentage";
+  basePricePercent: number; // used when basePriceMode is "percentage" (e.g., 50 = 50% of credits)
 }
 
 // ────────────────────────────────────────
@@ -355,13 +357,15 @@ export const RULE_DEFINITIONS: RuleDefinition[] = [
   // ── Auction Settings (9 rules) ──
   { key: "auction.auctionBudget", label: "Auction Budget", description: "Starting budget for auction bidding", comfortDescription: "How much money for buying players", type: "number", category: "auction", default: 100, min: 50, max: 500 },
   { key: "auction.minBid", label: "Minimum Bid", description: "Minimum opening bid for a player", comfortDescription: "Lowest starting price", type: "number", category: "auction", default: 1, min: 1, max: 10 },
-  { key: "auction.bidIncrement", label: "Bid Increment", description: "Minimum amount to raise a bid", comfortDescription: "Minimum raise amount", type: "number", category: "auction", default: 1, min: 0.5, max: 5, step: 0.5 },
+  { key: "auction.bidIncrement", label: "Bid Increment", description: "Minimum amount to raise a bid", comfortDescription: "Minimum raise amount", type: "number", category: "auction", default: 0.1, min: 0.1, max: 5, step: 0.1 },
   { key: "auction.maxBidTime", label: "Bid Timer (seconds)", description: "Time to place a bid", comfortDescription: "How long to decide on a bid", type: "number", category: "auction", default: 15, min: 5, max: 60 },
   { key: "auction.goingOnceTime", label: "Going Once Time (sec)", description: "Countdown after last bid", comfortDescription: "Countdown before sold", type: "number", category: "auction", default: 5, min: 3, max: 15 },
   { key: "auction.goingTwiceTime", label: "Going Twice Time (sec)", description: "Final countdown", comfortDescription: "Final countdown before sold", type: "number", category: "auction", default: 3, min: 2, max: 10 },
-  { key: "auction.maxPlayersPerTeam", label: "Max Players Per Team", description: "Maximum players each team can buy", comfortDescription: "Most players you can buy", type: "number", category: "auction", default: 11, min: 7, max: 20 },
+  { key: "auction.maxPlayersPerTeam", label: "Squad Size", description: "Players each team can buy (pick 11 for each match)", comfortDescription: "Squad size — pick your playing XI from these", type: "number", category: "auction", default: 14, min: 11, max: 20 },
   { key: "auction.unsoldPlayerReAuction", label: "Re-auction Unsold", description: "Re-auction players nobody bought", comfortDescription: "Try to sell unsold players again", type: "boolean", category: "auction", default: true },
   { key: "auction.rightToMatchEnabled", label: "Right to Match", description: "Previous owner can match highest bid", comfortDescription: "Old owner can match the price", type: "boolean", category: "auction", default: false, advanced: true },
+  { key: "auction.basePriceMode", label: "Base Price Mode", description: "How the opening bid is determined for each player", comfortDescription: "How starting price is set", type: "select", category: "auction", default: "flat", options: [{ value: "flat", label: "Flat (same for all)" }, { value: "credits", label: "Player credits" }, { value: "percentage", label: "% of credits" }] },
+  { key: "auction.basePricePercent", label: "Base Price %", description: "Percentage of player credits used as base price (when mode is '%')", comfortDescription: "What % of player value as starting price", type: "number", category: "auction", default: 50, min: 10, max: 100, step: 5, advanced: true },
 ];
 
 /**

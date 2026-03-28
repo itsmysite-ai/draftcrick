@@ -14,6 +14,7 @@ import {
   InitialsAvatar,
   SegmentTab,
   AnnouncementBanner,
+  AlertModal,
   DesignSystem,
   textStyles,
   formatUIText,
@@ -45,10 +46,22 @@ export default function LeagueDetailScreen() {
   const theme = useTamaguiTheme();
   const [tab, setTab] = useState<"members" | "standings" | "contests">("contests");
   const [showQR, setShowQR] = useState(false);
-  const { data: league, isLoading, refetch } = trpc.league.getById.useQuery({ id: id! });
-  const standings = trpc.league.memberStandings.useQuery({ leagueId: id! }, { enabled: !!id });
-  const leagueContests = trpc.league.leagueContests.useQuery({ leagueId: id! }, { enabled: !!id });
-  const startDraftMutation = trpc.league.startDraft.useMutation({ onSuccess: (room) => { const route = room!.type === "auction" ? `/auction/${room!.id}` as const : `/draft/${room!.id}` as const; router.push(route as any); } });
+  const [confirmAlert, setConfirmAlert] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const { data: league, isLoading, refetch } = trpc.league.getById.useQuery({ id: id! }, { refetchInterval: 10000 });
+  const standings = trpc.league.memberStandings.useQuery({ leagueId: id! }, { enabled: !!id, refetchInterval: 10000 });
+  const leagueContests = trpc.league.leagueContests.useQuery({ leagueId: id! }, { enabled: !!id, refetchInterval: 10000 });
+  // Check for active auction/draft room
+  const { data: draftRooms } = trpc.draft.getRoomsByLeague.useQuery({ leagueId: id! }, { enabled: !!id, refetchInterval: 10000 });
+  const activeDraftRoom = (draftRooms ?? []).find((r: any) => r.status === "waiting" || r.status === "in_progress");
+  const startDraftMutation = trpc.league.startDraft.useMutation({
+    onSuccess: (room) => {
+      const route = room!.type === "auction" ? `/auction/${room!.id}` as const : `/draft/${room!.id}` as const;
+      router.push(route as any);
+    },
+    onError: (err) => {
+      Alert.alert("Error", err.message ?? "Failed to start auction");
+    },
+  });
   const leaveMutation = trpc.league.leave.useMutation({ onSuccess: () => router.back() });
   const kickMutation = trpc.league.kickMember.useMutation({ onSuccess: () => refetch() });
   const promoteMutation = trpc.league.promoteMember.useMutation({ onSuccess: () => refetch() });
@@ -77,17 +90,24 @@ export default function LeagueDetailScreen() {
     </YStack>
   );
 
-  const myMembership = league.members?.find((m: any) => m.userId === user?.id);
-  const isOwner = myMembership?.role === "owner";
+  // Match by DB UUID or by email (user.id is Firebase UID, members use DB UUID)
+  const myMembership = league.members?.find((m: any) =>
+    m.userId === user?.id || m.user?.email === user?.email
+  );
+  const isOwner = myMembership?.role === "owner" || league.ownerId === user?.id;
   const isAdmin = myMembership?.role === "admin" || isOwner;
   const shareLink = `https://app.draftplay.ai/league/join?code=${league.inviteCode}`;
   const shareInvite = () => { Share.share({ message: `${formatUIText("join my draftplay league")} "${league.name}"!\n${shareLink}` }); };
   const handleStartDraft = (type: "snake_draft" | "auction") => {
-    Alert.alert(
-      formatUIText(`start ${type === "auction" ? "auction" : "snake draft"}?`),
-      formatUIText("all members will be notified. this cannot be undone."),
-      [{ text: formatUIText("cancel"), style: "cancel" }, { text: formatUIText("start"), onPress: () => startDraftMutation.mutate({ leagueId: id!, type }) }],
-    );
+    const label = type === "auction" ? "auction" : "snake draft";
+    setConfirmAlert({
+      title: `start ${label}?`,
+      message: "all members will be notified. this cannot be undone.",
+      onConfirm: () => {
+        setConfirmAlert(null);
+        startDraftMutation.mutate({ leagueId: id!, type });
+      },
+    });
   };
   const handleKick = (userId: string, username: string) => {
     Alert.alert(
@@ -161,7 +181,38 @@ export default function LeagueDetailScreen() {
             )}
           </Card>
 
-          {isAdmin && (
+          {/* Active auction/draft — join banner for ALL members */}
+          {activeDraftRoom && (
+            <Card
+              testID="league-active-auction-banner"
+              marginBottom="$4"
+              padding="$4"
+              borderWidth={2}
+              borderColor="$accentBackground"
+              pressable
+              onPress={() => {
+                const route = activeDraftRoom.type === "auction"
+                  ? `/auction/${activeDraftRoom.id}`
+                  : `/draft/${activeDraftRoom.id}`;
+                router.push(route as any);
+              }}
+            >
+              <XStack alignItems="center" justifyContent="space-between">
+                <YStack flex={1}>
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                    {formatUIText(activeDraftRoom.type === "auction" ? "auction is live!" : "draft is live!")}
+                  </Text>
+                  <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
+                    {formatUIText("tap to join and pick your squad")}
+                  </Text>
+                </YStack>
+                <Badge variant="live" size="sm">LIVE</Badge>
+              </XStack>
+            </Card>
+          )}
+
+          {/* Admin controls — only show start button if no active auction */}
+          {isAdmin && !activeDraftRoom && (
             <XStack gap="$3" marginBottom="$4">
               {league.format === "draft" && (
                 <Button testID="league-start-draft-btn" variant="primary" size="md" flex={1} onPress={() => handleStartDraft("snake_draft")}>
@@ -179,15 +230,10 @@ export default function LeagueDetailScreen() {
             </XStack>
           )}
 
-          <Button testID="league-view-trades-btn" variant="secondary" size="md" marginBottom="$4" disabled opacity={0.5}>
-            <XStack alignItems="center" gap="$2">
-              <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
-                {formatUIText("view trades")}
-              </Text>
-              <Badge variant="default" size="sm">
-                {formatBadgeText("coming soon")}
-              </Badge>
-            </XStack>
+          <Button testID="league-view-trades-btn" variant="secondary" size="md" marginBottom="$4" onPress={() => router.push(`/league/${id}/trades` as any)}>
+            <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
+              {formatUIText("view trades")}
+            </Text>
           </Button>
 
           {/* Tab switcher: Contests / Members / Standings */}
@@ -423,6 +469,18 @@ export default function LeagueDetailScreen() {
           </Button>
         ) : null}
       />
+      {confirmAlert && (
+        <AlertModal
+          visible={!!confirmAlert}
+          title={confirmAlert.title}
+          message={confirmAlert.message}
+          onDismiss={() => setConfirmAlert(null)}
+          actions={[
+            { label: "cancel", variant: "ghost", onPress: () => setConfirmAlert(null) },
+            { label: "start", variant: "primary", onPress: confirmAlert.onConfirm },
+          ]}
+        />
+      )}
     </YStack>
   );
 }

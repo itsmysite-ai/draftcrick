@@ -1,6 +1,6 @@
 import type { Database } from "@draftplay/db";
 import { draftRooms, draftPicks } from "@draftplay/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export type AuctionPhase =
   | "waiting"
@@ -36,6 +36,11 @@ export interface AuctionState {
   goingTwiceTime: number;
   phaseDeadline: Date | null;
 
+  // Pre-computed deadlines (set when player is nominated, extended on new bid)
+  biddingEndsAt: Date | null;    // when bidding phase ends → going_once
+  goingOnceEndsAt: Date | null;  // when going_once ends → going_twice
+  goingTwiceEndsAt: Date | null; // when going_twice ends → sold
+
   // Budget tracking: userId -> remaining budget
   budgets: Record<string, number>;
   auctionBudget: number;
@@ -43,6 +48,8 @@ export interface AuctionState {
   bidIncrement: number;
   maxPlayersPerTeam: number;
   unsoldPlayerReAuction: boolean;
+  basePriceMode: "flat" | "credits" | "percentage";
+  basePricePercent: number;
 
   // Results
   soldPlayers: Array<{
@@ -80,6 +87,11 @@ export function validateBid(
     return { valid: false, error: "No player is currently being auctioned" };
   }
 
+  // Reject bids after deadline
+  if (state.phaseDeadline && new Date(state.phaseDeadline).getTime() < Date.now()) {
+    return { valid: false, error: "Time is up — bidding closed" };
+  }
+
   const budget = state.budgets[userId] ?? 0;
   if (amount > budget) {
     return { valid: false, error: "Insufficient budget" };
@@ -111,12 +123,21 @@ export function placeBid(
 ): AuctionState {
   const bid: AuctionBid = { userId, amount, timestamp: Date.now() };
 
+  // New bid resets all deadlines
+  const now = Date.now();
+  const biddingEnds = new Date(now + state.maxBidTime * 1000);
+  const goingOnceEnds = new Date(biddingEnds.getTime() + state.goingOnceTime * 1000);
+  const goingTwiceEnds = new Date(goingOnceEnds.getTime() + state.goingTwiceTime * 1000);
+
   return {
     ...state,
     phase: "bidding",
     currentBids: [...state.currentBids, bid],
     highestBid: bid,
-    phaseDeadline: new Date(Date.now() + state.maxBidTime * 1000),
+    phaseDeadline: biddingEnds,
+    biddingEndsAt: biddingEnds,
+    goingOnceEndsAt: goingOnceEnds,
+    goingTwiceEndsAt: goingTwiceEnds,
   };
 }
 
@@ -142,14 +163,15 @@ export function advancePhase(state: AuctionState): AuctionState {
   }
 
   if (state.phase === "going_twice") {
-    // SOLD!
     if (state.highestBid && state.currentPlayerId) {
+      // SOLD — show sold phase (UI displays confetti), then next advance goes to nominating
       const buyer = state.highestBid.userId;
       const amount = state.highestBid.amount;
 
       return {
         ...state,
         phase: "sold",
+        phaseDeadline: null, // no timer — UI auto-advances after 3s
         soldPlayers: [
           ...state.soldPlayers,
           {
@@ -167,7 +189,6 @@ export function advancePhase(state: AuctionState): AuctionState {
           ...state.teamSizes,
           [buyer]: (state.teamSizes[buyer] ?? 0) + 1,
         },
-        phaseDeadline: null,
       };
     }
 
@@ -175,9 +196,21 @@ export function advancePhase(state: AuctionState): AuctionState {
     return {
       ...state,
       phase: "sold",
+      phaseDeadline: null,
       unsoldPlayerIds: state.currentPlayerId
         ? [...state.unsoldPlayerIds, state.currentPlayerId]
         : state.unsoldPlayerIds,
+    };
+  }
+
+  // "sold" → reset to nominating for next player
+  if (state.phase === "sold") {
+    return {
+      ...state,
+      phase: "nominating",
+      currentPlayerId: null,
+      currentBids: [],
+      highestBid: null,
       phaseDeadline: null,
     };
   }
@@ -186,20 +219,56 @@ export function advancePhase(state: AuctionState): AuctionState {
 }
 
 /**
+ * Calculate base price for a player based on auction settings.
+ */
+export function getBasePrice(state: AuctionState, playerCredits: number): number {
+  switch (state.basePriceMode) {
+    case "credits":
+      return Math.max(state.minBid, playerCredits);
+    case "percentage":
+      return Math.max(state.minBid, Math.round(playerCredits * (state.basePricePercent / 100) * 10) / 10);
+    case "flat":
+    default:
+      return state.minBid;
+  }
+}
+
+/**
  * Start nomination for the next player.
+ * basePrice: the minimum opening bid for this specific player.
  */
 export function startNomination(
   state: AuctionState,
-  playerId: string
+  playerId: string,
+  basePrice?: number,
+  nominatorUserId?: string,
 ): AuctionState {
+  const now = Date.now();
+  const effectiveBase = basePrice ?? state.minBid;
+  const biddingEnds = new Date(now + state.maxBidTime * 1000);
+  const goingOnceEnds = new Date(biddingEnds.getTime() + state.goingOnceTime * 1000);
+  const goingTwiceEnds = new Date(goingOnceEnds.getTime() + state.goingTwiceTime * 1000);
+
+  // Nominator auto-bids at base price (unless their squad is full)
+  const nominatorSquadFull = nominatorUserId
+    ? (state.teamSizes[nominatorUserId] ?? 0) >= state.maxPlayersPerTeam
+    : false;
+  const openingBid: AuctionBid | null = nominatorUserId && !nominatorSquadFull
+    ? { userId: nominatorUserId, amount: effectiveBase, timestamp: now }
+    : null;
+
   return {
     ...state,
     phase: "bidding",
     currentPlayerId: playerId,
-    currentBids: [],
-    highestBid: null,
-    phaseDeadline: new Date(Date.now() + state.maxBidTime * 1000),
+    currentBids: openingBid ? [openingBid] : [],
+    highestBid: openingBid,
+    phaseDeadline: biddingEnds,
+    biddingEndsAt: biddingEnds,
+    goingOnceEndsAt: goingOnceEnds,
+    goingTwiceEndsAt: goingTwiceEnds,
     currentNominatorIndex: state.currentNominatorIndex + 1,
+    minBid: effectiveBase,
   };
 }
 
@@ -249,22 +318,27 @@ export async function loadAuctionState(
     roomId: room.id,
     leagueId: room.leagueId,
     status: room.status as AuctionState["status"],
-    phase: room.status === "in_progress" ? "nominating" : "waiting",
+    phase: (settings._phase as AuctionPhase) ?? (room.status === "in_progress" ? "nominating" : "waiting"),
     pickOrder,
     currentNominatorIndex: room.currentTurn,
-    currentPlayerId: null,
+    currentPlayerId: (settings._currentPlayerId as string) ?? null,
     currentBids: [],
-    highestBid: null,
-    maxBidTime: (settings.maxBidTime as number) ?? 15,
+    highestBid: (settings._highestBid as AuctionBid) ?? null,
+    maxBidTime: (settings.maxBidTime as number) ?? 30,
     goingOnceTime: (settings.goingOnceTime as number) ?? 5,
     goingTwiceTime: (settings.goingTwiceTime as number) ?? 3,
-    phaseDeadline: null,
+    phaseDeadline: room.currentPickDeadline ? new Date(room.currentPickDeadline) : null,
+    biddingEndsAt: settings._biddingEndsAt ? new Date(settings._biddingEndsAt as string) : null,
+    goingOnceEndsAt: settings._goingOnceEndsAt ? new Date(settings._goingOnceEndsAt as string) : null,
+    goingTwiceEndsAt: settings._goingTwiceEndsAt ? new Date(settings._goingTwiceEndsAt as string) : null,
     budgets,
     auctionBudget,
-    minBid: (settings.minBid as number) ?? 1,
-    bidIncrement: (settings.bidIncrement as number) ?? 1,
-    maxPlayersPerTeam: (settings.maxPlayersPerTeam as number) ?? 11,
+    minBid: (settings._currentBasePrice as number) ?? (settings.minBid as number) ?? 1,
+    bidIncrement: (settings.bidIncrement as number) ?? 0.1,
+    maxPlayersPerTeam: (settings.maxPlayersPerTeam as number) ?? 14,
     unsoldPlayerReAuction: (settings.unsoldPlayerReAuction as boolean) ?? true,
+    basePriceMode: (settings.basePriceMode as "flat" | "credits" | "percentage") ?? "flat",
+    basePricePercent: (settings.basePricePercent as number) ?? 50,
     soldPlayers,
     unsoldPlayerIds: [],
     teamSizes,
@@ -281,14 +355,19 @@ export async function persistAuctionSale(
   userId: string,
   amount: number
 ): Promise<void> {
-  await db.insert(draftPicks).values({
-    roomId: state.roomId,
-    userId,
-    playerId,
-    pickNumber: state.soldPlayers.length,
-    round: 1,
-    bidAmount: String(amount),
-  });
+  // Idempotent: unique index on (room_id, player_id) prevents duplicates
+  try {
+    await db.insert(draftPicks).values({
+      roomId: state.roomId,
+      userId,
+      playerId,
+      pickNumber: state.soldPlayers.length,
+      round: 1,
+      bidAmount: String(amount),
+    });
+  } catch {
+    // Duplicate — already persisted by another client, safe to ignore
+  }
 }
 
 /**
@@ -298,12 +377,30 @@ export async function updateAuctionRoom(
   db: Database,
   state: AuctionState
 ): Promise<void> {
+  // Persist live auction state in the settings JSONB so tRPC polling can access it
+  // (phase, currentPlayerId, highestBid are ephemeral but needed for UI rendering)
+  const existingRoom = await db.query.draftRooms.findFirst({
+    where: eq(draftRooms.id, state.roomId),
+    columns: { settings: true },
+  });
+  const existingSettings = (existingRoom?.settings ?? {}) as Record<string, unknown>;
+
   await db
     .update(draftRooms)
     .set({
       status: state.status,
       currentTurn: state.currentNominatorIndex,
       currentPickDeadline: state.phaseDeadline,
+      settings: {
+        ...existingSettings,
+        _phase: state.phase,
+        _currentPlayerId: state.currentPlayerId,
+        _highestBid: state.highestBid,
+        _currentBasePrice: state.currentPlayerId ? state.minBid : null,
+        _biddingEndsAt: state.biddingEndsAt?.toISOString() ?? null,
+        _goingOnceEndsAt: state.goingOnceEndsAt?.toISOString() ?? null,
+        _goingTwiceEndsAt: state.goingTwiceEndsAt?.toISOString() ?? null,
+      },
     })
     .where(eq(draftRooms.id, state.roomId));
 }

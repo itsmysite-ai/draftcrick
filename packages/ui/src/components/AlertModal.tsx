@@ -53,6 +53,11 @@ const ModalCard = styled(YStack, {
  * Replaces native Alert.alert / window.confirm with a styled modal
  * that matches the draftplay.ai design system.
  */
+/** Title case: capitalize first letter of each word */
+function toTitleCase(text: string): string {
+  return text.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function AlertModal({ visible, title, message, actions, onDismiss }: AlertModalProps) {
   if (!visible) return null;
 
@@ -66,7 +71,7 @@ export function AlertModal({ visible, title, message, actions, onDismiss }: Aler
           color="$color"
           marginBottom="$2"
         >
-          {formatUIText(title)}
+          {toTitleCase(title)}
         </Text>
         <Text
           fontFamily="$body"
@@ -75,7 +80,7 @@ export function AlertModal({ visible, title, message, actions, onDismiss }: Aler
           lineHeight={20}
           marginBottom="$5"
         >
-          {formatUIText(message)}
+          {message.charAt(0).toUpperCase() + message.slice(1)}
         </Text>
         <XStack gap="$3" justifyContent="flex-end">
           {actions.map((action, i) => (
@@ -86,7 +91,7 @@ export function AlertModal({ visible, title, message, actions, onDismiss }: Aler
               onPress={action.onPress}
               flex={actions.length <= 2 ? 1 : undefined}
             >
-              {formatUIText(action.label)}
+              {toTitleCase(action.label)}
             </Button>
           ))}
         </XStack>

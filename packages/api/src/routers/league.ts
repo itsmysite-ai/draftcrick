@@ -8,6 +8,7 @@ import type { Database } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "crypto";
 import { getUserTier } from "../services/subscription";
+import { sendBatchNotifications, sendPushNotification, NOTIFICATION_TYPES } from "../services/notifications";
 import { getLogger } from "../lib/logger";
 
 const log = getLogger("league");
@@ -222,12 +223,21 @@ RULES:
 
 Return ONLY a JSON array of 5 strings: ["...", "...", "...", "...", "..."]`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+  let text = "";
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+    text = response.text?.trim() ?? "";
+  } catch (err: any) {
+    log.warn({ err: err.message?.slice(0, 200) }, "Gemini generateQuestion failed, using fallback");
+    return {
+      question,
+      options: ["absolute chaos", "silent assassins", "meme factory", "last over specialists", "chai break champions"],
+    };
+  }
 
-  const text = response.text?.trim() ?? "";
   const match = text.match(/\[[\s\S]*\]/);
   if (!match) {
     return {
@@ -294,21 +304,45 @@ NAME GENERATION RULES:
 
 Return ONLY a JSON array of 5 strings:`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+  let text = "";
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+    text = response.text?.trim() ?? "";
+  } catch (err: any) {
+    log.warn({ err: err.message?.slice(0, 200) }, "Gemini generateName failed, using fallback");
+    return [
+      `${userContext?.groupName || tournament} Warriors`,
+      `${userContext?.groupName || "Cricket"} Mavericks`,
+      `The ${tournament.split(" ")[0]} Legends`,
+      `${userContext?.groupName || "Fantasy"} XI`,
+      `${userContext?.groupName || "Dream"} Strikers`,
+    ];
+  }
 
-  const text = response.text?.trim() ?? "";
   const match = text.match(/\[[\s\S]*\]/);
   if (!match) {
-    throw new Error(`Gemini returned unparseable response: ${text.slice(0, 200)}`);
+    return [
+      `${userContext?.groupName || tournament} Warriors`,
+      `${userContext?.groupName || "Cricket"} Mavericks`,
+      `The ${tournament.split(" ")[0]} Legends`,
+      `${userContext?.groupName || "Fantasy"} XI`,
+      `${userContext?.groupName || "Dream"} Strikers`,
+    ];
   }
 
   const names = JSON.parse(match[0]) as string[];
   const valid = names.filter((n) => typeof n === "string" && n.length > 0 && n.length <= 60);
   if (valid.length < 3) {
-    throw new Error(`Gemini returned too few valid names (${valid.length})`);
+    return [
+      `${userContext?.groupName || tournament} Warriors`,
+      `${userContext?.groupName || "Cricket"} Mavericks`,
+      `The ${tournament.split(" ")[0]} Legends`,
+      `${userContext?.groupName || "Fantasy"} XI`,
+      `${userContext?.groupName || "Dream"} Strikers`,
+    ];
   }
   return valid;
 }
@@ -390,8 +424,8 @@ export const leagueRouter = router({
         role: "owner",
       });
 
-      // Auto-create contests for salary_cap leagues immediately
-      if (input.format === "salary_cap") {
+      // Auto-create contests for all league formats immediately
+      if (input.format === "salary_cap" || input.format === "auction" || input.format === "draft") {
         try {
           const created = await autoCreateContestsForLeague(
             ctx.db,
@@ -528,6 +562,31 @@ export const leagueRouter = router({
       with: { league: true },
     });
     return memberships;
+  }),
+
+  /** Get active auctions across all leagues the user is in */
+  myActiveAuctions: protectedProcedure.query(async ({ ctx }) => {
+    const memberships = await ctx.db.query.leagueMembers.findMany({
+      where: eq(leagueMembers.userId, ctx.user.id),
+      columns: { leagueId: true },
+    });
+    if (memberships.length === 0) return [];
+
+    const leagueIds = memberships.map((m) => m.leagueId);
+    const rooms = await ctx.db.query.draftRooms.findMany({
+      where: and(
+        inArray(draftRooms.leagueId, leagueIds),
+        eq(draftRooms.status, "in_progress"),
+      ),
+      with: { league: true },
+    });
+
+    return rooms.map((r) => ({
+      roomId: r.id,
+      leagueId: r.leagueId,
+      leagueName: (r.league as any)?.name ?? "League",
+      type: r.type,
+    }));
   }),
 
   getById: publicProcedure
@@ -769,7 +828,7 @@ export const leagueRouter = router({
         .values({
           leagueId: input.leagueId,
           type: input.type,
-          status: "waiting",
+          status: "in_progress",
           pickOrder,
           timePerPick,
           settings: input.type === "snake_draft" ? draftSettings : auctionSettings,
@@ -790,6 +849,18 @@ export const leagueRouter = router({
           log.error({ leagueId: input.leagueId, err }, "Failed to auto-create contests on draft start");
         }
       }
+
+      // Notify all members that auction/draft has started
+      const label = input.type === "auction" ? "Auction" : "Draft";
+      const otherMembers = members.filter((m) => m.userId !== ctx.user.id).map((m) => m.userId);
+      sendBatchNotifications(
+        ctx.db,
+        otherMembers,
+        NOTIFICATION_TYPES.STATUS_ALERT,
+        `${label} Started!`,
+        `${league?.name ?? "Your league"}'s ${label.toLowerCase()} is live — join now and pick your squad!`,
+        { leagueId: input.leagueId, roomId: room!.id, type: input.type },
+      ).catch((err) => log.error({ err }, "Failed to send auction start notifications"));
 
       return room;
     }),

@@ -112,6 +112,14 @@ export const notificationRouter = router({
     return { count: result.length };
   }),
 
+  clearAll: protectedProcedure.mutation(async ({ ctx }) => {
+    const result = await ctx.db
+      .delete(notifications)
+      .where(eq(notifications.userId, ctx.user.id))
+      .returning({ id: notifications.id });
+    return { count: result.length };
+  }),
+
   // ── Notification Preferences ──────────────────────────────
 
   getPreferences: protectedProcedure.query(async ({ ctx }) => {

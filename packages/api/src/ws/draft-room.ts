@@ -9,6 +9,7 @@ import {
   getCurrentDrafter,
   startDraft,
 } from "../services/draft-room";
+import { generateAuctionBuzz } from "../services/auction-ai";
 import {
   loadAuctionState,
   validateBid,
@@ -215,11 +216,30 @@ export function registerDraftRoomHandlers(io: Server, db: Database) {
           budgets: newState.budgets,
           teamSizes: newState.teamSizes,
         });
+
+        // Buzz Bot: generate commentary after sale (non-blocking)
+        generateAuctionBuzz("sold", {
+          playerName: state.currentPlayerId,
+          buyerName: newState.highestBid.userId.slice(0, 8),
+          amount: newState.highestBid.amount,
+          soldCount: newState.soldPlayers.length,
+        }).then((msgs) => {
+          if (msgs.length > 0) {
+            draftNamespace.to(`auction:${roomId}`).emit("auction:buzz", { messages: msgs });
+          }
+        }).catch(() => { /* non-critical */ });
       } else if (newState.phase === "sold") {
         // Unsold
         draftNamespace.to(`auction:${roomId}`).emit("auction:unsold", {
           playerId: state.currentPlayerId,
         });
+
+        // Buzz Bot: react to unsold
+        generateAuctionBuzz("unsold", { playerName: state.currentPlayerId }).then((msgs) => {
+          if (msgs.length > 0) {
+            draftNamespace.to(`auction:${roomId}`).emit("auction:buzz", { messages: msgs });
+          }
+        }).catch(() => {});
       } else {
         draftNamespace.to(`auction:${roomId}`).emit("auction:phaseAdvanced", {
           phase: newState.phase,

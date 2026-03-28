@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { eq, and, desc, or } from "drizzle-orm";
-import { trades, leagueMembers, leagues } from "@draftplay/db";
+import { eq, and, desc, or, inArray } from "drizzle-orm";
+import { trades, leagueMembers, leagues, draftRooms, draftPicks } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
+import { sendPushNotification, NOTIFICATION_TYPES } from "../services/notifications";
 
 export const tradeRouter = router({
   /**
@@ -43,7 +44,9 @@ export const tradeRouter = router({
       });
       const rules = (league?.rules ?? {}) as Record<string, unknown>;
       const transferRules = (rules.transfers ?? rules) as Record<string, unknown>;
-      if (transferRules.tradeWindowOpen === false) {
+      // Auction/draft leagues always allow trading (the whole point of having rosters)
+      const isRosterLeague = league?.format === "auction" || league?.format === "draft";
+      if (!isRosterLeague && transferRules.tradeWindowOpen === false) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Trade window is closed" });
       }
 
@@ -62,6 +65,14 @@ export const tradeRouter = router({
           expiresAt,
         })
         .returning();
+
+      // Notify the trade recipient
+      sendPushNotification(
+        ctx.db, input.toUserId, NOTIFICATION_TYPES.STATUS_ALERT,
+        "Trade Proposal",
+        `You have a new trade offer! Review it before it expires in 48 hours.`,
+        { leagueId: input.leagueId, tradeId: trade!.id },
+      ).catch(() => {});
 
       return trade;
     }),
@@ -87,13 +98,134 @@ export const tradeRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Trade has expired" });
       }
 
+      // Find the completed draft room for this league
+      const draftRoom = await ctx.db.query.draftRooms.findFirst({
+        where: and(
+          eq(draftRooms.leagueId, trade.leagueId),
+          eq(draftRooms.status, "completed"),
+        ),
+        columns: { id: true },
+      });
+
+      if (!draftRoom) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No completed draft found for this league" });
+      }
+
+      const offeredPlayerIds = trade.playersOffered as string[];
+      const requestedPlayerIds = trade.playersRequested as string[];
+
+      // Verify fromUser still owns the offered players
+      const fromUserPicks = await ctx.db.query.draftPicks.findMany({
+        where: and(
+          eq(draftPicks.roomId, draftRoom.id),
+          eq(draftPicks.userId, trade.fromUserId),
+          inArray(draftPicks.playerId, offeredPlayerIds),
+        ),
+      });
+      if (fromUserPicks.length !== offeredPlayerIds.length) {
+        await ctx.db.update(trades).set({ status: "rejected" }).where(eq(trades.id, input.tradeId));
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Proposer no longer owns all offered players" });
+      }
+
+      // Verify toUser still owns the requested players
+      const toUserPicks = await ctx.db.query.draftPicks.findMany({
+        where: and(
+          eq(draftPicks.roomId, draftRoom.id),
+          eq(draftPicks.userId, trade.toUserId),
+          inArray(draftPicks.playerId, requestedPlayerIds),
+        ),
+      });
+      if (toUserPicks.length !== requestedPlayerIds.length) {
+        await ctx.db.update(trades).set({ status: "rejected" }).where(eq(trades.id, input.tradeId));
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Recipient no longer owns all requested players" });
+      }
+
+      // --- Salary cap validation (auction leagues only) ---
+      const league = await ctx.db.query.leagues.findFirst({
+        where: eq(leagues.id, trade.leagueId),
+        columns: { id: true, format: true, rules: true },
+      });
+
+      if (league && league.format === "auction") {
+        const rules = (league.rules ?? {}) as Record<string, unknown>;
+        const auctionRules = (rules.auction ?? {}) as Record<string, unknown>;
+        const auctionBudget = (auctionRules.auctionBudget as number) ?? 100;
+
+        // Get ALL picks for each user to compute current totals
+        const allFromPicks = await ctx.db.query.draftPicks.findMany({
+          where: and(eq(draftPicks.roomId, draftRoom.id), eq(draftPicks.userId, trade.fromUserId)),
+          columns: { bidAmount: true },
+        });
+        const allToPicks = await ctx.db.query.draftPicks.findMany({
+          where: and(eq(draftPicks.roomId, draftRoom.id), eq(draftPicks.userId, trade.toUserId)),
+          columns: { bidAmount: true },
+        });
+
+        const sumBids = (picks: { bidAmount: string | null }[]) =>
+          picks.reduce((s, p) => s + Number(p.bidAmount ?? 0), 0);
+
+        const offeredSalary = sumBids(fromUserPicks);
+        const requestedSalary = sumBids(toUserPicks);
+        const fromTotal = sumBids(allFromPicks) - offeredSalary + requestedSalary;
+        const fromBudgetRemaining = auctionBudget - fromTotal;
+        const toTotal = sumBids(allToPicks) - requestedSalary + offeredSalary;
+        const toBudgetRemaining = auctionBudget - toTotal;
+
+        if (fromTotal > auctionBudget) {
+          await ctx.db.update(trades).set({ status: "rejected" }).where(eq(trades.id, input.tradeId));
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Trade would put proposer over salary cap (${fromTotal.toFixed(1)}/${auctionBudget}). Need to free ${(-fromBudgetRemaining).toFixed(1)} more.`,
+          });
+        }
+        if (toTotal > auctionBudget) {
+          await ctx.db.update(trades).set({ status: "rejected" }).where(eq(trades.id, input.tradeId));
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Trade would put recipient over salary cap (${toTotal.toFixed(1)}/${auctionBudget}). Need to free ${(-toBudgetRemaining).toFixed(1)} more.`,
+          });
+        }
+      }
+
+      // --- Execute the swap: transfer ownership in draftPicks ---
+      // Offered players: fromUser → toUser
+      await ctx.db
+        .update(draftPicks)
+        .set({ userId: trade.toUserId })
+        .where(
+          and(
+            eq(draftPicks.roomId, draftRoom.id),
+            eq(draftPicks.userId, trade.fromUserId),
+            inArray(draftPicks.playerId, offeredPlayerIds),
+          )
+        );
+
+      // Requested players: toUser → fromUser
+      await ctx.db
+        .update(draftPicks)
+        .set({ userId: trade.fromUserId })
+        .where(
+          and(
+            eq(draftPicks.roomId, draftRoom.id),
+            eq(draftPicks.userId, trade.toUserId),
+            inArray(draftPicks.playerId, requestedPlayerIds),
+          )
+        );
+
+      // Mark trade as accepted
       const [updated] = await ctx.db
         .update(trades)
         .set({ status: "accepted" })
         .where(eq(trades.id, input.tradeId))
         .returning();
 
-      // TODO: In a full implementation, swap the actual players between teams here
+      // Notify the proposer that their trade was accepted
+      sendPushNotification(
+        ctx.db, trade.fromUserId, NOTIFICATION_TYPES.STATUS_ALERT,
+        "Trade Accepted!",
+        "Your trade has been accepted. Players have been swapped.",
+        { leagueId: trade.leagueId, tradeId: trade.id },
+      ).catch(() => {});
 
       return updated;
     }),
@@ -121,6 +253,14 @@ export const tradeRouter = router({
         .set({ status: "rejected" })
         .where(eq(trades.id, input.tradeId))
         .returning();
+
+      // Notify the proposer that their trade was rejected
+      sendPushNotification(
+        ctx.db, trade.fromUserId, NOTIFICATION_TYPES.STATUS_ALERT,
+        "Trade Rejected",
+        "Your trade offer was declined.",
+        { leagueId: trade.leagueId, tradeId: trade.id },
+      ).catch(() => {});
 
       return updated;
     }),

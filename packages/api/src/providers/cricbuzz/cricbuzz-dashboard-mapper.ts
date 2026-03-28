@@ -214,8 +214,9 @@ function normalizeTeamName(name: string): string {
  */
 function formatInningsScore(innings?: { runs: number; wickets: number; overs: number }): string | null {
   if (!innings) return null;
-  if (innings.wickets === 10) return `${innings.runs} (${innings.overs})`;
-  return `${innings.runs}-${innings.wickets} (${innings.overs})`;
+  const wickets = innings.wickets ?? 0;
+  if (wickets === 10) return `${innings.runs} (${innings.overs})`;
+  return `${innings.runs}/${wickets} (${innings.overs})`;
 }
 
 // ---------------------------------------------------------------------------

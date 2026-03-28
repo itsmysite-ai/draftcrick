@@ -1,8 +1,10 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure, publicProcedure } from "../trpc";
 import { eq, and, desc } from "drizzle-orm";
-import { draftRooms, draftPicks, leagueMembers } from "@draftplay/db";
+import { draftRooms, draftPicks, leagueMembers, players } from "@draftplay/db";
+import { getPlayerCredits } from "../services/cricket-data";
 import { TRPCError } from "@trpc/server";
+import { sendBatchNotifications, sendPushNotification, NOTIFICATION_TYPES } from "../services/notifications";
 import {
   loadDraftState,
   validatePick,
@@ -20,9 +22,26 @@ import {
   startNomination,
   persistAuctionSale,
   updateAuctionRoom,
+  getBasePrice,
 } from "../services/auction-room";
 
+/** Find the next nominator whose squad is not full, skipping full squads */
+function getNextEligibleNominator(state: any): string | null {
+  const len = state.pickOrder.length;
+  for (let i = 0; i < len; i++) {
+    const idx = (state.currentNominatorIndex + i) % len;
+    const uid = state.pickOrder[idx];
+    if ((state.teamSizes[uid] ?? 0) < state.maxPlayersPerTeam) {
+      return uid;
+    }
+  }
+  return null; // all squads full
+}
+
 export const draftRouter = router({
+  /** Server timestamp for clock sync */
+  serverTime: publicProcedure.query(() => ({ now: Date.now() })),
+
   /**
    * Get draft room details
    */
@@ -177,8 +196,11 @@ export const draftRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Auction is not in progress" });
       }
 
-      // Check if it's the nominator's turn
-      const nominator = state.pickOrder[state.currentNominatorIndex % state.pickOrder.length];
+      // Check if it's the nominator's turn (skipping users with full squads)
+      const nominator = getNextEligibleNominator(state);
+      if (!nominator) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "All squads are full — auction should be complete" });
+      }
       if (nominator !== ctx.user.id) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "It's not your turn to nominate" });
       }
@@ -188,8 +210,26 @@ export const draftRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Player already sold" });
       }
 
-      const newState = startNomination(state, input.playerId);
+      // Look up player for base price calculation
+      const player = await ctx.db.query.players.findFirst({
+        where: eq(players.id, input.playerId),
+        columns: { name: true, stats: true },
+      });
+      const playerCredits = getPlayerCredits((player?.stats as Record<string, unknown>) ?? {});
+      const basePrice = getBasePrice(state, playerCredits);
+
+      const newState = startNomination(state, input.playerId, basePrice, ctx.user.id);
       await updateAuctionRoom(ctx.db, newState);
+      // Only notify members who can still bid (squad not full)
+      const activeMembers = state.pickOrder.filter((uid) =>
+        uid !== ctx.user.id && (state.teamSizes[uid] ?? 0) < state.maxPlayersPerTeam
+      );
+      sendBatchNotifications(
+        ctx.db, activeMembers, NOTIFICATION_TYPES.STATUS_ALERT,
+        "Player Nominated!",
+        `${player?.name ?? "A player"} is up for auction — base price ${basePrice} credits!`,
+        { roomId: input.roomId, playerId: input.playerId, type: "auction" },
+      ).catch(() => {});
 
       return {
         playerId: input.playerId,
@@ -215,8 +255,25 @@ export const draftRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: validation.error });
       }
 
+      // Track previous highest bidder before placing new bid
+      const previousBidder = state.highestBid?.userId;
+
       const newState = placeBid(state, ctx.user.id, input.amount);
       await updateAuctionRoom(ctx.db, newState);
+
+      // Notify previous highest bidder they've been outbid
+      if (previousBidder && previousBidder !== ctx.user.id) {
+        const player = await ctx.db.query.players.findFirst({
+          where: eq(players.id, state.currentPlayerId!),
+          columns: { name: true },
+        });
+        sendPushNotification(
+          ctx.db, previousBidder, NOTIFICATION_TYPES.STATUS_ALERT,
+          "You've Been Outbid!",
+          `Someone bid ${input.amount} Cr on ${player?.name ?? "a player"} — bid again before time runs out!`,
+          { roomId: input.roomId, type: "auction" },
+        ).catch(() => {});
+      }
 
       return {
         highestBid: newState.highestBid,
@@ -230,10 +287,33 @@ export const draftRouter = router({
    * Get auction state
    */
   getAuctionState: protectedProcedure
-    .input(z.object({ roomId: z.string().uuid() }))
+    .input(z.object({ roomId: z.string().uuid(), poolExhausted: z.boolean().optional() }))
     .query(async ({ ctx, input }) => {
       const state = await loadAuctionState(ctx.db, input.roomId);
       if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "Auction room not found" });
+
+      // Auto-complete if pool is exhausted and all users have minimum squad
+      if (state.status === "in_progress" && state.phase === "nominating" && !state.currentPlayerId) {
+        const allHaveMinimum = state.pickOrder.every(
+          (uid) => (state.teamSizes[uid] ?? 0) >= 11
+        );
+        const allFull = state.pickOrder.every(
+          (uid) => (state.teamSizes[uid] ?? 0) >= state.maxPlayersPerTeam
+        );
+
+        if (allFull || (input.poolExhausted && allHaveMinimum)) {
+          state.status = "completed";
+          state.phase = "completed" as any;
+          await updateAuctionRoom(ctx.db, state);
+
+          sendBatchNotifications(
+            ctx.db, state.pickOrder, NOTIFICATION_TYPES.STATUS_ALERT,
+            "Auction Complete!",
+            "All players have been picked. Check your report card!",
+            { roomId: input.roomId, type: "auction" },
+          ).catch(() => {});
+        }
+      }
 
       return {
         roomId: state.roomId,
@@ -246,7 +326,223 @@ export const draftRouter = router({
         teamSizes: state.teamSizes,
         soldPlayers: state.soldPlayers,
         unsoldPlayerIds: state.unsoldPlayerIds,
-        currentNominator: state.pickOrder[state.currentNominatorIndex % state.pickOrder.length],
+        currentNominator: getNextEligibleNominator(state),
+        maxPlayersPerTeam: state.maxPlayersPerTeam,
+        minBid: state.minBid,
+        bidIncrement: state.bidIncrement,
+        auctionBudget: state.auctionBudget,
+        leagueId: state.leagueId,
+        biddingEndsAt: state.biddingEndsAt,
+        goingOnceEndsAt: state.goingOnceEndsAt,
+        goingTwiceEndsAt: state.goingTwiceEndsAt,
+      };
+    }),
+
+  /**
+   * Advance auction phase (bidding → going_once → going_twice → sold).
+   * Called by the UI when the countdown timer expires.
+   */
+  advancePhase: protectedProcedure
+    .input(z.object({
+      roomId: z.string().uuid(),
+      expectedPhase: z.string().optional(), // client sends current phase to prevent stale advances
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const state = await loadAuctionState(ctx.db, input.roomId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "Auction room not found" });
+
+      // Don't advance if phase can't be advanced
+      if (state.phase === "nominating" || state.phase === "waiting" || state.status === "completed") {
+        return {
+          phase: state.phase,
+          previousPhase: state.phase,
+          soldPlayerId: null,
+          buyerId: null,
+          amount: null,
+        };
+      }
+
+      // Advance through all expired phases in one call
+      // (bidding → going_once → going_twice → sold if all deadlines have passed)
+      let current = state;
+      const originalPhase = state.phase;
+      let wasSold = false;
+
+      for (let i = 0; i < 4; i++) { // max 4 transitions to prevent infinite loop
+        const next = advancePhase(current);
+        if (next.phase === current.phase) break; // no change, stop
+
+        // Check if a sale happened
+        if (current.phase === "going_twice" && next.phase === "sold" && current.highestBid && current.currentPlayerId) {
+          wasSold = true;
+          await persistAuctionSale(ctx.db, next, current.currentPlayerId, current.highestBid.userId, current.highestBid.amount);
+        }
+
+        current = next;
+
+        // Stop if we reached a phase that has a future deadline (not expired yet)
+        if (current.phaseDeadline && new Date(current.phaseDeadline).getTime() > Date.now()) break;
+        // Stop at sold (let the next call advance to nominating)
+        if (current.phase === "sold" || current.phase === "nominating") break;
+      }
+
+      // Get available player pool to check if auction should end
+      const draftedIds = new Set(current.soldPlayers.map((sp: any) => sp.playerId));
+      const availableCount = await ctx.db.query.players.findMany({
+        where: eq(players.isDisabled, false),
+        columns: { id: true },
+        limit: 300,
+      }).then((all) => all.filter((p) => !draftedIds.has(p.id)).length);
+
+      // Check if auction is complete:
+      // 1. All users have full squads, OR
+      // 2. No more players available in the pool, OR
+      // 3. All users have at least 11 and pool is exhausted
+      const allFull = current.pickOrder.every(
+        (uid: string) => (current.teamSizes[uid] ?? 0) >= current.maxPlayersPerTeam
+      );
+      const allHaveMinimum = current.pickOrder.every(
+        (uid: string) => (current.teamSizes[uid] ?? 0) >= 11
+      );
+
+      if (allFull || (availableCount === 0 && allHaveMinimum)) {
+        current = { ...current, status: "completed", phase: "completed" as any };
+      }
+
+      // Auto-buy: if only one user has slots remaining, auto-fill at base price
+      if (current.phase === "nominating" && current.status !== "completed") {
+        const usersWithSlots = current.pickOrder.filter(
+          (uid: string) => (current.teamSizes[uid] ?? 0) < current.maxPlayersPerTeam
+        );
+
+        if (usersWithSlots.length === 1 && availableCount > 0) {
+          const lastUser = usersWithSlots[0]!;
+          const slotsNeeded = Math.min(
+            current.maxPlayersPerTeam - (current.teamSizes[lastUser] ?? 0),
+            availableCount
+          );
+
+          // Get available players from DB
+          const allDbPlayers = await ctx.db.query.players.findMany({
+            where: eq(players.isDisabled, false),
+            columns: { id: true, stats: true },
+            limit: 300,
+          });
+          const available = allDbPlayers.filter((p) => !draftedIds.has(p.id));
+          const toAutoBuy = available.slice(0, slotsNeeded);
+
+          for (const p of toAutoBuy) {
+            const credits = getPlayerCredits((p.stats as Record<string, unknown>) ?? {});
+            const price = getBasePrice(current, credits);
+
+            await persistAuctionSale(ctx.db, current, p.id, lastUser, price);
+            current.soldPlayers.push({
+              playerId: p.id,
+              userId: lastUser,
+              amount: price,
+              pickNumber: current.soldPlayers.length + 1,
+            });
+            current.budgets[lastUser] = (current.budgets[lastUser] ?? 0) - price;
+            current.teamSizes[lastUser] = (current.teamSizes[lastUser] ?? 0) + 1;
+          }
+
+          if (toAutoBuy.length > 0) {
+            sendPushNotification(
+              ctx.db, lastUser, NOTIFICATION_TYPES.STATUS_ALERT,
+              "Auto-Pick Complete!",
+              `${toAutoBuy.length} player(s) were auto-picked at base price to complete your squad.`,
+              { roomId: input.roomId, type: "auction" },
+            ).catch(() => {});
+          }
+
+          // Check completion again after auto-buy
+          const nowAllFull = current.pickOrder.every(
+            (uid: string) => (current.teamSizes[uid] ?? 0) >= current.maxPlayersPerTeam
+          );
+          const nowAllMinimum = current.pickOrder.every(
+            (uid: string) => (current.teamSizes[uid] ?? 0) >= 11
+          );
+          const nowAvailable = available.length - toAutoBuy.length;
+
+          if (nowAllFull || nowAvailable === 0 && nowAllMinimum) {
+            current = { ...current, status: "completed", phase: "completed" as any };
+          }
+        }
+      }
+
+      await updateAuctionRoom(ctx.db, current);
+
+      // --- Notifications (non-blocking) ---
+      if (wasSold && state.currentPlayerId && state.highestBid) {
+        const soldPlayer = await ctx.db.query.players.findFirst({
+          where: eq(players.id, state.currentPlayerId),
+          columns: { name: true },
+        });
+        const pName = soldPlayer?.name ?? "A player";
+        const buyerId = state.highestBid.userId;
+        const amount = state.highestBid.amount;
+
+        // Notify active members (skip squad-complete users who are just watching)
+        const activeMembers = state.pickOrder.filter((uid) =>
+          uid !== buyerId && (current.teamSizes[uid] ?? 0) < current.maxPlayersPerTeam
+        );
+        sendBatchNotifications(
+          ctx.db, activeMembers, NOTIFICATION_TYPES.STATUS_ALERT,
+          "Player Sold!",
+          `${pName} sold for ${amount} Cr`,
+          { roomId: input.roomId, type: "auction" },
+        ).catch(() => {});
+
+        // Notify winner specifically
+        sendPushNotification(
+          ctx.db, buyerId, NOTIFICATION_TYPES.STATUS_ALERT,
+          "You Won!",
+          `${pName} is yours for ${amount} Cr!`,
+          { roomId: input.roomId, type: "auction" },
+        ).catch(() => {});
+
+        // Check if buyer's squad just became full — send one-time notification
+        const buyerTeamSize = current.teamSizes[buyerId] ?? 0;
+        if (buyerTeamSize >= current.maxPlayersPerTeam) {
+          sendPushNotification(
+            ctx.db, buyerId, NOTIFICATION_TYPES.STATUS_ALERT,
+            "Squad Complete!",
+            `You have ${buyerTeamSize} players — your squad is locked in. Sit back and enjoy the rest of the auction!`,
+            { roomId: input.roomId, type: "auction" },
+          ).catch(() => {});
+        }
+      }
+
+      // Notify next nominator it's their turn
+      if (current.phase === "nominating" && current.status !== "completed") {
+        const nextNominator = current.pickOrder[current.currentNominatorIndex % current.pickOrder.length];
+        if (nextNominator) {
+          sendPushNotification(
+            ctx.db, nextNominator, NOTIFICATION_TYPES.URGENT_DEADLINE,
+            "Your Turn!",
+            "It's your turn to nominate a player for auction",
+            { roomId: input.roomId, type: "auction" },
+          ).catch(() => {});
+        }
+      }
+
+      // Notify all: auction complete
+      if (current.status === "completed") {
+        sendBatchNotifications(
+          ctx.db, state.pickOrder, NOTIFICATION_TYPES.STATUS_ALERT,
+          "Auction Complete!",
+          "All squads are locked. Check your report card to see how you did!",
+          { roomId: input.roomId, type: "auction" },
+        ).catch(() => {});
+      }
+
+      return {
+        phase: current.phase,
+        previousPhase: originalPhase,
+        auctionCompleted: current.status === "completed",
+        soldPlayerId: wasSold ? state.currentPlayerId : null,
+        buyerId: wasSold ? state.highestBid?.userId : null,
+        amount: wasSold ? state.highestBid?.amount : null,
       };
     }),
 });
