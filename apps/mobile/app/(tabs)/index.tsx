@@ -81,16 +81,17 @@ function parseTeamScores(scoreSummary: string | null | undefined, teamA?: string
 
   const matchesTeam = (raw: string, team?: string) => {
     if (!team) return false;
-    const abbr = raw.toLowerCase().split(":")[0]!.trim(); // "srh" from "SRH: 88/3"
+    // Extract team name from score part: "SRH: 88/3 (10.2)" or "SRH 88/3 (10.2)"
+    const abbr = raw.replace(/[:\s].*$/, "").toLowerCase().trim(); // "srh"
     const t = team.toLowerCase();
-    // Direct: "srh" === "srh" or "sunrisers hyderabad" === "sunrisers hyderabad"
+    // Direct: "srh" === "srh"
     if (abbr === t) return true;
-    // Abbreviation lookup: "srh" matches "sunrisers hyderabad"
+    // Abbreviation lookup: "srh" → ["sunrisers hyderabad"] matches team
     const abbrNames = TEAM_ABBREV_MAP[abbr];
     if (abbrNames && abbrNames.some((n) => t.includes(n) || n.includes(t))) return true;
-    // Reverse: team is "srh", raw abbr is in the map
-    const teamAbbr = Object.entries(TEAM_ABBREV_MAP).find(([, names]) => names.some((n) => t.includes(n)));
-    if (teamAbbr && teamAbbr[0] === abbr) return true;
+    // Reverse: team is "sunrisers hyderabad" → find its abbreviation → match against abbr
+    const teamEntry = Object.entries(TEAM_ABBREV_MAP).find(([, names]) => names.some((n) => t.includes(n) || n.includes(t)));
+    if (teamEntry && teamEntry[0] === abbr) return true;
     return false;
   };
 
