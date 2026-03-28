@@ -89,6 +89,10 @@ export default function ContestDetailScreen() {
 
   const contest = trpc.contest.getById.useQuery({ id: id! }, { enabled: !!id });
   const c = contest.data as any;
+  const contestLeagueId = c?.leagueId;
+  const leagueQuery = trpc.league.getById.useQuery({ id: contestLeagueId! }, { enabled: !!contestLeagueId, staleTime: Infinity });
+  const isAuctionLeague = (leagueQuery.data as any)?.format === "auction" || (leagueQuery.data as any)?.format === "draft";
+  const teamBuilderRoute = isAuctionLeague ? "/team/pick-xi" : "/team/create";
   const isLiveMatch = c?.status === "live" || c?.match?.status === "live";
   const standings = trpc.contest.getStandings.useQuery({ contestId: id! }, { enabled: !!id, refetchInterval: isLiveMatch ? 5_000 : undefined });
   const myContests = trpc.contest.myContests.useQuery(undefined, { retry: false });
@@ -463,7 +467,7 @@ export default function ContestDetailScreen() {
               <Button variant="secondary" size="sm" onPress={() => {
                 if (match) {
                   useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament });
-                  router.push("/team/create");
+                  router.push(teamBuilderRoute as any);
                 }
               }} testID="success-change-team-btn">
                 {formatUIText("change team")}
@@ -870,7 +874,7 @@ export default function ContestDetailScreen() {
             ) : (
               <YStack gap="$3">
                 {/* Change team — always visible when joined */}
-                <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="change-team-btn">
+                <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push(teamBuilderRoute as any); } }} testID="change-team-btn">
                   {formatUIText("change team")}
                 </Button>
                 {swappableTeams.length > 0 && (
@@ -902,7 +906,7 @@ export default function ContestDetailScreen() {
               </YStack>
             )
           ) : (
-            <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push("/team/create"); } }} testID="join-contest-btn">
+            <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push(teamBuilderRoute as any); } }} testID="join-contest-btn">
               {c.entryFee === 0 ? formatUIText("join free") : `${formatUIText("join")} ${c.entryFee} PC`}
             </Button>
           )

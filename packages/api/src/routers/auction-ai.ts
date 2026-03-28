@@ -237,13 +237,14 @@ export const auctionAiRouter = router({
         null, // team rating calculated inside
       );
 
-      // Tier gating: Free gets overall grade + summary only
+      // Tier gating: Free gets grade + summary + squad (AI insights gated)
       const tier = ctx.tier ?? "basic";
       if (!tierAtLeast(tier, "pro")) {
         return {
           overallGrade: report.overallGrade,
           overallScore: report.overallScore,
           summary: report.summary,
+          squad: report.squad, // Squad visible to all users
           bestValue: null,
           worstValue: null,
           teamStrengths: [],

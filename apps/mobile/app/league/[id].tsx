@@ -53,6 +53,7 @@ export default function LeagueDetailScreen() {
   // Check for active auction/draft room
   const { data: draftRooms } = trpc.draft.getRoomsByLeague.useQuery({ leagueId: id! }, { enabled: !!id, refetchInterval: 10000 });
   const activeDraftRoom = (draftRooms ?? []).find((r: any) => r.status === "waiting" || r.status === "in_progress");
+  const completedDraftRoom = (draftRooms ?? []).find((r: any) => r.status === "completed");
   const startDraftMutation = trpc.league.startDraft.useMutation({
     onSuccess: (room) => {
       const route = room!.type === "auction" ? `/auction/${room!.id}` as const : `/draft/${room!.id}` as const;
@@ -211,8 +212,33 @@ export default function LeagueDetailScreen() {
             </Card>
           )}
 
-          {/* Admin controls — only show start button if no active auction */}
-          {isAdmin && !activeDraftRoom && (
+          {/* Completed auction — report card button for ALL members */}
+          {completedDraftRoom && (
+            <Card
+              testID="league-report-card-banner"
+              marginBottom="$4"
+              padding="$4"
+              borderWidth={1}
+              borderColor="$accentBackground"
+              pressable
+              onPress={() => router.push(`/auction/report?roomId=${completedDraftRoom.id}` as any)}
+            >
+              <XStack alignItems="center" justifyContent="space-between">
+                <YStack flex={1}>
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$accentBackground">
+                    {formatUIText("auction complete")}
+                  </Text>
+                  <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={2}>
+                    {formatUIText("view your report card and squad")}
+                  </Text>
+                </YStack>
+                <Badge variant="default" size="sm">REPORT</Badge>
+              </XStack>
+            </Card>
+          )}
+
+          {/* Admin controls — only show start button if no active or completed auction */}
+          {isAdmin && !activeDraftRoom && !completedDraftRoom && (
             <XStack gap="$3" marginBottom="$4">
               {league.format === "draft" && (
                 <Button testID="league-start-draft-btn" variant="primary" size="md" flex={1} onPress={() => handleStartDraft("snake_draft")}>

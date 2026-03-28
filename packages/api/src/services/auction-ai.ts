@@ -56,17 +56,35 @@ export interface TradeEvaluation {
   warnings: string[];
 }
 
+export interface SquadPlayer {
+  name: string;
+  role: string;
+  team: string;
+  credits: number;
+  salary: number;
+  nationality: string | null;
+  photoUrl: string | null;
+  average: number | null;
+  strikeRate: number | null;
+  economyRate: number | null;
+  matchesPlayed: number | null;
+  recentForm: number | null;
+  injuryStatus: string | null;
+  formNote: string | null;
+}
+
 export interface AuctionReportCard {
   overallGrade: string;
   overallScore: number;
   teamRating: TeamRating | null;
-  bestValue: { playerName: string; salary: number; projected: number; valueRatio: number } | null;
-  worstValue: { playerName: string; salary: number; projected: number; valueRatio: number } | null;
+  bestValue: { playerName: string; salary: number; projected: number; valueRatio: number; credits?: number } | null;
+  worstValue: { playerName: string; salary: number; projected: number; valueRatio: number; credits?: number } | null;
   teamStrengths: string[];
   teamWeaknesses: string[];
   suggestedTradeTargets: string[];
   budgetEfficiency: number; // 0-100
   summary: string;
+  squad: SquadPlayer[];
 }
 
 export interface WaiverRecommendation {
@@ -443,7 +461,7 @@ export async function generateAuctionReportCard(
   const { getPlayerCredits } = await import("./cricket-data");
   const playerStats = await db.query.players.findMany({
     where: inArray(players.id, picks.map((p) => p.playerId)),
-    columns: { id: true, stats: true },
+    columns: { id: true, stats: true, nationality: true, photoUrl: true },
   });
   const creditsMap = new Map(playerStats.map((p) => [
     p.id,
@@ -559,6 +577,29 @@ export async function generateAuctionReportCard(
     (bestValue ? `Best bargain: ${bestValue.playerName} (${bestValue.credits.toFixed(1)} Cr player for ${bestValue.salary.toFixed(1)} Cr). ` : "") +
     (weaknesses.length > 0 ? `Key gap: ${weaknesses[0]}.` : "Well-balanced squad!");
 
+  // Build squad with full player details
+  const playerStatsMap = new Map(playerStats.map((p) => [p.id, { stats: p.stats as Record<string, unknown>, nationality: p.nationality, photoUrl: p.photoUrl }]));
+  const squad: SquadPlayer[] = pickValues.map((p) => {
+    const pData = playerStatsMap.get(picks.find((pk) => pk.playerName === p.playerName)?.playerId ?? "") ?? { stats: {}, nationality: null };
+    const s = pData.stats ?? {};
+    return {
+      name: p.playerName,
+      role: p.role,
+      team: p.team,
+      credits: p.credits,
+      salary: p.salary,
+      nationality: pData.nationality,
+      photoUrl: pData.photoUrl ?? null,
+      average: (s.average as number) ?? null,
+      strikeRate: (s.strikeRate as number) ?? null,
+      economyRate: (s.economyRate as number) ?? null,
+      matchesPlayed: (s.matchesPlayed as number) ?? null,
+      recentForm: (s.recentForm as number) ?? null,
+      injuryStatus: (s.injuryStatus as string) ?? null,
+      formNote: (s.formNote as string) ?? null,
+    };
+  }).sort((a, b) => b.credits - a.credits); // Sort by credits descending
+
   const report: AuctionReportCard = {
     overallGrade,
     overallScore,
@@ -570,6 +611,7 @@ export async function generateAuctionReportCard(
     suggestedTradeTargets,
     budgetEfficiency,
     summary,
+    squad,
   };
 
   await setHotCache(cacheKey, report, 7200); // 2hr

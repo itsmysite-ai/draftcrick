@@ -7,6 +7,16 @@ export const playerRouter = router({
   /**
    * List all players (for draft/auction rooms)
    */
+  /** Get players by IDs (for auction squad team builder) */
+  getByIds: publicProcedure
+    .input(z.object({ ids: z.array(z.string().uuid()) }))
+    .query(async ({ ctx, input }) => {
+      if (input.ids.length === 0) return [];
+      return ctx.db.query.players.findMany({
+        where: inArray(players.id, input.ids),
+      });
+    }),
+
   list: publicProcedure.query(async ({ ctx }) => {
     return ctx.db.query.players.findMany({
       where: eq(players.isDisabled, false),

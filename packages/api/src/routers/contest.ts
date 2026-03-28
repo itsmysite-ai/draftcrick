@@ -12,6 +12,15 @@ import {
 } from "../services/leaderboard";
 
 export const contestRouter = router({
+  /** Get a single contest by ID */
+  getById: publicProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.query.contests.findFirst({
+        where: eq(contests.id, input.id),
+      }) ?? null;
+    }),
+
   /**
    * List contests for a match
    */
