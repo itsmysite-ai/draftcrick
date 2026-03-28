@@ -782,12 +782,18 @@ export default function TeamBuilderScreen() {
                   borderWidth={isPreSelected ? 2 : 1}
                   borderColor={isPreSelected ? "$accentBackground" : "$borderColor"}
                   onPress={() => {
-                    // Set contestId in nav store and advance
+                    // Set contestId in nav store
                     const ctx = navCtx;
                     if (ctx) {
                       useNavigationStore.getState().setMatchContext({ ...ctx, contestId: c.id });
                     }
-                    setStep("pick");
+                    // Auction/draft league → redirect to Pick XI screen
+                    const leagueFormat = (c as any).league?.format;
+                    if (leagueFormat === "auction" || leagueFormat === "draft") {
+                      router.replace("/team/pick-xi" as any);
+                    } else {
+                      setStep("pick");
+                    }
                   }}
                   testID={`contest-option-${c.id}`}
                 >

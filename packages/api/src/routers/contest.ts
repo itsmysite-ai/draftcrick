@@ -45,7 +45,7 @@ export const contestRouter = router({
         limit: input.limit,
         with: {
           league: {
-            columns: { id: true, name: true, ownerId: true },
+            columns: { id: true, name: true, ownerId: true, format: true },
           },
         },
       });
