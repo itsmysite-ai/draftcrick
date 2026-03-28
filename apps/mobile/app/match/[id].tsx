@@ -47,98 +47,10 @@ function parseSafeDate(dateStr?: string, timeStr?: string): Date {
   return isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
-import { parseTeamScores, getTeamRole, didTeamAWin } from "../../lib/score-utils";
+import { parseTeamScores, didTeamAWin } from "../../lib/score-utils";
 
 // Legacy parseTeamScores — kept but unused (shadowed by import above)
-function _legacyParseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
-  if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
-  const parts = scoreSummary.split(/\s+vs\s+/i);
-  const extract = (part: string) => {
-    const scoreMatch = part.match(/(\d+\/\d+)/);
-    const oversMatch = part.match(/\(([^)]+)\)/);
-    // Extract team abbreviation (text before the score digits)
-    const teamLabel = part.match(/^([A-Za-z\s]+?)\s*\d/)?.[1]?.trim() || null;
-    return {
-      score: scoreMatch ? scoreMatch[1] : null,
-      overs: oversMatch ? oversMatch[1] : null,
-      teamLabel,
-    };
-  };
-
-  if (parts.length >= 2) {
-    // "IND 253/7 (20 ov) vs ENG 246/7 (20 ov)" — two parts, assign by position or match team names
-    const a = extract(parts[0]!);
-    const b = extract(parts[1]!);
-
-    // Match labels to teams — handles abbreviations like "AUSW" for "Australia Women"
-    if (teamA && teamB && a.teamLabel && b.teamLabel) {
-      const matchesTeam = (label: string, teamName: string): boolean => {
-        const l = label.toLowerCase().replace(/[^a-z]/g, "");
-        const t = teamName.toLowerCase().replace(/[^a-z]/g, "");
-        // Direct inclusion
-        if (t.includes(l) || l.includes(t)) return true;
-        // First N chars match (abbreviation like "ausw" → "australiawomen")
-        if (t.startsWith(l.slice(0, 3)) || l.startsWith(t.slice(0, 3))) return true;
-        // Abbreviation built from first letters of words
-        const words = teamName.toLowerCase().split(/\s+/);
-        const abbr = words.map(w => w[0]).join("");
-        if (abbr === l || l.startsWith(abbr)) return true;
-        // First word match (e.g., "west" for "West Indies Women")
-        if (words[0] && (l.includes(words[0]) || words[0].includes(l.slice(0, 4)))) return true;
-        return false;
-      };
-      const part0MatchesA = matchesTeam(a.teamLabel, teamA);
-      const part0MatchesB = matchesTeam(a.teamLabel, teamB);
-      // If first part matches teamB (not teamA), scores are swapped
-      if (part0MatchesB && !part0MatchesA) {
-        return { scoreA: b.score, scoreB: a.score, oversA: b.overs, oversB: a.overs };
-      }
-    }
-    return { scoreA: a.score, scoreB: b.score, oversA: a.overs, oversB: b.overs };
-  }
-
-  // Single score (e.g. "AUSW 156/5 (18.5)") — match team label to determine which team it belongs to
-  const single = extract(parts[0]!);
-  if (single.teamLabel && teamA && teamB) {
-    const matchesTeam = (label: string, teamName: string): boolean => {
-      const l = label.toLowerCase().replace(/[^a-z]/g, "");
-      const t = teamName.toLowerCase().replace(/[^a-z]/g, "");
-      if (t.includes(l) || l.includes(t)) return true;
-      if (t.startsWith(l.slice(0, 3)) || l.startsWith(t.slice(0, 3))) return true;
-      const words = teamName.toLowerCase().split(/\s+/);
-      const abbr = words.map(w => w[0]).join("");
-      if (abbr === l || l.startsWith(abbr)) return true;
-      if (words[0] && (l.includes(words[0]) || words[0].includes(l.slice(0, 4)))) return true;
-      return false;
-    };
-    const isTeamB = matchesTeam(single.teamLabel, teamB) && !matchesTeam(single.teamLabel, teamA);
-    if (isTeamB) {
-      return { scoreA: null, scoreB: single.score, oversA: null, oversB: single.overs };
-    }
-  }
-  // Default: assign to scoreA (first team)
-  return { scoreA: single.score, scoreB: null, oversA: single.overs, oversB: null };
-}
-
-/**
- * Determine bat/bowl role for each team from toss info.
- * Returns "bat" or "bowl" for teamA (teamB is the opposite).
- */
-function _localGetTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
-  if (!tossWinner || !tossDecision) return null;
-  const winnerChoseBat = tossDecision.toLowerCase().includes("bat");
-  const teamAWonToss = tossWinner.toLowerCase().includes(teamA.toLowerCase().slice(0, 4));
-  if (teamAWonToss) return winnerChoseBat ? "bat" : "bowl";
-  return winnerChoseBat ? "bowl" : "bat";
-}
-
-/** Check if teamA won from result string like "India won by 7 runs" */
-function _localDidTeamAWin(result: string | null, teamA: string): boolean | null {
-  if (!result) return null;
-  const r = result.toLowerCase();
-  if (r.includes("no result") || r.includes("tied") || r.includes("draw")) return null;
-  return r.includes(teamA.toLowerCase().slice(0, 4));
-}
+// Score parsing, team role, and win detection imported from ../../lib/score-utils
 
 function formatCountdown(date: Date): string {
   const diffMs = date.getTime() - Date.now();
@@ -398,7 +310,7 @@ export default function MatchScreen() {
   const scoreB = scoreData.scoreB;
   const oversA = scoreData.oversA;
   const oversB = scoreData.oversB;
-  const teamARole = getTeamRole(match?.tossWinner, match?.tossDecision, rawTeamA, match?.scoreSummary, rawTeamB);
+  const teamARole: "bat" | "bowl" | null = null; // Disabled — backlogged
   const teamAWon = didTeamAWin(match?.result, rawTeamA);
 
   // FDR query

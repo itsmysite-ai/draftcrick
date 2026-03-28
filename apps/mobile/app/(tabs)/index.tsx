@@ -1,6 +1,6 @@
 import { ScrollView as RNScrollView, RefreshControl, ScrollView } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { parseTeamScores, getTeamRole, didTeamAWin } from "../../lib/score-utils";
+import { parseTeamScores, didTeamAWin } from "../../lib/score-utils";
 import { useState, useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
@@ -53,81 +53,6 @@ function formatCountdown(date: Date): string {
   return `${mins}m`;
 }
 
-// IPL team abbreviation ↔ name mapping for score parsing
-const _LOCAL_TEAM_ABBREV_MAP: Record<string, string[]> = {
-  "rcb": ["royal challengers bengaluru", "royal challengers bangalore"],
-  "srh": ["sunrisers hyderabad"],
-  "csk": ["chennai super kings"],
-  "mi": ["mumbai indians"],
-  "kkr": ["kolkata knight riders"],
-  "rr": ["rajasthan royals"],
-  "dc": ["delhi capitals"],
-  "pbks": ["punjab kings"],
-  "lsg": ["lucknow super giants"],
-  "gt": ["gujarat titans"],
-};
-
-function _localParseTeamScores(scoreSummary: string | null | undefined, teamA?: string, teamB?: string) {
-  if (!scoreSummary) return { scoreA: null, scoreB: null, oversA: null, oversB: null };
-  const parts = scoreSummary.split(/\s*\|\s*|\s+vs\s+/i);
-  const extract = (part: string) => {
-    const s = part.match(/(\d+\/\d+|\d+(?=\s*\())/);
-    const o = part.match(/\(([^)]+)\)/);
-    return { score: s ? s[1] : null, overs: o ? o[1] : null, raw: part };
-  };
-
-  const parsed = parts.map((p) => extract(p));
-  let scoreA: string | null = null, oversA: string | null = null;
-  let scoreB: string | null = null, oversB: string | null = null;
-
-  const matchesTeam = (raw: string, team?: string) => {
-    if (!team) return false;
-    // Extract team name from score part: "SRH: 88/3 (10.2)" or "SRH 88/3 (10.2)"
-    const abbr = raw.replace(/[:\s].*$/, "").toLowerCase().trim(); // "srh"
-    const t = team.toLowerCase();
-    // Direct: "srh" === "srh"
-    if (abbr === t) return true;
-    // Abbreviation lookup: "srh" → ["sunrisers hyderabad"] matches team
-    const abbrNames = TEAM_ABBREV_MAP[abbr];
-    if (abbrNames && abbrNames.some((n) => t.includes(n) || n.includes(t))) return true;
-    // Reverse: team is "sunrisers hyderabad" → find its abbreviation → match against abbr
-    const teamEntry = Object.entries(TEAM_ABBREV_MAP).find(([, names]) => names.some((n) => t.includes(n) || n.includes(t)));
-    if (teamEntry && teamEntry[0] === abbr) return true;
-    return false;
-  };
-
-  for (const p of parsed) {
-    if (!p.score) continue;
-    if (teamA && matchesTeam(p.raw, teamA)) {
-      scoreA = p.score; oversA = p.overs ?? null;
-    } else if (teamB && matchesTeam(p.raw, teamB)) {
-      scoreB = p.score; oversB = p.overs ?? null;
-    } else if (!scoreA) {
-      // Fallback: first unmatched goes to A, second to B
-      scoreA = p.score; oversA = p.overs ?? null;
-    } else {
-      scoreB = p.score; oversB = p.overs ?? null;
-    }
-  }
-
-  return { scoreA, scoreB, oversA, oversB };
-}
-
-function _localDidTeamAWin(result: string | null, teamA: string): boolean | null {
-  if (!result) return null;
-  const r = result.toLowerCase();
-  if (r.includes("no result") || r.includes("tied") || r.includes("draw")) return null;
-  return r.includes(teamA.toLowerCase().slice(0, 4));
-}
-
-function _localGetTeamRole(tossWinner: string | null, tossDecision: string | null, teamA: string): "bat" | "bowl" | null {
-  if (!tossWinner || !tossDecision) return null;
-  const winnerChoseBat = tossDecision.toLowerCase().includes("bat");
-  const teamAWonToss = tossWinner.toLowerCase().includes(teamA.toLowerCase().slice(0, 4));
-  if (teamAWonToss) return winnerChoseBat ? "bat" : "bowl";
-  return winnerChoseBat ? "bowl" : "bat";
-}
-
 // ─── Featured Match Card — drives user to create team ────────────────
 function FeaturedMatchCard({
   match,
@@ -150,7 +75,7 @@ function FeaturedMatchCard({
   const isCompleted = match.status === "completed";
   // Pass both abbreviated and full names so parser can match either
   const { scoreA, scoreB, oversA, oversB } = parseTeamScores(match.scoreSummary, rawTeamA, rawTeamB);
-  const teamARole = getTeamRole(match.tossWinner, match.tossDecision, rawTeamA, match.scoreSummary, rawTeamB);
+  const teamARole: "bat" | "bowl" | null = null; // Disabled — backlogged for proper implementation
   const teamAWon = didTeamAWin(match.result, rawTeamA);
 
   return (
