@@ -313,7 +313,7 @@ function MyContestsSection({
               live={isLive}
               padding={0}
               overflow="hidden"
-              onPress={() => router.push(isLive ? `/match/${match?.id}` : `/contest/${contest?.id}`)}
+              onPress={() => router.push(`/contest/${contest?.id}` as any)}
               testID={`my-contest-${entry.id}`}
             >
               {/* Main content area */}
