@@ -1143,13 +1143,13 @@ const matchesRouter = router({
 
           await processScoreUpdate(ctx.db, input.matchId, scoreUpdates);
 
-          // Count live contests
-          const liveContests = await ctx.db.query.contests.findMany({
-            where: and(eq(contests.matchId, input.matchId), eq(contests.status, "live")),
+          // Count contests that were scored (live, settling, or settled)
+          const scoredContests = await ctx.db.query.contests.findMany({
+            where: and(eq(contests.matchId, input.matchId), inArray(contests.status, ["live", "settling", "settled"])),
             columns: { id: true },
           });
-          contestsAffected = liveContests.length;
-          resultMsg = `Processed scores for ${scoreUpdates.length} players across ${contestsAffected} live contest(s).`;
+          contestsAffected = scoredContests.length;
+          resultMsg = `Processed scores for ${scoreUpdates.length} players across ${contestsAffected} contest(s).`;
           break;
         }
         case "complete": {

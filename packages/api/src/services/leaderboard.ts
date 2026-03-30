@@ -73,8 +73,10 @@ export async function getContestLeaderboard(
     .where(eq(fantasyTeams.contestId, contestId))
     .orderBy(desc(fantasyTeams.totalPoints));
 
-  // For non-settled contests, compute live points from playerMatchScores
-  const isLiveOrOpen = contest && contest.status !== "settled";
+  // Compute live points from playerMatchScores when contest is active,
+  // or when settled but stored points are all zero (scores weren't persisted).
+  const allStoredZero = teams.every((t) => Number(t.totalPoints) === 0);
+  const isLiveOrOpen = contest && (contest.status !== "settled" || allStoredZero);
   if (isLiveOrOpen && contest.matchId) {
     const allScores = await db.query.playerMatchScores.findMany({
       where: eq(playerMatchScores.matchId, contest.matchId),

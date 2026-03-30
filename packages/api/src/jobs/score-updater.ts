@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import type { Database } from "@draftplay/db";
 import {
   matches,
@@ -69,10 +69,12 @@ export async function processScoreUpdate(
   }
 
   // 2. Recalculate total points for all fantasy teams in this match's contests
+  // Process any contest that has entries — not just "live" ones.
+  // This ensures scores are updated even if admin runs steps out of order.
   const matchContests = await db.query.contests.findMany({
     where: and(
       eq(contests.matchId, matchId),
-      eq(contests.status, "live")
+      inArray(contests.status, ["live", "settling", "settled"])
     ),
   });
 
