@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, protectedProcedure, publicProcedure } from "../trpc";
 import { createTeamSchema } from "@draftplay/shared";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { fantasyTeams, contests, players, matches, playerMatchScores, leagueMembers, users, leagues, draftRooms, draftPicks } from "@draftplay/db";
@@ -806,5 +806,77 @@ Return ONLY a JSON array of 5 strings:`;
       } catch {}
 
       return { names: [generateTeamName(input.teamA, input.teamB)] };
+    }),
+
+  /**
+   * Get any team's player details by team ID (public — for leaderboard expansion).
+   * Returns team name, players with scores, captain/VC info.
+   */
+  getTeamDetails: publicProcedure
+    .input(z.object({ teamId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const team = await ctx.db.query.fantasyTeams.findFirst({
+        where: eq(fantasyTeams.id, input.teamId),
+        with: { contest: { columns: { matchId: true } } },
+      });
+      if (!team) return null;
+
+      const teamPlayers = team.players as Array<{ playerId: string; role: string }>;
+      const playerIds = teamPlayers.map((p) => p.playerId);
+      if (playerIds.length === 0) return { ...team, playerDetails: [] };
+
+      const playerRecords = await ctx.db.query.players.findMany({
+        where: inArray(players.id, playerIds),
+      });
+
+      const matchId = (team as any).contest?.matchId ?? team.matchId;
+      const scores = matchId
+        ? await ctx.db.query.playerMatchScores.findMany({
+            where: and(
+              eq(playerMatchScores.matchId, matchId),
+              inArray(playerMatchScores.playerId, playerIds)
+            ),
+          })
+        : [];
+      const scoreMap = new Map(scores.map((s) => [s.playerId, s]));
+
+      const playerDetails = playerRecords.map((p) => {
+        const score = scoreMap.get(p.id);
+        const pts = Number(score?.fantasyPoints ?? 0);
+        const isCaptain = p.id === team.captainId;
+        const isViceCaptain = p.id === team.viceCaptainId;
+        const multiplier = isCaptain ? 2 : isViceCaptain ? 1.5 : 1;
+        return {
+          id: p.id,
+          name: p.name,
+          role: p.role,
+          team: p.team,
+          photoUrl: (p as any).photoUrl ?? null,
+          isCaptain,
+          isViceCaptain,
+          fantasyPoints: pts,
+          contribution: pts * multiplier,
+          runs: score?.runs ?? 0,
+          ballsFaced: score?.ballsFaced ?? 0,
+          fours: score?.fours ?? 0,
+          sixes: score?.sixes ?? 0,
+          wickets: score?.wickets ?? 0,
+          oversBowled: Number(score?.oversBowled ?? 0),
+          runsConceded: score?.runsConceded ?? 0,
+          maidens: score?.maidens ?? 0,
+          catches: score?.catches ?? 0,
+          stumpings: score?.stumpings ?? 0,
+          runOuts: score?.runOuts ?? 0,
+        };
+      });
+
+      return {
+        id: team.id,
+        name: team.name,
+        captainId: team.captainId,
+        viceCaptainId: team.viceCaptainId,
+        totalPoints: Number(team.totalPoints),
+        playerDetails,
+      };
     }),
 });

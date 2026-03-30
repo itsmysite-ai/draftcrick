@@ -82,7 +82,6 @@ export default function ContestDetailScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
-  const [showTeam, setShowTeam] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [countdown, setCountdown] = useState("");
   const celebrationShown = useRef(false);
@@ -106,8 +105,15 @@ export default function ContestDetailScreen() {
     },
   });
   const [showSwap, setShowSwap] = useState(false);
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "predictions">(section === "predictions" ? "predictions" : "overview");
+
+  // Fetch expanded team's player details on demand
+  const expandedTeamQuery = trpc.team.getTeamDetails.useQuery(
+    { teamId: expandedTeamId! },
+    { enabled: !!expandedTeamId, staleTime: 10_000 },
+  );
 
   // Track if user just arrived from team creation
   const [justJoined, setJustJoined] = useState(false);
@@ -566,7 +572,7 @@ export default function ContestDetailScreen() {
         </Animated.View>
       )}
 
-      {/* User Result Card — shown when user has joined */}
+      {/* Compact Your Summary — rank + C/VC impact merged */}
       {hasJoined && myPosition.data && (
         <Animated.View entering={FadeInDown.delay(0).springify()}>
           <Card
@@ -577,16 +583,12 @@ export default function ContestDetailScreen() {
             borderColor="$accentBackground"
             testID="user-result-card"
           >
-            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5} marginBottom="$2">
-              {formatBadgeText("your result")}
-            </Text>
             <XStack justifyContent="space-between" alignItems="center">
               <YStack gap={2}>
                 <XStack alignItems="baseline" gap="$2">
                   <Text fontFamily="$mono" fontWeight="800" fontSize={22} color="$accentBackground">
                     #{myPosition.data.rank}
                   </Text>
-                  {/* Percentile badge (#1) */}
                   <Badge variant="role" size="sm">
                     {formatBadgeText(`top ${myPosition.data.percentile.toFixed(0)}%`)}
                   </Badge>
@@ -619,224 +621,39 @@ export default function ContestDetailScreen() {
               </Animated.View>
             </XStack>
 
-            {/* Team name — tappable to view team details */}
-            {myTeam.data && (
-              <XStack marginTop="$3" alignItems="center" justifyContent="space-between">
-                <XStack
-                  alignItems="center"
-                  gap="$2"
-                  flex={1}
-                  onPress={() => router.push(`/team/${myTeam.data!.id}`)}
-                  cursor="pointer"
-                >
-                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">team:</Text>
-                  <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$accentBackground" numberOfLines={1} flex={1}>
-                    {myTeam.data.name}
-                  </Text>
-                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">→</Text>
-                </XStack>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  marginLeft="$2"
-                  onPress={() => setShowTeam(!showTeam)}
-                  testID="view-team-btn"
-                >
-                  {formatUIText(showTeam ? "hide" : "expand")}
-                </Button>
-              </XStack>
-            )}
-          </Card>
-        </Animated.View>
-      )}
-
-      {/* Score Breakdown — Captain/VC Impact (#2) */}
-      {hasScores && hasJoined && captain && (
-        <Animated.View entering={FadeInDown.delay(50).springify()}>
-          <Card marginHorizontal="$4" marginBottom="$4" padding="$4">
-            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5} marginBottom="$3">
-              {formatBadgeText("captain/vc impact")}
-            </Text>
-            <XStack justifyContent="space-between" marginBottom="$2">
-              <XStack alignItems="center" gap="$2">
-                <Badge variant="live" size="sm">C</Badge>
-                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
-                  {captain.name}
-                </Text>
-              </XStack>
-              <YStack alignItems="flex-end">
-                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={(captain.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
-                  {((captain.fantasyPoints ?? 0) * 2).toFixed(1)} pts
-                </Text>
-                <Text fontFamily="$mono" fontSize={9} color={(captain.fantasyPoints ?? 0) > 0 ? "$colorMuted" : "$error"}>
-                  +{(captain.fantasyPoints ?? 0).toFixed(1)} bonus (2x)
-                </Text>
-              </YStack>
-            </XStack>
-            {viceCaptain && (
-              <XStack justifyContent="space-between" marginBottom="$2">
-                <XStack alignItems="center" gap="$2">
-                  <Badge variant="role" size="sm">VC</Badge>
-                  <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
-                    {viceCaptain.name}
-                  </Text>
-                </XStack>
-                <YStack alignItems="flex-end">
-                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={(viceCaptain.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
-                    {((viceCaptain.fantasyPoints ?? 0) * 1.5).toFixed(1)} pts
-                  </Text>
-                  <Text fontFamily="$mono" fontSize={9} color={(viceCaptain.fantasyPoints ?? 0) > 0 ? "$colorMuted" : "$error"}>
-                    +{vcBonus.toFixed(1)} bonus (1.5x)
-                  </Text>
-                </YStack>
-              </XStack>
-            )}
-            <XStack borderTopWidth={1} borderTopColor="$borderColor" paddingTop="$2" justifyContent="space-between">
-              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("base points")}</Text>
-              <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$color">{basePoints.toFixed(1)}</Text>
-            </XStack>
-            <XStack justifyContent="space-between" marginTop={2}>
-              <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("c/vc bonus")}</Text>
-              <Text fontFamily="$mono" fontWeight="600" fontSize={11} color="$accentBackground">+{(captainBonus + vcBonus).toFixed(1)}</Text>
-            </XStack>
-          </Card>
-        </Animated.View>
-      )}
-
-      {/* Team View — expandable with per-player points breakdown */}
-      {showTeam && myTeam.data && (
-        <Animated.View entering={FadeInDown.delay(0).springify()}>
-          <YStack paddingHorizontal="$4" marginBottom="$4">
-            {teamPlayers.map((p: any, i: number) => {
-              const multiplier = p.isCaptain ? "2x" : p.isViceCaptain ? "1.5x" : "";
-              const isExpanded = expandedPlayerId === (p.id || i);
-              const breakdown = hasScores && isExpanded ? buildBreakdown(p) : [];
-              return (
-                <Card
-                  key={p.id || i}
-                  marginBottom="$1"
-                  padding="$3"
-                  pressable={hasScores}
-                  onPress={hasScores ? () => setExpandedPlayerId(isExpanded ? null : (p.id || i)) : undefined}
-                  cursor={hasScores ? "pointer" : undefined}
-                  borderColor={isExpanded ? "$accentBackground" : "$borderColor"}
-                  borderWidth={isExpanded ? 1 : 0}
-                >
-                  <XStack alignItems="center">
-                    <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={hasScores ? (p.fantasyPoints ?? 0).toFixed(0) : 0} size={28} hideBadge={!hasScores} imageUrl={p.photoUrl} />
-                    <YStack flex={1} marginLeft="$2">
-                      <XStack alignItems="center" gap="$1">
-                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
-                          {p.name}
-                        </Text>
-                        {p.isCaptain && (
-                          <Badge variant="live" size="sm">C</Badge>
-                        )}
-                        {p.isViceCaptain && (
-                          <Badge variant="role" size="sm">VC</Badge>
-                        )}
-                      </XStack>
-                      <XStack alignItems="center" gap="$1">
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                          {p.team}
-                        </Text>
-                        <Badge variant="default" size="sm">{formatBadgeText(p.role)}</Badge>
-                      </XStack>
-                    </YStack>
-                    <YStack alignItems="flex-end">
-                      <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={(p.contribution ?? p.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
-                        {(p.contribution ?? p.fantasyPoints ?? 0).toFixed(1)}
-                      </Text>
-                      {multiplier ? (
-                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                          {(p.fantasyPoints ?? 0).toFixed(1)} {multiplier}
-                        </Text>
-                      ) : null}
-                    </YStack>
+            {/* Captain/VC Impact — inline */}
+            {hasScores && captain && (
+              <YStack marginTop="$3" paddingTop="$2" borderTopWidth={1} borderTopColor="$borderColor" gap={4}>
+                <XStack justifyContent="space-between">
+                  <XStack alignItems="center" gap="$1">
+                    <Badge variant="live" size="sm">C</Badge>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1}>{captain.name}</Text>
                   </XStack>
-                  {/* Points breakdown — receipt-style */}
-                  {isExpanded && breakdown.length > 0 && (
-                    <YStack marginTop="$2" paddingTop="$2" borderTopWidth={1} borderTopColor="$borderColor" gap={2}>
-                      {breakdown.map((row, bi) => {
-                        if (row.isDivider) {
-                          return <YStack key={bi} height={1} backgroundColor="$borderColor" marginVertical={3} />;
-                        }
-                        if (row.isHeader) {
-                          return (
-                            <Text key={bi} fontFamily="$mono" fontSize={9} fontWeight="700" color="$colorMuted" letterSpacing={0.8} marginTop={bi > 0 ? 6 : 0}>
-                              {formatBadgeText(row.label)}
-                            </Text>
-                          );
-                        }
-                        return (
-                          <XStack key={bi} justifyContent="space-between" alignItems="center" paddingLeft="$2">
-                            <Text fontFamily="$mono" fontSize={10} color={row.isBold ? "$color" : "$colorSecondary"} fontWeight={row.isBold ? "700" : "400"}>
-                              {row.label}
-                            </Text>
-                            {row.pts != null && (
-                              <Text
-                                fontFamily="$mono"
-                                fontSize={10}
-                                fontWeight={row.isBold ? "700" : "600"}
-                                color={row.pts < 0 ? "$error" : row.isBold ? "$accentBackground" : "$color"}
-                              >
-                                {row.pts > 0 ? `+${row.pts.toFixed(1)}` : row.pts < 0 ? row.pts.toFixed(1) : "0.0"}
-                              </Text>
-                            )}
-                          </XStack>
-                        );
-                      })}
-                    </YStack>
-                  )}
-                </Card>
-              );
-            })}
-          </YStack>
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={12} color={(captain.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
+                    {((captain.fantasyPoints ?? 0) * 2).toFixed(1)} {formatUIText("pts")}
+                    <Text fontFamily="$mono" fontSize={9} color="$colorMuted"> +{(captain.fantasyPoints ?? 0).toFixed(1)} (2x)</Text>
+                  </Text>
+                </XStack>
+                {viceCaptain && (
+                  <XStack justifyContent="space-between">
+                    <XStack alignItems="center" gap="$1">
+                      <Badge variant="role" size="sm">VC</Badge>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1}>{viceCaptain.name}</Text>
+                    </XStack>
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color={(viceCaptain.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
+                      {((viceCaptain.fantasyPoints ?? 0) * 1.5).toFixed(1)} {formatUIText("pts")}
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted"> +{vcBonus.toFixed(1)} (1.5x)</Text>
+                    </Text>
+                  </XStack>
+                )}
+                <XStack justifyContent="space-between">
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{formatUIText("base points")}</Text>
+                  <Text fontFamily="$mono" fontWeight="600" fontSize={10} color="$color">{basePoints.toFixed(1)} <Text fontSize={9} color="$colorMuted">+ {(captainBonus + vcBonus).toFixed(1)} c/vc</Text></Text>
+                </XStack>
+              </YStack>
+            )}
+          </Card>
         </Animated.View>
-      )}
-
-      {/* Stats Grid — compact inline during live, full cards pre-match */}
-      {isLive || isSettling ? (
-        <XStack paddingHorizontal="$4" marginBottom="$3" gap="$3" flexWrap="wrap">
-          {[
-            c.prizePool > 0 ? `${c.prizePool.toLocaleString()} PC prize` : null,
-            c.entryFee === 0 ? "free entry" : `${c.entryFee} PC entry`,
-            `${c.currentEntries} ${c.currentEntries === 1 ? "entry" : "entries"}`,
-            c.contestType,
-          ].filter(Boolean).map((tag, i) => (
-            <Badge key={i} variant="default" size="sm">{formatBadgeText(tag!)}</Badge>
-          ))}
-        </XStack>
-      ) : (
-        <XStack flexWrap="wrap" padding="$4" gap="$3">
-          {[
-            { label: formatUIText("prize pool"), value: c.prizePool > 0 ? `${c.prizePool.toLocaleString()} PC` : formatBadgeText("glory"), tid: "contest-prize-pool" },
-            { label: formatUIText("entry fee"), value: c.entryFee === 0 ? formatBadgeText("free") : `${c.entryFee} PC`, tid: "contest-entry-fee" },
-            { label: formatUIText("spots"), value: `${c.currentEntries}/${c.maxEntries}`, tid: "contest-spots" },
-            { label: formatUIText("type"), value: formatBadgeText(c.contestType ?? ""), tid: "contest-type" },
-          ].map((item) => (
-            <Card key={item.label} testID={item.tid} flex={1} minWidth="45%" padding="$3">
-              <Text {...textStyles.hint}>{item.label}</Text>
-              <Text fontFamily="$mono" fontWeight="700" fontSize={18} color="$color" marginTop="$1">
-                {item.value}
-              </Text>
-            </Card>
-          ))}
-        </XStack>
-      )}
-
-      {/* Progress Bar — only show pre-match or settled (not during live — not actionable) */}
-      {!isLive && !isSettling && (
-        <YStack paddingHorizontal="$4" marginBottom="$4">
-          <YStack height={6} backgroundColor="$borderColor" borderRadius={3}>
-            <YStack height={6} backgroundColor="$accentBackground" borderRadius={3} width={`${Math.min(100, (c.currentEntries / c.maxEntries) * 100)}%` as any} />
-          </YStack>
-          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$1" textAlign="center">
-            {isSettled
-              ? `${c.currentEntries} ${formatUIText("entries")}`
-              : `${c.maxEntries - c.currentEntries} ${formatUIText("spots left")}`}
-          </Text>
-        </YStack>
       )}
 
       {/* Status-Aware Action Section */}
@@ -1048,56 +865,151 @@ export default function ContestDetailScreen() {
           </Animated.View>
         </YStack>
       ) : (
-        /* Standard Leaderboard with enhanced "YOU" row (#1) */
-        <YStack paddingHorizontal="$4" marginBottom="$6">
-          <Text {...textStyles.sectionHeader} marginBottom="$3">
-            {formatUIText("leaderboard")}
-          </Text>
+        /* Interactive Leaderboard — tap to expand any team's players */
+        <YStack paddingHorizontal="$4" marginBottom="$4">
+          <XStack justifyContent="space-between" alignItems="center" marginBottom="$3">
+            <Text {...textStyles.sectionHeader}>
+              {formatUIText("leaderboard")}
+            </Text>
+            {standingsData.length > 0 && (
+              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{standingsData.length} {formatUIText("entries")}</Text>
+            )}
+          </XStack>
           {standings.isLoading ? (
             <EggLoadingSpinner size={32} message={formatUIText("loading standings")} />
           ) : standingsData.length > 0 ? (
-            standingsData.map((entry: { rank: number; userId: string; totalPoints: number; displayName?: string; username?: string }, i: number) => {
+            standingsData.map((entry: any, i: number) => {
               const rawName = entry.displayName || entry.username || `Player ${entry.rank}`;
               const displayName = rawName.includes("@") ? rawName.split("@")[0]! : rawName;
               const isCurrentUser = currentUserId && entry.userId === currentUserId;
+              const isTeamExpanded = expandedTeamId === entry.teamId;
+              const expandedPlayers = isTeamExpanded ? (expandedTeamQuery.data?.playerDetails ?? []) : [];
+              const isLoadingTeam = isTeamExpanded && expandedTeamQuery.isLoading;
+
               return (
                 <Animated.View key={entry.userId} entering={FadeInDown.delay(i * 30).springify()}>
                   <Card
                     testID={`contest-leaderboard-entry-${entry.rank}`}
                     marginBottom="$1"
                     padding="$3"
-                    borderColor={isCurrentUser ? "$accentBackground" : i < 3 ? "$colorCricketLight" : "$borderColor"}
-                    borderWidth={isCurrentUser ? 2 : 1}
+                    pressable
+                    onPress={() => {
+                      if (isTeamExpanded) {
+                        setExpandedTeamId(null);
+                        setExpandedPlayerId(null);
+                      } else {
+                        setExpandedTeamId(entry.teamId);
+                        setExpandedPlayerId(null);
+                      }
+                    }}
+                    cursor="pointer"
+                    borderColor={isTeamExpanded ? "$accentBackground" : isCurrentUser ? "$accentBackground" : i < 3 ? "$colorCricketLight" : "$borderColor"}
+                    borderWidth={isTeamExpanded || isCurrentUser ? 2 : 1}
                     backgroundColor={isCurrentUser ? "$backgroundSurfaceAlt" : undefined}
                   >
+                    {/* Row header: rank, avatar, name, team name, points */}
                     <XStack alignItems="center">
-                      <YStack width={36} alignItems="center">
+                      <YStack width={32} alignItems="center">
                         <Text fontFamily="$mono" fontWeight="800" fontSize={isCurrentUser ? 16 : 14} color={i === 0 ? "$colorCricket" : i === 1 ? "$colorSecondary" : i === 2 ? "$colorHatch" : "$color"}>
                           #{entry.rank}
                         </Text>
                       </YStack>
                       <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
-                        <InitialsAvatar
-                          name={displayName}
-                          playerRole="BAT"
-                          ovr={`#${entry.rank}`}
-                          size={28}
-                        />
+                        <InitialsAvatar name={displayName} playerRole="BAT" ovr={`#${entry.rank}`} size={28} />
                         <YStack flex={1}>
                           <Text {...textStyles.playerName} fontWeight={isCurrentUser ? "700" : "600"}>
                             {displayName}
                           </Text>
-                          {/* Enhanced YOU badge with percentile (#1) */}
-                          {isCurrentUser && myPosition.data && (
-                            <XStack gap="$1" marginTop={1}>
-                              <Badge variant="live" size="sm">{formatBadgeText("you")}</Badge>
-                              <Badge variant="role" size="sm">{formatBadgeText(`top ${myPosition.data.percentile.toFixed(0)}%`)}</Badge>
-                            </XStack>
-                          )}
+                          <XStack alignItems="center" gap="$1" marginTop={1}>
+                            {isCurrentUser && <Badge variant="live" size="sm">{formatBadgeText("you")}</Badge>}
+                            {entry.teamName && (
+                              <Text fontFamily="$mono" fontSize={10} color="$colorMuted" numberOfLines={1}>
+                                {entry.teamName}
+                              </Text>
+                            )}
+                          </XStack>
                         </YStack>
                       </XStack>
-                      <StatLabel label={formatUIText("pts")} value={entry.totalPoints.toFixed(1)} />
+                      <YStack alignItems="flex-end">
+                        <StatLabel label={formatUIText("pts")} value={entry.totalPoints.toFixed(1)} />
+                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{isTeamExpanded ? "▲" : "▼"}</Text>
+                      </YStack>
                     </XStack>
+
+                    {/* Expanded team players */}
+                    {isTeamExpanded && (
+                      <YStack marginTop="$2" paddingTop="$2" borderTopWidth={1} borderTopColor="$borderColor">
+                        {isLoadingTeam ? (
+                          <EggLoadingSpinner size={20} message={formatUIText("loading team")} />
+                        ) : expandedPlayers.length > 0 ? (
+                          expandedPlayers.map((p: any, pi: number) => {
+                            const multiplier = p.isCaptain ? "2x" : p.isViceCaptain ? "1.5x" : "";
+                            const isPlayerExpanded = expandedPlayerId === p.id;
+                            const breakdown = hasScores && isPlayerExpanded ? buildBreakdown(p) : [];
+                            return (
+                              <YStack key={p.id || pi}>
+                                <XStack
+                                  alignItems="center"
+                                  paddingVertical="$2"
+                                  cursor={hasScores ? "pointer" : undefined}
+                                  pressStyle={hasScores ? { opacity: 0.7 } : undefined}
+                                  onPress={hasScores ? (e: any) => {
+                                    e?.stopPropagation?.();
+                                    setExpandedPlayerId(isPlayerExpanded ? null : p.id);
+                                  } : undefined}
+                                >
+                                  <InitialsAvatar name={p.name} playerRole={p.role?.toUpperCase()} ovr={hasScores ? (p.fantasyPoints ?? 0).toFixed(0) : 0} size={24} hideBadge={!hasScores} imageUrl={p.photoUrl} />
+                                  <YStack flex={1} marginLeft="$2">
+                                    <XStack alignItems="center" gap="$1">
+                                      <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1}>{p.name}</Text>
+                                      {p.isCaptain && <Badge variant="live" size="sm">C</Badge>}
+                                      {p.isViceCaptain && <Badge variant="role" size="sm">VC</Badge>}
+                                    </XStack>
+                                    <XStack alignItems="center" gap="$1">
+                                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{p.team}</Text>
+                                      <Badge variant="default" size="sm">{formatBadgeText(p.role)}</Badge>
+                                    </XStack>
+                                  </YStack>
+                                  <YStack alignItems="flex-end">
+                                    <Text fontFamily="$mono" fontWeight="700" fontSize={13} color={(p.contribution ?? p.fantasyPoints ?? 0) > 0 ? "$accentBackground" : "$error"}>
+                                      {(p.contribution ?? p.fantasyPoints ?? 0).toFixed(1)}
+                                    </Text>
+                                    {multiplier ? (
+                                      <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{(p.fantasyPoints ?? 0).toFixed(1)} {multiplier}</Text>
+                                    ) : null}
+                                  </YStack>
+                                </XStack>
+                                {/* Player points breakdown */}
+                                {isPlayerExpanded && breakdown.length > 0 && (
+                                  <YStack marginBottom="$2" paddingHorizontal="$2" paddingVertical="$2" backgroundColor="$backgroundSurface" borderRadius={DesignSystem.radius.sm} gap={2}>
+                                    {breakdown.map((row, bi) => {
+                                      if (row.isDivider) return <YStack key={bi} height={1} backgroundColor="$borderColor" marginVertical={3} />;
+                                      if (row.isHeader) return (
+                                        <Text key={bi} fontFamily="$mono" fontSize={9} fontWeight="700" color="$colorMuted" letterSpacing={0.8} marginTop={bi > 0 ? 6 : 0}>
+                                          {formatBadgeText(row.label)}
+                                        </Text>
+                                      );
+                                      return (
+                                        <XStack key={bi} justifyContent="space-between" alignItems="center" paddingLeft="$2">
+                                          <Text fontFamily="$mono" fontSize={10} color={row.isBold ? "$color" : "$colorSecondary"} fontWeight={row.isBold ? "700" : "400"}>{row.label}</Text>
+                                          {row.pts != null && (
+                                            <Text fontFamily="$mono" fontSize={10} fontWeight={row.isBold ? "700" : "600"} color={row.pts < 0 ? "$error" : row.isBold ? "$accentBackground" : "$color"}>
+                                              {row.pts > 0 ? `+${row.pts.toFixed(1)}` : row.pts < 0 ? row.pts.toFixed(1) : "0.0"}
+                                            </Text>
+                                          )}
+                                        </XStack>
+                                      );
+                                    })}
+                                  </YStack>
+                                )}
+                              </YStack>
+                            );
+                          })
+                        ) : (
+                          <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("no player data available")}</Text>
+                        )}
+                      </YStack>
+                    )}
                   </Card>
                 </Animated.View>
               );
@@ -1113,8 +1025,52 @@ export default function ContestDetailScreen() {
         </YStack>
       )}
 
-      {/* Pre-match team lineup preview (#3) — compact grid when no team view expanded */}
-      {isOpen && hasJoined && !showTeam && teamPlayers.length > 0 && (
+      {/* Stats Grid — below leaderboard */}
+      {isLive || isSettling ? (
+        <XStack paddingHorizontal="$4" marginBottom="$3" gap="$3" flexWrap="wrap">
+          {[
+            c.prizePool > 0 ? `${c.prizePool.toLocaleString()} PC prize` : null,
+            c.entryFee === 0 ? "free entry" : `${c.entryFee} PC entry`,
+            `${c.currentEntries} ${c.currentEntries === 1 ? "entry" : "entries"}`,
+            c.contestType,
+          ].filter(Boolean).map((tag, i) => (
+            <Badge key={i} variant="default" size="sm">{formatBadgeText(tag!)}</Badge>
+          ))}
+        </XStack>
+      ) : (
+        <XStack flexWrap="wrap" padding="$4" gap="$3">
+          {[
+            { label: formatUIText("prize pool"), value: c.prizePool > 0 ? `${c.prizePool.toLocaleString()} PC` : formatBadgeText("glory"), tid: "contest-prize-pool" },
+            { label: formatUIText("entry fee"), value: c.entryFee === 0 ? formatBadgeText("free") : `${c.entryFee} PC`, tid: "contest-entry-fee" },
+            { label: formatUIText("spots"), value: `${c.currentEntries}/${c.maxEntries}`, tid: "contest-spots" },
+            { label: formatUIText("type"), value: formatBadgeText(c.contestType ?? ""), tid: "contest-type" },
+          ].map((item) => (
+            <Card key={item.label} testID={item.tid} flex={1} minWidth="45%" padding="$3">
+              <Text {...textStyles.hint}>{item.label}</Text>
+              <Text fontFamily="$mono" fontWeight="700" fontSize={18} color="$color" marginTop="$1">
+                {item.value}
+              </Text>
+            </Card>
+          ))}
+        </XStack>
+      )}
+
+      {/* Progress Bar */}
+      {!isLive && !isSettling && (
+        <YStack paddingHorizontal="$4" marginBottom="$4">
+          <YStack height={6} backgroundColor="$borderColor" borderRadius={3}>
+            <YStack height={6} backgroundColor="$accentBackground" borderRadius={3} width={`${Math.min(100, (c.currentEntries / c.maxEntries) * 100)}%` as any} />
+          </YStack>
+          <Text fontFamily="$mono" fontSize={12} color="$colorMuted" marginTop="$1" textAlign="center">
+            {isSettled
+              ? `${c.currentEntries} ${formatUIText("entries")}`
+              : `${c.maxEntries - c.currentEntries} ${formatUIText("spots left")}`}
+          </Text>
+        </YStack>
+      )}
+
+      {/* Pre-match team lineup preview */}
+      {isOpen && hasJoined && teamPlayers.length > 0 && (
         <Animated.View entering={FadeInDown.delay(100).springify()}>
           <YStack paddingHorizontal="$4" marginBottom="$6">
             <Text {...textStyles.sectionHeader} marginBottom="$3">

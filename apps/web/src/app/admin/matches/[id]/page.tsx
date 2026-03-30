@@ -201,14 +201,6 @@ export default function MatchDetailPage() {
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Manual Controls</h2>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <button
-            onClick={() => refreshMatch.mutate({ matchId })}
-            disabled={refreshMatch.isPending}
-            style={btnStyle("var(--text-secondary)")}
-          >
-            {refreshMatch.isPending ? "Refreshing..." : "Refresh Match Data"}
-          </button>
-
-          <button
             onClick={() => lifecycle.mutate({ matchId, phase: "lock" })}
             disabled={isPending || openContests === 0}
             style={btnStyle("var(--amber)")}

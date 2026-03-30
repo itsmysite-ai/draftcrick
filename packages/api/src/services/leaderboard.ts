@@ -9,6 +9,7 @@ export interface LeaderboardEntry {
   displayName: string;
   totalPoints: number;
   teamId: string;
+  teamName: string | null;
 }
 
 /**
@@ -58,6 +59,7 @@ export async function getContestLeaderboard(
   const teams = await db
     .select({
       teamId: fantasyTeams.id,
+      teamName: fantasyTeams.name,
       userId: fantasyTeams.userId,
       username: users.username,
       displayName: users.displayName,
@@ -110,6 +112,7 @@ export async function getContestLeaderboard(
         displayName: t.displayName,
         totalPoints: t.livePoints,
         teamId: t.teamId,
+        teamName: t.teamName,
       }));
     }
   }
@@ -122,6 +125,7 @@ export async function getContestLeaderboard(
     displayName: t.displayName,
     totalPoints: Number(t.totalPoints),
     teamId: t.teamId,
+    teamName: t.teamName,
   }));
 }
 

@@ -184,7 +184,7 @@ export default function MatchScreen() {
   );
   const dbMatchById = trpc.match.getById.useQuery(
     { id: matchId },
-    { enabled: isUuid, staleTime: 30_000 },
+    { enabled: isUuid, staleTime: 30_000, refetchInterval: 10_000 },
   );
 
   // Build team logo lookup from tournament teams data
@@ -243,6 +243,7 @@ export default function MatchScreen() {
         || fallbackDbMatch; // Direct DB query fallback
       return {
         ...rawMatch,
+        status: db?.status || rawMatch.status,
         tossWinner: rawMatch.tossWinner || db?.tossWinner || null,
         tossDecision: rawMatch.tossDecision || db?.tossDecision || null,
         scoreSummary: db?.scoreSummary || rawMatch.scoreSummary || null,

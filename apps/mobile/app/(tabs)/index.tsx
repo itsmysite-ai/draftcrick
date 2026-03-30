@@ -723,6 +723,7 @@ export default function HomeScreen() {
       })();
     return {
       ...ai,
+      status: db?.status || ai.status,
       dbId: db?.id || null,
       tossWinner: ai.tossWinner || db?.tossWinner || null,
       tossDecision: ai.tossDecision || db?.tossDecision || null,

@@ -976,7 +976,7 @@ function ResolveSection({
         </Text>
       )}
       <Text fontSize={DesignSystem.fontSize.base} fontFamily="$mono" color="$colorSecondary">
-        {formatUIText(selectedResolve ? "confirm your pick:" : "what happened? tap the winner:")}
+        {formatUIText(selectedResolve ? "confirm the correct answer:" : "what happened? tap the winner:")}
       </Text>
       <XStack gap="$2">
         <XStack
@@ -1018,7 +1018,7 @@ function ResolveSection({
       </XStack>
       {selectedResolve && (
         <Button variant="primary" size="sm" onPress={() => onResolve(prediction.id, selectedResolve)}>
-          {formatUIText(`confirm — ${selectedResolve === "a" ? prediction.optionA : prediction.optionB} wins`)}
+          {formatUIText(`confirm — "${selectedResolve === "a" ? prediction.optionA : prediction.optionB}" wins`)}
         </Button>
       )}
       <XStack
