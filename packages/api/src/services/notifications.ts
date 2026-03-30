@@ -28,6 +28,7 @@ export const NOTIFICATION_TYPES = {
   PREDICTION_RESULT: "prediction_result",
   PREDICTION_POSTED: "prediction_posted",
   TOURNAMENT_AWARD: "tournament_award",
+  TEAM_CREATED: "team_created",
 } as const;
 
 export type NotificationType =
@@ -44,6 +45,7 @@ const TYPE_TO_PREF: Record<NotificationType, string> = {
   prediction_result: "statusAlerts",
   prediction_posted: "statusAlerts",
   tournament_award: "statusAlerts",
+  team_created: "statusAlerts",
 };
 
 // ── Preference Defaults ─────────────────────────────────────

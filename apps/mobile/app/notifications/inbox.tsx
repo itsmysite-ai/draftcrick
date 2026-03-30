@@ -36,6 +36,7 @@ const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
   challenge_declined: "close-circle-outline",
   challenge_expired: "time-outline",
   prediction_posted: "help-circle-outline",
+  team_created: "people-outline",
 };
 
 const CHALLENGE_TYPES = new Set(["challenge_received", "challenge_accepted", "challenge_declined", "challenge_expired"]);
@@ -146,6 +147,12 @@ export default function NotificationInboxScreen() {
     if (data?.roomId) {
       const route = data?.type === "snake_draft" ? `/draft/${data.roomId}` : `/auction/${data.roomId}`;
       router.push(route as never);
+      return;
+    }
+
+    // Team created — go straight to the contest
+    if (item.type === "team_created" && data?.contestId) {
+      router.push(`/contest/${data.contestId}` as never);
       return;
     }
 

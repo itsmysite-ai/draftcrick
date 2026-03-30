@@ -480,9 +480,107 @@ export const teamRouter = router({
           .update(contests)
           .set({ currentEntries: sql`${contests.currentEntries} + 1` })
           .where(eq(contests.id, input.contestId));
+
+        // Notify other league members that a team was created
+        const contestRecord = await ctx.db.query.contests.findFirst({
+          where: eq(contests.id, input.contestId),
+          columns: { leagueId: true, name: true },
+        });
+        if (contestRecord?.leagueId) {
+          const members = await ctx.db.query.leagueMembers.findMany({
+            where: eq(leagueMembers.leagueId, contestRecord.leagueId),
+            columns: { userId: true },
+          });
+          const otherMemberIds = members.map((m) => m.userId).filter((uid) => uid !== ctx.user.id);
+          if (otherMemberIds.length > 0) {
+            const userName = (ctx.user as any).displayName || (ctx.user as any).username || "A league member";
+            import("../services/notifications").then(({ sendBatchNotifications, NOTIFICATION_TYPES }) => {
+              sendBatchNotifications(
+                ctx.db,
+                otherMemberIds,
+                NOTIFICATION_TYPES.TEAM_CREATED,
+                "Team Created!",
+                `${userName} created their team for "${contestRecord.name ?? "a contest"}". Create yours before the match starts!`,
+                { contestId: input.contestId, leagueId: contestRecord.leagueId },
+              ).catch(() => {});
+            }).catch(() => {});
+          }
+        }
       }
 
       return { ...team!, creditsUsed: totalCredits, relevantContestId: relevantContestId ?? team!.contestId ?? undefined };
+    }),
+
+  /**
+   * Update an existing team's players, captain, VC (before match goes live).
+   */
+  update: protectedProcedure
+    .input(z.object({
+      teamId: z.string().uuid(),
+      name: z.string().max(30).optional(),
+      players: z.array(z.object({
+        playerId: z.string().uuid(),
+        role: z.enum(["batsman", "bowler", "all_rounder", "wicket_keeper"]),
+      })).length(11),
+      captainId: z.string().uuid(),
+      viceCaptainId: z.string().uuid(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify team belongs to user
+      const team = await ctx.db.query.fantasyTeams.findFirst({
+        where: and(eq(fantasyTeams.id, input.teamId), eq(fantasyTeams.userId, ctx.user.id)),
+        with: { contest: { columns: { id: true, status: true, matchId: true } } },
+      });
+      if (!team) throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
+
+      // Only allow edits when contest is still open (or team has no contest)
+      const contestStatus = (team as any).contest?.status;
+      if (contestStatus && contestStatus !== "open") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot edit team — contest is no longer open" });
+      }
+
+      if (input.captainId === input.viceCaptainId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Captain and vice-captain must be different" });
+      }
+
+      const playerIds = input.players.map((p) => p.playerId);
+      if (!playerIds.includes(input.captainId) || !playerIds.includes(input.viceCaptainId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Captain and VC must be in selected players" });
+      }
+
+      // Validate players exist
+      const playerRecords = await ctx.db.query.players.findMany({
+        where: inArray(players.id, playerIds),
+      });
+      if (playerRecords.length !== 11) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Found ${playerRecords.length} valid players, need 11` });
+      }
+
+      // Budget validation
+      let totalCredits = 0;
+      for (const p of playerRecords) {
+        totalCredits += getPlayerCredits(p.stats as Record<string, unknown>);
+      }
+      const rules = await getEffectiveTeamRules(undefined);
+      if (totalCredits > rules.maxBudget) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Budget exceeded: ${totalCredits.toFixed(1)} / ${rules.maxBudget}` });
+      }
+
+      // Update team
+      const [updated] = await ctx.db
+        .update(fantasyTeams)
+        .set({
+          name: input.name?.trim() || team.name,
+          players: input.players.map((p) => ({ playerId: p.playerId, role: p.role, isPlaying: false })),
+          captainId: input.captainId,
+          viceCaptainId: input.viceCaptainId,
+          creditsUsed: String(totalCredits),
+          updatedAt: new Date(),
+        })
+        .where(eq(fantasyTeams.id, input.teamId))
+        .returning();
+
+      return { ...updated!, creditsUsed: totalCredits };
     }),
 
   /**

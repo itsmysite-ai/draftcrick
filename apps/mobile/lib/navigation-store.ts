@@ -33,6 +33,7 @@ export interface MatchNavContext {
   venue?: string;
   tournament?: string;
   solverPicks?: SolverPick[];
+  editTeamId?: string;
 }
 
 export type FlowStep = "contest_select" | "stake_pick" | "team_build" | "captain_select" | "review";

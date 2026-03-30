@@ -678,6 +678,12 @@ export default function HomeScreen() {
     refetchInterval: 60_000, // Refresh every minute for live contest updates
   });
 
+  const pendingContestsQuery = trpc.contest.pendingLeagueContests.useQuery(undefined, {
+    enabled: !!user,
+    retry: false,
+    staleTime: 30_000,
+  });
+
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -688,9 +694,10 @@ export default function HomeScreen() {
       walletQuery.refetch(),
       myTeamsQuery.refetch(),
       myContestsQuery.refetch(),
+      pendingContestsQuery.refetch(),
     ]);
     setRefreshing(false);
-  }, [dashboardQuery, dbLive, profileQuery, walletQuery, myTeamsQuery, myContestsQuery]);
+  }, [dashboardQuery, dbLive, profileQuery, walletQuery, myTeamsQuery, myContestsQuery, pendingContestsQuery]);
 
   // Refetch key queries when tab gains focus (e.g. after creating a league)
   useFocusEffect(
@@ -698,6 +705,7 @@ export default function HomeScreen() {
       myLeaguesQuery.refetch();
       myTeamsQuery.refetch();
       myContestsQuery.refetch();
+      pendingContestsQuery.refetch();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
@@ -859,6 +867,43 @@ export default function HomeScreen() {
         {user && (myContestsQuery.data?.length ?? 0) > 0 && (
           <YStack marginBottom="$4">
             <MyContestsSection contests={myContestsQuery.data ?? []} sport={sport} getTeamLogo={getTeamLogo} />
+          </YStack>
+        )}
+
+        {/* ── Pending League Contests — contests user hasn't entered yet ── */}
+        {user && (pendingContestsQuery.data?.length ?? 0) > 0 && (
+          <YStack marginBottom="$4" paddingHorizontal="$4">
+            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$color" marginBottom="$2">
+              {formatUIText("waiting for your team")}
+            </Text>
+            {(pendingContestsQuery.data ?? []).map((pc: any) => (
+              <Animated.View key={pc.id} entering={FadeInDown.springify()}>
+                <Card
+                  marginBottom="$2"
+                  padding="$3"
+                  pressable
+                  onPress={() => router.push(`/contest/${pc.id}`)}
+                  cursor="pointer"
+                  borderColor="$colorAccentLight"
+                  borderWidth={1}
+                >
+                  <XStack justifyContent="space-between" alignItems="center">
+                    <YStack flex={1} gap={2}>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                        {pc.name}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                        {pc.leagueName} · {pc.match ? `${formatTeamName(pc.match.teamHome)} vs ${formatTeamName(pc.match.teamAway)}` : ""}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                        {pc.currentEntries}/{pc.maxEntries} {formatUIText("joined")} · {pc.entryFee === 0 ? formatUIText("free") : `${pc.entryFee} PC`}
+                      </Text>
+                    </YStack>
+                    <Badge variant="role" size="sm">{formatBadgeText("pending")}</Badge>
+                  </XStack>
+                </Card>
+              </Animated.View>
+            ))}
           </YStack>
         )}
 

@@ -171,6 +171,37 @@ export default function TeamBuilderScreen() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertType, setAlertType] = useState<"error" | "success">("error");
   const [sortBy, setSortBy] = useState<"credits" | "projected">("projected");
+  const editTeamId = navCtx?.editTeamId;
+  const updateTeam = trpc.team.update.useMutation();
+
+  // Load existing team for editing
+  const editTeamQuery = trpc.team.getByContest.useQuery(
+    { contestId: contestId! },
+    { enabled: !!editTeamId && !!contestId, staleTime: Infinity },
+  );
+  const editApplied = useRef(false);
+  useEffect(() => {
+    if (editApplied.current || !editTeamId || !editTeamQuery.data) return;
+    editApplied.current = true;
+    const t = editTeamQuery.data as any;
+    const details = t.playerDetails ?? [];
+    if (details.length > 0) {
+      setSelectedPlayers(details.map((p: any) => ({
+        playerId: p.id,
+        role: p.role,
+        name: p.name,
+        team: p.team,
+        credits: p.credits ?? 8,
+        photoUrl: p.photoUrl ?? null,
+        nationality: p.nationality ?? "",
+      })));
+      setCaptainId(t.captainId);
+      setViceCaptainId(t.viceCaptainId);
+      if (t.name) setTeamName(t.name);
+      setStep("pick");
+    }
+  }, [editTeamId, editTeamQuery.data]);
+
   const matchPlayers = trpc.player.getByMatch.useQuery({ matchId: matchId! }, { enabled: !!matchId });
 
   // Fetch match details as fallback for nav store context (tournament name, teams, etc.)
@@ -653,6 +684,29 @@ export default function TeamBuilderScreen() {
         setIsSubmitting(false);
         showAlert(formatUIText("error"), formatUIText(e.message || "failed to create challenge"));
       }
+      return;
+    }
+
+    // Edit existing team instead of creating a new one
+    if (editTeamId) {
+      updateTeam.mutate({
+        teamId: editTeamId,
+        name: teamPayload.name,
+        players: teamPayload.players,
+        captainId: teamPayload.captainId,
+        viceCaptainId: teamPayload.viceCaptainId,
+      }, {
+        onSuccess: () => {
+          if (contestId) {
+            try { sessionStorage?.setItem("draftplay_just_joined", contestId); } catch {}
+          }
+          useNavigationStore.getState().clearMatchContext();
+          router.replace(contestId ? `/contest/${contestId}` : "/");
+        },
+        onError: (err: any) => {
+          showAlert(formatUIText("error"), err.message);
+        },
+      });
       return;
     }
 
@@ -1487,6 +1541,9 @@ export default function TeamBuilderScreen() {
                   <XStack gap="$1">
                     <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{roleShort}</Text>
                     <Text fontFamily="$mono" fontSize={9} color="$colorMuted">· {player.credits.toFixed(1)} cr</Text>
+                    {overseasRule?.enabled && player.nationality && player.nationality !== overseasRule.hostCountry && (
+                      <Text fontFamily="$mono" fontSize={8} color="$colorAccent" fontWeight="600">· {formatUIText("overseas")}</Text>
+                    )}
                     {differentialNames.has(player.name.toLowerCase()) && (
                       <Text fontFamily="$mono" fontSize={8} color="$colorCricket" fontWeight="600">· 💎 diff</Text>
                     )}
@@ -1560,7 +1617,7 @@ export default function TeamBuilderScreen() {
             {formatUIText("edit team")}
           </Button>
           <Button variant="primary" size="lg" flex={2} disabled={createTeam.isPending || isSubmitting} onPress={handleSubmit} testID="confirm-create-btn">
-            {(createTeam.isPending || isSubmitting) ? formatUIText("creating...") : formatUIText("confirm & join")}
+            {(createTeam.isPending || updateTeam.isPending || isSubmitting) ? formatUIText(editTeamId ? "updating..." : "creating...") : formatUIText(editTeamId ? "update team" : "confirm & join")}
           </Button>
         </XStack>
         <Paywall {...paywallProps} />
@@ -1846,6 +1903,9 @@ export default function TeamBuilderScreen() {
                             {formatBadgeText(player.role.replace("_", " "))}
                           </Badge>
                           <Text {...textStyles.secondary}>{player.team}</Text>
+                          {overseasRule?.enabled && player.nationality && player.nationality !== overseasRule.hostCountry && (
+                            <Text fontFamily="$mono" fontSize={9} color="$colorAccent" fontWeight="600">{formatUIText("overseas")}</Text>
+                          )}
                           {proj && (
                             <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
                               {proj.projectedPoints.toFixed(0)} pts
@@ -2101,7 +2161,10 @@ export default function TeamBuilderScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12 }}>
         {currentRolePlayers.length > 0 ? currentRolePlayers.map((player, i) => {
           const isSelected = selectedIds.has(player.id);
-          const isDisabled = !isSelected && (selectedPlayers.length >= TEAM_SIZE || player.credits > creditsRemaining);
+          const isOverseas = overseasRule?.enabled && player.nationality && player.nationality !== overseasRule.hostCountry;
+          const isTeamFull = (teamCounts[player.team] ?? 0) >= 7;
+          const isOverseasFull = isOverseas && overseasCount >= 4;
+          const isDisabled = !isSelected && (selectedPlayers.length >= TEAM_SIZE || player.credits > creditsRemaining || isTeamFull || isOverseasFull);
           const proj = projectionsByPlayerId.get(player.id);
           return (
             <Animated.View key={player.id} entering={FadeInDown.delay(i * 25).springify()}>

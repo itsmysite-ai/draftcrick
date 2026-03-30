@@ -128,6 +128,12 @@ export default function ContestDetailScreen() {
       if (flag === id) {
         setJustJoined(true);
         sessionStorage.removeItem("draftplay_just_joined");
+        // Force refetch all data so the team shows immediately
+        contest.refetch();
+        myTeam.refetch();
+        myContests.refetch();
+        myPosition.refetch();
+        standings.refetch();
       }
     } catch {}
   }, [contest.data, myContests.isLoading, myPosition.isLoading, myTeam.isLoading, id]);
@@ -465,18 +471,19 @@ export default function ContestDetailScreen() {
               {!isH2H && c.currentEntries < c.maxEntries && (
                 <Button variant="primary" size="md" onPress={() => {
                   const link = `https://app.draftplay.ai/contest/${c.id}`;
-                  RNShare.share({ message: `I just created my team for "${c.name}" on DraftPlay! Join the contest: ${link}` });
+                  const teamName = myTeam.data?.name ? ` with "${myTeam.data.name}"` : "";
+                  RNShare.share({ message: `I've created my team${teamName} for "${c.name}" on DraftPlay — create yours and let's compete! ${link}` });
                 }} testID="success-invite-btn">
-                  {formatUIText("invite friends to join")}
+                  {formatUIText("share with league members")}
                 </Button>
               )}
               <Button variant="secondary" size="sm" onPress={() => {
                 if (match) {
-                  useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament });
+                  useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament, editTeamId: myTeam.data?.id });
                   router.push(teamBuilderRoute as any);
                 }
-              }} testID="success-change-team-btn">
-                {formatUIText("change team")}
+              }} testID="success-edit-team-btn">
+                {formatUIText("edit team")}
               </Button>
               <Button variant="secondary" size="sm" onPress={() => setJustJoined(false)} testID="success-dismiss-btn">
                 {formatUIText("view contest details")}
@@ -690,9 +697,9 @@ export default function ContestDetailScreen() {
               </Card>
             ) : (
               <YStack gap="$3">
-                {/* Change team — always visible when joined */}
-                <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament }); router.push(teamBuilderRoute as any); } }} testID="change-team-btn">
-                  {formatUIText("change team")}
+                {/* Edit team — always visible when joined and contest is open */}
+                <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament, editTeamId: myTeam.data?.id }); router.push(teamBuilderRoute as any); } }} testID="edit-team-btn">
+                  {formatUIText("edit team")}
                 </Button>
                 {swappableTeams.length > 0 && (
                   <Button variant="secondary" size="md" onPress={() => setShowSwap(!showSwap)} testID="swap-team-btn">

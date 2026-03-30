@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 import { createContestSchema } from "@draftplay/shared";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
-import { contests, fantasyTeams, matches, users, leagueMembers } from "@draftplay/db";
+import { contests, fantasyTeams, matches, users, leagueMembers, leagues } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { calculatePrizeDistribution } from "../services/settlement";
 import { deductCoins } from "../services/pop-coins";
@@ -491,5 +491,74 @@ export const contestRouter = router({
       } catch { /* best-effort */ }
 
       return { success: true };
+    }),
+
+  /**
+   * Get open league contests where the user is a league member but hasn't entered yet.
+   * Used on the home page to show "pending" contests for league members.
+   */
+  pendingLeagueContests: protectedProcedure
+    .query(async ({ ctx }) => {
+      // 1. Get all leagues the user is a member of
+      const memberships = await ctx.db.query.leagueMembers.findMany({
+        where: eq(leagueMembers.userId, ctx.user.id),
+        columns: { leagueId: true },
+      });
+      if (memberships.length === 0) return [];
+
+      const leagueIds = memberships.map((m) => m.leagueId);
+
+      // 2. Get open contests in those leagues
+      const openContests = await ctx.db
+        .select({
+          id: contests.id,
+          name: contests.name,
+          leagueId: contests.leagueId,
+          matchId: contests.matchId,
+          status: contests.status,
+          maxEntries: contests.maxEntries,
+          currentEntries: contests.currentEntries,
+          entryFee: contests.entryFee,
+          prizePool: contests.prizePool,
+          contestType: contests.contestType,
+          leagueName: leagues.name,
+        })
+        .from(contests)
+        .innerJoin(leagues, eq(contests.leagueId, leagues.id))
+        .where(and(
+          inArray(contests.leagueId, leagueIds),
+          eq(contests.status, "open"),
+        ));
+
+      if (openContests.length === 0) return [];
+
+      // 3. Get user's existing teams in these contests
+      const contestIds = openContests.map((c) => c.id);
+      const myTeams = await ctx.db.query.fantasyTeams.findMany({
+        where: and(
+          eq(fantasyTeams.userId, ctx.user.id),
+          inArray(fantasyTeams.contestId, contestIds),
+        ),
+        columns: { contestId: true },
+      });
+      const joinedContestIds = new Set(myTeams.map((t) => t.contestId));
+
+      // 4. Filter to only contests user hasn't joined, and enrich with match data
+      const pending = openContests.filter((c) => !joinedContestIds.has(c.id));
+      if (pending.length === 0) return [];
+
+      const matchIds = [...new Set(pending.map((c) => c.matchId).filter(Boolean))] as string[];
+      const matchRows = matchIds.length > 0
+        ? await ctx.db.query.matches.findMany({
+            where: or(...matchIds.map((mid) => eq(matches.id, mid))),
+            columns: { id: true, teamHome: true, teamAway: true, tournament: true, format: true, startTime: true, status: true, draftEnabled: true },
+          })
+        : [];
+      const matchMap = new Map(matchRows.map((m) => [m.id, m]));
+
+      return pending.map((c) => ({
+        ...c,
+        match: matchMap.get(c.matchId!) ?? null,
+      }));
     }),
 });
