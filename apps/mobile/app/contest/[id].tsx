@@ -86,7 +86,7 @@ export default function ContestDetailScreen() {
   const [countdown, setCountdown] = useState("");
   const celebrationShown = useRef(false);
 
-  const contest = trpc.contest.getById.useQuery({ id: id! }, { enabled: !!id });
+  const contest = trpc.contest.getById.useQuery({ id: id! }, { enabled: !!id, refetchInterval: 30_000 });
   const c = contest.data as any;
   const contestLeagueId = c?.leagueId;
   const leagueQuery = trpc.league.getById.useQuery({ id: contestLeagueId! }, { enabled: !!contestLeagueId, staleTime: Infinity });
