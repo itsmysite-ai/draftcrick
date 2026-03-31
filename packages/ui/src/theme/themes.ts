@@ -132,9 +132,9 @@ const darkBase = {
   borderColor: tokens.color.charcoalBorder,
   borderColorHover: "#444543",
   shadowColor: "rgba(0,0,0,0.3)",
-  placeholderColor: "#5E5D5A",
+  placeholderColor: "#6E6D6A",
   colorSecondary: "#9A9894",
-  colorMuted: "#5E5D5A",
+  colorMuted: "#8A8985",
   colorOverlay: "rgba(0,0,0,0.55)",
 };
 
