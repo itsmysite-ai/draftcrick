@@ -901,6 +901,8 @@ export default function ContestDetailScreen() {
                     padding="$3"
                     pressable
                     onPress={() => {
+                      // Block expanding other users' teams while contest is open
+                      if (!isTeamExpanded && isOpen && !isCurrentUser) return;
                       if (isTeamExpanded) {
                         setExpandedTeamId(null);
                         setExpandedPlayerId(null);
@@ -939,7 +941,9 @@ export default function ContestDetailScreen() {
                       </XStack>
                       <YStack alignItems="flex-end">
                         <StatLabel label={formatUIText("pts")} value={entry.totalPoints.toFixed(1)} />
-                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{isTeamExpanded ? "▲" : "▼"}</Text>
+                        {(!isOpen || isCurrentUser) && (
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{isTeamExpanded ? "▲" : "▼"}</Text>
+                        )}
                       </YStack>
                     </XStack>
 

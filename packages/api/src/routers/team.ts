@@ -915,9 +915,16 @@ Return ONLY a JSON array of 5 strings:`;
     .query(async ({ ctx, input }) => {
       const team = await ctx.db.query.fantasyTeams.findFirst({
         where: eq(fantasyTeams.id, input.teamId),
-        with: { contest: { columns: { matchId: true } } },
+        with: { contest: { columns: { matchId: true, status: true } } },
       });
       if (!team) return null;
+
+      // Don't expose other users' players while contest is still open
+      const contestStatus = (team as any).contest?.status;
+      const isOwnTeam = (ctx as any).user?.id === team.userId;
+      if (contestStatus === "open" && !isOwnTeam) {
+        return { id: team.id, name: team.name, captainId: null, viceCaptainId: null, totalPoints: 0, playerDetails: [] };
+      }
 
       const teamPlayers = team.players as Array<{ playerId: string; role: string }>;
       const playerIds = teamPlayers.map((p) => p.playerId);
