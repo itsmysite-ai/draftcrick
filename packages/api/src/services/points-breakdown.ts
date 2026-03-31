@@ -18,6 +18,7 @@ export interface PlayerPointsBreakdown {
   playerName: string;
   team: string;
   role: string;
+  photoUrl: string | null;
   totalFantasyPoints: number;
   categories: PointsCategory[];
 }
@@ -133,6 +134,7 @@ export async function getPointsBreakdownForMatch(
         playerName: player?.name ?? "Unknown",
         team: player?.team ?? "",
         role: player?.role ?? "unknown",
+        photoUrl: (player as any)?.photoUrl ?? null,
         totalFantasyPoints: Number(sc.fantasyPoints ?? totalCalc),
         categories,
       };

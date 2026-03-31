@@ -957,27 +957,36 @@ export default function MatchScreen() {
             </Card>
             {showPointsBreakdown && (
               <Animated.View entering={FadeInDown.springify()}>
-                <Card padding="$4" marginBottom="$3" marginTop={-8}>
+                <Card padding="$3" marginBottom="$3" marginTop={-8}>
                   {pointsBreakdownQuery.isLoading ? (
                     <EggLoadingSpinner size={24} message={formatUIText("calculating breakdown")} />
                   ) : pointsBreakdownQuery.data && pointsBreakdownQuery.data.length > 0 ? (
-                    <YStack gap="$3">
-                      {pointsBreakdownQuery.data.slice(0, 8).map((p: any, i: number) => (
-                        <YStack key={p.playerId || i} paddingBottom="$2" borderBottomWidth={1} borderBottomColor="$borderColor">
-                          <XStack alignItems="center" gap="$2" marginBottom="$1">
-                            <InitialsAvatar name={p.playerName} playerRole={p.role?.toUpperCase()} ovr={0} size={24} />
-                            <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" flex={1} numberOfLines={1}>{p.playerName}</Text>
-                            <Text fontFamily="$mono" fontWeight="800" fontSize={14} color="$accentBackground">{p.totalFantasyPoints}</Text>
-                          </XStack>
-                          <XStack flexWrap="wrap" gap="$1" paddingLeft={32}>
-                            {(p.categories ?? []).map((c: any, ci: number) => (
-                              <Badge key={ci} variant={c.points > 0 ? "role" : "default"} size="sm">
-                                {`${c.label}: ${c.stat} (${c.points > 0 ? "+" : ""}${c.points})`}
-                              </Badge>
-                            ))}
-                          </XStack>
-                        </YStack>
-                      ))}
+                    <YStack gap="$1">
+                      {pointsBreakdownQuery.data.map((p: any, i: number) => {
+                        const roleKey = (({ batsman: "BAT", bowler: "BOWL", all_rounder: "AR", wicket_keeper: "WK" }) as Record<string, string>)[p.role] ?? "BAT";
+                        return (
+                          <Card key={p.playerId || i} padding="$3" marginBottom="$1">
+                            <XStack alignItems="center">
+                              <InitialsAvatar name={p.playerName} playerRole={roleKey} ovr={Math.round(p.totalFantasyPoints)} size={32} imageUrl={p.photoUrl} />
+                              <YStack flex={1} marginLeft="$2">
+                                <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>{p.playerName}</Text>
+                                <XStack alignItems="center" gap="$1" marginTop={2}>
+                                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">{p.team ?? ""}</Text>
+                                  <Badge variant="default" size="sm">{formatBadgeText(roleKey)}</Badge>
+                                </XStack>
+                              </YStack>
+                              <Text fontFamily="$mono" fontWeight="800" fontSize={15} color="$accentBackground">{p.totalFantasyPoints}</Text>
+                            </XStack>
+                            <XStack flexWrap="wrap" gap="$1" marginTop="$2">
+                              {(p.categories ?? []).filter((c: any) => c.points !== 0).map((c: any, ci: number) => (
+                                <Badge key={ci} variant={c.points > 0 ? "role" : "default"} size="sm">
+                                  {`${c.label}: ${c.stat} (${c.points > 0 ? "+" : ""}${c.points})`}
+                                </Badge>
+                              ))}
+                            </XStack>
+                          </Card>
+                        );
+                      })}
                     </YStack>
                   ) : (
                     <Text {...textStyles.hint} textAlign="center">{formatUIText("no scoring data available")}</Text>
