@@ -753,7 +753,8 @@ export default function HomeScreen() {
       return getTime(a) - getTime(b);
     });
   const nextMatch = upcomingMatches[0] ?? null;
-  const draftOpenMatches = upcomingMatches.filter((m: any) => m.draftEnabled);
+  const liveMatches = upcomingMatches.filter((m: any) => m.status === "live");
+  const draftOpenMatches = upcomingMatches.filter((m: any) => m.draftEnabled && m.status !== "live");
   const otherMatches = upcomingMatches.filter((m: any) => !m.draftEnabled && m.status !== "live").slice(0, 4);
   const activeTournaments = dashboardQuery.data?.tournaments ?? [];
 
@@ -1031,6 +1032,26 @@ export default function HomeScreen() {
                 {formatUIText("drafts open closer to match time. we'll notify you when it's time to pick your team.")}
               </Text>
             </Card>
+          </Animated.View>
+        )}
+
+        {/* ── Live Matches — shown prominently above everything else ── */}
+        {liveMatches.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(40).springify()}>
+            <Text {...textStyles.sectionHeader} marginBottom="$2">
+              {formatUIText("live now")}
+            </Text>
+            <YStack gap="$3" marginBottom="$4">
+              {liveMatches.map((m: any) => (
+                <FeaturedMatchCard
+                  key={m.id}
+                  match={m}
+                  sport={sport}
+                  getTeamLogo={getTeamLogo}
+                  onPress={() => router.push(`/match/${encodeURIComponent(m.dbId || m.id)}`)}
+                />
+              ))}
+            </YStack>
           </Animated.View>
         )}
 
