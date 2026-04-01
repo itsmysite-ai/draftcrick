@@ -904,6 +904,108 @@ export interface ScorecardPlayer {
   isKeeper: boolean;
 }
 
+export interface PlayingXIPlayer {
+  cricbuzzId: number;
+  name: string;
+  role: string;
+  isCaptain: boolean;
+  isKeeper: boolean;
+  isSubstitute: boolean;
+  teamName: string;
+  faceImageId?: number;
+}
+
+export interface PlayingXIResult {
+  team1: { name: string; shortName: string; players: PlayingXIPlayer[] };
+  team2: { name: string; shortName: string; players: PlayingXIPlayer[] };
+  hasToss: boolean;
+  tossWinner: string | null;
+  tossDecision: string | null;
+}
+
+/**
+ * Fetch playing XI data from a Cricbuzz match page.
+ * Parses playerDetails arrays for both teams, filtering out coaching staff.
+ * Returns confirmed XI when toss has happened, predicted XI before toss.
+ * Use `hasToss` to determine if the XI is confirmed.
+ */
+export async function fetchPlayingXI(cricbuzzMatchId: number): Promise<PlayingXIResult | null> {
+  try {
+    const html = await fetchRawHtml(`/live-cricket-scores/${cricbuzzMatchId}`);
+    // Unescape RSC-encoded JSON
+    const unescaped = html.replace(/\\"/g, '"');
+
+    // Find playerDetails arrays for both teams
+    const teams: Array<{ name: string; shortName: string; players: PlayingXIPlayer[] }> = [];
+    let searchIdx = 0;
+
+    while (teams.length < 2) {
+      const pdIdx = unescaped.indexOf('"playerDetails":[{"id"', searchIdx);
+      if (pdIdx === -1) break;
+
+      // Find team name before playerDetails
+      const nameIdx = unescaped.lastIndexOf('"name":"', pdIdx);
+      const shortIdx = unescaped.lastIndexOf('"shortName":"', pdIdx);
+      const teamName = nameIdx > -1 ? unescaped.slice(nameIdx + 8, unescaped.indexOf('"', nameIdx + 8)) : "Unknown";
+      const shortName = shortIdx > -1 ? unescaped.slice(shortIdx + 13, unescaped.indexOf('"', shortIdx + 13)) : teamName;
+
+      // Parse the JSON array
+      const arrStart = unescaped.indexOf('[', pdIdx);
+      let depth = 0;
+      let arrEnd = arrStart;
+      for (let i = arrStart; i < Math.min(arrStart + 20000, unescaped.length); i++) {
+        if (unescaped[i] === '[') depth++;
+        else if (unescaped[i] === ']') depth--;
+        if (depth === 0) { arrEnd = i + 1; break; }
+      }
+
+      try {
+        const rawPlayers = JSON.parse(unescaped.slice(arrStart, arrEnd));
+        // Filter out coaching staff: actual players have captain as boolean (not null/undefined)
+        const players: PlayingXIPlayer[] = rawPlayers
+          .filter((p: any) => p.captain !== null && p.captain !== undefined)
+          .map((p: any) => ({
+            cricbuzzId: p.id,
+            name: p.name,
+            role: p.role ?? "Unknown",
+            isCaptain: !!p.captain,
+            isKeeper: !!p.keeper,
+            isSubstitute: !!p.substitute,
+            teamName: p.teamName ?? shortName,
+            faceImageId: p.faceImageId,
+          }));
+
+        teams.push({ name: teamName, shortName, players });
+      } catch {
+        log.warn({ cricbuzzMatchId }, "Failed to parse playerDetails array");
+      }
+
+      searchIdx = pdIdx + 1;
+    }
+
+    if (teams.length < 2) {
+      log.warn({ cricbuzzMatchId, teamsFound: teams.length }, "Could not find 2 teams with playerDetails");
+      return null;
+    }
+
+    // Check for toss results
+    const tossMatch = unescaped.match(/"tossResults":\s*\{[^}]*"decision"\s*:\s*"([^"]+)"/);
+    const tossStatusMatch = unescaped.match(/(\w[\w\s]+?)\s+(?:opt|elected|chose)\s+to\s+(bat|bowl|field)/i);
+    const hasToss = !!tossMatch || !!tossStatusMatch;
+    const tossWinner = tossStatusMatch ? tossStatusMatch[1]!.trim() : null;
+    const tossDecision = tossStatusMatch ? tossStatusMatch[2]!.toLowerCase() : (tossMatch ? tossMatch[1]!.toLowerCase() : null);
+
+    const xi1 = teams[0]!.players.filter((p) => !p.isSubstitute).length;
+    const xi2 = teams[1]!.players.filter((p) => !p.isSubstitute).length;
+    log.info({ cricbuzzMatchId, team1: teams[0]!.shortName, xi1, team2: teams[1]!.shortName, xi2, hasToss }, "Fetched playing XI");
+
+    return { team1: teams[0]!, team2: teams[1]!, hasToss, tossWinner, tossDecision };
+  } catch (err: any) {
+    log.error({ cricbuzzMatchId, err: err.message }, "Failed to fetch playing XI");
+    return null;
+  }
+}
+
 /**
  * Fetch the playing XI from a Cricbuzz match scorecard page.
  * Returns the players who actually appeared in the match (batsmen + bowlers from all innings).

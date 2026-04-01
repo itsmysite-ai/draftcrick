@@ -441,6 +441,68 @@ export default function ContestDetailScreen() {
         </Animated.View>
       )}
 
+      {/* Playing XI Announced Banner — shown when confirmed XI available and contest still open */}
+      {isOpen && hasJoined && match?.playingXiHome && (match.playingXiHome as any[]).length > 0 && (() => {
+        const confirmedNames = new Set([
+          ...((match.playingXiHome as any[]) ?? []).map((p: any) => p.name?.toLowerCase()),
+          ...((match.playingXiAway as any[]) ?? []).map((p: any) => p.name?.toLowerCase()),
+        ]);
+        const benchInTeam = teamPlayers.filter((p: any) => {
+          const name = p.name?.toLowerCase();
+          return name && !confirmedNames.has(name);
+        });
+        const hasBenchRisk = benchInTeam.length > 0;
+        return (
+          <Animated.View entering={FadeInDown.delay(0).springify()}>
+            <Card
+              marginHorizontal="$4"
+              marginBottom="$4"
+              padding="$4"
+              borderColor={hasBenchRisk ? "$error" : "$accentBackground"}
+              borderWidth={2}
+            >
+              <XStack alignItems="center" gap="$2" marginBottom={hasBenchRisk ? 8 : 0}>
+                <Text fontSize={16}>{hasBenchRisk ? "⚠️" : "✅"}</Text>
+                <YStack flex={1}>
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={13} color={hasBenchRisk ? "$error" : "$accentBackground"}>
+                    {formatUIText("playing xi announced")}
+                  </Text>
+                  {hasBenchRisk ? (
+                    <Text fontFamily="$body" fontSize={12} color="$color">
+                      {formatUIText(`${benchInTeam.length} of your players ${benchInTeam.length === 1 ? "is" : "are"} on the bench — edit your team!`)}
+                    </Text>
+                  ) : (
+                    <Text fontFamily="$body" fontSize={12} color="$colorMuted">
+                      {formatUIText("all your players are in the playing xi")}
+                    </Text>
+                  )}
+                </YStack>
+              </XStack>
+              {hasBenchRisk && (
+                <YStack gap="$1" marginBottom="$2">
+                  {benchInTeam.map((p: any) => (
+                    <XStack key={p.playerId || p.name} alignItems="center" gap="$2">
+                      <Badge variant="warning" size="sm">{formatBadgeText("bench")}</Badge>
+                      <Text fontFamily="$body" fontSize={12} color="$color">{p.name}</Text>
+                    </XStack>
+                  ))}
+                </YStack>
+              )}
+              {hasBenchRisk && (
+                <Button variant="primary" size="md" onPress={() => {
+                  if (match) {
+                    useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament, editTeamId: myTeam.data?.id });
+                    router.push(teamBuilderRoute as any);
+                  }
+                }}>
+                  {formatUIText("edit team now")}
+                </Button>
+              )}
+            </Card>
+          </Animated.View>
+        );
+      })()}
+
       {/* Just Joined Success Banner */}
       {justJoined && hasJoined && (
         <Animated.View entering={FadeInDown.delay(0).springify()}>

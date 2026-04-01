@@ -197,6 +197,11 @@ export const playerRouter = router({
         }
       }
 
-      return { players: filteredScores, overseasRule };
+      return {
+        players: filteredScores,
+        overseasRule,
+        confirmedXiHome: match.playingXiHome as Array<{ name: string; cricbuzzId: number }> | null,
+        confirmedXiAway: match.playingXiAway as Array<{ name: string; cricbuzzId: number }> | null,
+      };
     }),
 });

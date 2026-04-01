@@ -74,7 +74,11 @@ async function backgroundRefreshMatch(db: any, match: any) {
       }
     }
 
-    // 2. Refresh player scores
+    // 2. Fetch confirmed playing XI if toss just happened
+    const { fetchAndStorePlayingXI } = await import("../services/playing-xi-fetch");
+    await fetchAndStorePlayingXI(db, match.id);
+
+    // 3. Refresh player scores
     const { refreshMatchScoresFromCricbuzz } = await import("../services/live-scores");
     await refreshMatchScoresFromCricbuzz(db, match.id);
 

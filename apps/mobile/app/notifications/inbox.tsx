@@ -37,6 +37,7 @@ const ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
   challenge_expired: "time-outline",
   prediction_posted: "help-circle-outline",
   team_created: "people-outline",
+  playing_xi_announced: "shirt-outline",
 };
 
 const CHALLENGE_TYPES = new Set(["challenge_received", "challenge_accepted", "challenge_declined", "challenge_expired"]);

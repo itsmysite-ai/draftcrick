@@ -489,9 +489,35 @@ export default function TeamBuilderScreen() {
     { enabled: !!matchId && !!teamA && !!teamB && canAccess("hasPlayingXI"), staleTime: 60 * 60_000, retry: 1 },
   );
 
-  // Build a lookup: player name → "likely" | "bench" | "unlikely"
+  // Build a lookup: player name → "likely" | "bench"
+  // Prefer confirmed XI from DB (post-toss), fall back to AI predictions (pre-toss)
+  const confirmedXiHome = (matchPlayers.data as any)?.confirmedXiHome as Array<{ name: string }> | null;
+  const confirmedXiAway = (matchPlayers.data as any)?.confirmedXiAway as Array<{ name: string }> | null;
+  const hasConfirmedXI = confirmedXiHome && confirmedXiHome.length > 0;
+
   const playingXIStatus = useMemo(() => {
     const map = new Map<string, "likely" | "bench">();
+
+    // Use confirmed XI if available (post-toss)
+    if (hasConfirmedXI && confirmedXiHome && confirmedXiAway) {
+      const confirmedNames = new Set([
+        ...confirmedXiHome.map((p) => p.name.toLowerCase()),
+        ...confirmedXiAway.map((p) => p.name.toLowerCase()),
+      ]);
+      // All players in the match — anyone not in confirmed XI is bench
+      const allPlayers = Object.values(playersByRole).flat();
+      for (const p of allPlayers) {
+        const name = p.name.toLowerCase();
+        if (confirmedNames.has(name)) {
+          map.set(name, "likely");
+        } else {
+          map.set(name, "bench");
+        }
+      }
+      return map;
+    }
+
+    // Fallback: AI-predicted XI (pre-toss)
     const data = playingXIQuery.data as any;
     if (!data) return map;
     for (const side of [data.teamA, data.teamB]) {
@@ -504,7 +530,7 @@ export default function TeamBuilderScreen() {
       }
     }
     return map;
-  }, [playingXIQuery.data]);
+  }, [hasConfirmedXI, confirmedXiHome, confirmedXiAway, playingXIQuery.data, playersByRole]);
 
   // ── Pitch/Weather query — for context banner ──
   const pitchWeatherQuery = trpc.analytics.getPitchWeather.useQuery(
@@ -2190,11 +2216,11 @@ export default function TeamBuilderScreen() {
                       {proj && proj.captainRank <= 3 && (
                         <Text fontSize={10} lineHeight={12}>👑</Text>
                       )}
-                      {/* Playing XI status badge */}
+                      {/* Playing XI status badge — confirmed XI shown to all, AI predicted XI requires Pro */}
                       {(() => {
-                        if (!canAccess("hasPlayingXI")) return null;
+                        if (!hasConfirmedXI && !canAccess("hasPlayingXI")) return null;
                         const xiStatus = playingXIStatus.get(player.name.toLowerCase());
-                        if (xiStatus === "likely") return <Badge variant="live" size="sm"><Text fontFamily="$mono" fontSize={7} fontWeight="700" color="white">{formatBadgeText("XI")}</Text></Badge>;
+                        if (xiStatus === "likely") return <Badge variant="live" size="sm"><Text fontFamily="$mono" fontSize={7} fontWeight="700" color="white">{formatBadgeText(hasConfirmedXI ? "XI ✓" : "XI")}</Text></Badge>;
                         if (xiStatus === "bench") return <Badge variant="warning" size="sm"><Text fontFamily="$mono" fontSize={7} fontWeight="700">{formatBadgeText("BENCH")}</Text></Badge>;
                         return null;
                       })()}

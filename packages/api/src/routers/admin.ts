@@ -1105,10 +1105,17 @@ const matchesRouter = router({
         }
       }
 
-      // 3. Invalidate dashboard cache so app picks up changes immediately
+      // 3. Fetch confirmed playing XI if toss has happened
+      const { fetchAndStorePlayingXI } = await import("../services/playing-xi-fetch");
+      const xiResult = await fetchAndStorePlayingXI(ctx.db, input.matchId);
+      if (xiResult.stored) {
+        matchChanges.push(`playing XI stored (${xiResult.benchNotifications} bench notifications sent)`);
+      }
+
+      // 4. Invalidate dashboard cache so app picks up changes immediately
       await invalidateHotCache("dashboard:");
 
-      // 4. Refresh player scores from Cricbuzz scorecard
+      // 5. Refresh player scores from Cricbuzz scorecard
       const { refreshMatchScoresFromCricbuzz } = await import("../services/live-scores");
       const result = await refreshMatchScoresFromCricbuzz(ctx.db, input.matchId);
 
