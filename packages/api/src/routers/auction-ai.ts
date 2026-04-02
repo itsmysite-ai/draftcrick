@@ -12,6 +12,13 @@ import {
   buildAuctionGuruContext,
 } from "../services/auction-ai";
 import { loadAuctionState } from "../services/auction-room";
+import {
+  loadTargetSquad,
+  saveTargetSquad,
+  autoBuildTargetSquad,
+  evolveTargetSquad,
+} from "../services/auction-targets";
+import type { TargetSquad, TargetPlayer } from "../services/auction-targets";
 import { getProjectionsForMatch } from "../services/projection-engine";
 import { getFDRForMatch } from "../services/fdr-engine";
 import { rateTeam } from "../services/rate-my-team";
@@ -417,5 +424,208 @@ export const auctionAiRouter = router({
         injuryStatus: (stats.injuryStatus as string) ?? null,
         formNote: (stats.formNote as string) ?? null,
       };
+    }),
+
+  // ── Target Squad ──────────────────────────────────────────
+
+  /** Get user's target squad for an auction room */
+  getTargetSquad: protectedProcedure
+    .input(z.object({ roomId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return await loadTargetSquad(ctx.db, input.roomId, ctx.user.id);
+    }),
+
+  /** Save user's target squad (manual edits) */
+  saveTargetSquad: protectedProcedure
+    .input(z.object({
+      roomId: z.string().uuid(),
+      targets: z.array(z.object({
+        playerId: z.string(),
+        priority: z.number(),
+        status: z.enum(["target", "acquired", "gone"]),
+        boughtAt: z.number().optional(),
+        replacedBy: z.string().optional(),
+        addedBy: z.enum(["manual", "ai"]),
+      })),
+      generatedBy: z.enum(["manual", "ai", "hybrid"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const squad: TargetSquad = {
+        targets: input.targets as TargetPlayer[],
+        generatedBy: input.generatedBy,
+        lastEvolvedAt: new Date().toISOString(),
+      };
+      await saveTargetSquad(ctx.db, input.roomId, ctx.user.id, squad);
+      return { success: true };
+    }),
+
+  /** Add/remove a single player from target squad */
+  toggleTarget: protectedProcedure
+    .input(z.object({
+      roomId: z.string().uuid(),
+      playerId: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      let squad = await loadTargetSquad(ctx.db, input.roomId, ctx.user.id);
+      if (!squad) {
+        squad = { targets: [], generatedBy: "manual", lastEvolvedAt: new Date().toISOString() };
+      }
+
+      const existing = squad.targets.findIndex((t) => t.playerId === input.playerId);
+      if (existing >= 0) {
+        // Remove
+        squad.targets.splice(existing, 1);
+        // Re-prioritize
+        squad.targets.forEach((t, i) => { t.priority = i + 1; });
+      } else {
+        // Add
+        squad.targets.push({
+          playerId: input.playerId,
+          priority: squad.targets.length + 1,
+          status: "target",
+          addedBy: "manual",
+        });
+      }
+      squad.generatedBy = squad.targets.some((t) => t.addedBy === "ai") ? "hybrid" : "manual";
+      squad.lastEvolvedAt = new Date().toISOString();
+
+      await saveTargetSquad(ctx.db, input.roomId, ctx.user.id, squad);
+      return { targets: squad.targets };
+    }),
+
+  /** AI auto-build target squad */
+  autoBuildTargets: protectedProcedure
+    .input(z.object({ roomId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const state = await loadAuctionState(ctx.db, input.roomId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Get all available players
+      const soldIds = new Set(state.soldPlayers.map((sp) => sp.playerId));
+      const league = await ctx.db.query.leagues.findFirst({
+        where: eq(leagues.id, state.leagueId),
+        columns: { tournament: true },
+      });
+
+      // Get players for this tournament
+      let allPlayers: any[];
+      if (league?.tournament) {
+        const { data: tPlayers } = await ctx.db.query.players.findMany({
+          where: eq(players.sport, "cricket"),
+        }).then((ps) => ({ data: ps }));
+        allPlayers = tPlayers ?? [];
+      } else {
+        allPlayers = await ctx.db.query.players.findMany({
+          where: eq(players.sport, "cricket"),
+        });
+      }
+
+      const available = allPlayers
+        .filter((p: any) => !soldIds.has(p.id))
+        .map((p: any) => {
+          const stats = (p.stats ?? {}) as Record<string, unknown>;
+          return {
+            id: p.id,
+            name: p.name,
+            role: p.role ?? "batsman",
+            team: p.team ?? "",
+            credits: (stats.adminCredits ?? stats.calculatedCredits ?? stats.credits ?? 8.0) as number,
+            stats,
+          };
+        });
+
+      // Get squad rule
+      const settings = (await ctx.db.query.draftRooms.findFirst({
+        where: eq(draftRooms.id, input.roomId),
+        columns: { settings: true },
+      }))?.settings as Record<string, unknown> | undefined;
+
+      let squadRule = null;
+      const squadRuleId = settings?.squadRule as string;
+      if (squadRuleId && squadRuleId !== "none") {
+        if (squadRuleId === "custom") {
+          squadRule = (settings?.customSquadRule as any) ?? null;
+        } else {
+          const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
+          const { getAdminConfig } = await import("../services/admin-config");
+          const adminRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+          squadRule = [...DEFAULT_SQUAD_RULES, ...adminRules].find((r: any) => r.id === squadRuleId) ?? null;
+        }
+      }
+
+      const budget = state.budgets[ctx.user.id] ?? state.auctionBudget;
+      const squadSize = squadRule?.squadSize ?? state.maxPlayersPerTeam;
+
+      const squad = autoBuildTargetSquad(available, squadRule, budget, squadSize);
+      await saveTargetSquad(ctx.db, input.roomId, ctx.user.id, squad);
+
+      return squad;
+    }),
+
+  /** Evolve target squad based on current auction state */
+  evolveTargets: protectedProcedure
+    .input(z.object({ roomId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const state = await loadAuctionState(ctx.db, input.roomId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const current = await loadTargetSquad(ctx.db, input.roomId, ctx.user.id);
+      if (!current || current.targets.length === 0) {
+        return { evolved: false, squad: current };
+      }
+
+      // Get available players
+      const soldIds = new Set(state.soldPlayers.map((sp) => sp.playerId));
+      const allPlayers = await ctx.db.query.players.findMany({
+        where: eq(players.sport, "cricket"),
+      });
+      const available = allPlayers
+        .filter((p: any) => !soldIds.has(p.id))
+        .map((p: any) => {
+          const stats = (p.stats ?? {}) as Record<string, unknown>;
+          return {
+            id: p.id,
+            name: p.name,
+            role: p.role ?? "batsman",
+            team: p.team ?? "",
+            credits: (stats.adminCredits ?? stats.calculatedCredits ?? stats.credits ?? 8.0) as number,
+          };
+        });
+
+      // Get squad rule
+      const settings = (await ctx.db.query.draftRooms.findFirst({
+        where: eq(draftRooms.id, input.roomId),
+        columns: { settings: true },
+      }))?.settings as Record<string, unknown> | undefined;
+
+      let squadRule = null;
+      const squadRuleId = settings?.squadRule as string;
+      if (squadRuleId && squadRuleId !== "none") {
+        if (squadRuleId === "custom") {
+          squadRule = (settings?.customSquadRule as any) ?? null;
+        } else {
+          const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
+          const { getAdminConfig } = await import("../services/admin-config");
+          const adminRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+          squadRule = [...DEFAULT_SQUAD_RULES, ...adminRules].find((r: any) => r.id === squadRuleId) ?? null;
+        }
+      }
+
+      const budget = state.budgets[ctx.user.id] ?? state.auctionBudget;
+      const squadSize = squadRule?.squadSize ?? state.maxPlayersPerTeam;
+      const myTeamSize = state.teamSizes[ctx.user.id] ?? 0;
+
+      const evolved = evolveTargetSquad(
+        current, state.soldPlayers, ctx.user.id,
+        available, squadRule, budget, squadSize, myTeamSize,
+      );
+
+      // Only save if something changed
+      const changed = JSON.stringify(evolved.targets) !== JSON.stringify(current.targets);
+      if (changed) {
+        await saveTargetSquad(ctx.db, input.roomId, ctx.user.id, evolved);
+      }
+
+      return { evolved: changed, squad: evolved };
     }),
 });

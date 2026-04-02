@@ -134,6 +134,28 @@ export default function AuctionRoomScreen() {
   const [wonPlayer, setWonPlayer] = useState<string | null>(null);
   const { gate, paywallProps } = usePaywall();
 
+  // Target squad
+  const [showTargets, setShowTargets] = useState(false);
+  const targetSquadQuery = trpc.auctionAi.getTargetSquad.useQuery(
+    { roomId: roomId! },
+    { enabled: !!roomId, staleTime: 10_000 },
+  );
+  const toggleTargetMutation = trpc.auctionAi.toggleTarget.useMutation({
+    onSuccess: () => targetSquadQuery.refetch(),
+  });
+  const autoBuildMutation = trpc.auctionAi.autoBuildTargets.useMutation({
+    onSuccess: () => targetSquadQuery.refetch(),
+  });
+  const evolveMutation = trpc.auctionAi.evolveTargets.useMutation({
+    onSuccess: () => targetSquadQuery.refetch(),
+  });
+  const targetPlayerIds = new Set(
+    (targetSquadQuery.data?.targets ?? [])
+      .filter((t: any) => t.status === "target")
+      .map((t: any) => t.playerId),
+  );
+
+
   // Player stats for popup
   const { data: playerStatsData } = trpc.auctionAi.playerStats.useQuery(
     { playerId: statsPlayerId! },
@@ -154,6 +176,10 @@ export default function AuctionRoomScreen() {
       }
     }
     prevSoldCount.current = soldPlayers.length;
+    // Auto-evolve target squad when new players are sold
+    if (soldPlayers.length > 0 && targetSquadQuery.data?.targets?.length) {
+      evolveMutation.mutate({ roomId: roomId! });
+    }
   }, [auctionState?.soldPlayers?.length]);
 
   // AI bid suggestion for the currently nominated player
@@ -464,7 +490,112 @@ export default function AuctionRoomScreen() {
             });
           })()}
         </XStack>
+        {/* Target squad toggle */}
+        <XStack justifyContent="flex-end" marginTop="$1">
+          <XStack
+            onPress={() => setShowTargets(!showTargets)}
+            cursor="pointer"
+            pressStyle={{ opacity: 0.8 }}
+            paddingHorizontal={8}
+            paddingVertical={3}
+            borderRadius={8}
+            backgroundColor={showTargets ? "rgba(212, 164, 61, 0.12)" : "$backgroundPress"}
+            gap={4}
+            alignItems="center"
+          >
+            <Ionicons name="star" size={12} color={showTargets ? "#D4A43D" : "#666"} />
+            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color={showTargets ? "$colorCricket" : "$colorMuted"}>
+              targets ({(targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "target").length})
+            </Text>
+          </XStack>
+        </XStack>
       </YStack>
+
+      {/* Target squad panel */}
+      {showTargets && (
+        <YStack backgroundColor="$backgroundSurface" padding="$3" borderBottomWidth={1} borderBottomColor="$borderColor">
+          <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+            <XStack alignItems="center" gap="$2">
+              <Ionicons name="star" size={14} color="#D4A43D" />
+              <Text fontFamily="$mono" fontSize={12} fontWeight="700" color="$color">
+                {formatUIText("target squad")}
+              </Text>
+            </XStack>
+            <XStack gap="$2">
+              <XStack
+                onPress={() => autoBuildMutation.mutate({ roomId: roomId! })}
+                cursor="pointer"
+                pressStyle={{ opacity: 0.8 }}
+                paddingHorizontal={8}
+                paddingVertical={4}
+                borderRadius={6}
+                backgroundColor="$accentBackground"
+                gap={4}
+                alignItems="center"
+              >
+                <Ionicons name="sparkles" size={12} color="#fff" />
+                <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$accentColor">
+                  {autoBuildMutation.isPending ? "building..." : "ai build"}
+                </Text>
+              </XStack>
+            </XStack>
+          </XStack>
+
+          {(targetSquadQuery.data?.targets ?? []).length === 0 ? (
+            <YStack alignItems="center" paddingVertical="$3" gap="$2">
+              <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center">
+                {formatUIText("no targets yet. tap ★ on players or use AI Build.")}
+              </Text>
+            </YStack>
+          ) : (
+            <FlatList
+              data={targetSquadQuery.data?.targets ?? []}
+              keyExtractor={(item: any) => item.playerId}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item: target }: { item: any }) => {
+                const player = (players ?? []).find((p: any) => p.id === target.playerId);
+                if (!player) return null;
+                const isGone = target.status === "gone";
+                const isAcquired = target.status === "acquired";
+                return (
+                  <YStack
+                    marginRight="$2"
+                    padding="$2"
+                    borderRadius={8}
+                    backgroundColor={isAcquired ? "rgba(93, 184, 130, 0.1)" : isGone ? "rgba(229, 72, 77, 0.08)" : "$backgroundPress"}
+                    borderWidth={1}
+                    borderColor={isAcquired ? "rgba(93, 184, 130, 0.3)" : isGone ? "rgba(229, 72, 77, 0.2)" : "transparent"}
+                    opacity={isGone ? 0.5 : 1}
+                    minWidth={90}
+                    alignItems="center"
+                  >
+                    <Text fontFamily="$body" fontWeight="600" fontSize={11} color="$color" numberOfLines={1} textAlign="center">
+                      {(player as any).name}
+                    </Text>
+                    <XStack alignItems="center" gap="$1" marginTop={2}>
+                      <Badge variant="default" size="sm">{formatRoleShort((player as any).role ?? "")}</Badge>
+                      {isAcquired && <Ionicons name="checkmark-circle" size={10} color="#5DB882" />}
+                      {isGone && <Ionicons name="close-circle" size={10} color="#E5484D" />}
+                      {target.boughtAt && (
+                        <Text fontFamily="$mono" fontSize={8} color="$colorCricket">{target.boughtAt} Cr</Text>
+                      )}
+                    </XStack>
+                    {isGone && target.replacedBy && (() => {
+                      const rep = (players ?? []).find((p: any) => p.id === target.replacedBy);
+                      return rep ? (
+                        <Text fontFamily="$mono" fontSize={7} color="$colorMuted" marginTop={2}>
+                          → {(rep as any).name?.split(" ")[0]}
+                        </Text>
+                      ) : null;
+                    })()}
+                  </YStack>
+                );
+              }}
+            />
+          )}
+        </YStack>
+      )}
 
       {/* Pause overlay */}
       {(auctionState as any)?.isPaused && (
@@ -764,22 +895,34 @@ export default function AuctionRoomScreen() {
               </Text>
             </YStack>
           ) : isMyNomination ? (() => {
-            // AI nomination suggestion — rule-based, instant
+            // AI nomination suggestion — target list first, then rule-based
             const r = (auctionState as any)?.squadRuleDetails;
             const available = filteredAvailable;
             let topPick: any = null;
             let topPickReason = "";
             let baitPick: any = null;
 
-            if (r && available.length > 0) {
-              // Find roles below minimum
+            // Priority 1: Next player from target list
+            const activeTargets = (targetSquadQuery.data?.targets ?? [])
+              .filter((t: any) => t.status === "target")
+              .sort((a: any, b: any) => a.priority - b.priority);
+            for (const target of activeTargets) {
+              const targetPlayer = available.find((p: any) => p.id === target.playerId);
+              if (targetPlayer) {
+                topPick = targetPlayer;
+                topPickReason = `#${target.priority} on your target list`;
+                break;
+              }
+            }
+
+            // Priority 2: Squad rule needs (if no target found)
+            if (!topPick && r && available.length > 0) {
               const neededRoles: string[] = [];
               if ((myRoleCounts.WK ?? 0) < (r.minWK ?? 0)) neededRoles.push("WK");
               if ((myRoleCounts.BAT ?? 0) < (r.minBAT ?? 0)) neededRoles.push("BAT");
               if ((myRoleCounts.BOWL ?? 0) < (r.minBOWL ?? 0)) neededRoles.push("BOWL");
               if ((myRoleCounts.AR ?? 0) < (r.minAR ?? 0)) neededRoles.push("AR");
 
-              // Best available player in a needed role (by credits)
               const neededPlayers = available.filter((p: any) => neededRoles.includes(formatRoleShort(p.role ?? "")));
               if (neededPlayers.length > 0) {
                 topPick = neededPlayers.sort((a: any, b: any) => (b.credits ?? 0) - (a.credits ?? 0))[0];
@@ -1008,6 +1151,7 @@ export default function AuctionRoomScreen() {
                 : have >= max ? "SKIP"
                 : "OK";
               const needColor = needTag === "NEED" ? "#E5484D" : needTag === "SKIP" ? "#9A9894" : needTag === "FULL" ? "#9A9894" : "#5DB882";
+              const isTarget = targetPlayerIds.has(item.id);
 
               return (
               <Animated.View entering={FadeInDown.delay(30 + index * 20).springify()}>
@@ -1019,6 +1163,8 @@ export default function AuctionRoomScreen() {
                   opacity={isMyNomination && !currentPlayer && !mySquadFull ? 1 : (needTag === "SKIP" ? 0.4 : 0.6)}
                   onPress={() => isMyNomination && !currentPlayer && !mySquadFull ? handleNominate(item.id, item.name) : null}
                   disabled={!isMyNomination || !!currentPlayer || mySquadFull}
+                  borderColor={isTarget ? "$colorCricket" : "$borderColor"}
+                  borderWidth={isTarget ? 1.5 : undefined}
                 >
                   <XStack alignItems="center" gap="$2">
                     <InitialsAvatar
@@ -1048,14 +1194,24 @@ export default function AuctionRoomScreen() {
                         </Text>
                       </XStack>
                     </YStack>
-                    <YStack
-                      onPress={(e: any) => { e.stopPropagation(); setStatsPlayerId(item.id); }}
-                      cursor="pointer"
-                      padding="$1"
-                      pressStyle={{ opacity: 0.7 }}
-                    >
-                      <Ionicons name="stats-chart" size={14} color="#5DB882" />
-                    </YStack>
+                    <XStack gap="$1" alignItems="center">
+                      <YStack
+                        onPress={(e: any) => { e.stopPropagation(); toggleTargetMutation.mutate({ roomId: roomId!, playerId: item.id }); }}
+                        cursor="pointer"
+                        padding="$1"
+                        pressStyle={{ opacity: 0.7, scale: 1.2 }}
+                      >
+                        <Ionicons name={isTarget ? "star" : "star-outline"} size={14} color={isTarget ? "#D4A43D" : "#666"} />
+                      </YStack>
+                      <YStack
+                        onPress={(e: any) => { e.stopPropagation(); setStatsPlayerId(item.id); }}
+                        cursor="pointer"
+                        padding="$1"
+                        pressStyle={{ opacity: 0.7 }}
+                      >
+                        <Ionicons name="stats-chart" size={14} color="#5DB882" />
+                      </YStack>
+                    </XStack>
                   </XStack>
                 </Card>
               </Animated.View>
