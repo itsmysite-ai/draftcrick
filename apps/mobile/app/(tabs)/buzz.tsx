@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScrollView, Pressable } from "react-native";
 import { YStack, XStack } from "tamagui";
 import { Text } from "../../components/SportText";
 import { formatUIText, DraftPlayLogo } from "@draftplay/ui";
 import { HeaderControls } from "../../components/HeaderControls";
 import { ChatRoom } from "../../components/chat";
 import { trpc } from "../../lib/trpc";
-import { Pressable } from "react-native";
 import { useTheme } from "../../providers/ThemeProvider";
+
+// Tab bar height (pill bar + padding) — matches CustomTabBar layout
+const TAB_BAR_HEIGHT = 70;
 
 export default function BuzzScreen() {
   const insets = useSafeAreaInsets();
@@ -16,6 +19,8 @@ export default function BuzzScreen() {
   const { data: rooms } = trpc.chat.getActiveRooms.useQuery(undefined, {
     refetchInterval: 30000,
   });
+
+  const tabBarOffset = TAB_BAR_HEIGHT + Math.max(insets.bottom, 8);
 
   return (
     <YStack flex={1} backgroundColor="$background" paddingTop={insets.top}>
@@ -35,11 +40,12 @@ export default function BuzzScreen() {
         <HeaderControls />
       </XStack>
 
-      {/* Room tabs */}
-      <XStack
-        paddingHorizontal="$3"
-        paddingBottom="$2"
-        gap="$2"
+      {/* Room tabs — horizontally scrollable */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
+        style={{ flexGrow: 0, paddingBottom: 8 }}
       >
         {(rooms ?? [{ id: null, name: "general", type: "general" as const }]).map((room) => {
           const isActive = activeRoom === room.id;
@@ -53,7 +59,7 @@ export default function BuzzScreen() {
             >
               <XStack
                 paddingHorizontal="$3"
-                paddingVertical="$1.5"
+                paddingVertical={6}
                 borderRadius="$round"
                 backgroundColor={isActive ? "$accentBackground" : "$backgroundSurface"}
                 borderWidth={1}
@@ -71,10 +77,10 @@ export default function BuzzScreen() {
             </Pressable>
           );
         })}
-      </XStack>
+      </ScrollView>
 
-      {/* Chat room */}
-      <YStack flex={1} paddingBottom={80}>
+      {/* Chat room — offset by tab bar height so input isn't hidden */}
+      <YStack flex={1} paddingBottom={tabBarOffset}>
         <ChatRoom matchId={activeRoom} />
       </YStack>
     </YStack>
