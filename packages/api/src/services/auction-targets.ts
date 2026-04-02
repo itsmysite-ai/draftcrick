@@ -145,24 +145,29 @@ export function autoBuildTargetSquad(
   budget: number,
   squadSize: number,
   strategy: StrategyDNA = DEFAULT_STRATEGY,
-  existingManualPicks: TargetPlayer[] = [],
+  existingPicks: TargetPlayer[] = [],
 ): TargetSquad {
   const targets: TargetPlayer[] = [];
   const used = new Set<string>();
   const roleCounts: Record<string, number> = { WK: 0, BAT: 0, BOWL: 0, AR: 0 };
 
-  // Preserve manual picks — they are untouched by AI
+  // Preserve acquired picks (players already bought) and manual picks — untouched by AI
   let budgetLeft = budget;
-  for (const manual of existingManualPicks) {
-    if (manual.addedBy !== "manual") continue;
-    if (manual.status !== "target") continue;
-    const player = availablePlayers.find((p) => p.id === manual.playerId);
-    if (!player) continue; // player no longer available
-    targets.push({ ...manual, priority: targets.length + 1 });
-    used.add(manual.playerId);
-    const role = mapRole(player.role);
-    roleCounts[role] = (roleCounts[role] ?? 0) + 1;
-    budgetLeft -= player.credits;
+  for (const pick of existingPicks) {
+    const isKeep = pick.status === "acquired" || pick.addedBy === "manual";
+    if (!isKeep) continue;
+    if (pick.status !== "target" && pick.status !== "acquired") continue;
+
+    // For acquired players, they may not be in availablePlayers (already sold)
+    // Still keep them in the list for display
+    const player = availablePlayers.find((p) => p.id === pick.playerId);
+    targets.push({ ...pick, priority: targets.length + 1 });
+    used.add(pick.playerId);
+    if (player) {
+      const role = mapRole(player.role);
+      roleCounts[role] = (roleCounts[role] ?? 0) + 1;
+      if (pick.status === "target") budgetLeft -= player.credits; // only deduct budget for un-bought targets
+    }
   }
 
   // Score and sort remaining players by strategy DNA
