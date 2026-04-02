@@ -516,7 +516,7 @@ export default function AuctionRoomScreen() {
               </Text>
             </XStack>
             <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center" paddingHorizontal="$4">
-              {formatUIText("answer 4 quick questions and AI will build your personalized target list. or tap ★ on players to pick manually.")}
+              {formatUIText("let AI pick your dream squad, or tap 'target' on any player to add them yourself. your targets guide all AI suggestions during the auction.")}
             </Text>
             <XStack gap="$3">
               <XStack
@@ -567,7 +567,7 @@ export default function AuctionRoomScreen() {
                 })()}
               </XStack>
               <XStack gap="$2" alignItems="center">
-                <Text fontFamily="$mono" fontSize={8} color="$colorMuted">tap ★ to add</Text>
+                <Text fontFamily="$mono" fontSize={8} color="$colorMuted">tap "target" on players to add</Text>
                 <XStack
                   onPress={() => setShowStrategyQuiz(true)}
                   cursor="pointer"
@@ -1263,26 +1263,33 @@ export default function AuctionRoomScreen() {
                         </Text>
                       </XStack>
                     </YStack>
-                    <XStack gap={6} alignItems="center">
+                    <YStack gap={4} alignItems="flex-end">
+                      <XStack
+                        onPress={(e: any) => { e.stopPropagation(); toggleTargetMutation.mutate({ roomId: roomId!, playerId: item.id }); }}
+                        cursor="pointer"
+                        pressStyle={{ opacity: 0.7, scale: 0.97 }}
+                        paddingHorizontal={8}
+                        paddingVertical={3}
+                        borderRadius={8}
+                        backgroundColor={isTarget ? "rgba(212, 164, 61, 0.15)" : "$backgroundPress"}
+                        borderWidth={1}
+                        borderColor={isTarget ? "rgba(212, 164, 61, 0.3)" : "transparent"}
+                        gap={3}
+                        alignItems="center"
+                      >
+                        <Ionicons name={isTarget ? "star" : "star-outline"} size={12} color={isTarget ? "#D4A43D" : "#9A9894"} />
+                        <Text fontFamily="$mono" fontSize={8} fontWeight="700" color={isTarget ? "$colorCricket" : "$colorMuted"}>
+                          {isTarget ? "targeted" : "target"}
+                        </Text>
+                      </XStack>
                       <YStack
                         onPress={(e: any) => { e.stopPropagation(); setStatsPlayerId(item.id); }}
                         cursor="pointer"
-                        padding={4}
                         pressStyle={{ opacity: 0.7 }}
                       >
-                        <Ionicons name="stats-chart" size={14} color="#5DB882" />
+                        <Ionicons name="stats-chart" size={12} color="#5DB882" />
                       </YStack>
-                      <YStack
-                        onPress={(e: any) => { e.stopPropagation(); toggleTargetMutation.mutate({ roomId: roomId!, playerId: item.id }); }}
-                        cursor="pointer"
-                        padding={4}
-                        pressStyle={{ opacity: 0.7, scale: 1.3 }}
-                        backgroundColor={isTarget ? "rgba(212, 164, 61, 0.15)" : "transparent"}
-                        borderRadius={12}
-                      >
-                        <Ionicons name={isTarget ? "star" : "star-outline"} size={18} color={isTarget ? "#D4A43D" : "#9A9894"} />
-                      </YStack>
-                    </XStack>
+                    </YStack>
                   </XStack>
                 </Card>
               </Animated.View>
