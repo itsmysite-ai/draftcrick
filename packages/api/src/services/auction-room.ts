@@ -62,6 +62,19 @@ export interface AuctionState {
 
   // Track how many players each user has
   teamSizes: Record<string, number>;
+
+  // Pause state (tactical timeouts)
+  isPaused: boolean;
+  pausedBy: string | null;
+  pausedAt: Date | null;
+  pauseRemainingMs: number | null; // ms remaining on phase timer when paused
+  pausesUsed: Record<string, number>; // userId -> count
+
+  // Config (from league auction rules)
+  squadVisibility: "hidden" | "after_sold" | "full";
+  buyerVisibility: "during_auction" | "after_auction";
+  squadRule: "none" | string; // "none" = no constraints, otherwise a SquadRule ID
+  maxPausesPerMember: number;
 }
 
 /**
@@ -79,6 +92,10 @@ export function validateBid(
   userId: string,
   amount: number
 ): { valid: boolean; error?: string } {
+  if (state.isPaused) {
+    return { valid: false, error: "Auction is paused" };
+  }
+
   if (state.phase !== "bidding" && state.phase !== "going_once" && state.phase !== "going_twice") {
     return { valid: false, error: "Bidding is not open" };
   }
@@ -146,6 +163,9 @@ export function placeBid(
  * bidding -> going_once -> going_twice -> sold
  */
 export function advancePhase(state: AuctionState): AuctionState {
+  // Don't advance while paused
+  if (state.isPaused) return state;
+
   if (state.phase === "bidding") {
     return {
       ...state,
@@ -342,6 +362,19 @@ export async function loadAuctionState(
     soldPlayers,
     unsoldPlayerIds: [],
     teamSizes,
+
+    // Pause state
+    isPaused: (settings._isPaused as boolean) ?? false,
+    pausedBy: (settings._pausedBy as string) ?? null,
+    pausedAt: settings._pausedAt ? new Date(settings._pausedAt as string) : null,
+    pauseRemainingMs: (settings._pauseRemainingMs as number) ?? null,
+    pausesUsed: (settings._pausesUsed as Record<string, number>) ?? {},
+
+    // Config
+    squadVisibility: (settings.squadVisibility as "hidden" | "after_sold" | "full") ?? "after_sold",
+    buyerVisibility: (settings.buyerVisibility as "during_auction" | "after_auction") ?? "during_auction",
+    squadRule: (settings.squadRule as string) ?? "none",
+    maxPausesPerMember: (settings.maxPausesPerMember as number) ?? 3,
   };
 }
 
@@ -400,7 +433,133 @@ export async function updateAuctionRoom(
         _biddingEndsAt: state.biddingEndsAt?.toISOString() ?? null,
         _goingOnceEndsAt: state.goingOnceEndsAt?.toISOString() ?? null,
         _goingTwiceEndsAt: state.goingTwiceEndsAt?.toISOString() ?? null,
+        // Pause state
+        _isPaused: state.isPaused,
+        _pausedBy: state.pausedBy,
+        _pausedAt: state.pausedAt?.toISOString() ?? null,
+        _pauseRemainingMs: state.pauseRemainingMs,
+        _pausesUsed: state.pausesUsed,
       },
     })
     .where(eq(draftRooms.id, state.roomId));
+}
+
+// ── Pause / Resume ──────────────────────────────────────────
+
+/**
+ * Pause the auction (tactical timeout). Freezes all timers.
+ */
+export function pauseAuction(state: AuctionState, userId: string): AuctionState {
+  const remaining = state.phaseDeadline
+    ? Math.max(0, new Date(state.phaseDeadline).getTime() - Date.now())
+    : null;
+
+  return {
+    ...state,
+    isPaused: true,
+    pausedBy: userId,
+    pausedAt: new Date(),
+    pauseRemainingMs: remaining,
+    pausesUsed: {
+      ...state.pausesUsed,
+      [userId]: (state.pausesUsed[userId] ?? 0) + 1,
+    },
+  };
+}
+
+/**
+ * Resume the auction after a pause. Restores timer from where it was frozen.
+ */
+export function resumeAuction(state: AuctionState): AuctionState {
+  const now = Date.now();
+  const remaining = state.pauseRemainingMs ?? 0;
+
+  // Recalculate deadlines from the remaining time
+  const newDeadline = remaining > 0 ? new Date(now + remaining) : null;
+
+  // Rebuild the cascading deadlines based on current phase
+  let biddingEndsAt = state.biddingEndsAt;
+  let goingOnceEndsAt = state.goingOnceEndsAt;
+  let goingTwiceEndsAt = state.goingTwiceEndsAt;
+
+  if (state.phase === "bidding" && newDeadline) {
+    biddingEndsAt = newDeadline;
+    goingOnceEndsAt = new Date(newDeadline.getTime() + state.goingOnceTime * 1000);
+    goingTwiceEndsAt = new Date(goingOnceEndsAt.getTime() + state.goingTwiceTime * 1000);
+  } else if (state.phase === "going_once" && newDeadline) {
+    goingOnceEndsAt = newDeadline;
+    goingTwiceEndsAt = new Date(newDeadline.getTime() + state.goingTwiceTime * 1000);
+  } else if (state.phase === "going_twice" && newDeadline) {
+    goingTwiceEndsAt = newDeadline;
+  }
+
+  return {
+    ...state,
+    isPaused: false,
+    pausedBy: null,
+    pausedAt: null,
+    pauseRemainingMs: null,
+    phaseDeadline: newDeadline,
+    biddingEndsAt,
+    goingOnceEndsAt,
+    goingTwiceEndsAt,
+  };
+}
+
+// ── Squad Rule Validation ───────────────────────────────────
+
+import type { SquadRule } from "@draftplay/shared";
+
+/**
+ * Validate whether adding a player of the given role would violate the squad rule.
+ * Checks if a valid squad is still achievable with remaining slots.
+ */
+export function validateSquadRule(
+  squadRule: SquadRule,
+  currentRoleCounts: Record<string, number>,
+  newPlayerRole: string,
+  currentTeamSize: number,
+  maxPlayersPerTeam: number,
+): { valid: boolean; error?: string } {
+  // Map player roles to squad rule categories
+  const roleCategory = mapRoleToCategory(newPlayerRole);
+  const updated = { ...currentRoleCounts };
+  updated[roleCategory] = (updated[roleCategory] ?? 0) + 1;
+
+  // Check max constraints
+  const maxField = `max${roleCategory}` as keyof SquadRule;
+  const maxVal = squadRule[maxField] as number;
+  if (typeof maxVal === "number" && updated[roleCategory]! > maxVal) {
+    return { valid: false, error: `Maximum ${roleCategory} limit reached (${maxVal})` };
+  }
+
+  // Check if remaining slots can still fill minimum requirements
+  const remainingSlots = maxPlayersPerTeam - currentTeamSize - 1; // -1 for the player being added
+  const categories = ["WK", "BAT", "BOWL", "AR"] as const;
+  let slotsNeeded = 0;
+  for (const cat of categories) {
+    const minField = `min${cat}` as keyof SquadRule;
+    const minVal = squadRule[minField] as number;
+    if (typeof minVal === "number") {
+      const have = updated[cat] ?? 0;
+      if (have < minVal) {
+        slotsNeeded += minVal - have;
+      }
+    }
+  }
+
+  if (slotsNeeded > remainingSlots) {
+    return { valid: false, error: `Not enough slots left to fill minimum squad requirements` };
+  }
+
+  return { valid: true };
+}
+
+function mapRoleToCategory(role: string): string {
+  const r = role.toLowerCase();
+  if (r === "wicket_keeper" || r === "wk") return "WK";
+  if (r === "batsman" || r === "bat" || r === "batter") return "BAT";
+  if (r === "bowler" || r === "bowl") return "BOWL";
+  if (r === "all_rounder" || r === "ar" || r === "allrounder") return "AR";
+  return "BAT"; // fallback
 }

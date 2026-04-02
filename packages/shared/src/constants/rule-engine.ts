@@ -163,6 +163,19 @@ export interface DraftSpecificRules {
   keeperPlayerSlots: number;
 }
 
+export interface SquadRule {
+  id: string;
+  name: string;
+  minWK: number;
+  minBAT: number;
+  minBOWL: number;
+  minAR: number;
+  maxWK: number;
+  maxBAT: number;
+  maxBOWL: number;
+  maxAR: number;
+}
+
 export interface AuctionSpecificRules {
   auctionBudget: number;
   minBid: number;
@@ -175,6 +188,16 @@ export interface AuctionSpecificRules {
   rightToMatchEnabled: boolean;
   basePriceMode: "flat" | "credits" | "percentage";
   basePricePercent: number; // used when basePriceMode is "percentage" (e.g., 50 = 50% of credits)
+
+  // Squad & buyer visibility
+  squadVisibility: "hidden" | "after_sold" | "full"; // who can see other members' squads
+  buyerVisibility: "during_auction" | "after_auction"; // when buyer identity is shown on sold players
+
+  // Squad rules (composition constraints)
+  squadRule: "none" | string; // "none" = no constraints, otherwise a SquadRule ID
+
+  // Pause (tactical timeouts)
+  maxPausesPerMember: number; // how many pauses each member gets (0 = disabled)
 }
 
 // ────────────────────────────────────────
@@ -366,6 +389,10 @@ export const RULE_DEFINITIONS: RuleDefinition[] = [
   { key: "auction.rightToMatchEnabled", label: "Right to Match", description: "Previous owner can match highest bid", comfortDescription: "Old owner can match the price", type: "boolean", category: "auction", default: false, advanced: true },
   { key: "auction.basePriceMode", label: "Base Price Mode", description: "How the opening bid is determined for each player", comfortDescription: "How starting price is set", type: "select", category: "auction", default: "flat", options: [{ value: "flat", label: "Flat (same for all)" }, { value: "credits", label: "Player credits" }, { value: "percentage", label: "% of credits" }] },
   { key: "auction.basePricePercent", label: "Base Price %", description: "Percentage of player credits used as base price (when mode is '%')", comfortDescription: "What % of player value as starting price", type: "number", category: "auction", default: 50, min: 10, max: 100, step: 5, advanced: true },
+  { key: "auction.squadVisibility", label: "Squad Visibility", description: "When members can see each other's squads during auction", comfortDescription: "Can others see your squad?", type: "select", category: "auction", default: "after_sold", options: [{ value: "hidden", label: "Hidden (only yours)" }, { value: "after_sold", label: "After each sale" }, { value: "full", label: "Live (always visible)" }] },
+  { key: "auction.buyerVisibility", label: "Buyer Identity", description: "When the buyer's name is shown on sold players", comfortDescription: "Show who bought each player?", type: "select", category: "auction", default: "during_auction", options: [{ value: "during_auction", label: "During auction" }, { value: "after_auction", label: "After auction ends" }] },
+  { key: "auction.squadRule", label: "Squad Rule", description: "Require a balanced squad composition", comfortDescription: "Must your squad have specific roles?", type: "select", category: "auction", default: "none", options: [{ value: "none", label: "No rules (any players)" }] },
+  { key: "auction.maxPausesPerMember", label: "Pauses Per Member", description: "Tactical timeouts each member can use during auction", comfortDescription: "How many times can you pause?", type: "number", category: "auction", default: 3, min: 0, max: 10 },
 ];
 
 /**
