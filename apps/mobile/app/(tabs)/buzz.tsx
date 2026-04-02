@@ -34,7 +34,7 @@ export default function BuzzScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: theme.background.val }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={tabBarOffset}
+      keyboardVerticalOffset={0}
     >
       <YStack flex={1} paddingTop={insets.top}>
         {/* Header */}
