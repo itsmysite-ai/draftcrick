@@ -541,31 +541,49 @@ export default function AuctionRoomScreen() {
           /* Target strip — compact, always visible */
           <YStack padding="$2" paddingHorizontal="$3">
             <XStack justifyContent="space-between" alignItems="center" marginBottom={6}>
-              <XStack alignItems="center" gap="$1">
-                <Ionicons name="star" size={13} color="#D4A43D" />
-                <Text fontFamily="$mono" fontSize={11} fontWeight="700" color="$color">
-                  {formatUIText("targets")}
+              <XStack alignItems="center" gap="$2">
+                <Ionicons name="star" size={14} color="#D4A43D" />
+                <Text fontFamily="$mono" fontSize={12} fontWeight="700" color="$color">
+                  {formatUIText("my targets")}
                 </Text>
-                <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                  {(targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "acquired").length}✓
-                  {" "}{(targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "target").length} left
-                </Text>
+                {(() => {
+                  const acquired = (targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "acquired").length;
+                  const active = (targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "target").length;
+                  const gone = (targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "gone").length;
+                  return (
+                    <XStack gap={6} alignItems="center">
+                      {acquired > 0 && (
+                        <XStack alignItems="center" gap={2}>
+                          <Ionicons name="checkmark-circle" size={10} color="#5DB882" />
+                          <Text fontFamily="$mono" fontSize={9} color="$colorAccent">{acquired} won</Text>
+                        </XStack>
+                      )}
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{active} to buy</Text>
+                      {gone > 0 && (
+                        <Text fontFamily="$mono" fontSize={9} color="$error">{gone} taken</Text>
+                      )}
+                    </XStack>
+                  );
+                })()}
               </XStack>
-              <XStack
-                onPress={() => setShowStrategyQuiz(true)}
-                cursor="pointer"
-                pressStyle={{ opacity: 0.8 }}
-                paddingHorizontal={8}
-                paddingVertical={3}
-                borderRadius={6}
-                backgroundColor="rgba(212, 164, 61, 0.12)"
-                gap={4}
-                alignItems="center"
-              >
-                <Ionicons name="sparkles" size={11} color="#D4A43D" />
+              <XStack gap="$2" alignItems="center">
+                <Text fontFamily="$mono" fontSize={8} color="$colorMuted">tap ★ to add</Text>
+                <XStack
+                  onPress={() => setShowStrategyQuiz(true)}
+                  cursor="pointer"
+                  pressStyle={{ opacity: 0.8 }}
+                  paddingHorizontal={8}
+                  paddingVertical={3}
+                  borderRadius={6}
+                  backgroundColor="rgba(212, 164, 61, 0.12)"
+                  gap={4}
+                  alignItems="center"
+                >
+                  <Ionicons name="sparkles" size={11} color="#D4A43D" />
                 <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$colorCricket">
                   {autoBuildMutation.isPending ? "building..." : "rebuild"}
                 </Text>
+              </XStack>
               </XStack>
             </XStack>
             <FlatList
