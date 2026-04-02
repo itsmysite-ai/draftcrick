@@ -306,27 +306,33 @@ export const draftRouter = router({
           rule = allRules.find((r: any) => r.id === state.squadRule);
         }
         if (rule) {
-          // Get current player's role
-          const currentPlayer = await ctx.db.query.players.findFirst({
-            where: eq(players.id, state.currentPlayerId),
-            columns: { role: true },
-          });
-          if (currentPlayer) {
+          // Get current player's role + all user's squad player roles in one batch
+          const userPlayerIds = state.soldPlayers
+            .filter(sp => sp.userId === ctx.user.id)
+            .map(sp => sp.playerId);
+          const allIds = [state.currentPlayerId, ...userPlayerIds];
+
+          const playerRows = allIds.length > 0
+            ? await ctx.db.select({ id: players.id, role: players.role })
+                .from(players)
+                .where(inArray(players.id, allIds))
+            : [];
+
+          const playerRoleMap = new Map(playerRows.map(p => [p.id, p.role]));
+          const currentPlayerRole = playerRoleMap.get(state.currentPlayerId);
+
+          if (currentPlayerRole) {
             // Count roles in user's current squad
-            const userPlayers = state.soldPlayers.filter(sp => sp.userId === ctx.user.id);
             const roleCounts: Record<string, number> = {};
-            for (const sp of userPlayers) {
-              const p = await ctx.db.query.players.findFirst({
-                where: eq(players.id, sp.playerId),
-                columns: { role: true },
-              });
-              if (p) {
-                const cat = mapRoleToCategory(p.role);
+            for (const pid of userPlayerIds) {
+              const role = playerRoleMap.get(pid);
+              if (role) {
+                const cat = mapRoleToCategory(role);
                 roleCounts[cat] = (roleCounts[cat] ?? 0) + 1;
               }
             }
             const squadCheck = validateSquadRule(
-              rule, roleCounts, currentPlayer.role,
+              rule, roleCounts, currentPlayerRole,
               state.teamSizes[ctx.user.id] ?? 0,
             );
             if (!squadCheck.valid) {
@@ -435,6 +441,19 @@ export const draftRouter = router({
         squadVisibility: state.squadVisibility,
         buyerVisibility: state.buyerVisibility,
         squadRule: state.squadRule,
+        // Resolve full squad rule details for UI display
+        squadRuleDetails: await (async () => {
+          if (state.squadRule === "none") return null;
+          if (state.squadRule === "custom") {
+            const room = await ctx.db.query.draftRooms.findFirst({
+              where: eq(draftRooms.id, input.roomId),
+              columns: { settings: true },
+            });
+            return (room?.settings as any)?.customSquadRule ?? null;
+          }
+          const adminRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+          return [...DEFAULT_SQUAD_RULES, ...adminRules].find((r: any) => r.id === state.squadRule) ?? null;
+        })(),
       };
     }),
 

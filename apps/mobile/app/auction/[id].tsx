@@ -310,11 +310,33 @@ export default function AuctionRoomScreen() {
                 {myBudget > 0 ? `${myBudget % 1 === 0 ? myBudget.toFixed(0) : myBudget.toFixed(1)} Cr` : "—"}
               </Text>
               <Text testID="auction-my-team-size" {...textStyles.hint}>
-                {formatUIText("team")}: {myTeamSize} {formatUIText("players")}
+                {formatUIText("team")}: {myTeamSize}/{(auctionState as any)?.squadRuleDetails?.squadSize ?? (auctionState as any)?.maxPlayersPerTeam ?? 14} {formatUIText("players")}
               </Text>
             </YStack>
             <HeaderControls />
           </XStack>
+          {/* Active squad rule display */}
+          {(auctionState as any)?.squadRuleDetails && (
+            <XStack
+              marginTop="$1"
+              paddingHorizontal="$4"
+              paddingVertical={4}
+              backgroundColor="$backgroundSurface"
+              borderRadius={8}
+              alignItems="center"
+              gap="$2"
+            >
+              <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorAccent">
+                {(auctionState as any).squadRuleDetails.name}
+              </Text>
+              <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                WK:{(auctionState as any).squadRuleDetails.minWK}-{(auctionState as any).squadRuleDetails.maxWK}{" "}
+                BAT:{(auctionState as any).squadRuleDetails.minBAT}-{(auctionState as any).squadRuleDetails.maxBAT}{" "}
+                BOWL:{(auctionState as any).squadRuleDetails.minBOWL}-{(auctionState as any).squadRuleDetails.maxBOWL}{" "}
+                AR:{(auctionState as any).squadRuleDetails.minAR}-{(auctionState as any).squadRuleDetails.maxAR}
+              </Text>
+            </XStack>
+          )}
         </XStack>
         {countdown !== null && (
           <YStack testID="auction-countdown" marginTop="$3" alignSelf="center" alignItems="center" gap="$1">

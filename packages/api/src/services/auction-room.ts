@@ -514,6 +514,13 @@ import type { SquadRule } from "@draftplay/shared";
  * Validate whether adding a player of the given role would violate the squad rule.
  * Checks if a valid squad is still achievable with remaining slots.
  */
+const ROLE_LABELS: Record<string, string> = {
+  WK: "Wicket-keepers",
+  BAT: "Batsmen",
+  BOWL: "Bowlers",
+  AR: "All-rounders",
+};
+
 export function validateSquadRule(
   squadRule: SquadRule,
   currentRoleCounts: Record<string, number>,
@@ -524,11 +531,12 @@ export function validateSquadRule(
 
   // Squad full per the rule's squad size
   if (currentTeamSize >= squadSize) {
-    return { valid: false, error: `Squad is full (${squadSize} players)` };
+    return { valid: false, error: `Squad is full — ${squadRule.name} rule allows ${squadSize} players` };
   }
 
   // Map player roles to squad rule categories
   const roleCategory = mapRoleToCategory(newPlayerRole);
+  const roleLabel = ROLE_LABELS[roleCategory] ?? roleCategory;
   const updated = { ...currentRoleCounts };
   updated[roleCategory] = (updated[roleCategory] ?? 0) + 1;
 
@@ -536,26 +544,32 @@ export function validateSquadRule(
   const maxField = `max${roleCategory}` as keyof SquadRule;
   const maxVal = squadRule[maxField] as number;
   if (typeof maxVal === "number" && updated[roleCategory]! > maxVal) {
-    return { valid: false, error: `Maximum ${roleCategory} limit reached (${maxVal})` };
+    return { valid: false, error: `Can't add — already at max ${roleLabel} (${maxVal} allowed by ${squadRule.name} rule)` };
   }
 
   // Check if remaining slots can still fill minimum requirements
   const remainingSlots = squadSize - currentTeamSize - 1; // -1 for the player being added
   const categories = ["WK", "BAT", "BOWL", "AR"] as const;
   let slotsNeeded = 0;
+  const missing: string[] = [];
   for (const cat of categories) {
     const minField = `min${cat}` as keyof SquadRule;
     const minVal = squadRule[minField] as number;
     if (typeof minVal === "number") {
       const have = updated[cat] ?? 0;
       if (have < minVal) {
-        slotsNeeded += minVal - have;
+        const gap = minVal - have;
+        slotsNeeded += gap;
+        missing.push(`${gap} ${ROLE_LABELS[cat] ?? cat}`);
       }
     }
   }
 
   if (slotsNeeded > remainingSlots) {
-    return { valid: false, error: `Not enough slots left to fill minimum squad requirements` };
+    return {
+      valid: false,
+      error: `Can't add ${roleLabel} — you still need ${missing.join(", ")} with only ${remainingSlots} slot${remainingSlots === 1 ? "" : "s"} left`,
+    };
   }
 
   return { valid: true };
