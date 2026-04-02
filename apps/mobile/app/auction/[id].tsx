@@ -412,26 +412,31 @@ export default function AuctionRoomScreen() {
               const isFull = role.have >= role.max;
               const metMin = role.have >= role.min;
               const needsMore = !metMin;
+              // 3 states: red (at max), yellow (below min), green (met min, room for more)
+              const stateColor = isFull ? "#E5484D" : needsMore ? "#D4A43D" : "#5DB882";
+              const stateBg = isFull ? "rgba(229, 72, 77, 0.1)" : needsMore ? "rgba(212, 164, 61, 0.1)" : "rgba(93, 184, 130, 0.08)";
+              const stateBorder = isFull ? "rgba(229, 72, 77, 0.3)" : needsMore ? "rgba(212, 164, 61, 0.3)" : "rgba(93, 184, 130, 0.2)";
               return (
                 <XStack
                   key={role.label}
                   paddingHorizontal={6}
                   paddingVertical={4}
                   borderRadius={8}
-                  backgroundColor={isFull ? "rgba(229, 72, 77, 0.1)" : needsMore ? "rgba(212, 164, 61, 0.1)" : "$backgroundPress"}
-                  borderWidth={isFull || needsMore ? 1 : 0}
-                  borderColor={isFull ? "rgba(229, 72, 77, 0.3)" : needsMore ? "rgba(212, 164, 61, 0.3)" : "transparent"}
+                  backgroundColor={stateBg}
+                  borderWidth={1}
+                  borderColor={stateBorder}
                   gap={3}
                   alignItems="center"
                 >
-                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" color={isFull ? "$error" : needsMore ? "$colorCricket" : "$colorMuted"}>
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" style={{ color: stateColor }}>
                     {role.label}
                   </Text>
-                  <Text fontFamily="$mono" fontSize={9} fontWeight="700"
-                    color={isFull ? "$error" : needsMore ? "$colorCricket" : "$color"}
-                  >
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" style={{ color: stateColor }}>
                     {role.have}/{role.max}
                   </Text>
+                  {metMin && !isFull && (
+                    <Ionicons name="checkmark-circle" size={10} color="#5DB882" />
+                  )}
                 </XStack>
               );
             });
@@ -911,11 +916,12 @@ export default function AuctionRoomScreen() {
             keyExtractor={(item: any, idx: number) => `${item.playerId}-${idx}`}
             renderItem={({ item }: { item: any }) => {
               const player = (players ?? []).find((p: any) => p.id === item.playerId);
-              const buyerName = item.userId === dbUserId
+              const rawBuyerName = item.userId === dbUserId
                 ? "you"
                 : (auctionState as any)?.buyerVisibility === "during_auction" && (auctionState as any)?.memberNames?.[item.userId]
                   ? (auctionState as any).memberNames[item.userId]
                   : `#${item.pickNumber}`;
+              const buyerName = rawBuyerName.length > 10 ? rawBuyerName.slice(0, 9) + "..." : rawBuyerName;
               return (
                 <Card
                   padding="$2"
@@ -933,6 +939,9 @@ export default function AuctionRoomScreen() {
                         <Badge variant="default" size="sm">
                           {formatRoleShort((player as any)?.role ?? "")}
                         </Badge>
+                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                          {formatTeamName((player as any)?.team ?? "")}
+                        </Text>
                         <Text fontFamily="$mono" fontSize={9} color="$colorCricket" fontWeight="700">{item.amount} Cr</Text>
                       </XStack>
                     </YStack>
