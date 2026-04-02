@@ -127,6 +127,11 @@ export default function AuctionRoomScreen() {
   const [nominateAlert, setNominateAlert] = useState<{ title: string; message: string; onConfirm?: () => void } | null>(null);
   const [statsPlayerId, setStatsPlayerId] = useState<string | null>(null);
   const [showRoster, setShowRoster] = useState(false);
+  const [rosterTab, setRosterTab] = useState<"mine" | "all">("mine");
+
+  // Pause/resume
+  const pauseMutation = trpc.draft.pauseAuction.useMutation({ onSuccess: () => refetch() });
+  const resumeMutation = trpc.draft.resumeAuction.useMutation({ onSuccess: () => refetch() });
   const [wonPlayer, setWonPlayer] = useState<string | null>(null);
   const { gate, paywallProps } = usePaywall();
 
@@ -176,6 +181,15 @@ export default function AuctionRoomScreen() {
     hasFinalised.current = false;
 
     const interval = setInterval(() => {
+      // Freeze timer when paused — show remaining time without ticking
+      if ((auctionState as any)?.isPaused) {
+        const remaining = (auctionState as any)?.pauseRemainingMs;
+        if (remaining != null) {
+          setCountdown(Math.ceil(remaining / 1000));
+        }
+        return; // don't advance phases while paused
+      }
+
       const now = serverNow();
 
       if (now < biddingEnd) {
@@ -326,8 +340,44 @@ export default function AuctionRoomScreen() {
             )}
           </YStack>
         )}
-        {/* My Roster button */}
-        <XStack justifyContent="flex-end" marginTop="$2">
+        {/* Pause + Roster buttons */}
+        <XStack justifyContent="space-between" marginTop="$2" alignItems="center">
+          {/* Pause button */}
+          {auctionState?.status === "in_progress" && (auctionState as any)?.maxPausesPerMember > 0 && (
+            <YStack
+              onPress={() => {
+                if ((auctionState as any)?.isPaused) {
+                  resumeMutation.mutate({ roomId: roomId! });
+                } else {
+                  pauseMutation.mutate({ roomId: roomId! });
+                }
+              }}
+              cursor="pointer"
+              pressStyle={{ opacity: 0.8 }}
+              paddingHorizontal="$3"
+              paddingVertical="$1"
+              borderRadius={DesignSystem.radius.md}
+              backgroundColor={(auctionState as any)?.isPaused ? "$error" : "$backgroundSurface"}
+              opacity={
+                (auctionState as any)?.isPaused
+                  ? ((auctionState as any)?.pausedBy === dbUserId || false) ? 1 : 0.5
+                  : ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0) >= (auctionState as any)?.maxPausesPerMember ? 0.4 : 1
+              }
+              disabled={
+                (auctionState as any)?.isPaused
+                  ? (auctionState as any)?.pausedBy !== dbUserId
+                  : ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0) >= (auctionState as any)?.maxPausesPerMember
+              }
+            >
+              <Text fontFamily="$mono" fontSize={11} fontWeight="600" color={(auctionState as any)?.isPaused ? "white" : "$colorMuted"}>
+                {(auctionState as any)?.isPaused
+                  ? (auctionState as any)?.pausedBy === dbUserId ? "resume" : "paused"
+                  : `pause (${(auctionState as any)?.maxPausesPerMember - ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0)} left)`}
+              </Text>
+            </YStack>
+          )}
+
+          {/* Roster toggle */}
           <YStack
             onPress={() => setShowRoster(!showRoster)}
             cursor="pointer"
@@ -338,11 +388,25 @@ export default function AuctionRoomScreen() {
             backgroundColor={showRoster ? "$accentBackground" : "$backgroundSurface"}
           >
             <Text fontFamily="$mono" fontSize={11} fontWeight="600" color={showRoster ? "$accentColor" : "$colorMuted"}>
-              {formatUIText(`my squad (${myTeamSize})`)}
+              {formatUIText(`squads (${myTeamSize})`)}
             </Text>
           </YStack>
         </XStack>
       </YStack>
+
+      {/* Pause overlay */}
+      {(auctionState as any)?.isPaused && (
+        <YStack backgroundColor="#4a1c1c" paddingVertical="$3" paddingHorizontal="$4" alignItems="center" borderBottomWidth={1} borderBottomColor="$error">
+          <Text fontFamily="$mono" fontWeight="800" fontSize={15} color="$error">
+            AUCTION PAUSED
+          </Text>
+          <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop={4}>
+            {(auctionState as any)?.pausedBy === dbUserId
+              ? "You paused the auction. Tap resume when ready."
+              : `Paused by ${(auctionState as any)?.memberNames?.[(auctionState as any)?.pausedBy] ?? "a member"}`}
+          </Text>
+        </YStack>
+      )}
 
       {/* Won player confetti banner */}
       {wonPlayer && (
@@ -439,7 +503,11 @@ export default function AuctionRoomScreen() {
                 {auctionState.highestBid.userId === dbUserId ? (
                   <Badge variant="default" size="sm" backgroundColor="$colorAccent">YOUR BID</Badge>
                 ) : (
-                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted">{formatUIText("opponent's bid")}</Text>
+                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                    {(auctionState as any)?.buyerVisibility === "during_auction" && (auctionState as any)?.memberNames?.[auctionState.highestBid.userId]
+                      ? (auctionState as any).memberNames[auctionState.highestBid.userId]
+                      : formatUIText("opponent's bid")}
+                  </Text>
                 )}
               </XStack>
             </XStack>
@@ -452,7 +520,7 @@ export default function AuctionRoomScreen() {
             <YStack marginTop="$3" gap="$2">
               {/* Quick bid buttons row */}
               <XStack gap="$2">
-                {[0, 0.1, 0.2, 0.5, 1, 2].map((inc) => {
+                {[0, bidIncrement, bidIncrement * 2, bidIncrement * 5, bidIncrement * 10, bidIncrement * 20].map((inc) => {
                   const val = Math.round((minBidNow + inc) * 10) / 10;
                   return (
                     <YStack
@@ -480,7 +548,7 @@ export default function AuctionRoomScreen() {
                   backgroundColor="$backgroundSurface" borderWidth={1} borderColor="$borderColor"
                   alignItems="center" justifyContent="center"
                   opacity={bidAmount <= minBidNow ? 0.3 : 1}
-                  onPress={() => setBidAmount((v: number) => Math.max(minBidNow, Math.round((v - 0.1) * 10) / 10))}
+                  onPress={() => setBidAmount((v: number) => Math.max(minBidNow, Math.round((v - bidIncrement) * 10) / 10))}
                   cursor="pointer" pressStyle={{ scale: 0.95 }}
                 >
                   <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color">−</Text>
@@ -495,7 +563,7 @@ export default function AuctionRoomScreen() {
                   backgroundColor="$backgroundSurface" borderWidth={1} borderColor="$borderColor"
                   alignItems="center" justifyContent="center"
                   opacity={bidAmount >= myBudget ? 0.3 : 1}
-                  onPress={() => setBidAmount((v: number) => Math.min(myBudget, Math.round((v + 0.1) * 10) / 10))}
+                  onPress={() => setBidAmount((v: number) => Math.min(myBudget, Math.round((v + bidIncrement) * 10) / 10))}
                   cursor="pointer" pressStyle={{ scale: 0.95 }}
                 >
                   <Text fontFamily="$mono" fontWeight="700" fontSize={16} color="$color">+</Text>
@@ -635,35 +703,101 @@ export default function AuctionRoomScreen() {
         </YStack>
       )}
 
-      {/* My Roster Panel */}
+      {/* Squad Panel — My Squad / All Squads tabs */}
       {showRoster && (
-        <YStack backgroundColor="$backgroundSurface" padding="$3" borderBottomWidth={1} borderBottomColor="$borderColor" maxHeight={200}>
-          <Text {...textStyles.sectionHeader} marginBottom="$2">
-            {formatUIText(`my squad (${myTeamSize} players)`)}
-          </Text>
-          <FlatList
-            data={(auctionState?.soldPlayers ?? []).filter((p: any) => p.userId === dbUserId)}
-            keyExtractor={(item: any) => item.playerId}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item }: { item: any }) => {
-              const player = (players ?? []).find((p: any) => p.id === item.playerId);
+        <YStack backgroundColor="$backgroundSurface" padding="$3" borderBottomWidth={1} borderBottomColor="$borderColor" maxHeight={260}>
+          {/* Tab switcher */}
+          <XStack gap="$2" marginBottom="$2">
+            {(["mine", "all"] as const).map((tab) => {
+              const isActive = rosterTab === tab;
+              const canShowAll = (auctionState as any)?.squadVisibility === "full"
+                || ((auctionState as any)?.squadVisibility === "after_sold" && auctionState?.status !== "in_progress");
+              if (tab === "all" && !canShowAll && (auctionState as any)?.squadVisibility !== "full") return null;
               return (
-                <Card padding="$2" marginRight="$2" minWidth={100}>
-                  <Text {...textStyles.playerName} fontSize={11} numberOfLines={1}>
-                    {(player as any)?.name ?? "Unknown"}
+                <YStack
+                  key={tab}
+                  onPress={() => setRosterTab(tab)}
+                  cursor="pointer"
+                  paddingHorizontal="$3"
+                  paddingVertical={4}
+                  borderRadius={DesignSystem.radius.md}
+                  backgroundColor={isActive ? "$accentBackground" : "transparent"}
+                >
+                  <Text fontFamily="$mono" fontSize={11} fontWeight={isActive ? "700" : "500"} color={isActive ? "$accentColor" : "$colorMuted"}>
+                    {tab === "mine" ? `my squad (${myTeamSize})` : "all squads"}
                   </Text>
-                  <XStack alignItems="center" gap="$1" marginTop={2}>
-                    <Badge variant="default" size="sm">{formatRoleShort((player as any)?.role ?? "")}</Badge>
-                    <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
-                  </XStack>
-                </Card>
+                </YStack>
               );
-            }}
-            ListEmptyComponent={
-              <Text fontFamily="$body" fontSize={11} color="$colorMuted">{formatUIText("no players yet")}</Text>
-            }
-          />
+            })}
+          </XStack>
+
+          {rosterTab === "mine" ? (
+            <FlatList
+              data={(auctionState?.soldPlayers ?? []).filter((p: any) => p.userId === dbUserId)}
+              keyExtractor={(item: any) => item.playerId}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item }: { item: any }) => {
+                const player = (players ?? []).find((p: any) => p.id === item.playerId);
+                return (
+                  <Card padding="$2" marginRight="$2" minWidth={100}>
+                    <Text {...textStyles.playerName} fontSize={11} numberOfLines={1}>
+                      {(player as any)?.name ?? "Unknown"}
+                    </Text>
+                    <XStack alignItems="center" gap="$1" marginTop={2}>
+                      <Badge variant="default" size="sm">{formatRoleShort((player as any)?.role ?? "")}</Badge>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
+                    </XStack>
+                  </Card>
+                );
+              }}
+              ListEmptyComponent={
+                <Text fontFamily="$body" fontSize={11} color="$colorMuted">{formatUIText("no players yet")}</Text>
+              }
+            />
+          ) : (
+            <FlatList
+              data={auctionState?.pickOrder ?? []}
+              keyExtractor={(uid: string) => uid}
+              renderItem={({ item: uid }: { item: string }) => {
+                const memberName = (auctionState as any)?.memberNames?.[uid] ?? "Player";
+                const memberPlayers = (auctionState?.soldPlayers ?? []).filter((sp: any) => sp.userId === uid);
+                const isMe = uid === dbUserId;
+                return (
+                  <YStack marginBottom="$2">
+                    <XStack alignItems="center" gap="$2" marginBottom={4}>
+                      <Text fontFamily="$mono" fontSize={11} fontWeight="700" color={isMe ? "$colorAccent" : "$color"}>
+                        {isMe ? "you" : memberName}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                        {memberPlayers.length} players | {(auctionState?.budgets?.[uid] ?? 0).toFixed(1)} Cr left
+                      </Text>
+                    </XStack>
+                    <FlatList
+                      data={memberPlayers}
+                      keyExtractor={(sp: any) => sp.playerId}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      renderItem={({ item: sp }: { item: any }) => {
+                        const player = (players ?? []).find((p: any) => p.id === sp.playerId);
+                        return (
+                          <Card padding="$2" marginRight="$2" minWidth={90}>
+                            <Text {...textStyles.playerName} fontSize={10} numberOfLines={1}>
+                              {(player as any)?.name ?? "?"}
+                            </Text>
+                            <Text fontFamily="$mono" fontSize={8} color="$colorCricket" marginTop={1}>{sp.amount} Cr</Text>
+                          </Card>
+                        );
+                      }}
+                      ListEmptyComponent={
+                        <Text fontFamily="$body" fontSize={10} color="$colorMuted">no players yet</Text>
+                      }
+                    />
+                  </YStack>
+                );
+              }}
+            />
+          )}
         </YStack>
       )}
 
@@ -801,7 +935,11 @@ export default function AuctionRoomScreen() {
                   <XStack justifyContent="space-between" alignItems="center" marginTop={2}>
                     <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
                     <Text fontFamily="$mono" fontSize={8} color={item.userId === dbUserId ? "$colorAccent" : "$colorMuted"}>
-                      {item.userId === dbUserId ? "you" : `#${item.pickNumber}`}
+                      {item.userId === dbUserId
+                        ? "you"
+                        : (auctionState as any)?.buyerVisibility === "during_auction" && (auctionState as any)?.memberNames?.[item.userId]
+                          ? (auctionState as any).memberNames[item.userId]
+                          : `#${item.pickNumber}`}
                     </Text>
                   </XStack>
                 </Card>
