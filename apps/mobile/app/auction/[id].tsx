@@ -339,9 +339,20 @@ export default function AuctionRoomScreen() {
   };
 
   const [searchQuery, setSearchQuery] = useState("");
-  const filteredAvailable = searchQuery
-    ? availablePlayers.filter((p: any) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : availablePlayers;
+  const filteredAvailable = (() => {
+    let list = searchQuery
+      ? availablePlayers.filter((p: any) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      : availablePlayers;
+    // Sort target players to the top
+    if (targetPlayerIds.size > 0) {
+      list = [...list].sort((a: any, b: any) => {
+        const aTarget = targetPlayerIds.has(a.id) ? 0 : 1;
+        const bTarget = targetPlayerIds.has(b.id) ? 0 : 1;
+        return aTarget - bTarget;
+      });
+    }
+    return list;
+  })();
   const filteredSold = searchQuery
     ? (auctionState?.soldPlayers ?? []).filter((sp: any) => {
         const player = (players ?? []).find((p: any) => p.id === sp.playerId);
