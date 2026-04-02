@@ -157,6 +157,15 @@ export default function AuctionRoomScreen() {
   );
   const hasTargets = (targetSquadQuery.data?.targets ?? []).length > 0;
 
+  // Load persisted strategy from target squad
+  const strategyLoaded = useRef(false);
+  useEffect(() => {
+    if (!strategyLoaded.current && targetSquadQuery.data?.strategy) {
+      setStrategy(targetSquadQuery.data.strategy as any);
+      strategyLoaded.current = true;
+    }
+  }, [targetSquadQuery.data]);
+
   // Player stats for popup
   const { data: playerStatsData } = trpc.auctionAi.playerStats.useQuery(
     { playerId: statsPlayerId! },
