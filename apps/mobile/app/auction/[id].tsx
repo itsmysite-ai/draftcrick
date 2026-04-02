@@ -1,4 +1,4 @@
-import { FlatList } from "react-native";
+import { FlatList, ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -287,6 +287,7 @@ export default function AuctionRoomScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" testID="auction-room-screen">
+     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
       {/* Header */}
       <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
@@ -1152,6 +1153,7 @@ export default function AuctionRoomScreen() {
         </YStack>
       )}
       <Paywall {...paywallProps} />
+     </ScrollView>
     </YStack>
   );
 }
