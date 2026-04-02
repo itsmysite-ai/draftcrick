@@ -315,54 +315,53 @@ export default function AuctionRoomScreen() {
             </YStack>
             <HeaderControls />
           </XStack>
-          {/* Active squad rule display */}
-          {(auctionState as any)?.squadRuleDetails && (() => {
-            const r = (auctionState as any).squadRuleDetails;
-            return (
+        </XStack>
+        {/* Active squad rule display */}
+        {(auctionState as any)?.squadRuleDetails && (() => {
+          const r = (auctionState as any).squadRuleDetails;
+          return (
+            <XStack
+              marginTop="$2"
+              gap={6}
+              alignItems="center"
+              flexWrap="wrap"
+            >
               <XStack
-                marginTop="$2"
-                paddingHorizontal="$3"
-                gap="$2"
-                alignItems="center"
-                flexWrap="wrap"
+                paddingHorizontal={8}
+                paddingVertical={3}
+                borderRadius={6}
+                backgroundColor="$accentBackground"
               >
+                <Text fontFamily="$mono" fontSize={10} fontWeight="700" color="$accentColor">
+                  {r.name}
+                </Text>
+              </XStack>
+              {[
+                { label: "WK", min: r.minWK, max: r.maxWK },
+                { label: "BAT", min: r.minBAT, max: r.maxBAT },
+                { label: "BOWL", min: r.minBOWL, max: r.maxBOWL },
+                { label: "AR", min: r.minAR, max: r.maxAR },
+              ].map((role) => (
                 <XStack
-                  paddingHorizontal={8}
+                  key={role.label}
+                  paddingHorizontal={6}
                   paddingVertical={3}
                   borderRadius={6}
-                  backgroundColor="$accentBackground"
+                  backgroundColor="$backgroundPress"
+                  gap={3}
+                  alignItems="center"
                 >
-                  <Text fontFamily="$mono" fontSize={10} fontWeight="700" color="$accentColor">
-                    {r.name}
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$color">
+                    {role.label}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                    {role.min}-{role.max}
                   </Text>
                 </XStack>
-                {[
-                  { label: "WK", min: r.minWK, max: r.maxWK },
-                  { label: "BAT", min: r.minBAT, max: r.maxBAT },
-                  { label: "BOWL", min: r.minBOWL, max: r.maxBOWL },
-                  { label: "AR", min: r.minAR, max: r.maxAR },
-                ].map((role) => (
-                  <XStack
-                    key={role.label}
-                    paddingHorizontal={6}
-                    paddingVertical={3}
-                    borderRadius={6}
-                    backgroundColor="$backgroundSurface"
-                    gap={3}
-                    alignItems="center"
-                  >
-                    <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$color">
-                      {role.label}
-                    </Text>
-                    <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                      {role.min}-{role.max}
-                    </Text>
-                  </XStack>
-                ))}
-              </XStack>
-            );
-          })()}
-        </XStack>
+              ))}
+            </XStack>
+          );
+        })()}
         {countdown !== null && (
           <YStack testID="auction-countdown" marginTop="$3" alignSelf="center" alignItems="center" gap="$1">
             <YStack
