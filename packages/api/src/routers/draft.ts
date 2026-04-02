@@ -291,8 +291,10 @@ export const draftRouter = router({
 
       // Squad rule validation — check if adding this player would violate composition rules
       if (state.squadRule !== "none" && state.currentPlayerId) {
-        const squadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
-        const rule = squadRules.find((r: any) => r.id === state.squadRule);
+        const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
+        const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+        const allRules = [...DEFAULT_SQUAD_RULES, ...adminSquadRules];
+        const rule = allRules.find((r: any) => r.id === state.squadRule);
         if (rule) {
           // Get current player's role
           const currentPlayer = await ctx.db.query.players.findFirst({
@@ -706,7 +708,14 @@ export const draftRouter = router({
 
   getAuctionConfigOptions: protectedProcedure
     .query(async () => {
-      const squadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+      const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
+      const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+      // Merge defaults with admin-created rules (admin rules override defaults with same id)
+      const adminIds = new Set(adminSquadRules.map((r: any) => r.id));
+      const squadRules = [
+        ...DEFAULT_SQUAD_RULES.filter(r => !adminIds.has(r.id)),
+        ...adminSquadRules,
+      ];
       const bidIncrementOptions = await getAdminConfig<number[]>("auction_bid_increment_options") ?? [0.1, 0.2, 0.5, 1.0];
       const maxPausesCap = await getAdminConfig<number>("auction_max_pauses_cap") ?? 5;
       const defaults = await getAdminConfig<Record<string, unknown>>("auction_default_settings") ?? {};

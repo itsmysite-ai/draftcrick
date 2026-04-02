@@ -1891,7 +1891,14 @@ const configRouter = router({
 const leagueConfigRouter = router({
   /** Get all auction platform config (squad rules, pause cap, bid increments, defaults) */
   getConfig: adminProcedure.query(async () => {
-    const squadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+    const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
+    const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+    // Merge: defaults + admin-created (admin can override defaults by using same id)
+    const adminIds = new Set(adminSquadRules.map((r: any) => r.id));
+    const squadRules = [
+      ...DEFAULT_SQUAD_RULES.map(r => ({ ...r, isDefault: true })).filter(r => !adminIds.has(r.id)),
+      ...adminSquadRules,
+    ];
     const bidIncrementOptions = await getAdminConfig<number[]>("auction_bid_increment_options") ?? [0.1, 0.2, 0.5, 1.0];
     const maxPausesCap = await getAdminConfig<number>("auction_max_pauses_cap") ?? 5;
     const defaults = await getAdminConfig<Record<string, unknown>>("auction_default_settings") ?? {};

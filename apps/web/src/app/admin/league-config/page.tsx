@@ -193,13 +193,20 @@ function SquadRulesEditor({
         <div key={rule.id} style={{ ...labelStyle, gap: 12 }}>
           <div style={{ flex: 1 }}>
             <span style={{ fontWeight: 600 }}>{rule.name}</span>
+            {rule.isDefault && (
+              <span style={{ ...formatBadgeStyle, backgroundColor: "rgba(93, 184, 130, 0.15)", color: "#5DB882", marginLeft: 8 }}>
+                DEFAULT
+              </span>
+            )}
             <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8 }}>
               WK: {rule.minWK}-{rule.maxWK} | BAT: {rule.minBAT}-{rule.maxBAT} | BOWL: {rule.minBOWL}-{rule.maxBOWL} | AR: {rule.minAR}-{rule.maxAR}
             </span>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button style={btnSecondary} onClick={() => setEditing(rule)}>Edit</button>
-            <button style={btnDanger} onClick={() => onDelete(rule.id)}>Delete</button>
+            {!rule.isDefault && (
+              <button style={btnDanger} onClick={() => onDelete(rule.id)}>Delete</button>
+            )}
           </div>
         </div>
       ))}

@@ -176,6 +176,34 @@ export interface SquadRule {
   maxAR: number;
 }
 
+/** Default squad rules available to all leagues without admin setup */
+export const DEFAULT_SQUAD_RULES: SquadRule[] = [
+  {
+    id: "balanced",
+    name: "Balanced",
+    minWK: 1, minBAT: 3, minBOWL: 3, minAR: 1,
+    maxWK: 4, maxBAT: 6, maxBOWL: 6, maxAR: 5,
+  },
+  {
+    id: "ipl_style",
+    name: "IPL Style",
+    minWK: 1, minBAT: 3, minBOWL: 3, minAR: 2,
+    maxWK: 3, maxBAT: 6, maxBOWL: 6, maxAR: 5,
+  },
+  {
+    id: "bat_heavy",
+    name: "Bat Heavy",
+    minWK: 1, minBAT: 4, minBOWL: 3, minAR: 1,
+    maxWK: 3, maxBAT: 7, maxBOWL: 5, maxAR: 4,
+  },
+  {
+    id: "bowl_heavy",
+    name: "Bowl Heavy",
+    minWK: 1, minBAT: 3, minBOWL: 4, minAR: 1,
+    maxWK: 3, maxBAT: 5, maxBOWL: 7, maxAR: 4,
+  },
+];
+
 export interface AuctionSpecificRules {
   auctionBudget: number;
   minBid: number;
