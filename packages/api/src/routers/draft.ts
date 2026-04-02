@@ -23,7 +23,12 @@ import {
   persistAuctionSale,
   updateAuctionRoom,
   getBasePrice,
+  pauseAuction as pauseAuctionFn,
+  resumeAuction as resumeAuctionFn,
 } from "../services/auction-room";
+import { users } from "@draftplay/db";
+import { inArray } from "drizzle-orm";
+import { getAdminConfig } from "../services/admin-config";
 
 /** Find the next nominator whose squad is not full, skipping full squads */
 function getNextEligibleNominator(state: any): string | null {
@@ -342,6 +347,16 @@ export const draftRouter = router({
         }
       }
 
+      // Resolve member display names for buyer identity + squad tabs
+      const memberRows = await ctx.db
+        .select({ id: users.id, displayName: users.displayName, username: users.username })
+        .from(users)
+        .where(inArray(users.id, state.pickOrder));
+      const memberNames: Record<string, string> = {};
+      for (const m of memberRows) {
+        memberNames[m.id] = m.displayName || m.username || "Player";
+      }
+
       return {
         roomId: state.roomId,
         status: state.status,
@@ -362,6 +377,15 @@ export const draftRouter = router({
         biddingEndsAt: state.biddingEndsAt,
         goingOnceEndsAt: state.goingOnceEndsAt,
         goingTwiceEndsAt: state.goingTwiceEndsAt,
+        // New fields
+        memberNames,
+        isPaused: state.isPaused,
+        pausedBy: state.pausedBy,
+        pausesUsed: state.pausesUsed,
+        maxPausesPerMember: state.maxPausesPerMember,
+        squadVisibility: state.squadVisibility,
+        buyerVisibility: state.buyerVisibility,
+        squadRule: state.squadRule,
       };
     }),
 
@@ -584,5 +608,72 @@ export const draftRouter = router({
         amount: wasSold ? state.highestBid?.amount : null,
         buzzMessages,
       };
+    }),
+
+  // ── Pause / Resume ──────────────────────────────────────
+
+  pauseAuction: protectedProcedure
+    .input(z.object({ roomId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const state = await loadAuctionState(ctx.db, input.roomId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND" });
+      if (state.status !== "in_progress") throw new TRPCError({ code: "BAD_REQUEST", message: "Auction not in progress" });
+      if (state.isPaused) throw new TRPCError({ code: "BAD_REQUEST", message: "Already paused" });
+
+      const userId = ctx.user.id;
+      const used = state.pausesUsed[userId] ?? 0;
+      if (used >= state.maxPausesPerMember) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `No pauses remaining (used ${used}/${state.maxPausesPerMember})` });
+      }
+
+      // Check platform cap from admin config
+      const platformCap = await getAdminConfig<number>("auction_max_pauses_cap");
+      if (platformCap && used >= platformCap) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Platform pause limit reached" });
+      }
+
+      const updated = pauseAuctionFn(state, userId);
+      await updateAuctionRoom(ctx.db, updated);
+
+      return { success: true, pausesRemaining: state.maxPausesPerMember - used - 1 };
+    }),
+
+  resumeAuction: protectedProcedure
+    .input(z.object({ roomId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const state = await loadAuctionState(ctx.db, input.roomId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!state.isPaused) throw new TRPCError({ code: "BAD_REQUEST", message: "Auction is not paused" });
+
+      // Only the pauser or league owner can resume
+      const userId = ctx.user.id;
+      const isLeagueOwner = await ctx.db.query.leagueMembers.findFirst({
+        where: and(
+          eq(leagueMembers.leagueId, state.leagueId),
+          eq(leagueMembers.userId, userId),
+          eq(leagueMembers.role, "owner"),
+        ),
+      });
+
+      if (state.pausedBy !== userId && !isLeagueOwner) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the pauser or league owner can resume" });
+      }
+
+      const updated = resumeAuctionFn(state);
+      await updateAuctionRoom(ctx.db, updated);
+
+      return { success: true };
+    }),
+
+  // ── Auction Config Options (for league creation) ────────
+
+  getAuctionConfigOptions: protectedProcedure
+    .query(async () => {
+      const squadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+      const bidIncrementOptions = await getAdminConfig<number[]>("auction_bid_increment_options") ?? [0.1, 0.2, 0.5, 1.0];
+      const maxPausesCap = await getAdminConfig<number>("auction_max_pauses_cap") ?? 5;
+      const defaults = await getAdminConfig<Record<string, unknown>>("auction_default_settings") ?? {};
+
+      return { squadRules, bidIncrementOptions, maxPausesCap, defaults };
     }),
 });

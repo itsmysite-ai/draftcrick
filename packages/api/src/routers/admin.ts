@@ -20,6 +20,7 @@ import {
   subscriptionEvents,
   dataRefreshLog,
   adminConfig,
+  draftRooms,
   getDb,
 } from "@draftplay/db";
 import { eq, desc, asc, sql, and, ilike, count, inArray } from "drizzle-orm";
@@ -1887,6 +1888,107 @@ const configRouter = router({
     }),
 });
 
+const auctionConfigRouter = router({
+  /** Get all auction platform config (squad rules, pause cap, bid increments, defaults) */
+  getConfig: adminProcedure.query(async () => {
+    const squadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+    const bidIncrementOptions = await getAdminConfig<number[]>("auction_bid_increment_options") ?? [0.1, 0.2, 0.5, 1.0];
+    const maxPausesCap = await getAdminConfig<number>("auction_max_pauses_cap") ?? 5;
+    const defaults = await getAdminConfig<Record<string, unknown>>("auction_default_settings") ?? {};
+    return { squadRules, bidIncrementOptions, maxPausesCap, defaults };
+  }),
+
+  /** Upsert a squad rule template */
+  upsertSquadRule: adminProcedure
+    .input(z.object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      minWK: z.number().min(0), minBAT: z.number().min(0),
+      minBOWL: z.number().min(0), minAR: z.number().min(0),
+      maxWK: z.number().min(0), maxBAT: z.number().min(0),
+      maxBOWL: z.number().min(0), maxAR: z.number().min(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+      const idx = existing.findIndex((r: any) => r.id === input.id);
+      if (idx >= 0) {
+        existing[idx] = input;
+      } else {
+        existing.push(input);
+      }
+      await setAdminConfig("auction_squad_rules", existing, "Auction squad rule templates", ctx.user.id);
+      return { success: true };
+    }),
+
+  /** Delete a squad rule template */
+  deleteSquadRule: adminProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+      const filtered = existing.filter((r: any) => r.id !== input.id);
+      await setAdminConfig("auction_squad_rules", filtered, "Auction squad rule templates", ctx.user.id);
+      return { success: true };
+    }),
+
+  /** Update platform-level auction settings (max pauses cap, bid increment options, defaults) */
+  updatePlatformSettings: adminProcedure
+    .input(z.object({
+      maxPausesCap: z.number().min(0).max(20).optional(),
+      bidIncrementOptions: z.array(z.number()).optional(),
+      defaults: z.record(z.unknown()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.maxPausesCap !== undefined) {
+        await setAdminConfig("auction_max_pauses_cap", input.maxPausesCap, "Max pauses per member (platform cap)", ctx.user.id);
+      }
+      if (input.bidIncrementOptions) {
+        await setAdminConfig("auction_bid_increment_options", input.bidIncrementOptions, "Available bid increment options", ctx.user.id);
+      }
+      if (input.defaults) {
+        await setAdminConfig("auction_default_settings", input.defaults, "Default auction settings for new leagues", ctx.user.id);
+      }
+      return { success: true };
+    }),
+
+  /** Force-resume a paused auction (admin override) */
+  forceResume: adminProcedure
+    .input(z.object({ roomId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { loadAuctionState, resumeAuction, updateAuctionRoom } = await import("../services/auction-room");
+      const state = await loadAuctionState(ctx.db, input.roomId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!state.isPaused) throw new TRPCError({ code: "BAD_REQUEST", message: "Auction is not paused" });
+      const updated = resumeAuction(state);
+      await updateAuctionRoom(ctx.db, updated);
+      return { success: true };
+    }),
+
+  /** List currently paused auctions across the platform */
+  listPaused: adminProcedure.query(async ({ ctx }) => {
+    const rooms = await ctx.db.query.draftRooms.findMany({
+      where: and(
+        eq(draftRooms.type, "auction"),
+        eq(draftRooms.status, "in_progress"),
+      ),
+    });
+    // Filter to only paused ones
+    return rooms
+      .filter((r) => {
+        const s = r.settings as Record<string, unknown>;
+        return s?._isPaused === true;
+      })
+      .map((r) => {
+        const s = r.settings as Record<string, unknown>;
+        return {
+          roomId: r.id,
+          leagueId: r.leagueId,
+          pausedBy: s._pausedBy as string,
+          pausedAt: s._pausedAt as string,
+        };
+      });
+  }),
+});
+
 const usersRouter = router({
   list: supportProcedure
     .input(
@@ -2268,6 +2370,7 @@ export const adminRouter = router({
   players: playersRouter,
   contests: contestsRouter,
   config: configRouter,
+  auctionConfig: auctionConfigRouter,
   users: usersRouter,
   system: systemRouter,
   revenue: revenueRouter,
