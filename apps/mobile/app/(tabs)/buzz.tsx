@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScrollView, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import { ScrollView, Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
 import { formatUIText, DraftPlayLogo } from "@draftplay/ui";
@@ -14,12 +14,21 @@ const TAB_BAR_HEIGHT = 70;
 export default function BuzzScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTamaguiTheme();
-  const [activeRoom, setActiveRoom] = useState<string | null>(null); // null = general
+  const [activeRoom, setActiveRoom] = useState<string | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const { data: rooms } = trpc.chat.getActiveRooms.useQuery(undefined, {
     refetchInterval: 30000,
   });
 
   const tabBarOffset = TAB_BAR_HEIGHT + Math.max(insets.bottom, 8);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const s1 = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const s2 = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => { s1.remove(); s2.remove(); };
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -90,7 +99,7 @@ export default function BuzzScreen() {
         </ScrollView>
 
         {/* Chat room — skipKeyboard since KAV wraps entire screen */}
-        <YStack flex={1} paddingBottom={tabBarOffset}>
+        <YStack flex={1} paddingBottom={keyboardVisible ? 0 : tabBarOffset}>
           <ChatRoom matchId={activeRoom} skipKeyboard />
         </YStack>
       </YStack>
