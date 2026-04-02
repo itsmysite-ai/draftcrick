@@ -227,7 +227,22 @@ export default function AuctionRoomScreen() {
   const isMyNomination = auctionState?.currentNominator === dbUserId;
   const myBudget = auctionState?.budgets?.[dbUserId ?? ""] ?? 0;
   const myTeamSize = auctionState?.teamSizes?.[dbUserId ?? ""] ?? 0;
-  const mySquadFull = myTeamSize >= ((auctionState as any)?.maxPlayersPerTeam ?? 11);
+  const squadSize = (auctionState as any)?.squadRuleDetails?.squadSize ?? (auctionState as any)?.maxPlayersPerTeam ?? 14;
+  const mySquadFull = myTeamSize >= squadSize;
+
+  // Compute my role counts for squad rule progress
+  const myRoleCounts = (() => {
+    const counts: Record<string, number> = { WK: 0, BAT: 0, BOWL: 0, AR: 0 };
+    const myPlayers = (auctionState?.soldPlayers ?? []).filter((sp: any) => sp.userId === dbUserId);
+    for (const sp of myPlayers) {
+      const p = (players ?? []).find((pl: any) => pl.id === sp.playerId);
+      if (p) {
+        const role = formatRoleShort((p as any).role ?? "");
+        if (role in counts) counts[role]!++;
+      }
+    }
+    return counts;
+  })();
   const soldPlayerIds = new Set((auctionState?.soldPlayers ?? []).map((p: any) => p.playerId));
   const availablePlayers = (players ?? []).filter((p: any) => !soldPlayerIds.has(p.id));
 
@@ -308,59 +323,10 @@ export default function AuctionRoomScreen() {
               <Text testID="auction-my-budget" fontFamily="$mono" fontWeight="900" fontSize={DesignSystem.fontSize["4xl"]} color="$accentBackground">
                 {myBudget > 0 ? `${myBudget % 1 === 0 ? myBudget.toFixed(0) : myBudget.toFixed(1)} Cr` : "—"}
               </Text>
-              <Text testID="auction-my-team-size" {...textStyles.hint}>
-                {formatUIText("team")}: {myTeamSize}/{(auctionState as any)?.squadRuleDetails?.squadSize ?? (auctionState as any)?.maxPlayersPerTeam ?? 14} {formatUIText("players")}
-              </Text>
             </YStack>
             <HeaderControls />
           </XStack>
         </XStack>
-        {/* Active squad rule display */}
-        {(auctionState as any)?.squadRuleDetails && (() => {
-          const r = (auctionState as any).squadRuleDetails;
-          return (
-            <XStack
-              marginTop="$2"
-              gap={6}
-              alignItems="center"
-              flexWrap="wrap"
-            >
-              <XStack
-                paddingHorizontal={8}
-                paddingVertical={3}
-                borderRadius={6}
-                backgroundColor="$accentBackground"
-              >
-                <Text fontFamily="$mono" fontSize={10} fontWeight="700" color="$accentColor">
-                  {r.name}
-                </Text>
-              </XStack>
-              {[
-                { label: "WK", min: r.minWK, max: r.maxWK },
-                { label: "BAT", min: r.minBAT, max: r.maxBAT },
-                { label: "BOWL", min: r.minBOWL, max: r.maxBOWL },
-                { label: "AR", min: r.minAR, max: r.maxAR },
-              ].map((role) => (
-                <XStack
-                  key={role.label}
-                  paddingHorizontal={6}
-                  paddingVertical={3}
-                  borderRadius={6}
-                  backgroundColor="$backgroundPress"
-                  gap={3}
-                  alignItems="center"
-                >
-                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$color">
-                    {role.label}
-                  </Text>
-                  <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                    {role.min}-{role.max}
-                  </Text>
-                </XStack>
-              ))}
-            </XStack>
-          );
-        })()}
         {countdown !== null && (
           <YStack testID="auction-countdown" marginTop="$3" alignSelf="center" alignItems="center" gap="$1">
             <YStack
@@ -385,65 +351,93 @@ export default function AuctionRoomScreen() {
             )}
           </YStack>
         )}
-        {/* Pause + Roster buttons */}
-        <XStack justifyContent="space-between" marginTop="$2" alignItems="center">
+        {/* Squad progress + pause row */}
+        <XStack marginTop="$2" alignItems="center" gap="$2" flexWrap="wrap">
           {/* Pause / Resume button */}
           {auctionState?.status === "in_progress" && (auctionState as any)?.maxPausesPerMember > 0 && (() => {
             const isPaused = (auctionState as any)?.isPaused;
             const isMePauser = (auctionState as any)?.pausedBy === dbUserId;
             const pausesLeft = (auctionState as any)?.maxPausesPerMember - ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0);
             const canAct = isPaused ? isMePauser : pausesLeft > 0;
-
             return (
               <XStack
                 onPress={() => {
                   if (!canAct) return;
-                  if (isPaused) {
-                    resumeMutation.mutate({ roomId: roomId! });
-                  } else {
-                    pauseMutation.mutate({ roomId: roomId! });
-                  }
+                  if (isPaused) resumeMutation.mutate({ roomId: roomId! });
+                  else pauseMutation.mutate({ roomId: roomId! });
                 }}
                 cursor={canAct ? "pointer" : "default"}
                 pressStyle={canAct ? { opacity: 0.8, scale: 0.97 } : {}}
-                paddingHorizontal="$3"
-                paddingVertical={6}
-                borderRadius={DesignSystem.radius.md}
-                backgroundColor={isPaused
-                  ? (isMePauser ? "$accentBackground" : "#4a1c1c")
-                  : "rgba(212, 164, 61, 0.12)"
-                }
+                paddingHorizontal={8}
+                paddingVertical={4}
+                borderRadius={8}
+                backgroundColor={isPaused ? (isMePauser ? "$accentBackground" : "#4a1c1c") : "rgba(212, 164, 61, 0.12)"}
                 borderWidth={1}
-                borderColor={isPaused
-                  ? (isMePauser ? "$accentBackground" : "$error")
-                  : "$colorCricket"
-                }
+                borderColor={isPaused ? (isMePauser ? "$accentBackground" : "$error") : "$colorCricket"}
                 opacity={canAct ? 1 : 0.4}
                 alignItems="center"
-                gap={6}
+                gap={4}
               >
                 <Ionicons
                   name={isPaused ? (isMePauser ? "play-circle" : "pause-circle") : "pause-circle-outline"}
-                  size={16}
-                  color={isPaused
-                    ? (isMePauser ? "#fff" : "#E5484D")
-                    : "#D4A43D"
-                  }
+                  size={14}
+                  color={isPaused ? (isMePauser ? "#fff" : "#E5484D") : "#D4A43D"}
                 />
-                <Text fontFamily="$mono" fontSize={11} fontWeight="700"
-                  color={isPaused
-                    ? (isMePauser ? "white" : "$error")
-                    : "$colorCricket"
-                  }
+                <Text fontFamily="$mono" fontSize={10} fontWeight="700"
+                  color={isPaused ? (isMePauser ? "white" : "$error") : "$colorCricket"}
                 >
-                  {isPaused
-                    ? (isMePauser ? "resume" : "paused")
-                    : `pause (${pausesLeft})`}
+                  {isPaused ? (isMePauser ? "resume" : "paused") : `pause (${pausesLeft})`}
                 </Text>
               </XStack>
             );
           })()}
 
+          {/* Team size pill */}
+          <XStack paddingHorizontal={8} paddingVertical={4} borderRadius={8} backgroundColor="$backgroundPress" alignItems="center" gap={3}>
+            <Ionicons name="people-outline" size={12} color="#9A9894" />
+            <Text fontFamily="$mono" fontSize={10} fontWeight="700" color="$color">
+              {myTeamSize}/{squadSize}
+            </Text>
+          </XStack>
+
+          {/* Role progress pills */}
+          {(auctionState as any)?.squadRuleDetails && (() => {
+            const r = (auctionState as any).squadRuleDetails;
+            return [
+              { label: "WK", min: r.minWK, max: r.maxWK, have: myRoleCounts.WK ?? 0 },
+              { label: "BAT", min: r.minBAT, max: r.maxBAT, have: myRoleCounts.BAT ?? 0 },
+              { label: "BOWL", min: r.minBOWL, max: r.maxBOWL, have: myRoleCounts.BOWL ?? 0 },
+              { label: "AR", min: r.minAR, max: r.maxAR, have: myRoleCounts.AR ?? 0 },
+            ].map((role) => {
+              const isFull = role.have >= role.max;
+              const needsMore = role.have < role.min;
+              return (
+                <XStack
+                  key={role.label}
+                  paddingHorizontal={6}
+                  paddingVertical={4}
+                  borderRadius={8}
+                  backgroundColor={isFull ? "rgba(229, 72, 77, 0.1)" : needsMore ? "rgba(212, 164, 61, 0.1)" : "$backgroundPress"}
+                  borderWidth={1}
+                  borderColor={isFull ? "rgba(229, 72, 77, 0.3)" : needsMore ? "rgba(212, 164, 61, 0.3)" : "transparent"}
+                  gap={3}
+                  alignItems="center"
+                >
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$color">
+                    {role.label}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="600"
+                    color={isFull ? "$error" : needsMore ? "$colorCricket" : "$colorAccent"}
+                  >
+                    {role.have}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={7} color="$colorMuted">
+                    /{role.max}
+                  </Text>
+                </XStack>
+              );
+            });
+          })()}
         </XStack>
       </YStack>
 
