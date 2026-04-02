@@ -830,13 +830,23 @@ export default function AuctionRoomScreen() {
               onPress={bidSuggestion.gated ? () => gate("pro", "AI Bid Insights", "Get fair value estimates, risk ratings, and projected points for every player") : undefined}
               cursor={bidSuggestion.gated ? "pointer" : undefined}
             >
+              {currentPlayerId && targetPlayerIds.has(currentPlayerId) && (
+                <XStack alignItems="center" gap="$1" marginBottom="$2" backgroundColor="rgba(212, 164, 61, 0.12)" paddingHorizontal={8} paddingVertical={3} borderRadius={6} alignSelf="flex-start">
+                  <Ionicons name="star" size={11} color="#D4A43D" />
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$colorCricket">
+                    ON YOUR TARGET LIST
+                  </Text>
+                </XStack>
+              )}
               <XStack justifyContent="space-between" alignItems="flex-start">
                 <YStack flex={1} gap="$1">
                   <XStack alignItems="center" gap="$2">
                     <Text fontFamily="$body" fontSize={12} color="$color">
-                      {bidSuggestion.recommendation === "strong bid" ? "Strong bid" :
-                       bidSuggestion.recommendation === "steal opportunity" ? "Steal!" :
-                       bidSuggestion.recommendation === "let go" ? "Let go" : "Bid cautiously"}
+                      {currentPlayerId && targetPlayerIds.has(currentPlayerId)
+                        ? "Strong bid — target player!"
+                        : bidSuggestion.recommendation === "strong bid" ? "Strong bid" :
+                          bidSuggestion.recommendation === "steal opportunity" ? "Steal!" :
+                          bidSuggestion.recommendation === "let go" ? "Let go" : "Bid cautiously"}
                     </Text>
                     <Badge
                       variant="default"
