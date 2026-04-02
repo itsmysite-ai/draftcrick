@@ -493,9 +493,17 @@ export const auctionAiRouter = router({
       return { targets: squad.targets };
     }),
 
-  /** AI auto-build target squad */
+  /** AI auto-build target squad based on strategy DNA */
   autoBuildTargets: protectedProcedure
-    .input(z.object({ roomId: z.string().uuid() }))
+    .input(z.object({
+      roomId: z.string().uuid(),
+      strategy: z.object({
+        starPower: z.number().min(1).max(10),
+        battingBias: z.number().min(1).max(10),
+        formVsRep: z.number().min(1).max(10),
+        riskAppetite: z.number().min(1).max(10),
+      }).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const state = await loadAuctionState(ctx.db, input.roomId);
       if (!state) throw new TRPCError({ code: "NOT_FOUND" });
@@ -556,7 +564,7 @@ export const auctionAiRouter = router({
       const budget = state.budgets[ctx.user.id] ?? state.auctionBudget;
       const squadSize = squadRule?.squadSize ?? state.maxPlayersPerTeam;
 
-      const squad = autoBuildTargetSquad(available, squadRule, budget, squadSize);
+      const squad = autoBuildTargetSquad(available, squadRule, budget, squadSize, input.strategy);
       await saveTargetSquad(ctx.db, input.roomId, ctx.user.id, squad);
 
       return squad;

@@ -127,6 +127,8 @@ export default function AuctionRoomScreen() {
   const [nominateAlert, setNominateAlert] = useState<{ title: string; message: string; onConfirm?: () => void } | null>(null);
   const [statsPlayerId, setStatsPlayerId] = useState<string | null>(null);
   const [soldFilter, setSoldFilter] = useState<string | null>(null); // null = all, "me" = mine, or a userId
+  const [showStrategyQuiz, setShowStrategyQuiz] = useState(false);
+  const [strategy, setStrategy] = useState({ starPower: 5, battingBias: 5, formVsRep: 5, riskAppetite: 5 });
 
   // Pause/resume
   const pauseMutation = trpc.draft.pauseAuction.useMutation({ onSuccess: () => refetch() });
@@ -523,7 +525,7 @@ export default function AuctionRoomScreen() {
             </XStack>
             <XStack gap="$2">
               <XStack
-                onPress={() => autoBuildMutation.mutate({ roomId: roomId! })}
+                onPress={() => setShowStrategyQuiz(true)}
                 cursor="pointer"
                 pressStyle={{ opacity: 0.8 }}
                 paddingHorizontal={8}
@@ -1454,6 +1456,142 @@ export default function AuctionRoomScreen() {
         </YStack>
       )}
       <Paywall {...paywallProps} />
+
+      {/* Strategy Quiz Modal */}
+      {showStrategyQuiz && (
+        <YStack
+          style={{ position: "fixed" as any, top: 0, left: 0, right: 0, bottom: 0 }}
+          zIndex={300}
+          alignItems="center"
+          justifyContent="center"
+          backgroundColor="$colorOverlay"
+          onPress={() => setShowStrategyQuiz(false)}
+        >
+          <YStack
+            backgroundColor="$backgroundSurface"
+            borderRadius={20}
+            padding="$5"
+            width="92%"
+            maxWidth={400}
+            borderWidth={1}
+            borderColor="$borderColor"
+            onPress={(e: any) => e.stopPropagation()}
+          >
+            <XStack alignItems="center" gap="$2" marginBottom="$4">
+              <Ionicons name="sparkles" size={20} color="#D4A43D" />
+              <Text fontFamily="$mono" fontWeight="800" fontSize={16} color="$color">
+                {formatUIText("build your strategy")}
+              </Text>
+            </XStack>
+            <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginBottom="$4">
+              {formatUIText("answer 4 questions to generate a personalized target squad. run this anytime — it rebuilds from available players.")}
+            </Text>
+
+            {/* Q1: Star Power */}
+            {(() => {
+              const questions = [
+                {
+                  key: "starPower" as const,
+                  label: "star power vs depth",
+                  left: "deep bench",
+                  right: "all-star XI",
+                  icon: "diamond-outline" as const,
+                },
+                {
+                  key: "battingBias" as const,
+                  label: "batting vs bowling priority",
+                  left: "batting heavy",
+                  right: "bowling heavy",
+                  icon: "swap-horizontal-outline" as const,
+                },
+                {
+                  key: "formVsRep" as const,
+                  label: "form vs reputation",
+                  left: "proven stars",
+                  right: "in-form players",
+                  icon: "trending-up-outline" as const,
+                },
+                {
+                  key: "riskAppetite" as const,
+                  label: "risk appetite",
+                  left: "safe picks",
+                  right: "high ceiling",
+                  icon: "flash-outline" as const,
+                },
+              ];
+
+              return questions.map((q) => (
+                <YStack key={q.key} marginBottom="$3">
+                  <XStack alignItems="center" gap="$1" marginBottom={4}>
+                    <Ionicons name={q.icon} size={13} color="#9A9894" />
+                    <Text fontFamily="$mono" fontSize={11} fontWeight="700" color="$color">
+                      {q.label}
+                    </Text>
+                  </XStack>
+                  <XStack justifyContent="space-between" marginBottom={4}>
+                    <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{q.left}</Text>
+                    <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{q.right}</Text>
+                  </XStack>
+                  <XStack gap={4}>
+                    {[1, 3, 5, 7, 10].map((val) => {
+                      const isSelected = strategy[q.key] === val;
+                      const isClose = Math.abs(strategy[q.key] - val) <= 1;
+                      return (
+                        <YStack
+                          key={val}
+                          flex={1}
+                          height={32}
+                          borderRadius={8}
+                          backgroundColor={isSelected ? "$accentBackground" : isClose ? "rgba(93, 184, 130, 0.15)" : "$backgroundPress"}
+                          borderWidth={isSelected ? 2 : 1}
+                          borderColor={isSelected ? "$accentBackground" : "transparent"}
+                          alignItems="center"
+                          justifyContent="center"
+                          onPress={() => setStrategy((s) => ({ ...s, [q.key]: val }))}
+                          cursor="pointer"
+                          pressStyle={{ scale: 0.95 }}
+                        >
+                          <Text fontFamily="$mono" fontSize={11} fontWeight={isSelected ? "900" : "500"} color={isSelected ? "$accentColor" : "$colorMuted"}>
+                            {val}
+                          </Text>
+                        </YStack>
+                      );
+                    })}
+                  </XStack>
+                </YStack>
+              ));
+            })()}
+
+            <XStack gap="$3" marginTop="$2">
+              <Button
+                variant="secondary"
+                size="md"
+                flex={1}
+                onPress={() => setShowStrategyQuiz(false)}
+              >
+                {formatUIText("cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                flex={1}
+                disabled={autoBuildMutation.isPending}
+                onPress={() => {
+                  autoBuildMutation.mutate({ roomId: roomId!, strategy });
+                  setShowStrategyQuiz(false);
+                }}
+              >
+                <XStack alignItems="center" gap="$1">
+                  <Ionicons name="sparkles" size={14} color="#fff" />
+                  <Text fontFamily="$mono" fontSize={12} fontWeight="700" color="white">
+                    {autoBuildMutation.isPending ? formatUIText("building...") : formatUIText("build squad")}
+                  </Text>
+                </XStack>
+              </Button>
+            </XStack>
+          </YStack>
+        </YStack>
+      )}
     </YStack>
   );
 }

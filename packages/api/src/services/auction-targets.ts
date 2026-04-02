@@ -19,9 +19,21 @@ export interface TargetPlayer {
   addedBy: "manual" | "ai";
 }
 
+export interface StrategyDNA {
+  starPower: number;    // 1-10: 1=deep bench, 10=all-star XI
+  battingBias: number;  // 1-10: 1=batting heavy, 10=bowling heavy
+  formVsRep: number;    // 1-10: 1=proven stars, 10=in-form unknowns
+  riskAppetite: number; // 1-10: 1=safe picks, 10=high ceiling
+}
+
+export const DEFAULT_STRATEGY: StrategyDNA = {
+  starPower: 5, battingBias: 5, formVsRep: 5, riskAppetite: 5,
+};
+
 export interface TargetSquad {
   targets: TargetPlayer[];
   generatedBy: "manual" | "ai" | "hybrid";
+  strategy?: StrategyDNA;
   lastEvolvedAt: string;
 }
 
@@ -34,24 +46,76 @@ interface PlayerInfo {
   stats?: Record<string, unknown>;
 }
 
+// ── Player Scoring ───────────────────────────────────────────
+
+/**
+ * Score a player based on strategy DNA. Higher score = more preferred.
+ */
+function scorePlayer(player: PlayerInfo, strategy: StrategyDNA): number {
+  const credits = player.credits ?? 5;
+  const stats = player.stats ?? {};
+  const recentForm = (stats.recentForm as number) ?? 5;
+  const matchesPlayed = (stats.matchesPlayed as number) ?? 10;
+  const strikeRate = (stats.strikeRate as number) ?? 120;
+  const economy = (stats.economy as number) ?? 8;
+
+  let score = 0;
+
+  // Star Power: high = prefer expensive stars, low = prefer value picks
+  if (strategy.starPower > 5) {
+    // Prefer premium players
+    score += credits * (strategy.starPower / 5);
+  } else {
+    // Prefer value — credit efficiency (form per credit)
+    score += (recentForm / Math.max(credits, 1)) * 10 * ((10 - strategy.starPower) / 5);
+  }
+
+  // Form vs Reputation: high = weight recent form, low = weight credits/reputation
+  const formWeight = strategy.formVsRep / 10;
+  const repWeight = 1 - formWeight;
+  score += recentForm * formWeight * 3 + credits * repWeight * 2;
+
+  // Risk Appetite: high = prefer inconsistent high-ceiling players, low = prefer consistent
+  if (strategy.riskAppetite > 5) {
+    // High risk = prefer high SR batsmen, aggressive players
+    const role = mapRole(player.role);
+    if (role === "BAT" || role === "AR") score += (strikeRate - 120) * 0.1 * (strategy.riskAppetite / 5);
+    // Bonus for less-proven players with good form (differentials)
+    if (matchesPlayed < 20 && recentForm > 6) score += strategy.riskAppetite;
+  } else {
+    // Low risk = prefer experienced, consistent
+    score += Math.min(matchesPlayed, 50) * 0.1 * ((10 - strategy.riskAppetite) / 5);
+    if (role === "BOWL") score += (8 - Math.min(economy, 8)) * ((10 - strategy.riskAppetite) / 5);
+  }
+
+  // Batting vs Bowling bias (applied later during role selection, but add slight preference here)
+  const role = mapRole(player.role);
+  if (strategy.battingBias <= 4 && (role === "BAT" || role === "WK")) score += (5 - strategy.battingBias);
+  if (strategy.battingBias >= 7 && (role === "BOWL")) score += (strategy.battingBias - 5);
+
+  return score;
+}
+
 // ── AI Auto-Build ────────────────────────────────────────────
 
 /**
- * Generate an optimal target squad using rule-based logic.
- * Considers: squad rule, budget, player stats/credits.
+ * Generate an optimal target squad using strategy DNA.
+ * Different strategy answers → different squads.
  */
 export function autoBuildTargetSquad(
   availablePlayers: PlayerInfo[],
   squadRule: SquadRule | null,
   budget: number,
   squadSize: number,
+  strategy: StrategyDNA = DEFAULT_STRATEGY,
 ): TargetSquad {
   const targets: TargetPlayer[] = [];
   const used = new Set<string>();
   const roleCounts: Record<string, number> = { WK: 0, BAT: 0, BOWL: 0, AR: 0 };
 
-  // Sort by credits (quality) descending
-  const sorted = [...availablePlayers].sort((a, b) => (b.credits ?? 0) - (a.credits ?? 0));
+  // Score and sort players by strategy DNA — different strategies produce different orderings
+  const scored = availablePlayers.map((p) => ({ ...p, _score: scorePlayer(p, strategy) }));
+  const sorted = scored.sort((a, b) => b._score - a._score);
 
   // Phase 1: Fill minimums first (pick best player per required role)
   if (squadRule) {
@@ -101,11 +165,12 @@ export function autoBuildTargetSquad(
 
     if ((roleCounts[role] ?? 0) >= maxForRole) continue;
 
-    // Budget check: can we afford this player? Use avg remaining budget as threshold
+    // Budget check: starPower determines how much we concentrate budget
     const slotsLeft = squadSize - targets.length;
     const avgBudget = slotsLeft > 0 ? budgetLeft / slotsLeft : 0;
-    // Allow up to 1.5x avg budget for top picks
-    if (player.credits > avgBudget * 1.5 && targets.length > squadSize * 0.5) continue;
+    // High starPower = allow 2x avg for stars; Low = cap at 1.2x (spread budget)
+    const budgetMultiplier = 1.0 + (strategy.starPower / 10);
+    if (player.credits > avgBudget * budgetMultiplier && targets.length > squadSize * 0.3) continue;
 
     targets.push({
       playerId: player.id,
@@ -121,6 +186,7 @@ export function autoBuildTargetSquad(
   return {
     targets,
     generatedBy: "ai",
+    strategy,
     lastEvolvedAt: new Date().toISOString(),
   };
 }
