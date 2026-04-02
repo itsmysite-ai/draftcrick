@@ -1225,8 +1225,13 @@ export default function AuctionRoomScreen() {
                   marginHorizontal="$2"
                   marginBottom="$1"
                   opacity={isMyNomination && !currentPlayer && !mySquadFull ? 1 : (needTag === "SKIP" ? 0.4 : 0.6)}
-                  onPress={() => isMyNomination && !currentPlayer && !mySquadFull ? handleNominate(item.id, item.name) : null}
-                  disabled={!isMyNomination || !!currentPlayer || mySquadFull}
+                  onPress={() => {
+                    if (isMyNomination && !currentPlayer && !mySquadFull) {
+                      handleNominate(item.id, item.name);
+                    } else {
+                      toggleTargetMutation.mutate({ roomId: roomId!, playerId: item.id });
+                    }
+                  }}
                   borderColor={isTarget ? "$colorCricket" : "$borderColor"}
                   borderWidth={isTarget ? 1.5 : undefined}
                 >
@@ -1258,22 +1263,24 @@ export default function AuctionRoomScreen() {
                         </Text>
                       </XStack>
                     </YStack>
-                    <XStack gap="$1" alignItems="center">
-                      <YStack
-                        onPress={(e: any) => { e.stopPropagation(); toggleTargetMutation.mutate({ roomId: roomId!, playerId: item.id }); }}
-                        cursor="pointer"
-                        padding="$1"
-                        pressStyle={{ opacity: 0.7, scale: 1.2 }}
-                      >
-                        <Ionicons name={isTarget ? "star" : "star-outline"} size={14} color={isTarget ? "#D4A43D" : "#666"} />
-                      </YStack>
+                    <XStack gap={6} alignItems="center">
                       <YStack
                         onPress={(e: any) => { e.stopPropagation(); setStatsPlayerId(item.id); }}
                         cursor="pointer"
-                        padding="$1"
+                        padding={4}
                         pressStyle={{ opacity: 0.7 }}
                       >
                         <Ionicons name="stats-chart" size={14} color="#5DB882" />
+                      </YStack>
+                      <YStack
+                        onPress={(e: any) => { e.stopPropagation(); toggleTargetMutation.mutate({ roomId: roomId!, playerId: item.id }); }}
+                        cursor="pointer"
+                        padding={4}
+                        pressStyle={{ opacity: 0.7, scale: 1.3 }}
+                        backgroundColor={isTarget ? "rgba(212, 164, 61, 0.15)" : "transparent"}
+                        borderRadius={12}
+                      >
+                        <Ionicons name={isTarget ? "star" : "star-outline"} size={18} color={isTarget ? "#D4A43D" : "#9A9894"} />
                       </YStack>
                     </XStack>
                   </XStack>
