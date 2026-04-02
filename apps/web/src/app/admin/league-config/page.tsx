@@ -60,6 +60,39 @@ const btnSecondary: React.CSSProperties = {
   border: "1px solid var(--border)",
 };
 
+const formatBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "2px 8px",
+  borderRadius: 4,
+  fontSize: 10,
+  fontWeight: 700,
+  fontFamily: "var(--font-data)",
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
+};
+
+const FORMAT_COLORS: Record<string, { bg: string; color: string }> = {
+  auction: { bg: "rgba(212, 164, 61, 0.15)", color: "#D4A43D" },
+  draft: { bg: "rgba(93, 168, 184, 0.15)", color: "#5DA8B8" },
+  salary_cap: { bg: "rgba(93, 184, 130, 0.15)", color: "#5DB882" },
+  all: { bg: "rgba(160, 136, 204, 0.15)", color: "#A088CC" },
+};
+
+function FormatBadges({ formats }: { formats: string[] }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 6, marginLeft: 10 }}>
+      {formats.map((f) => {
+        const c = FORMAT_COLORS[f] ?? FORMAT_COLORS.all!;
+        return (
+          <span key={f} style={{ ...formatBadgeStyle, backgroundColor: c.bg, color: c.color }}>
+            {f.replace("_", " ")}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 export default function AuctionConfigPage() {
   const config = trpc.admin.leagueConfig.getConfig.useQuery();
   const upsertSquadRule = trpc.admin.leagueConfig.upsertSquadRule.useMutation({ onSuccess: () => config.refetch() });
@@ -75,7 +108,7 @@ export default function AuctionConfigPage() {
         Configure settings for all league formats — auction, draft, salary cap.
       </p>
 
-      {/* ── Squad Rules (used by auction + draft) ── */}
+      {/* ── Squad Rules ── */}
       <SquadRulesEditor
         rules={config.data?.squadRules ?? []}
         onSave={(rule) => upsertSquadRule.mutate(rule)}
@@ -94,19 +127,19 @@ export default function AuctionConfigPage() {
 
       {/* ── Draft Settings (placeholder) ── */}
       <div style={sectionStyle}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Draft Settings</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Draft Settings <FormatBadges formats={["draft"]} /></h2>
         <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          Default settings for snake draft leagues (time per pick, keeper slots, max rounds).
-          Currently using template defaults — admin overrides coming soon.
+          Default settings for snake draft leagues — time per pick, keeper slots, max rounds, pause between rounds.
+          Currently using template defaults (casual/competitive/pro). Admin overrides coming soon.
         </p>
       </div>
 
       {/* ── Salary Cap Settings (placeholder) ── */}
       <div style={sectionStyle}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Salary Cap Settings</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Salary Cap Settings <FormatBadges formats={["salary_cap"]} /></h2>
         <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          Default budget, price dynamics, and transfer rules for salary cap leagues.
-          Currently using template defaults — admin overrides coming soon.
+          Default budget, price dynamics, inflation rate, and transfer rules for salary cap leagues.
+          Currently using template defaults (casual/competitive/pro). Admin overrides coming soon.
         </p>
       </div>
 
@@ -149,7 +182,7 @@ function SquadRulesEditor({
   return (
     <div style={sectionStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Squad Rules</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Squad Rules <FormatBadges formats={["auction", "draft"]} /></h2>
         <button
           style={btnSecondary}
           onClick={() => setEditing({ ...emptyRule, id: `rule_${Date.now()}` })}
@@ -159,7 +192,7 @@ function SquadRulesEditor({
       </div>
 
       <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
-        Define squad composition templates. League creators pick from these when setting up an auction.
+        Define squad composition templates (min/max per role). League creators pick from these when setting up an auction or draft league.
       </p>
 
       {rules.length === 0 && !editing && (
@@ -271,7 +304,7 @@ function PlatformSettingsEditor({
 
   return (
     <div style={sectionStyle}>
-      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Platform Settings</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Auction Platform Settings <FormatBadges formats={["auction"]} /></h2>
 
       <div style={labelStyle}>
         <div>
@@ -345,7 +378,7 @@ function PausedAuctionsPanel({
 }) {
   return (
     <div style={sectionStyle}>
-      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Paused Auctions</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>Paused Auctions <FormatBadges formats={["auction"]} /></h2>
 
       {auctions.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "12px 0" }}>
