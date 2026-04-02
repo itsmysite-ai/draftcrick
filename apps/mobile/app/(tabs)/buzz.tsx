@@ -5,6 +5,7 @@ import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
 import { formatUIText, DraftPlayLogo } from "@draftplay/ui";
 import { HeaderControls } from "../../components/HeaderControls";
+import { SubHeader } from "../../components/SubHeader";
 import { ChatRoom } from "../../components/chat";
 import { trpc } from "../../lib/trpc";
 
@@ -52,6 +53,8 @@ export default function BuzzScreen() {
           </XStack>
           <HeaderControls />
         </XStack>
+
+        <SubHeader />
 
         {/* Room tabs — horizontally scrollable */}
         <ScrollView
