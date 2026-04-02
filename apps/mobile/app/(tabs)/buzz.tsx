@@ -9,8 +9,10 @@ import { ChatRoom } from "../../components/chat";
 import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 
-// Tab bar height (pill bar + padding) — matches CustomTabBar layout
+// Tab bar height (pill bar + outer padding)
 const TAB_BAR_HEIGHT = 70;
+// Header (~56) + room tabs (~44) + tab bar
+const HEADER_HEIGHT = 100;
 
 export default function BuzzScreen() {
   const insets = useSafeAreaInsets();
@@ -21,6 +23,8 @@ export default function BuzzScreen() {
   });
 
   const tabBarOffset = TAB_BAR_HEIGHT + Math.max(insets.bottom, 8);
+  // Keyboard offset = everything above the chat: safe area + header + tabs + tab bar
+  const keyboardOffset = insets.top + HEADER_HEIGHT + tabBarOffset;
 
   return (
     <YStack flex={1} backgroundColor="$background" paddingTop={insets.top}>
@@ -44,8 +48,8 @@ export default function BuzzScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
-        style={{ flexGrow: 0, paddingBottom: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 10, alignItems: "center" }}
+        style={{ flexGrow: 0, marginBottom: 4 }}
       >
         {(rooms ?? [{ id: null, name: "general", type: "general" as const }]).map((room) => {
           const isActive = activeRoom === room.id;
@@ -58,20 +62,26 @@ export default function BuzzScreen() {
               })}
             >
               <XStack
-                paddingHorizontal="$3"
-                paddingVertical={6}
-                borderRadius="$round"
+                paddingHorizontal={14}
+                paddingVertical={8}
+                borderRadius={20}
                 backgroundColor={isActive ? "$accentBackground" : "$backgroundSurface"}
                 borderWidth={1}
                 borderColor={isActive ? "$accentBackground" : "$borderColor"}
+                alignItems="center"
+                gap={6}
               >
+                <Text fontSize={14}>
+                  {room.type === "general" ? "💬" : "🏏"}
+                </Text>
                 <Text
                   fontFamily="$mono"
-                  fontWeight="500"
-                  fontSize={12}
+                  fontWeight={isActive ? "700" : "500"}
+                  fontSize={13}
                   color={isActive ? "white" : "$color"}
+                  numberOfLines={1}
                 >
-                  {room.type === "general" ? "💬 general" : `🏏 ${room.name}`}
+                  {room.type === "general" ? "general" : room.name}
                 </Text>
               </XStack>
             </Pressable>
@@ -81,7 +91,7 @@ export default function BuzzScreen() {
 
       {/* Chat room — offset by tab bar height so input isn't hidden */}
       <YStack flex={1} paddingBottom={tabBarOffset}>
-        <ChatRoom matchId={activeRoom} />
+        <ChatRoom matchId={activeRoom} keyboardOffset={keyboardOffset} />
       </YStack>
     </YStack>
   );

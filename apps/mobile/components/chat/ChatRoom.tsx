@@ -13,9 +13,11 @@ interface ChatRoomProps {
   matchId?: string | null;
   /** Compact mode for web sidebar */
   compact?: boolean;
+  /** Override keyboard offset (default 90) */
+  keyboardOffset?: number;
 }
 
-export function ChatRoom({ matchId = null, compact = false }: ChatRoomProps) {
+export function ChatRoom({ matchId = null, compact = false, keyboardOffset }: ChatRoomProps) {
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function ChatRoom({ matchId = null, compact = false }: ChatRoomProps) {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={compact ? 0 : 90}
+      keyboardVerticalOffset={compact ? 0 : (keyboardOffset ?? 90)}
     >
       <YStack flex={1}>
         {/* Messages */}
