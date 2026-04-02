@@ -410,7 +410,8 @@ export default function AuctionRoomScreen() {
               { label: "AR", min: r.minAR, max: r.maxAR, have: myRoleCounts.AR ?? 0 },
             ].map((role) => {
               const isFull = role.have >= role.max;
-              const needsMore = role.have < role.min;
+              const metMin = role.have >= role.min;
+              const needsMore = !metMin;
               return (
                 <XStack
                   key={role.label}
@@ -418,21 +419,18 @@ export default function AuctionRoomScreen() {
                   paddingVertical={4}
                   borderRadius={8}
                   backgroundColor={isFull ? "rgba(229, 72, 77, 0.1)" : needsMore ? "rgba(212, 164, 61, 0.1)" : "$backgroundPress"}
-                  borderWidth={1}
+                  borderWidth={isFull || needsMore ? 1 : 0}
                   borderColor={isFull ? "rgba(229, 72, 77, 0.3)" : needsMore ? "rgba(212, 164, 61, 0.3)" : "transparent"}
                   gap={3}
                   alignItems="center"
                 >
-                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$color">
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="700" color={isFull ? "$error" : needsMore ? "$colorCricket" : "$colorMuted"}>
                     {role.label}
                   </Text>
-                  <Text fontFamily="$mono" fontSize={9} fontWeight="600"
-                    color={isFull ? "$error" : needsMore ? "$colorCricket" : "$colorAccent"}
+                  <Text fontFamily="$mono" fontSize={9} fontWeight="700"
+                    color={isFull ? "$error" : needsMore ? "$colorCricket" : "$color"}
                   >
-                    {role.have}
-                  </Text>
-                  <Text fontFamily="$mono" fontSize={7} color="$colorMuted">
-                    /{role.max}
+                    {role.have}/{role.max}
                   </Text>
                 </XStack>
               );
@@ -797,7 +795,7 @@ export default function AuctionRoomScreen() {
 
       <XStack flex={1}>
         {/* Available Players */}
-        <YStack flex={1} borderRightWidth={1} borderRightColor="$borderColor">
+        <YStack width="50%" borderRightWidth={1} borderRightColor="$borderColor">
           <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
             {formatUIText("available")} ({filteredAvailable.length})
           </Text>
@@ -861,7 +859,10 @@ export default function AuctionRoomScreen() {
         </YStack>
 
         {/* Sold Players */}
-        <YStack width="40%">
+        <YStack width="50%">
+          <Text {...textStyles.sectionHeader} padding="$3" paddingBottom={0}>
+            {formatUIText("sold")} ({filteredSold.length})
+          </Text>
           {/* Member filter pills */}
           <XStack paddingHorizontal="$2" paddingVertical={6} gap={4} flexWrap="wrap">
             {[
@@ -869,10 +870,10 @@ export default function AuctionRoomScreen() {
               { id: dbUserId, label: "mine" },
               ...(auctionState?.pickOrder ?? [])
                 .filter((uid: string) => uid !== dbUserId)
-                .map((uid: string) => ({
-                  id: uid,
-                  label: (auctionState as any)?.memberNames?.[uid]?.split(" ")[0] ?? "?",
-                })),
+                .map((uid: string) => {
+                  const name = (auctionState as any)?.memberNames?.[uid]?.split(" ")[0] ?? "?";
+                  return { id: uid, label: name.length > 8 ? name.slice(0, 7) + "..." : name };
+                }),
             ].map((filterItem) => {
               const isActive = soldFilter === filterItem.id;
               const count = filterItem.id === null
@@ -917,31 +918,25 @@ export default function AuctionRoomScreen() {
                   : `#${item.pickNumber}`;
               return (
                 <Card
-                  padding="$3"
+                  padding="$2"
+                  paddingHorizontal="$3"
                   marginHorizontal="$2"
                   marginBottom="$1"
                   borderColor={item.userId === dbUserId ? "$colorAccentLight" : "$borderColor"}
                 >
-                  <XStack alignItems="center" gap="$2">
-                    <InitialsAvatar
-                      name={(player as any)?.name ?? "?"}
-                      playerRole={(((player as any)?.role ?? "BAT").toUpperCase()) as RoleKey}
-                      ovr={(player as any)?.credits ?? 80}
-                      size={32}
-                      imageUrl={(player as any)?.photoUrl}
-                    />
+                  <XStack justifyContent="space-between" alignItems="center">
                     <YStack flex={1}>
-                      <Text {...textStyles.playerName} fontSize={12} numberOfLines={1}>
-                        {(player as any)?.name ?? formatUIText("unknown")}
+                      <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1}>
+                        {(player as any)?.name ?? "?"}
                       </Text>
-                      <XStack alignItems="center" gap="$1">
+                      <XStack alignItems="center" gap="$1" marginTop={1}>
                         <Badge variant="default" size="sm">
                           {formatRoleShort((player as any)?.role ?? "")}
                         </Badge>
-                        <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
+                        <Text fontFamily="$mono" fontSize={9} color="$colorCricket" fontWeight="700">{item.amount} Cr</Text>
                       </XStack>
                     </YStack>
-                    <Text fontFamily="$mono" fontSize={8} fontWeight="600" color={item.userId === dbUserId ? "$colorAccent" : "$colorMuted"}>
+                    <Text fontFamily="$mono" fontSize={9} fontWeight="600" color={item.userId === dbUserId ? "$colorAccent" : "$colorMuted"} numberOfLines={1}>
                       {buyerName}
                     </Text>
                   </XStack>
