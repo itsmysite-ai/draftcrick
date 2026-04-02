@@ -432,11 +432,11 @@ export default function AuctionRoomScreen() {
                     {role.label}
                   </Text>
                   <Text fontFamily="$mono" fontSize={9} fontWeight="700" style={{ color: stateColor }}>
-                    {role.have}/{role.max}
+                    {role.have}
                   </Text>
-                  {metMin && !isFull && (
-                    <Ionicons name="checkmark-circle" size={10} color="#5DB882" />
-                  )}
+                  <Text fontFamily="$mono" fontSize={7} color="$colorMuted">
+                    {needsMore ? `need ${role.min}` : `max ${role.max}`}
+                  </Text>
                 </XStack>
               );
             });
