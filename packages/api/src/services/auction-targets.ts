@@ -50,6 +50,7 @@ interface PlayerInfo {
 
 /**
  * Score a player based on strategy DNA. Higher score = more preferred.
+ * Designed to produce dramatically different rankings for different strategies.
  */
 function scorePlayer(player: PlayerInfo, strategy: StrategyDNA): number {
   const credits = player.credits ?? 5;
@@ -58,40 +59,76 @@ function scorePlayer(player: PlayerInfo, strategy: StrategyDNA): number {
   const matchesPlayed = (stats.matchesPlayed as number) ?? 10;
   const strikeRate = (stats.strikeRate as number) ?? 120;
   const economy = (stats.economy as number) ?? 8;
+  const average = (stats.average as number) ?? 20;
+  const role = mapRole(player.role);
 
   let score = 0;
 
-  // Star Power: high = prefer expensive stars, low = prefer value picks
-  if (strategy.starPower > 5) {
-    // Prefer premium players
-    score += credits * (strategy.starPower / 5);
+  // ── Star Power (1=value hunters, 10=all-stars) ──
+  // This is the biggest differentiator — swings score by up to 50 points
+  const starFactor = (strategy.starPower - 5) / 5; // -1 to +1
+  if (starFactor > 0) {
+    // Prefer expensive premium players — credits^1.5 heavily rewards top picks
+    score += Math.pow(credits, 1.5) * starFactor * 5;
   } else {
-    // Prefer value — credit efficiency (form per credit)
-    score += (recentForm / Math.max(credits, 1)) * 10 * ((10 - strategy.starPower) / 5);
+    // Prefer value picks — reward high form-per-credit ratio
+    const valueRatio = recentForm / Math.max(credits, 2);
+    score += valueRatio * Math.abs(starFactor) * 30;
+    // Penalize expensive players when seeking value
+    score -= credits * Math.abs(starFactor) * 2;
   }
 
-  // Form vs Reputation: high = weight recent form, low = weight credits/reputation
-  const formWeight = strategy.formVsRep / 10;
-  const repWeight = 1 - formWeight;
-  score += recentForm * formWeight * 3 + credits * repWeight * 2;
-
-  // Risk Appetite: high = prefer inconsistent high-ceiling players, low = prefer consistent
-  if (strategy.riskAppetite > 5) {
-    // High risk = prefer high SR batsmen, aggressive players
-    const role = mapRole(player.role);
-    if (role === "BAT" || role === "AR") score += (strikeRate - 120) * 0.1 * (strategy.riskAppetite / 5);
-    // Bonus for less-proven players with good form (differentials)
-    if (matchesPlayed < 20 && recentForm > 6) score += strategy.riskAppetite;
+  // ── Batting vs Bowling (1=batting heavy, 10=bowling heavy) ──
+  // Dramatically boost/penalize based on role
+  const batBowlFactor = (strategy.battingBias - 5) / 5; // -1 (bat) to +1 (bowl)
+  if (batBowlFactor < 0) {
+    // Batting heavy — boost batsmen and WK
+    if (role === "BAT") score += Math.abs(batBowlFactor) * 20;
+    if (role === "WK") score += Math.abs(batBowlFactor) * 15;
+    if (role === "BOWL") score -= Math.abs(batBowlFactor) * 10;
   } else {
-    // Low risk = prefer experienced, consistent
-    score += Math.min(matchesPlayed, 50) * 0.1 * ((10 - strategy.riskAppetite) / 5);
-    if (role === "BOWL") score += (8 - Math.min(economy, 8)) * ((10 - strategy.riskAppetite) / 5);
+    // Bowling heavy — boost bowlers
+    if (role === "BOWL") score += batBowlFactor * 20;
+    if (role === "BAT") score -= batBowlFactor * 10;
+    if (role === "WK") score -= batBowlFactor * 5;
+  }
+  // AR always gets moderate boost (versatile)
+  if (role === "AR") score += 5;
+
+  // ── Form vs Reputation (1=proven stars, 10=in-form players) ──
+  const formFactor = (strategy.formVsRep - 5) / 5; // -1 (rep) to +1 (form)
+  if (formFactor > 0) {
+    // Form-based — recent form is king
+    score += recentForm * formFactor * 8;
+    // Bonus for hot streaks (form > 7)
+    if (recentForm > 7) score += (recentForm - 7) * formFactor * 10;
+  } else {
+    // Reputation-based — credits and experience matter
+    score += credits * Math.abs(formFactor) * 5;
+    score += Math.min(matchesPlayed, 100) * Math.abs(formFactor) * 0.2;
   }
 
-  // Batting vs Bowling bias (applied later during role selection, but add slight preference here)
-  const role = mapRole(player.role);
-  if (strategy.battingBias <= 4 && (role === "BAT" || role === "WK")) score += (5 - strategy.battingBias);
-  if (strategy.battingBias >= 7 && (role === "BOWL")) score += (strategy.battingBias - 5);
+  // ── Risk Appetite (1=safe picks, 10=high ceiling) ──
+  const riskFactor = (strategy.riskAppetite - 5) / 5; // -1 (safe) to +1 (risky)
+  if (riskFactor > 0) {
+    // High risk — love explosive players, differentials
+    if (role === "BAT" || role === "AR") {
+      score += Math.max(0, strikeRate - 130) * riskFactor * 0.5;
+    }
+    // Bonus for unproven players with good form (differentials nobody else targets)
+    if (matchesPlayed < 15 && recentForm > 5) score += riskFactor * 15;
+    if (matchesPlayed < 10 && recentForm > 7) score += riskFactor * 25;
+  } else {
+    // Safe — experienced, consistent, high average
+    score += Math.min(matchesPlayed, 80) * Math.abs(riskFactor) * 0.3;
+    if (role === "BAT" || role === "WK") score += Math.min(average, 50) * Math.abs(riskFactor) * 0.3;
+    if (role === "BOWL") score += Math.max(0, 9 - economy) * Math.abs(riskFactor) * 5;
+    // Penalize unproven players
+    if (matchesPlayed < 10) score -= Math.abs(riskFactor) * 10;
+  }
+
+  // Base quality score (small — strategy should dominate)
+  score += credits * 0.5 + recentForm * 0.3;
 
   return score;
 }

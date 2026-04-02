@@ -1532,18 +1532,18 @@ export default function AuctionRoomScreen() {
                     <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{q.left}</Text>
                     <Text fontFamily="$mono" fontSize={8} color="$colorMuted">{q.right}</Text>
                   </XStack>
-                  <XStack gap={4}>
-                    {[1, 3, 5, 7, 10].map((val) => {
+                  <XStack gap={2}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => {
                       const isSelected = strategy[q.key] === val;
-                      const isClose = Math.abs(strategy[q.key] - val) <= 1;
+                      const intensity = val / 10;
                       return (
                         <YStack
                           key={val}
                           flex={1}
-                          height={32}
-                          borderRadius={8}
-                          backgroundColor={isSelected ? "$accentBackground" : isClose ? "rgba(93, 184, 130, 0.15)" : "$backgroundPress"}
-                          borderWidth={isSelected ? 2 : 1}
+                          height={28}
+                          borderRadius={6}
+                          backgroundColor={isSelected ? "$accentBackground" : "$backgroundPress"}
+                          borderWidth={isSelected ? 2 : 0}
                           borderColor={isSelected ? "$accentBackground" : "transparent"}
                           alignItems="center"
                           justifyContent="center"
@@ -1551,7 +1551,7 @@ export default function AuctionRoomScreen() {
                           cursor="pointer"
                           pressStyle={{ scale: 0.95 }}
                         >
-                          <Text fontFamily="$mono" fontSize={11} fontWeight={isSelected ? "900" : "500"} color={isSelected ? "$accentColor" : "$colorMuted"}>
+                          <Text fontFamily="$mono" fontSize={9} fontWeight={isSelected ? "900" : "500"} color={isSelected ? "$accentColor" : "$colorMuted"}>
                             {val}
                           </Text>
                         </YStack>
