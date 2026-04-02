@@ -31,6 +31,7 @@ import {
 import { users } from "@draftplay/db";
 import { inArray } from "drizzle-orm";
 import { getAdminConfig } from "../services/admin-config";
+import { DEFAULT_SQUAD_RULES } from "@draftplay/shared";
 
 /** Find the next nominator whose squad is not full, skipping full squads */
 function getNextEligibleNominator(state: any): string | null {
@@ -291,7 +292,6 @@ export const draftRouter = router({
 
       // Squad rule validation — check if adding this player would violate composition rules
       if (state.squadRule !== "none" && state.currentPlayerId) {
-        const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
         const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
         const allRules = [...DEFAULT_SQUAD_RULES, ...adminSquadRules];
         const rule = allRules.find((r: any) => r.id === state.squadRule);
@@ -708,7 +708,6 @@ export const draftRouter = router({
 
   getAuctionConfigOptions: protectedProcedure
     .query(async () => {
-      const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
       const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
       // Merge defaults with admin-created rules (admin rules override defaults with same id)
       const adminIds = new Set(adminSquadRules.map((r: any) => r.id));

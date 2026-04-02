@@ -13,6 +13,25 @@ import { getLogger } from "../lib/logger";
 
 const log = getLogger("league");
 
+/** Deep merge league rules — sub-objects (auction, draft, etc.) are merged, not replaced */
+function deepMergeRules(
+  template: Record<string, unknown>,
+  overrides: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = { ...template };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (
+      value && typeof value === "object" && !Array.isArray(value) &&
+      result[key] && typeof result[key] === "object" && !Array.isArray(result[key])
+    ) {
+      result[key] = { ...(result[key] as Record<string, unknown>), ...(value as Record<string, unknown>) };
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 // ─── Auto-Contest Creation ─────────────────────────────────────────────────
 
 /**
@@ -414,7 +433,7 @@ export const leagueRouter = router({
           inviteCode,
           maxMembers: input.maxMembers,
           template: input.template,
-          rules: { ...templateRules, ...input.rules },
+          rules: deepMergeRules(templateRules, input.rules ?? {}),
         })
         .returning();
 

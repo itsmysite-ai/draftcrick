@@ -51,7 +51,7 @@ import { calculatePlayerCredits } from "../services/credits-engine";
 import type { PlayerDiffEntry } from "@draftplay/shared";
 import { getLogger } from "../lib/logger";
 import type { Sport } from "@draftplay/shared";
-import { determineMatchPhase, calculateNextRefreshAfter, calculateFantasyPoints, DEFAULT_T20_SCORING } from "@draftplay/shared";
+import { determineMatchPhase, calculateNextRefreshAfter, calculateFantasyPoints, DEFAULT_T20_SCORING, DEFAULT_SQUAD_RULES } from "@draftplay/shared";
 import { lockMatchContests, processScoreUpdate, completeMatch } from "../jobs/score-updater";
 import { settleMatchContests } from "../jobs/settle-contest";
 import { onPhaseTransition, finalizePredictionsAndSettle } from "../services/match-lifecycle";
@@ -1891,7 +1891,6 @@ const configRouter = router({
 const leagueConfigRouter = router({
   /** Get all auction platform config (squad rules, pause cap, bid increments, defaults) */
   getConfig: adminProcedure.query(async () => {
-    const { DEFAULT_SQUAD_RULES } = await import("@draftplay/shared");
     const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
     // Merge: defaults + admin-created (admin can override defaults by using same id)
     const adminIds = new Set(adminSquadRules.map((r: any) => r.id));
