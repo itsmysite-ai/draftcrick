@@ -292,9 +292,19 @@ export const draftRouter = router({
 
       // Squad rule validation — check if adding this player would violate composition rules
       if (state.squadRule !== "none" && state.currentPlayerId) {
-        const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
-        const allRules = [...DEFAULT_SQUAD_RULES, ...adminSquadRules];
-        const rule = allRules.find((r: any) => r.id === state.squadRule);
+        // For "custom" rules, read inline from settings; otherwise look up from defaults + admin
+        let rule: any = null;
+        if (state.squadRule === "custom") {
+          const room = await ctx.db.query.draftRooms.findFirst({
+            where: eq(draftRooms.id, input.roomId),
+            columns: { settings: true },
+          });
+          rule = (room?.settings as any)?.customSquadRule ?? null;
+        } else {
+          const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+          const allRules = [...DEFAULT_SQUAD_RULES, ...adminSquadRules];
+          rule = allRules.find((r: any) => r.id === state.squadRule);
+        }
         if (rule) {
           // Get current player's role
           const currentPlayer = await ctx.db.query.players.findFirst({

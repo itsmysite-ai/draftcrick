@@ -118,6 +118,9 @@ export default function CreateLeagueScreen() {
   // ── Auction-specific settings ──
   const [auctionBidIncrement, setAuctionBidIncrement] = useState(0.1);
   const [auctionSquadRule, setAuctionSquadRule] = useState("none");
+  const [customSquadRule, setCustomSquadRule] = useState({
+    minWK: 1, maxWK: 4, minBAT: 3, maxBAT: 6, minBOWL: 3, maxBOWL: 6, minAR: 1, maxAR: 5,
+  });
   const [auctionSquadVisibility, setAuctionSquadVisibility] = useState("after_sold");
   const [auctionBuyerVisibility, setAuctionBuyerVisibility] = useState("during_auction");
   const [auctionMaxPauses, setAuctionMaxPauses] = useState(3);
@@ -216,6 +219,8 @@ export default function CreateLeagueScreen() {
         squadVisibility: auctionSquadVisibility,
         buyerVisibility: auctionBuyerVisibility,
         maxPausesPerMember: auctionMaxPauses,
+        // Embed custom squad rule inline so the auction engine can use it
+        ...(auctionSquadRule === "custom" ? { customSquadRule: { id: "custom", name: "Custom", ...customSquadRule } } : {}),
       };
     }
     createMutation.mutate({
@@ -496,7 +501,57 @@ export default function CreateLeagueScreen() {
                     </Text>
                   </Card>
                 ))}
+                <Card
+                  pressable
+                  paddingHorizontal="$4"
+                  paddingVertical="$2"
+                  borderColor={auctionSquadRule === "custom" ? "$accentBackground" : "$borderColor"}
+                  onPress={() => setAuctionSquadRule("custom")}
+                >
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={13} color={auctionSquadRule === "custom" ? "$accentBackground" : "$color"}>
+                    {formatUIText("custom")}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={9} color="$colorMuted" marginTop={2}>
+                    {formatUIText("set your own limits")}
+                  </Text>
+                </Card>
               </XStack>
+
+              {/* Custom squad rule editor */}
+              {auctionSquadRule === "custom" && (
+                <Card padding="$3" marginBottom="$4" borderColor="$accentBackground">
+                  <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$color" marginBottom="$2">
+                    {formatUIText("custom squad rule")}
+                  </Text>
+                  {(["WK", "BAT", "BOWL", "AR"] as const).map((role) => {
+                    const minKey = `min${role}` as keyof typeof customSquadRule;
+                    const maxKey = `max${role}` as keyof typeof customSquadRule;
+                    return (
+                      <XStack key={role} justifyContent="space-between" alignItems="center" paddingVertical={4}>
+                        <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$color" width={50}>
+                          {role}
+                        </Text>
+                        <XStack alignItems="center" gap="$2">
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">min</Text>
+                          <Stepper
+                            value={customSquadRule[minKey]}
+                            onValue={(v: number) => setCustomSquadRule((prev) => ({ ...prev, [minKey]: v }))}
+                            min={0}
+                            max={customSquadRule[maxKey]}
+                          />
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">max</Text>
+                          <Stepper
+                            value={customSquadRule[maxKey]}
+                            onValue={(v: number) => setCustomSquadRule((prev) => ({ ...prev, [maxKey]: v }))}
+                            min={customSquadRule[minKey]}
+                            max={14}
+                          />
+                        </XStack>
+                      </XStack>
+                    );
+                  })}
+                </Card>
+              )}
 
               {/* Squad Visibility */}
               <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600" marginBottom="$1">
