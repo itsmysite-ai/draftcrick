@@ -412,12 +412,12 @@ export default function AuctionRoomScreen() {
                 borderRadius={DesignSystem.radius.md}
                 backgroundColor={isPaused
                   ? (isMePauser ? "$accentBackground" : "#4a1c1c")
-                  : "$backgroundSurface"
+                  : "rgba(212, 164, 61, 0.12)"
                 }
                 borderWidth={1}
                 borderColor={isPaused
                   ? (isMePauser ? "$accentBackground" : "$error")
-                  : "$borderColor"
+                  : "$colorCricket"
                 }
                 opacity={canAct ? 1 : 0.4}
                 alignItems="center"
@@ -428,13 +428,13 @@ export default function AuctionRoomScreen() {
                   size={16}
                   color={isPaused
                     ? (isMePauser ? "#fff" : "#E5484D")
-                    : "#9A9894"
+                    : "#D4A43D"
                   }
                 />
                 <Text fontFamily="$mono" fontSize={11} fontWeight="700"
                   color={isPaused
                     ? (isMePauser ? "white" : "$error")
-                    : "$colorMuted"
+                    : "$colorCricket"
                   }
                 >
                   {isPaused

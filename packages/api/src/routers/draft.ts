@@ -231,6 +231,10 @@ export const draftRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Auction is not in progress" });
       }
 
+      if (state.isPaused) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Auction is paused — wait for resume" });
+      }
+
       // Check if it's the nominator's turn (skipping users with full squads)
       const nominator = getNextEligibleNominator(state);
       if (!nominator) {
