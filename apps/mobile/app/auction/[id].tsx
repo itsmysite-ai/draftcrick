@@ -1,4 +1,4 @@
-import { FlatList } from "react-native";
+import { FlatList, ScrollView, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -53,6 +53,7 @@ export default function AuctionRoomScreen() {
   // Get DB user ID (user.id is Firebase UID, but auction uses DB UUIDs)
   const { data: profile } = trpc.auth.getProfile.useQuery();
   const dbUserId = (profile as any)?.userId ?? user?.id;
+  const { height: windowHeight } = useWindowDimensions();
 
   // Clock sync: calculate offset between server time and client time
   const { data: serverTimeData } = trpc.draft.serverTime.useQuery(undefined, { refetchInterval: 60000 }); // re-sync every 60s
@@ -370,6 +371,7 @@ export default function AuctionRoomScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" testID="auction-room-screen">
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }} nestedScrollEnabled>
       {/* Header */}
       <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
@@ -1206,7 +1208,7 @@ export default function AuctionRoomScreen() {
         </XStack>
       </XStack>
 
-      <XStack flex={1}>
+      <XStack height={Math.max(windowHeight * 0.5, 400)}>
         {/* Available Players */}
         <YStack width="50%" borderRightWidth={1} borderRightColor="$borderColor">
           <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
@@ -1214,6 +1216,7 @@ export default function AuctionRoomScreen() {
           </Text>
           <FlatList
             testID="auction-available-list"
+            nestedScrollEnabled
             data={filteredAvailable}
             keyExtractor={(item: any) => item.id}
             renderItem={({ item, index }: { item: any; index: number }) => {
@@ -1364,6 +1367,7 @@ export default function AuctionRoomScreen() {
           </XStack>
           <FlatList
             testID="auction-sold-list"
+            nestedScrollEnabled
             data={[...(soldFilter
               ? filteredSold.filter((sp: any) => sp.userId === soldFilter)
               : filteredSold
@@ -1545,6 +1549,7 @@ export default function AuctionRoomScreen() {
         </YStack>
       )}
       <Paywall {...paywallProps} />
+    </ScrollView>
 
       {/* Strategy Quiz Modal */}
       {showStrategyQuiz && (
