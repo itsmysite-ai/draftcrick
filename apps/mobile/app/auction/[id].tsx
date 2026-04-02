@@ -1,4 +1,4 @@
-import { FlatList, ScrollView } from "react-native";
+import { FlatList } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -126,8 +126,7 @@ export default function AuctionRoomScreen() {
   const [bidAmount, setBidAmount] = useState<number>(1);
   const [nominateAlert, setNominateAlert] = useState<{ title: string; message: string; onConfirm?: () => void } | null>(null);
   const [statsPlayerId, setStatsPlayerId] = useState<string | null>(null);
-  const [showRoster, setShowRoster] = useState(false);
-  const [rosterTab, setRosterTab] = useState<"mine" | "all">("mine");
+  const [soldFilter, setSoldFilter] = useState<string | null>(null); // null = all, "me" = mine, or a userId
 
   // Pause/resume
   const pauseMutation = trpc.draft.pauseAuction.useMutation({ onSuccess: () => refetch() });
@@ -287,7 +286,6 @@ export default function AuctionRoomScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" testID="auction-room-screen">
-     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
       {/* Header */}
       <YStack backgroundColor="$backgroundSurface" padding="$4">
         <XStack justifyContent="space-between" alignItems="center">
@@ -446,20 +444,6 @@ export default function AuctionRoomScreen() {
             );
           })()}
 
-          {/* Roster toggle */}
-          <YStack
-            onPress={() => setShowRoster(!showRoster)}
-            cursor="pointer"
-            pressStyle={{ opacity: 0.8 }}
-            paddingHorizontal="$3"
-            paddingVertical="$1"
-            borderRadius={DesignSystem.radius.md}
-            backgroundColor={showRoster ? "$accentBackground" : "$backgroundSurface"}
-          >
-            <Text fontFamily="$mono" fontSize={11} fontWeight="600" color={showRoster ? "$accentColor" : "$colorMuted"}>
-              {formatUIText(`squads (${myTeamSize})`)}
-            </Text>
-          </YStack>
         </XStack>
       </YStack>
 
@@ -772,105 +756,6 @@ export default function AuctionRoomScreen() {
         </YStack>
       )}
 
-      {/* Squad Panel — My Squad / All Squads tabs */}
-      {showRoster && (
-        <YStack backgroundColor="$backgroundSurface" padding="$3" borderBottomWidth={1} borderBottomColor="$borderColor" maxHeight={260}>
-          {/* Tab switcher */}
-          <XStack gap="$2" marginBottom="$2">
-            {(["mine", "all"] as const).map((tab) => {
-              const isActive = rosterTab === tab;
-              const vis = (auctionState as any)?.squadVisibility ?? "after_sold";
-              // "full" = always, "after_sold" = visible (sold data is public), "hidden" = only after auction ends
-              const canShowAll = vis === "full" || vis === "after_sold" || auctionState?.status === "completed";
-              if (tab === "all" && !canShowAll) return null;
-              return (
-                <YStack
-                  key={tab}
-                  onPress={() => setRosterTab(tab)}
-                  cursor="pointer"
-                  paddingHorizontal="$3"
-                  paddingVertical={4}
-                  borderRadius={DesignSystem.radius.md}
-                  backgroundColor={isActive ? "$accentBackground" : "transparent"}
-                >
-                  <Text fontFamily="$mono" fontSize={11} fontWeight={isActive ? "700" : "500"} color={isActive ? "$accentColor" : "$colorMuted"}>
-                    {tab === "mine" ? `my squad (${myTeamSize})` : "all squads"}
-                  </Text>
-                </YStack>
-              );
-            })}
-          </XStack>
-
-          {rosterTab === "mine" ? (
-            <FlatList
-              data={(auctionState?.soldPlayers ?? []).filter((p: any) => p.userId === dbUserId)}
-              keyExtractor={(item: any) => item.playerId}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item }: { item: any }) => {
-                const player = (players ?? []).find((p: any) => p.id === item.playerId);
-                return (
-                  <Card padding="$2" marginRight="$2" minWidth={100}>
-                    <Text {...textStyles.playerName} fontSize={11} numberOfLines={1}>
-                      {(player as any)?.name ?? "Unknown"}
-                    </Text>
-                    <XStack alignItems="center" gap="$1" marginTop={2}>
-                      <Badge variant="default" size="sm">{formatRoleShort((player as any)?.role ?? "")}</Badge>
-                      <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
-                    </XStack>
-                  </Card>
-                );
-              }}
-              ListEmptyComponent={
-                <Text fontFamily="$body" fontSize={11} color="$colorMuted">{formatUIText("no players yet")}</Text>
-              }
-            />
-          ) : (
-            <FlatList
-              data={auctionState?.pickOrder ?? []}
-              keyExtractor={(uid: string) => uid}
-              renderItem={({ item: uid }: { item: string }) => {
-                const memberName = (auctionState as any)?.memberNames?.[uid] ?? "Player";
-                const memberPlayers = (auctionState?.soldPlayers ?? []).filter((sp: any) => sp.userId === uid);
-                const isMe = uid === dbUserId;
-                return (
-                  <YStack marginBottom="$2">
-                    <XStack alignItems="center" gap="$2" marginBottom={4}>
-                      <Text fontFamily="$mono" fontSize={11} fontWeight="700" color={isMe ? "$colorAccent" : "$color"}>
-                        {isMe ? "you" : memberName}
-                      </Text>
-                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                        {memberPlayers.length} players | {(auctionState?.budgets?.[uid] ?? 0).toFixed(1)} Cr left
-                      </Text>
-                    </XStack>
-                    <FlatList
-                      data={memberPlayers}
-                      keyExtractor={(sp: any) => sp.playerId}
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      renderItem={({ item: sp }: { item: any }) => {
-                        const player = (players ?? []).find((p: any) => p.id === sp.playerId);
-                        return (
-                          <Card padding="$2" marginRight="$2" minWidth={90}>
-                            <Text {...textStyles.playerName} fontSize={10} numberOfLines={1}>
-                              {(player as any)?.name ?? "?"}
-                            </Text>
-                            <Text fontFamily="$mono" fontSize={8} color="$colorCricket" marginTop={1}>{sp.amount} Cr</Text>
-                          </Card>
-                        );
-                      }}
-                      ListEmptyComponent={
-                        <Text fontFamily="$body" fontSize={10} color="$colorMuted">no players yet</Text>
-                      }
-                    />
-                  </YStack>
-                );
-              }}
-            />
-          )}
-        </YStack>
-      )}
-
       {/* Buzz Bot Feed */}
       {buzzFeed.length > 0 && (
         <YStack backgroundColor="$backgroundSurface" borderBottomWidth={1} borderBottomColor="$borderColor" paddingHorizontal="$3" paddingVertical="$2">
@@ -916,7 +801,7 @@ export default function AuctionRoomScreen() {
         </XStack>
       </XStack>
 
-      <XStack minHeight={500}>
+      <XStack flex={1}>
         {/* Available Players */}
         <YStack flex={1} borderRightWidth={1} borderRightColor="$borderColor">
           <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
@@ -924,7 +809,6 @@ export default function AuctionRoomScreen() {
           </Text>
           <FlatList
             testID="auction-available-list"
-            nestedScrollEnabled
             data={filteredAvailable}
             keyExtractor={(item: any) => item.id}
             renderItem={({ item, index }: { item: any; index: number }) => (
@@ -984,16 +868,65 @@ export default function AuctionRoomScreen() {
 
         {/* Sold Players */}
         <YStack width="40%">
-          <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
-            {formatUIText("sold")} ({filteredSold.length})
-          </Text>
+          {/* Member filter pills */}
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={[
+              { id: null, label: "all" },
+              { id: dbUserId, label: "mine" },
+              ...(auctionState?.pickOrder ?? [])
+                .filter((uid: string) => uid !== dbUserId)
+                .map((uid: string) => ({
+                  id: uid,
+                  label: (auctionState as any)?.memberNames?.[uid]?.split(" ")[0] ?? "?",
+                })),
+            ]}
+            keyExtractor={(item: any) => item.id ?? "all"}
+            contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 6, gap: 4 }}
+            renderItem={({ item: filterItem }: { item: any }) => {
+              const isActive = soldFilter === filterItem.id;
+              const count = filterItem.id === null
+                ? filteredSold.length
+                : filteredSold.filter((sp: any) => sp.userId === filterItem.id).length;
+              return (
+                <XStack
+                  onPress={() => setSoldFilter(isActive ? null : filterItem.id)}
+                  cursor="pointer"
+                  pressStyle={{ opacity: 0.8 }}
+                  paddingHorizontal={8}
+                  paddingVertical={3}
+                  borderRadius={12}
+                  backgroundColor={isActive ? "$accentBackground" : "$backgroundSurface"}
+                  borderWidth={1}
+                  borderColor={isActive ? "$accentBackground" : "$borderColor"}
+                  gap={4}
+                  alignItems="center"
+                >
+                  <Text fontFamily="$mono" fontSize={9} fontWeight={isActive ? "700" : "500"} color={isActive ? "$accentColor" : "$colorMuted"}>
+                    {filterItem.label}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={8} color={isActive ? "$accentColor" : "$colorMuted"}>
+                    {count}
+                  </Text>
+                </XStack>
+              );
+            }}
+          />
           <FlatList
             testID="auction-sold-list"
-            nestedScrollEnabled
-            data={[...filteredSold].reverse()}
+            data={[...(soldFilter
+              ? filteredSold.filter((sp: any) => sp.userId === soldFilter)
+              : filteredSold
+            )].reverse()}
             keyExtractor={(item: any, idx: number) => `${item.playerId}-${idx}`}
             renderItem={({ item }: { item: any }) => {
               const player = (players ?? []).find((p: any) => p.id === item.playerId);
+              const buyerName = item.userId === dbUserId
+                ? "you"
+                : (auctionState as any)?.buyerVisibility === "during_auction" && (auctionState as any)?.memberNames?.[item.userId]
+                  ? (auctionState as any).memberNames[item.userId]
+                  : `#${item.pickNumber}`;
               return (
                 <Card
                   padding="$3"
@@ -1001,17 +934,27 @@ export default function AuctionRoomScreen() {
                   marginBottom="$1"
                   borderColor={item.userId === dbUserId ? "$colorAccentLight" : "$borderColor"}
                 >
-                  <Text {...textStyles.playerName} fontSize={12} numberOfLines={1}>
-                    {(player as any)?.name ?? formatUIText("unknown")}
-                  </Text>
-                  <XStack justifyContent="space-between" alignItems="center" marginTop={2}>
-                    <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
-                    <Text fontFamily="$mono" fontSize={8} color={item.userId === dbUserId ? "$colorAccent" : "$colorMuted"}>
-                      {item.userId === dbUserId
-                        ? "you"
-                        : (auctionState as any)?.buyerVisibility === "during_auction" && (auctionState as any)?.memberNames?.[item.userId]
-                          ? (auctionState as any).memberNames[item.userId]
-                          : `#${item.pickNumber}`}
+                  <XStack alignItems="center" gap="$2">
+                    <InitialsAvatar
+                      name={(player as any)?.name ?? "?"}
+                      playerRole={(((player as any)?.role ?? "BAT").toUpperCase()) as RoleKey}
+                      ovr={(player as any)?.credits ?? 80}
+                      size={32}
+                      imageUrl={(player as any)?.photoUrl}
+                    />
+                    <YStack flex={1}>
+                      <Text {...textStyles.playerName} fontSize={12} numberOfLines={1}>
+                        {(player as any)?.name ?? formatUIText("unknown")}
+                      </Text>
+                      <XStack alignItems="center" gap="$1">
+                        <Badge variant="default" size="sm">
+                          {formatRoleShort((player as any)?.role ?? "")}
+                        </Badge>
+                        <Text fontFamily="$mono" fontSize={9} color="$colorCricket">{item.amount} Cr</Text>
+                      </XStack>
+                    </YStack>
+                    <Text fontFamily="$mono" fontSize={8} fontWeight="600" color={item.userId === dbUserId ? "$colorAccent" : "$colorMuted"}>
+                      {buyerName}
                     </Text>
                   </XStack>
                 </Card>
@@ -1155,7 +1098,6 @@ export default function AuctionRoomScreen() {
         </YStack>
       )}
       <Paywall {...paywallProps} />
-     </ScrollView>
     </YStack>
   );
 }
