@@ -575,8 +575,13 @@ function RuleCategorySection({ category }: { category: RuleCategoryInfo }) {
         <h2 style={{ fontSize: 16, fontWeight: 600 }}>
           {category.label} <FormatBadges formats={category.formats} />
         </h2>
-        <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-data)" }}>
-          {category.rules.length} rules
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ ...formatBadgeStyle, backgroundColor: "rgba(229, 72, 77, 0.12)", color: "#E5484D", fontSize: 9 }}>
+            TO BE IMPLEMENTED
+          </span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-data)" }}>
+            {category.rules.length} rules
+          </span>
         </span>
       </div>
       <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
