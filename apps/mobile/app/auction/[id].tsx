@@ -388,40 +388,62 @@ export default function AuctionRoomScreen() {
         )}
         {/* Pause + Roster buttons */}
         <XStack justifyContent="space-between" marginTop="$2" alignItems="center">
-          {/* Pause button */}
-          {auctionState?.status === "in_progress" && (auctionState as any)?.maxPausesPerMember > 0 && (
-            <YStack
-              onPress={() => {
-                if ((auctionState as any)?.isPaused) {
-                  resumeMutation.mutate({ roomId: roomId! });
-                } else {
-                  pauseMutation.mutate({ roomId: roomId! });
+          {/* Pause / Resume button */}
+          {auctionState?.status === "in_progress" && (auctionState as any)?.maxPausesPerMember > 0 && (() => {
+            const isPaused = (auctionState as any)?.isPaused;
+            const isMePauser = (auctionState as any)?.pausedBy === dbUserId;
+            const pausesLeft = (auctionState as any)?.maxPausesPerMember - ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0);
+            const canAct = isPaused ? isMePauser : pausesLeft > 0;
+
+            return (
+              <XStack
+                onPress={() => {
+                  if (!canAct) return;
+                  if (isPaused) {
+                    resumeMutation.mutate({ roomId: roomId! });
+                  } else {
+                    pauseMutation.mutate({ roomId: roomId! });
+                  }
+                }}
+                cursor={canAct ? "pointer" : "default"}
+                pressStyle={canAct ? { opacity: 0.8, scale: 0.97 } : {}}
+                paddingHorizontal="$3"
+                paddingVertical={6}
+                borderRadius={DesignSystem.radius.md}
+                backgroundColor={isPaused
+                  ? (isMePauser ? "$accentBackground" : "#4a1c1c")
+                  : "$backgroundSurface"
                 }
-              }}
-              cursor="pointer"
-              pressStyle={{ opacity: 0.8 }}
-              paddingHorizontal="$3"
-              paddingVertical="$1"
-              borderRadius={DesignSystem.radius.md}
-              backgroundColor={(auctionState as any)?.isPaused ? "$error" : "$backgroundSurface"}
-              opacity={
-                (auctionState as any)?.isPaused
-                  ? ((auctionState as any)?.pausedBy === dbUserId || false) ? 1 : 0.5
-                  : ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0) >= (auctionState as any)?.maxPausesPerMember ? 0.4 : 1
-              }
-              disabled={
-                (auctionState as any)?.isPaused
-                  ? (auctionState as any)?.pausedBy !== dbUserId
-                  : ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0) >= (auctionState as any)?.maxPausesPerMember
-              }
-            >
-              <Text fontFamily="$mono" fontSize={11} fontWeight="600" color={(auctionState as any)?.isPaused ? "white" : "$colorMuted"}>
-                {(auctionState as any)?.isPaused
-                  ? (auctionState as any)?.pausedBy === dbUserId ? "resume" : "paused"
-                  : `pause (${(auctionState as any)?.maxPausesPerMember - ((auctionState as any)?.pausesUsed?.[dbUserId!] ?? 0)} left)`}
-              </Text>
-            </YStack>
-          )}
+                borderWidth={1}
+                borderColor={isPaused
+                  ? (isMePauser ? "$accentBackground" : "$error")
+                  : "$borderColor"
+                }
+                opacity={canAct ? 1 : 0.4}
+                alignItems="center"
+                gap={6}
+              >
+                <Ionicons
+                  name={isPaused ? (isMePauser ? "play-circle" : "pause-circle") : "pause-circle-outline"}
+                  size={16}
+                  color={isPaused
+                    ? (isMePauser ? "#fff" : "#E5484D")
+                    : "#9A9894"
+                  }
+                />
+                <Text fontFamily="$mono" fontSize={11} fontWeight="700"
+                  color={isPaused
+                    ? (isMePauser ? "white" : "$error")
+                    : "$colorMuted"
+                  }
+                >
+                  {isPaused
+                    ? (isMePauser ? "resume" : "paused")
+                    : `pause (${pausesLeft})`}
+                </Text>
+              </XStack>
+            );
+          })()}
 
           {/* Roster toggle */}
           <YStack
