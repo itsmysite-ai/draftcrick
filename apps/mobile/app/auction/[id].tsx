@@ -368,8 +368,8 @@ export default function AuctionRoomScreen() {
                 }}
                 cursor={canAct ? "pointer" : "default"}
                 pressStyle={canAct ? { opacity: 0.8, scale: 0.97 } : {}}
-                paddingHorizontal={8}
-                paddingVertical={4}
+                paddingHorizontal={10}
+                paddingVertical={6}
                 borderRadius={8}
                 backgroundColor={isPaused ? (isMePauser ? "$accentBackground" : "#4a1c1c") : "rgba(212, 164, 61, 0.12)"}
                 borderWidth={1}
@@ -380,10 +380,10 @@ export default function AuctionRoomScreen() {
               >
                 <Ionicons
                   name={isPaused ? (isMePauser ? "play-circle" : "pause-circle") : "pause-circle-outline"}
-                  size={14}
+                  size={16}
                   color={isPaused ? (isMePauser ? "#fff" : "#E5484D") : "#D4A43D"}
                 />
-                <Text fontFamily="$mono" fontSize={10} fontWeight="700"
+                <Text fontFamily="$mono" fontSize={11} fontWeight="700"
                   color={isPaused ? (isMePauser ? "white" : "$error") : "$colorCricket"}
                 >
                   {isPaused ? (isMePauser ? "resume" : "paused") : `pause (${pausesLeft})`}
@@ -742,13 +742,24 @@ export default function AuctionRoomScreen() {
               </Text>
             </YStack>
           ) : isMyNomination ? (
-            <Text testID="auction-nominate-prompt" fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorCricket">
-              {formatUIText("your turn to nominate a player!")}
-            </Text>
+            <YStack backgroundColor="rgba(212, 164, 61, 0.1)" borderRadius={DesignSystem.radius.md} padding="$3" alignItems="center" borderWidth={1} borderColor="rgba(212, 164, 61, 0.3)">
+              <XStack alignItems="center" gap="$2">
+                <Ionicons name="hand-right-outline" size={18} color="#D4A43D" />
+                <Text testID="auction-nominate-prompt" fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorCricket">
+                  {formatUIText("your turn to nominate!")}
+                </Text>
+              </XStack>
+              <Text fontFamily="$body" fontSize={11} color="$colorMuted" marginTop={4}>
+                {formatUIText("tap a player from the available list")}
+              </Text>
+            </YStack>
           ) : (
-            <Text fontFamily="$mono" fontWeight="500" fontSize={13} color="$colorMuted">
-              {formatUIText("waiting for nomination...")}
-            </Text>
+            <XStack alignItems="center" gap="$2" justifyContent="center" paddingVertical="$2">
+              <YStack width={8} height={8} borderRadius={4} backgroundColor="$colorCricket" opacity={0.6} />
+              <Text fontFamily="$mono" fontWeight="500" fontSize={13} color="$colorMuted">
+                {formatUIText("waiting for nomination...")}
+              </Text>
+            </XStack>
           )}
         </YStack>
       )}
