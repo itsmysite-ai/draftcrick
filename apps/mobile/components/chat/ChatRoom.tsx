@@ -15,9 +15,11 @@ interface ChatRoomProps {
   compact?: boolean;
   /** Override keyboard offset (default 90) */
   keyboardOffset?: number;
+  /** Skip internal KeyboardAvoidingView (when parent handles it) */
+  skipKeyboard?: boolean;
 }
 
-export function ChatRoom({ matchId = null, compact = false, keyboardOffset }: ChatRoomProps) {
+export function ChatRoom({ matchId = null, compact = false, keyboardOffset, skipKeyboard = false }: ChatRoomProps) {
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -88,80 +90,86 @@ export function ChatRoom({ matchId = null, compact = false, keyboardOffset }: Ch
 
   const isLoggedIn = !!user;
 
+  const inner = (
+    <YStack flex={1}>
+      {/* Messages */}
+      <FlatList
+        ref={flatListRef}
+        data={messages ?? []}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <ChatBubble
+            id={item.id}
+            message={item.message}
+            displayName={item.displayName}
+            type={item.type}
+            createdAt={item.createdAt}
+            flagged={item.flagged}
+            onFlag={isLoggedIn && !flaggedByMe.has(item.id) ? handleFlag : undefined}
+            isOwn={item.userId === user?.id}
+          />
+        )}
+        contentContainerStyle={{
+          paddingVertical: 8,
+          flexGrow: 1,
+          justifyContent: messages?.length ? "flex-end" : "center",
+        }}
+        ListEmptyComponent={
+          <YStack flex={1} alignItems="center" justifyContent="center" padding="$4">
+            <Text fontSize={32} marginBottom="$2">🏏</Text>
+            <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorMuted" textAlign="center">
+              {formatUIText("be the first to say something")}
+            </Text>
+          </YStack>
+        }
+      />
+
+      {/* Error toast — above input */}
+      {toast && (
+        <YStack
+          backgroundColor="#4a1c1c"
+          paddingHorizontal="$3"
+          paddingVertical="$2"
+          marginHorizontal="$2"
+          marginBottom="$1"
+          borderRadius={8}
+          borderWidth={1}
+          borderColor="#d93025"
+        >
+          <Text fontFamily="$body" fontSize={12} color="#ff6b6b">
+            ⚠️ {toast}
+          </Text>
+        </YStack>
+      )}
+
+      {/* Emoji quick bar */}
+      {isLoggedIn && <EmojiBar onSelect={handleEmoji} disabled={sendMutation.isPending} />}
+
+      {/* Input */}
+      {isLoggedIn ? (
+        <ChatInput
+          onSend={handleSend}
+          disabled={sendMutation.isPending}
+        />
+      ) : (
+        <YStack padding="$3" alignItems="center" borderTopWidth={1} borderColor="$borderColor">
+          <Text fontFamily="$body" fontSize={13} color="$colorMuted">
+            {formatUIText("sign in to chat")}
+          </Text>
+        </YStack>
+      )}
+    </YStack>
+  );
+
+  if (skipKeyboard) return inner;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={compact ? 0 : (keyboardOffset ?? 90)}
     >
-      <YStack flex={1}>
-        {/* Messages */}
-        <FlatList
-          ref={flatListRef}
-          data={messages ?? []}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ChatBubble
-              id={item.id}
-              message={item.message}
-              displayName={item.displayName}
-              type={item.type}
-              createdAt={item.createdAt}
-              flagged={item.flagged}
-              onFlag={isLoggedIn && !flaggedByMe.has(item.id) ? handleFlag : undefined}
-              isOwn={item.userId === user?.id}
-            />
-          )}
-          contentContainerStyle={{
-            paddingVertical: 8,
-            flexGrow: 1,
-            justifyContent: messages?.length ? "flex-end" : "center",
-          }}
-          ListEmptyComponent={
-            <YStack flex={1} alignItems="center" justifyContent="center" padding="$4">
-              <Text fontSize={32} marginBottom="$2">🏏</Text>
-              <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorMuted" textAlign="center">
-                {formatUIText("be the first to say something")}
-              </Text>
-            </YStack>
-          }
-        />
-
-        {/* Error toast — above input */}
-        {toast && (
-          <YStack
-            backgroundColor="#4a1c1c"
-            paddingHorizontal="$3"
-            paddingVertical="$2"
-            marginHorizontal="$2"
-            marginBottom="$1"
-            borderRadius={8}
-            borderWidth={1}
-            borderColor="#d93025"
-          >
-            <Text fontFamily="$body" fontSize={12} color="#ff6b6b">
-              ⚠️ {toast}
-            </Text>
-          </YStack>
-        )}
-
-        {/* Emoji quick bar */}
-        {isLoggedIn && <EmojiBar onSelect={handleEmoji} disabled={sendMutation.isPending} />}
-
-        {/* Input */}
-        {isLoggedIn ? (
-          <ChatInput
-            onSend={handleSend}
-            disabled={sendMutation.isPending}
-          />
-        ) : (
-          <YStack padding="$3" alignItems="center" borderTopWidth={1} borderColor="$borderColor">
-            <Text fontFamily="$body" fontSize={13} color="$colorMuted">
-              {formatUIText("sign in to chat")}
-            </Text>
-          </YStack>
-        )}
-      </YStack>
+      {inner}
     </KeyboardAvoidingView>
   );
 }
