@@ -14,6 +14,7 @@ import { Text } from "../../components/SportText";
 import { trpc } from "../../lib/trpc";
 import { useSport } from "../../providers/ThemeProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+import { SubHeader } from "../../components/SubHeader";
 import {
   Card,
   Badge,
@@ -426,6 +427,8 @@ export default function LiveScreen() {
           <HeaderControls />
         </XStack>
       </XStack>
+
+      <SubHeader />
 
       <AnnouncementBanner />
 

@@ -1,67 +1,37 @@
 import { XStack, YStack } from "tamagui";
-import { SportDropdown, ModeToggle, SportPrimaryIcon } from "@draftplay/ui";
 import { Text } from "./SportText";
-import { useTheme } from "../providers/ThemeProvider";
+import { useAuth } from "../providers/AuthProvider";
 import { useNotifications } from "../providers/NotificationProvider";
 import { useRouter } from "expo-router";
 
 /**
- * HeaderControls — self-contained sport dropdown + notification bell + theme toggle.
- * Uses ThemeProvider hooks internally so screens just render <HeaderControls />.
- * Sport dropdown sits to the left of the notification bell and light/dark toggle.
- * Pass hideSport to show only the theme toggle (e.g. onboarding).
- * Pass hideNotifications to hide the bell (e.g. on the inbox screen itself).
- *
- * If the user selected only 1 sport, shows a static sport badge instead of a dropdown.
- * If the user selected 2 sports, shows the normal dropdown.
+ * HeaderControls — notification bell + profile avatar.
+ * Sport dropdown and theme toggle have moved to SubHeader.
  */
-export function HeaderControls({ hideSport, hideNotifications }: { hideSport?: boolean; hideNotifications?: boolean } = {}) {
-  const { mode, toggleMode, sport, setSport, availableSports, t } = useTheme();
+export function HeaderControls({ hideNotifications }: { hideNotifications?: boolean } = {}) {
+  const { user } = useAuth();
   const { unreadCount } = useNotifications();
   const router = useRouter();
 
-  // TODO: Re-enable when F1 or other sports are implemented
-  // const showDropdown = !hideSport && availableSports.length > 1;
-  // const showStaticBadge = !hideSport && availableSports.length === 1;
-  const showDropdown = false;
-  const showStaticBadge = false;
-  const sportLabel = sport === "cricket" ? "Cricket" : "F1";
+  const displayName = user?.displayName || user?.username || "Player";
+
+  // Generate consistent avatar color from display name
+  const avatarColor = (() => {
+    let h1 = 0, h2 = 0;
+    for (let i = 0; i < displayName.length; i++) {
+      h1 = ((h1 << 5) - h1) + displayName.charCodeAt(i);
+      h1 |= 0;
+      h2 = ((h2 << 7) + h2) ^ displayName.charCodeAt(i);
+      h2 |= 0;
+    }
+    const hue = Math.abs(h1) % 360;
+    const sat = 45 + (Math.abs(h2) % 40);
+    const lit = 35 + (Math.abs(h1 ^ h2) % 25);
+    return `hsl(${hue}, ${sat}%, ${lit}%)`;
+  })();
 
   return (
     <XStack alignItems="center" gap="$2">
-      {showDropdown && (
-        <SportDropdown
-          activeSport={sport}
-          onSportChange={(s) => setSport(s as any)}
-          accentColor={t.accent}
-          textColor={t.text}
-          mutedColor={t.textTertiary}
-          surfaceColor={t.bgSurface}
-          borderColor={t.border}
-        />
-      )}
-      {showStaticBadge && (
-        <XStack
-          alignItems="center"
-          gap={5}
-          paddingHorizontal={10}
-          paddingVertical={5}
-          borderRadius={8}
-          backgroundColor={"$backgroundSurfaceAlt" as any}
-        >
-          <SportPrimaryIcon sport={sport} size={13} color={t.accent} />
-          <Text
-            fontFamily="$mono"
-            fontSize={11}
-            fontWeight="600"
-            color="$color"
-            textTransform="uppercase"
-            letterSpacing={0.3}
-          >
-            {sportLabel}
-          </Text>
-        </XStack>
-      )}
       {!hideNotifications && (
         <YStack
           pressStyle={{ opacity: 0.7 }}
@@ -90,7 +60,35 @@ export function HeaderControls({ hideSport, hideNotifications }: { hideSport?: b
           )}
         </YStack>
       )}
-      <ModeToggle mode={mode} onToggle={toggleMode} />
+
+      {/* Profile avatar */}
+      <YStack
+        pressStyle={{ opacity: 0.7 }}
+        onPress={() => router.push("/(tabs)/profile" as any)}
+        cursor="pointer"
+        testID="header-profile"
+      >
+        <YStack
+          width={30}
+          height={30}
+          borderRadius={15}
+          alignItems="center"
+          justifyContent="center"
+          // @ts-ignore — dynamic HSL color
+          style={user ? { backgroundColor: avatarColor } : undefined}
+          backgroundColor={user ? undefined : "$backgroundSurface"}
+          borderWidth={user ? 0 : 1}
+          borderColor="$borderColor"
+        >
+          {user ? (
+            <Text fontSize={13} fontWeight="700" color="white">
+              {displayName[0]?.toUpperCase() ?? "?"}
+            </Text>
+          ) : (
+            <Text fontSize={13} color="$colorMuted">?</Text>
+          )}
+        </YStack>
+      </YStack>
     </XStack>
   );
 }

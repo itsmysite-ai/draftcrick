@@ -24,7 +24,6 @@ const TABS: Record<string, {
   live: { active: "pulse", inactive: "pulse-outline", label: "live" },
   buzz: { active: "chatbubbles", inactive: "chatbubbles-outline", label: "buzz" },
   social: { active: "people", inactive: "people-outline", label: "leagues" },
-  profile: { active: "person", inactive: "person-outline", label: "profile" },
 };
 
 function TabItem({
@@ -51,7 +50,7 @@ function TabItem({
     opacity: tabOpacity.value,
   }));
 
-  const tab = TABS[route] || TABS.index;
+  const tab = TABS[route as keyof typeof TABS] ?? TABS.index;
   const isLive = route === "live";
 
   const iconColor = isFocused ? (isLive ? t.red : t.accent) : t.text;
@@ -116,11 +115,11 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         >
           {state.routes
             .filter((route) => {
+              // Profile lives in the header now — hide from tab bar
+              if (route.name === "profile") return false;
               // On web, buzz lives in the sidebar — hide it from tab bar
-              if (route.name === "buzz" && Platform.OS === "web") {
-                return false;
-              }
-              return true;
+              if (route.name === "buzz" && Platform.OS === "web") return false;
+              return route.name in TABS;
             })
             .map((route) => {
               const idx = state.routes.findIndex((r) => r.key === route.key);

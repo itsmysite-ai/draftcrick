@@ -4,6 +4,7 @@ import { YStack, XStack } from "tamagui";
 import { Text } from "../../components/SportText";
 import { formatUIText, DraftPlayLogo } from "@draftplay/ui";
 import { HeaderControls } from "../../components/HeaderControls";
+import { SubHeader } from "../../components/SubHeader";
 import { ChatRoom } from "../../components/chat";
 import { trpc } from "../../lib/trpc";
 import { Pressable } from "react-native";
@@ -32,8 +33,10 @@ export default function BuzzScreen() {
             {formatUIText("buzz")}
           </Text>
         </XStack>
-        <HeaderControls hideSport />
+        <HeaderControls />
       </XStack>
+
+      <SubHeader />
 
       {/* Room tabs */}
       <XStack

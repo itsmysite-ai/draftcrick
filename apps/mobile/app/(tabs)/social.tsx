@@ -11,6 +11,7 @@ import { trpc } from "../../lib/trpc";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+import { SubHeader } from "../../components/SubHeader";
 
 function LeagueCard({
   item,
@@ -152,6 +153,8 @@ export default function SocialScreen() {
         </Text>
         <HeaderControls />
       </XStack>
+
+      <SubHeader />
 
       <AnnouncementBanner />
 

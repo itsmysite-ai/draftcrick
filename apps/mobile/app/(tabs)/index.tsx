@@ -28,6 +28,7 @@ import {
 } from "@draftplay/ui";
 import { useTheme, useSport } from "../../providers/ThemeProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+import { SubHeader } from "../../components/SubHeader";
 import { useAuth } from "../../providers/AuthProvider";
 import { trpc } from "../../lib/trpc";
 
@@ -818,6 +819,8 @@ export default function HomeScreen() {
           <HeaderControls />
         </XStack>
       </Animated.View>
+
+      <SubHeader />
 
       <AnnouncementBanner sport={sport} />
 

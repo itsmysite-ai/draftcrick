@@ -24,6 +24,7 @@ import {
 } from "@draftplay/ui";
 import { trpc } from "../../lib/trpc";
 import { HeaderControls } from "../../components/HeaderControls";
+import { SubHeader } from "../../components/SubHeader";
 import { useAuth } from "../../providers/AuthProvider";
 
 // ─── Contest Card ─────────────────────────────────────────────────────
@@ -349,6 +350,8 @@ export default function ContestsScreen() {
         </XStack>
         <HeaderControls />
       </XStack>
+
+      <SubHeader />
 
       <AnnouncementBanner />
 

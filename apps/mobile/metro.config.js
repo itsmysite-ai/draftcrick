@@ -7,6 +7,12 @@ const monorepoRoot = path.resolve(projectRoot, "../..");
 
 const config = getDefaultConfig(projectRoot);
 
+// Enable require.context for expo-router (required for production web export)
+config.transformer = {
+  ...config.transformer,
+  unstable_allowRequireContext: true,
+};
+
 // Watch all files in the monorepo
 config.watchFolders = [monorepoRoot];
 
@@ -21,7 +27,6 @@ config.resolver.unstable_enablePackageExports = true;
 config.resolver.unstable_conditionNames = [
   "browser",
   "require",
-  "import",
   "default",
 ];
 

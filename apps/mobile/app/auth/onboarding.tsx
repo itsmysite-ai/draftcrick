@@ -55,7 +55,7 @@ export default function OnboardingScreen() {
           <YStack width={24} height={8} borderRadius={4} backgroundColor="$accentBackground" />
         </XStack>
         <XStack flex={1} justifyContent="flex-end">
-          <HeaderControls hideSport />
+          <HeaderControls />
         </XStack>
       </XStack>
 
