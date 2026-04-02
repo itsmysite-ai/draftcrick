@@ -25,6 +25,8 @@ import {
   getBasePrice,
   pauseAuction as pauseAuctionFn,
   resumeAuction as resumeAuctionFn,
+  validateSquadRule,
+  mapRoleToCategory,
 } from "../services/auction-room";
 import { users } from "@draftplay/db";
 import { inArray } from "drizzle-orm";
@@ -285,6 +287,41 @@ export const draftRouter = router({
       const validation = validateBid(state, ctx.user.id, input.amount);
       if (!validation.valid) {
         throw new TRPCError({ code: "BAD_REQUEST", message: validation.error });
+      }
+
+      // Squad rule validation — check if adding this player would violate composition rules
+      if (state.squadRule !== "none" && state.currentPlayerId) {
+        const squadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
+        const rule = squadRules.find((r: any) => r.id === state.squadRule);
+        if (rule) {
+          // Get current player's role
+          const currentPlayer = await ctx.db.query.players.findFirst({
+            where: eq(players.id, state.currentPlayerId),
+            columns: { role: true },
+          });
+          if (currentPlayer) {
+            // Count roles in user's current squad
+            const userPlayers = state.soldPlayers.filter(sp => sp.userId === ctx.user.id);
+            const roleCounts: Record<string, number> = {};
+            for (const sp of userPlayers) {
+              const p = await ctx.db.query.players.findFirst({
+                where: eq(players.id, sp.playerId),
+                columns: { role: true },
+              });
+              if (p) {
+                const cat = mapRoleToCategory(p.role);
+                roleCounts[cat] = (roleCounts[cat] ?? 0) + 1;
+              }
+            }
+            const squadCheck = validateSquadRule(
+              rule, roleCounts, currentPlayer.role,
+              state.teamSizes[ctx.user.id] ?? 0, state.maxPlayersPerTeam,
+            );
+            if (!squadCheck.valid) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: squadCheck.error ?? "Squad rule violated" });
+            }
+          }
+        }
       }
 
       // Track previous highest bidder before placing new bid

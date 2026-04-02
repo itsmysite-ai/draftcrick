@@ -555,7 +555,7 @@ export function validateSquadRule(
   return { valid: true };
 }
 
-function mapRoleToCategory(role: string): string {
+export function mapRoleToCategory(role: string): string {
   const r = role.toLowerCase();
   if (r === "wicket_keeper" || r === "wk") return "WK";
   if (r === "batsman" || r === "bat" || r === "batter") return "BAT";

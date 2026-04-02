@@ -710,9 +710,10 @@ export default function AuctionRoomScreen() {
           <XStack gap="$2" marginBottom="$2">
             {(["mine", "all"] as const).map((tab) => {
               const isActive = rosterTab === tab;
-              const canShowAll = (auctionState as any)?.squadVisibility === "full"
-                || ((auctionState as any)?.squadVisibility === "after_sold" && auctionState?.status !== "in_progress");
-              if (tab === "all" && !canShowAll && (auctionState as any)?.squadVisibility !== "full") return null;
+              const vis = (auctionState as any)?.squadVisibility ?? "after_sold";
+              // "full" = always, "after_sold" = visible (sold data is public), "hidden" = only after auction ends
+              const canShowAll = vis === "full" || vis === "after_sold" || auctionState?.status === "completed";
+              if (tab === "all" && !canShowAll) return null;
               return (
                 <YStack
                   key={tab}

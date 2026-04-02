@@ -115,6 +115,18 @@ export default function CreateLeagueScreen() {
   const [entryFee, setEntryFee] = useState(0);
   const [isPrivate, setIsPrivate] = useState(true);
 
+  // ── Auction-specific settings ──
+  const [auctionBidIncrement, setAuctionBidIncrement] = useState(0.1);
+  const [auctionSquadRule, setAuctionSquadRule] = useState("none");
+  const [auctionSquadVisibility, setAuctionSquadVisibility] = useState("after_sold");
+  const [auctionBuyerVisibility, setAuctionBuyerVisibility] = useState("during_auction");
+  const [auctionMaxPauses, setAuctionMaxPauses] = useState(3);
+
+  const auctionConfigQuery = trpc.draft.getAuctionConfigOptions.useQuery(undefined, {
+    enabled: format === "auction",
+  });
+  const auctionConfig = auctionConfigQuery.data;
+
   // ── AI naming flow state ──
   const [nameGenStep, setNameGenStep] = useState<"config" | "q1" | "q2" | "picking" | "done">("config");
   const [groupName, setGroupName] = useState("");
@@ -196,6 +208,16 @@ export default function CreateLeagueScreen() {
     const finalName = trimmedName.toLowerCase().endsWith(suffix.toLowerCase())
       ? trimmedName
       : `${trimmedName} ${suffix}`;
+    const rules: Record<string, unknown> = { entryFee };
+    if (format === "auction") {
+      rules.auction = {
+        bidIncrement: auctionBidIncrement,
+        squadRule: auctionSquadRule,
+        squadVisibility: auctionSquadVisibility,
+        buyerVisibility: auctionBuyerVisibility,
+        maxPausesPerMember: auctionMaxPauses,
+      };
+    }
     createMutation.mutate({
       name: finalName,
       format,
@@ -203,7 +225,7 @@ export default function CreateLeagueScreen() {
       tournament,
       maxMembers,
       isPrivate,
-      rules: { entryFee },
+      rules,
     });
   };
 
@@ -411,6 +433,138 @@ export default function CreateLeagueScreen() {
                 </XStack>
               ))}
             </Card>
+          )}
+
+          {/* ── Auction Settings (only when format = auction) ── */}
+          {format === "auction" && (
+            <YStack marginBottom="$5">
+              <Text {...textStyles.sectionHeader} marginBottom="$3">
+                {formatUIText("auction settings")}
+              </Text>
+
+              {/* Bid Increment */}
+              <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600" marginBottom="$1">
+                {formatUIText("bid increment")}
+              </Text>
+              <XStack gap="$2" marginBottom="$4" flexWrap="wrap">
+                {(auctionConfig?.bidIncrementOptions ?? [0.1, 0.2, 0.5, 1.0]).map((inc: number) => (
+                  <Card
+                    key={inc}
+                    pressable
+                    paddingHorizontal="$4"
+                    paddingVertical="$2"
+                    borderColor={auctionBidIncrement === inc ? "$accentBackground" : "$borderColor"}
+                    onPress={() => setAuctionBidIncrement(inc)}
+                  >
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={auctionBidIncrement === inc ? "$accentBackground" : "$color"}>
+                      {inc}
+                    </Text>
+                  </Card>
+                ))}
+              </XStack>
+
+              {/* Squad Rule */}
+              <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600" marginBottom="$1">
+                {formatUIText("squad rule")}
+              </Text>
+              <XStack gap="$2" marginBottom="$4" flexWrap="wrap">
+                <Card
+                  pressable
+                  paddingHorizontal="$4"
+                  paddingVertical="$2"
+                  borderColor={auctionSquadRule === "none" ? "$accentBackground" : "$borderColor"}
+                  onPress={() => setAuctionSquadRule("none")}
+                >
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={13} color={auctionSquadRule === "none" ? "$accentBackground" : "$color"}>
+                    {formatUIText("no rules")}
+                  </Text>
+                </Card>
+                {(auctionConfig?.squadRules ?? []).map((rule: any) => (
+                  <Card
+                    key={rule.id}
+                    pressable
+                    paddingHorizontal="$4"
+                    paddingVertical="$2"
+                    borderColor={auctionSquadRule === rule.id ? "$accentBackground" : "$borderColor"}
+                    onPress={() => setAuctionSquadRule(rule.id)}
+                  >
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={13} color={auctionSquadRule === rule.id ? "$accentBackground" : "$color"}>
+                      {rule.name}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={9} color="$colorMuted" marginTop={2}>
+                      WK:{rule.minWK}-{rule.maxWK} BAT:{rule.minBAT}-{rule.maxBAT} BOWL:{rule.minBOWL}-{rule.maxBOWL} AR:{rule.minAR}-{rule.maxAR}
+                    </Text>
+                  </Card>
+                ))}
+              </XStack>
+
+              {/* Squad Visibility */}
+              <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600" marginBottom="$1">
+                {formatUIText("squad visibility")}
+              </Text>
+              <XStack gap="$2" marginBottom="$4" flexWrap="wrap">
+                {([
+                  { value: "hidden", label: "hidden" },
+                  { value: "after_sold", label: "after each sale" },
+                  { value: "full", label: "always visible" },
+                ] as const).map((opt) => (
+                  <Card
+                    key={opt.value}
+                    pressable
+                    paddingHorizontal="$3"
+                    paddingVertical="$2"
+                    borderColor={auctionSquadVisibility === opt.value ? "$accentBackground" : "$borderColor"}
+                    onPress={() => setAuctionSquadVisibility(opt.value)}
+                  >
+                    <Text fontFamily="$mono" fontWeight="600" fontSize={12} color={auctionSquadVisibility === opt.value ? "$accentBackground" : "$color"}>
+                      {formatUIText(opt.label)}
+                    </Text>
+                  </Card>
+                ))}
+              </XStack>
+
+              {/* Buyer Visibility */}
+              <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600" marginBottom="$1">
+                {formatUIText("show buyer name")}
+              </Text>
+              <XStack gap="$2" marginBottom="$4" flexWrap="wrap">
+                {([
+                  { value: "during_auction", label: "during auction" },
+                  { value: "after_auction", label: "after auction" },
+                ] as const).map((opt) => (
+                  <Card
+                    key={opt.value}
+                    pressable
+                    paddingHorizontal="$3"
+                    paddingVertical="$2"
+                    borderColor={auctionBuyerVisibility === opt.value ? "$accentBackground" : "$borderColor"}
+                    onPress={() => setAuctionBuyerVisibility(opt.value)}
+                  >
+                    <Text fontFamily="$mono" fontWeight="600" fontSize={12} color={auctionBuyerVisibility === opt.value ? "$accentBackground" : "$color"}>
+                      {formatUIText(opt.label)}
+                    </Text>
+                  </Card>
+                ))}
+              </XStack>
+
+              {/* Pauses Per Member */}
+              <XStack justifyContent="space-between" alignItems="center">
+                <YStack>
+                  <Text fontFamily="$body" fontSize={13} color="$color" fontWeight="600">
+                    {formatUIText("pauses per member")}
+                  </Text>
+                  <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                    {formatUIText("tactical timeouts during auction")}
+                  </Text>
+                </YStack>
+                <Stepper
+                  value={auctionMaxPauses}
+                  onValue={setAuctionMaxPauses}
+                  min={0}
+                  max={auctionConfig?.maxPausesCap ?? 5}
+                />
+              </XStack>
+            </YStack>
           )}
 
           {/* ── Visibility ── */}
