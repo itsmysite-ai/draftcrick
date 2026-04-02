@@ -571,19 +571,35 @@ export default function AuctionRoomScreen() {
                 if (!player) return null;
                 const isGone = target.status === "gone";
                 const isAcquired = target.status === "acquired";
+                const isManual = target.addedBy === "manual";
                 return (
                   <YStack
                     marginRight="$2"
                     padding="$2"
                     borderRadius={8}
-                    backgroundColor={isAcquired ? "rgba(93, 184, 130, 0.1)" : isGone ? "rgba(229, 72, 77, 0.08)" : "$backgroundPress"}
+                    backgroundColor={isAcquired ? "rgba(93, 184, 130, 0.1)" : isGone ? "rgba(229, 72, 77, 0.08)" : isManual ? "rgba(212, 164, 61, 0.08)" : "$backgroundPress"}
                     borderWidth={1}
-                    borderColor={isAcquired ? "rgba(93, 184, 130, 0.3)" : isGone ? "rgba(229, 72, 77, 0.2)" : "transparent"}
+                    borderColor={isAcquired ? "rgba(93, 184, 130, 0.3)" : isGone ? "rgba(229, 72, 77, 0.2)" : isManual ? "rgba(212, 164, 61, 0.2)" : "transparent"}
                     opacity={isGone ? 0.5 : 1}
-                    minWidth={90}
-                    alignItems="center"
+                    minWidth={95}
                   >
-                    <Text fontFamily="$body" fontWeight="600" fontSize={11} color="$color" numberOfLines={1} textAlign="center">
+                    {/* Source badge + remove button */}
+                    <XStack justifyContent="space-between" alignItems="center" marginBottom={2}>
+                      <Text fontFamily="$mono" fontSize={7} fontWeight="700" color={isManual ? "$colorCricket" : "$colorMuted"}>
+                        {isManual ? "YOU" : "AI"}
+                      </Text>
+                      {!isAcquired && !isGone && (
+                        <YStack
+                          onPress={() => toggleTargetMutation.mutate({ roomId: roomId!, playerId: target.playerId })}
+                          cursor="pointer"
+                          pressStyle={{ opacity: 0.7 }}
+                          padding={2}
+                        >
+                          <Ionicons name="close" size={12} color="#9A9894" />
+                        </YStack>
+                      )}
+                    </XStack>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={11} color="$color" numberOfLines={1}>
                       {(player as any).name}
                     </Text>
                     <XStack alignItems="center" gap="$1" marginTop={2}>

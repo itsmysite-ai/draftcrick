@@ -564,7 +564,11 @@ export const auctionAiRouter = router({
       const budget = state.budgets[ctx.user.id] ?? state.auctionBudget;
       const squadSize = squadRule?.squadSize ?? state.maxPlayersPerTeam;
 
-      const squad = autoBuildTargetSquad(available, squadRule, budget, squadSize, input.strategy);
+      // Load existing manual picks to preserve them
+      const existing = await loadTargetSquad(ctx.db, input.roomId, ctx.user.id);
+      const manualPicks = (existing?.targets ?? []).filter((t: any) => t.addedBy === "manual" && t.status === "target");
+
+      const squad = autoBuildTargetSquad(available, squadRule, budget, squadSize, input.strategy, manualPicks);
       await saveTargetSquad(ctx.db, input.roomId, ctx.user.id, squad);
 
       return squad;

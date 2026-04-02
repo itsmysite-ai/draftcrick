@@ -145,13 +145,30 @@ export function autoBuildTargetSquad(
   budget: number,
   squadSize: number,
   strategy: StrategyDNA = DEFAULT_STRATEGY,
+  existingManualPicks: TargetPlayer[] = [],
 ): TargetSquad {
   const targets: TargetPlayer[] = [];
   const used = new Set<string>();
   const roleCounts: Record<string, number> = { WK: 0, BAT: 0, BOWL: 0, AR: 0 };
 
-  // Score and sort players by strategy DNA — different strategies produce different orderings
-  const scored = availablePlayers.map((p) => ({ ...p, _score: scorePlayer(p, strategy) }));
+  // Preserve manual picks — they are untouched by AI
+  let budgetLeft = budget;
+  for (const manual of existingManualPicks) {
+    if (manual.addedBy !== "manual") continue;
+    if (manual.status !== "target") continue;
+    const player = availablePlayers.find((p) => p.id === manual.playerId);
+    if (!player) continue; // player no longer available
+    targets.push({ ...manual, priority: targets.length + 1 });
+    used.add(manual.playerId);
+    const role = mapRole(player.role);
+    roleCounts[role] = (roleCounts[role] ?? 0) + 1;
+    budgetLeft -= player.credits;
+  }
+
+  // Score and sort remaining players by strategy DNA
+  const scored = availablePlayers
+    .filter((p) => !used.has(p.id))
+    .map((p) => ({ ...p, _score: scorePlayer(p, strategy) }));
   const sorted = scored.sort((a, b) => b._score - a._score);
 
   // Phase 1: Fill minimums first (pick best player per required role)
@@ -182,14 +199,6 @@ export function autoBuildTargetSquad(
   }
 
   // Phase 2: Fill remaining slots with best value players (respecting max limits)
-  const remaining = squadSize - targets.length;
-  let budgetLeft = budget;
-
-  // Estimate budget used by current targets
-  for (const t of targets) {
-    const p = availablePlayers.find((pl) => pl.id === t.playerId);
-    if (p) budgetLeft -= p.credits;
-  }
 
   for (const player of sorted) {
     if (targets.length >= squadSize) break;
