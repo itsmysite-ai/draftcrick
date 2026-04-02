@@ -137,7 +137,6 @@ export default function AuctionRoomScreen() {
   const { gate, paywallProps } = usePaywall();
 
   // Target squad
-  const hasTargets = (targetSquadQuery.data?.targets ?? []).length > 0;
   const targetSquadQuery = trpc.auctionAi.getTargetSquad.useQuery(
     { roomId: roomId! },
     { enabled: !!roomId, staleTime: 10_000 },
@@ -156,7 +155,7 @@ export default function AuctionRoomScreen() {
       .filter((t: any) => t.status === "target")
       .map((t: any) => t.playerId),
   );
-
+  const hasTargets = (targetSquadQuery.data?.targets ?? []).length > 0;
 
   // Player stats for popup
   const { data: playerStatsData } = trpc.auctionAi.playerStats.useQuery(
