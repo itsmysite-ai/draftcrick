@@ -178,6 +178,7 @@ export default function NotificationInboxScreen() {
 
   return (
     <YStack flex={1} paddingTop={insets.top} backgroundColor="$background" testID="notification-inbox-screen">
+      {/* Header */}
       <XStack
         justifyContent="space-between"
         alignItems="center"
@@ -191,48 +192,76 @@ export default function NotificationInboxScreen() {
             {formatUIText("notifications")}
           </Text>
         </XStack>
-        <XStack alignItems="center" gap="$2">
-          {items.some((i) => !i.isRead) && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => markAllReadMutation.mutate()}
-              testID="notification-mark-all-read"
-              disabled={markAllReadMutation.isPending}
-            >
-              {formatUIText("mark all read")}
-            </Button>
-          )}
-          {items.length > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
-              onPress={() => clearAllMutation.mutate()}
-              testID="notification-clear-all"
-              disabled={clearAllMutation.isPending}
-            >
-              {formatUIText("clear all")}
-            </Button>
-          )}
-          <HeaderControls hideNotifications />
-        </XStack>
+        <HeaderControls hideNotifications />
       </XStack>
 
+      {/* Sub-header: actions + settings */}
       <XStack
+        justifyContent="space-between"
+        alignItems="center"
         paddingHorizontal="$4"
         paddingBottom="$2"
-        justifyContent="flex-end"
       >
-        <Text
-          fontFamily="$mono"
-          fontSize={11}
-          color="$colorMuted"
+        <XStack gap="$2">
+          {items.some((i) => !i.isRead) && (
+            <XStack
+              alignItems="center"
+              gap={5}
+              paddingHorizontal={10}
+              paddingVertical={6}
+              borderRadius={8}
+              backgroundColor="$backgroundSurface"
+              pressStyle={{ opacity: 0.7 }}
+              onPress={() => markAllReadMutation.mutate()}
+              cursor="pointer"
+              opacity={markAllReadMutation.isPending ? 0.5 : 1}
+              testID="notification-mark-all-read"
+            >
+              <Ionicons name="checkmark-done-outline" size={14} color={theme.colorMuted.val} />
+              <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
+                {formatUIText("mark all read")}
+              </Text>
+            </XStack>
+          )}
+          {items.length > 0 && (
+            <XStack
+              alignItems="center"
+              gap={5}
+              paddingHorizontal={10}
+              paddingVertical={6}
+              borderRadius={8}
+              backgroundColor="$backgroundSurface"
+              pressStyle={{ opacity: 0.7 }}
+              onPress={() => clearAllMutation.mutate()}
+              cursor="pointer"
+              opacity={clearAllMutation.isPending ? 0.5 : 1}
+              testID="notification-clear-all"
+            >
+              <Ionicons name="trash-outline" size={14} color={theme.colorMuted.val} />
+              <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
+                {formatUIText("clear all")}
+              </Text>
+            </XStack>
+          )}
+        </XStack>
+
+        <XStack
+          alignItems="center"
+          gap={5}
+          paddingHorizontal={10}
+          paddingVertical={6}
+          borderRadius={8}
+          backgroundColor="$backgroundSurface"
+          pressStyle={{ opacity: 0.7 }}
           onPress={() => router.push("/settings/notifications" as never)}
           cursor="pointer"
           testID="notification-settings-link"
         >
-          {formatUIText("settings")}
-        </Text>
+          <Ionicons name="settings-outline" size={14} color={theme.colorMuted.val} />
+          <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
+            {formatUIText("settings")}
+          </Text>
+        </XStack>
       </XStack>
 
       {items.length === 0 && !inboxQuery.isLoading ? (
