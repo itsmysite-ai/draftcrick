@@ -869,10 +869,8 @@ export default function AuctionRoomScreen() {
         {/* Sold Players */}
         <YStack width="40%">
           {/* Member filter pills */}
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={[
+          <XStack paddingHorizontal="$2" paddingVertical={6} gap={4} flexWrap="wrap">
+            {[
               { id: null, label: "all" },
               { id: dbUserId, label: "mine" },
               ...(auctionState?.pickOrder ?? [])
@@ -881,26 +879,22 @@ export default function AuctionRoomScreen() {
                   id: uid,
                   label: (auctionState as any)?.memberNames?.[uid]?.split(" ")[0] ?? "?",
                 })),
-            ]}
-            keyExtractor={(item: any) => item.id ?? "all"}
-            contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 6, gap: 4 }}
-            renderItem={({ item: filterItem }: { item: any }) => {
+            ].map((filterItem) => {
               const isActive = soldFilter === filterItem.id;
               const count = filterItem.id === null
                 ? filteredSold.length
                 : filteredSold.filter((sp: any) => sp.userId === filterItem.id).length;
               return (
                 <XStack
+                  key={filterItem.id ?? "all"}
                   onPress={() => setSoldFilter(isActive ? null : filterItem.id)}
                   cursor="pointer"
                   pressStyle={{ opacity: 0.8 }}
                   paddingHorizontal={8}
                   paddingVertical={3}
                   borderRadius={12}
-                  backgroundColor={isActive ? "$accentBackground" : "$backgroundSurface"}
-                  borderWidth={1}
-                  borderColor={isActive ? "$accentBackground" : "$borderColor"}
-                  gap={4}
+                  backgroundColor={isActive ? "$accentBackground" : "$backgroundPress"}
+                  gap={3}
                   alignItems="center"
                 >
                   <Text fontFamily="$mono" fontSize={9} fontWeight={isActive ? "700" : "500"} color={isActive ? "$accentColor" : "$colorMuted"}>
@@ -911,8 +905,8 @@ export default function AuctionRoomScreen() {
                   </Text>
                 </XStack>
               );
-            }}
-          />
+            })}
+          </XStack>
           <FlatList
             testID="auction-sold-list"
             data={[...(soldFilter

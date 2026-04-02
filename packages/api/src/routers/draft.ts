@@ -437,6 +437,7 @@ export const draftRouter = router({
         goingOnceEndsAt: state.goingOnceEndsAt,
         goingTwiceEndsAt: state.goingTwiceEndsAt,
         // New fields
+        pickOrder: state.pickOrder,
         memberNames,
         isPaused: state.isPaused,
         pausedBy: state.pausedBy,
