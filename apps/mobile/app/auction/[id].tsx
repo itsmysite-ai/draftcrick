@@ -790,6 +790,29 @@ export default function AuctionRoomScreen() {
         </YStack>
       )}
 
+      {/* Budget strategy hint */}
+      {!mySquadFull && myTeamSize > 0 && (
+        <XStack paddingHorizontal="$4" paddingVertical={4} backgroundColor="$backgroundSurface" alignItems="center" gap="$2">
+          <Ionicons name="bulb-outline" size={12} color="#D4A43D" />
+          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+            {(() => {
+              const slotsRemaining = squadSize - myTeamSize;
+              const avgPerSlot = slotsRemaining > 0 ? Math.round(myBudget / slotsRemaining * 10) / 10 : 0;
+              const r = (auctionState as any)?.squadRuleDetails;
+              const rolesNeeded: string[] = [];
+              if (r) {
+                if ((myRoleCounts.WK ?? 0) < r.minWK) rolesNeeded.push("WK");
+                if ((myRoleCounts.BAT ?? 0) < r.minBAT) rolesNeeded.push("BAT");
+                if ((myRoleCounts.BOWL ?? 0) < r.minBOWL) rolesNeeded.push("BOWL");
+                if ((myRoleCounts.AR ?? 0) < r.minAR) rolesNeeded.push("AR");
+              }
+              const needStr = rolesNeeded.length > 0 ? ` Need: ${rolesNeeded.join(", ")}.` : "";
+              return `${myBudget.toFixed(1)} Cr for ${slotsRemaining} slots = ${avgPerSlot.toFixed(1)} Cr avg.${needStr}`;
+            })()}
+          </Text>
+        </XStack>
+      )}
+
       {/* Search bar */}
       <XStack paddingHorizontal="$3" paddingVertical="$2" backgroundColor="$backgroundSurface" borderBottomWidth={1} borderBottomColor="$borderColor">
         <XStack flex={1} backgroundColor="$backgroundPress" borderRadius={DesignSystem.radius.md} paddingHorizontal="$3" paddingVertical="$2" alignItems="center" gap="$2">
@@ -819,14 +842,27 @@ export default function AuctionRoomScreen() {
             testID="auction-available-list"
             data={filteredAvailable}
             keyExtractor={(item: any) => item.id}
-            renderItem={({ item, index }: { item: any; index: number }) => (
+            renderItem={({ item, index }: { item: any; index: number }) => {
+              // Rule-based need indicator per player
+              const roleShort = formatRoleShort(item.role ?? "");
+              const r = (auctionState as any)?.squadRuleDetails;
+              const have = myRoleCounts[roleShort] ?? 0;
+              const min = r ? (r[`min${roleShort}`] ?? 0) : 0;
+              const max = r ? (r[`max${roleShort}`] ?? 99) : 99;
+              const needTag = mySquadFull ? "FULL"
+                : have < min ? "NEED"
+                : have >= max ? "SKIP"
+                : "OK";
+              const needColor = needTag === "NEED" ? "#E5484D" : needTag === "SKIP" ? "#9A9894" : needTag === "FULL" ? "#9A9894" : "#5DB882";
+
+              return (
               <Animated.View entering={FadeInDown.delay(30 + index * 20).springify()}>
                 <Card
                   pressable
                   padding="$3"
                   marginHorizontal="$2"
                   marginBottom="$1"
-                  opacity={isMyNomination && !currentPlayer && !mySquadFull ? 1 : 0.6}
+                  opacity={isMyNomination && !currentPlayer && !mySquadFull ? 1 : (needTag === "SKIP" ? 0.4 : 0.6)}
                   onPress={() => isMyNomination && !currentPlayer && !mySquadFull ? handleNominate(item.id, item.name) : null}
                   disabled={!isMyNomination || !!currentPlayer || mySquadFull}
                 >
@@ -839,12 +875,19 @@ export default function AuctionRoomScreen() {
                       imageUrl={(item as any).photoUrl}
                     />
                     <YStack flex={1}>
-                      <Text {...textStyles.playerName} fontSize={13} numberOfLines={1}>
-                        {item.name}
-                      </Text>
+                      <XStack alignItems="center" gap="$1">
+                        <Text {...textStyles.playerName} fontSize={13} numberOfLines={1} flex={1}>
+                          {item.name}
+                        </Text>
+                        {r && needTag !== "OK" && (
+                          <Text fontFamily="$mono" fontSize={7} fontWeight="800" style={{ color: needColor }}>
+                            {needTag}
+                          </Text>
+                        )}
+                      </XStack>
                       <XStack alignItems="center" gap="$1">
                         <Badge variant="default" size="sm">
-                          {formatRoleShort(item.role ?? "")}
+                          {roleShort}
                         </Badge>
                         <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
                           {formatTeamName(item.team)}
@@ -862,7 +905,7 @@ export default function AuctionRoomScreen() {
                   </XStack>
                 </Card>
               </Animated.View>
-            )}
+            );}}
             ListEmptyComponent={
               <YStack alignItems="center" paddingVertical="$8">
                 <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
