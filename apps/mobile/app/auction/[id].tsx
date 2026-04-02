@@ -137,7 +137,7 @@ export default function AuctionRoomScreen() {
   const { gate, paywallProps } = usePaywall();
 
   // Target squad
-  const [showTargets, setShowTargets] = useState(false);
+  const hasTargets = (targetSquadQuery.data?.targets ?? []).length > 0;
   const targetSquadQuery = trpc.auctionAi.getTargetSquad.useQuery(
     { roomId: roomId! },
     { enabled: !!roomId, staleTime: 10_000 },
@@ -503,64 +503,72 @@ export default function AuctionRoomScreen() {
             });
           })()}
         </XStack>
-        {/* Target squad toggle */}
-        <XStack justifyContent="flex-end" marginTop="$1">
-          <XStack
-            onPress={() => setShowTargets(!showTargets)}
-            cursor="pointer"
-            pressStyle={{ opacity: 0.8 }}
-            paddingHorizontal={8}
-            paddingVertical={3}
-            borderRadius={8}
-            backgroundColor={showTargets ? "rgba(212, 164, 61, 0.12)" : "$backgroundPress"}
-            gap={4}
-            alignItems="center"
-          >
-            <Ionicons name="star" size={12} color={showTargets ? "#D4A43D" : "#666"} />
-            <Text fontFamily="$mono" fontSize={10} fontWeight="600" color={showTargets ? "$colorCricket" : "$colorMuted"}>
-              targets ({(targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "target").length})
-            </Text>
-          </XStack>
-        </XStack>
       </YStack>
 
-      {/* Target squad panel */}
-      {showTargets && (
-        <YStack backgroundColor="$backgroundSurface" padding="$3" borderBottomWidth={1} borderBottomColor="$borderColor">
-          <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+      {/* Target Squad — always visible */}
+      <YStack backgroundColor="$backgroundSurface" borderBottomWidth={1} borderBottomColor="$borderColor">
+        {/* Onboarding prompt — shown when no targets */}
+        {!hasTargets ? (
+          <YStack padding="$4" alignItems="center" gap="$3">
             <XStack alignItems="center" gap="$2">
-              <Ionicons name="star" size={14} color="#D4A43D" />
-              <Text fontFamily="$mono" fontSize={12} fontWeight="700" color="$color">
-                {formatUIText("target squad")}
+              <Ionicons name="sparkles" size={22} color="#D4A43D" />
+              <Text fontFamily="$mono" fontWeight="800" fontSize={15} color="$color">
+                {formatUIText("build your dream squad")}
               </Text>
             </XStack>
-            <XStack gap="$2">
+            <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center" paddingHorizontal="$4">
+              {formatUIText("answer 4 quick questions and AI will build your personalized target list. or tap ★ on players to pick manually.")}
+            </Text>
+            <XStack gap="$3">
+              <XStack
+                onPress={() => setShowStrategyQuiz(true)}
+                cursor="pointer"
+                pressStyle={{ opacity: 0.8, scale: 0.97 }}
+                paddingHorizontal={16}
+                paddingVertical={10}
+                borderRadius={10}
+                backgroundColor="$accentBackground"
+                gap={6}
+                alignItems="center"
+              >
+                <Ionicons name="sparkles" size={16} color="#fff" />
+                <Text fontFamily="$mono" fontSize={13} fontWeight="800" color="$accentColor">
+                  {formatUIText("build my strategy")}
+                </Text>
+              </XStack>
+            </XStack>
+          </YStack>
+        ) : (
+          /* Target strip — compact, always visible */
+          <YStack padding="$2" paddingHorizontal="$3">
+            <XStack justifyContent="space-between" alignItems="center" marginBottom={6}>
+              <XStack alignItems="center" gap="$1">
+                <Ionicons name="star" size={13} color="#D4A43D" />
+                <Text fontFamily="$mono" fontSize={11} fontWeight="700" color="$color">
+                  {formatUIText("targets")}
+                </Text>
+                <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                  {(targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "acquired").length}✓
+                  {" "}{(targetSquadQuery.data?.targets ?? []).filter((t: any) => t.status === "target").length} left
+                </Text>
+              </XStack>
               <XStack
                 onPress={() => setShowStrategyQuiz(true)}
                 cursor="pointer"
                 pressStyle={{ opacity: 0.8 }}
                 paddingHorizontal={8}
-                paddingVertical={4}
+                paddingVertical={3}
                 borderRadius={6}
-                backgroundColor="$accentBackground"
+                backgroundColor="rgba(212, 164, 61, 0.12)"
                 gap={4}
                 alignItems="center"
               >
-                <Ionicons name="sparkles" size={12} color="#fff" />
-                <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$accentColor">
-                  {autoBuildMutation.isPending ? "building..." : "ai build"}
+                <Ionicons name="sparkles" size={11} color="#D4A43D" />
+                <Text fontFamily="$mono" fontSize={9} fontWeight="700" color="$colorCricket">
+                  {autoBuildMutation.isPending ? "building..." : "rebuild"}
                 </Text>
               </XStack>
             </XStack>
-          </XStack>
-
-          {(targetSquadQuery.data?.targets ?? []).length === 0 ? (
-            <YStack alignItems="center" paddingVertical="$3" gap="$2">
-              <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center">
-                {formatUIText("no targets yet. tap ★ on players or use AI Build.")}
-              </Text>
-            </YStack>
-          ) : (
             <FlatList
               data={targetSquadQuery.data?.targets ?? []}
               keyExtractor={(item: any) => item.playerId}
@@ -622,9 +630,9 @@ export default function AuctionRoomScreen() {
                 );
               }}
             />
-          )}
-        </YStack>
-      )}
+          </YStack>
+        )}
+      </YStack>
 
       {/* Pause overlay */}
       {(auctionState as any)?.isPaused && (
