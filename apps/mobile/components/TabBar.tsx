@@ -21,9 +21,9 @@ const TABS: Record<string, {
 }> = {
   index: { active: "home", inactive: "home-outline", label: "home" },
   contests: { active: "trophy", inactive: "trophy-outline", label: "contests" },
-  live: { active: "pulse", inactive: "pulse-outline", label: "live" },
   buzz: { active: "chatbubbles", inactive: "chatbubbles-outline", label: "buzz" },
   social: { active: "people", inactive: "people-outline", label: "leagues" },
+  live: { active: "radio", inactive: "radio-outline", label: "live" },
 };
 
 function TabItem({
