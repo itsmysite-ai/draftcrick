@@ -916,7 +916,7 @@ export default function AuctionRoomScreen() {
         </XStack>
       </XStack>
 
-      <XStack flex={1}>
+      <XStack minHeight={500}>
         {/* Available Players */}
         <YStack flex={1} borderRightWidth={1} borderRightColor="$borderColor">
           <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
@@ -924,6 +924,7 @@ export default function AuctionRoomScreen() {
           </Text>
           <FlatList
             testID="auction-available-list"
+            nestedScrollEnabled
             data={filteredAvailable}
             keyExtractor={(item: any) => item.id}
             renderItem={({ item, index }: { item: any; index: number }) => (
@@ -988,6 +989,7 @@ export default function AuctionRoomScreen() {
           </Text>
           <FlatList
             testID="auction-sold-list"
+            nestedScrollEnabled
             data={[...filteredSold].reverse()}
             keyExtractor={(item: any, idx: number) => `${item.playerId}-${idx}`}
             renderItem={({ item }: { item: any }) => {
