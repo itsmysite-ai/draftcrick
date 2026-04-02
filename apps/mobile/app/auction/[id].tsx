@@ -274,9 +274,31 @@ export default function AuctionRoomScreen() {
   };
 
   const handleNominate = (playerId: string, playerName: string) => {
+    // Build AI context for the nomination popup
+    const player = (players ?? []).find((p: any) => p.id === playerId);
+    const roleShort = formatRoleShort(player?.role ?? "");
+    const r = (auctionState as any)?.squadRuleDetails;
+    const have = myRoleCounts[roleShort] ?? 0;
+    const min = r ? (r[`min${roleShort}`] ?? 0) : 0;
+    const max = r ? (r[`max${roleShort}`] ?? 99) : 99;
+
+    let aiHint = "";
+    if (have >= max) {
+      aiHint = `⚠️ You're at max ${roleShort} (${have}/${max}). You can't bid on this player — consider baiting others.`;
+    } else if (have < min) {
+      aiHint = `✅ You need ${roleShort} (${have}/${min} min). This is a strategic pick for your squad.`;
+    } else {
+      const slotsLeft = squadSize - myTeamSize;
+      const avgBudget = slotsLeft > 0 ? (myBudget / slotsLeft).toFixed(1) : "0";
+      aiHint = `ℹ️ ${roleShort} requirement met (${have}/${min}). Budget: ~${avgBudget} Cr per remaining slot.`;
+    }
+
+    const credits = (player as any)?.credits;
+    const creditStr = credits ? ` Fair value: ~${credits.toFixed(1)} Cr.` : "";
+
     setNominateAlert({
-      title: "nominate",
-      message: `put ${playerName} up for auction?`,
+      title: `nominate ${playerName}?`,
+      message: `${roleShort} · ${formatTeamName((player as any)?.team ?? "")}${creditStr}\n\n${aiHint}`,
       onConfirm: () => {
         setNominateAlert(null);
         nominateMutation.mutate({ roomId: roomId!, playerId });
@@ -741,19 +763,151 @@ export default function AuctionRoomScreen() {
                 {formatUIText("you have 11 players. sit back and watch the remaining picks.")}
               </Text>
             </YStack>
-          ) : isMyNomination ? (
-            <YStack backgroundColor="rgba(212, 164, 61, 0.1)" borderRadius={DesignSystem.radius.md} padding="$3" alignItems="center" borderWidth={1} borderColor="rgba(212, 164, 61, 0.3)">
-              <XStack alignItems="center" gap="$2">
+          ) : isMyNomination ? (() => {
+            // AI nomination suggestion — rule-based, instant
+            const r = (auctionState as any)?.squadRuleDetails;
+            const available = filteredAvailable;
+            let topPick: any = null;
+            let topPickReason = "";
+            let baitPick: any = null;
+
+            if (r && available.length > 0) {
+              // Find roles below minimum
+              const neededRoles: string[] = [];
+              if ((myRoleCounts.WK ?? 0) < (r.minWK ?? 0)) neededRoles.push("WK");
+              if ((myRoleCounts.BAT ?? 0) < (r.minBAT ?? 0)) neededRoles.push("BAT");
+              if ((myRoleCounts.BOWL ?? 0) < (r.minBOWL ?? 0)) neededRoles.push("BOWL");
+              if ((myRoleCounts.AR ?? 0) < (r.minAR ?? 0)) neededRoles.push("AR");
+
+              // Best available player in a needed role (by credits)
+              const neededPlayers = available.filter((p: any) => neededRoles.includes(formatRoleShort(p.role ?? "")));
+              if (neededPlayers.length > 0) {
+                topPick = neededPlayers.sort((a: any, b: any) => (b.credits ?? 0) - (a.credits ?? 0))[0];
+                topPickReason = `best ${formatRoleShort(topPick.role)} available — you need ${neededRoles.join(", ")}`;
+              } else {
+                // All mins met — pick best value player overall
+                topPick = [...available].sort((a: any, b: any) => (b.credits ?? 0) - (a.credits ?? 0))[0];
+                topPickReason = "highest value available — all role minimums met";
+              }
+
+              // Bait suggestion — expensive player in a role you DON'T need (to drain others' budgets)
+              const fullRoles = ["WK", "BAT", "BOWL", "AR"].filter((role) => (myRoleCounts[role] ?? 0) >= (r[`max${role}`] ?? 99));
+              if (fullRoles.length > 0) {
+                const baitPlayers = available.filter((p: any) => fullRoles.includes(formatRoleShort(p.role ?? "")));
+                if (baitPlayers.length > 0) {
+                  baitPick = baitPlayers.sort((a: any, b: any) => (b.credits ?? 0) - (a.credits ?? 0))[0];
+                }
+              }
+            } else if (available.length > 0) {
+              // No squad rule — just suggest best value
+              topPick = [...available].sort((a: any, b: any) => (b.credits ?? 0) - (a.credits ?? 0))[0];
+              topPickReason = "highest value available";
+            }
+
+            return (
+            <YStack backgroundColor="rgba(212, 164, 61, 0.1)" borderRadius={DesignSystem.radius.md} padding="$3" borderWidth={1} borderColor="rgba(212, 164, 61, 0.3)">
+              <XStack alignItems="center" gap="$2" marginBottom="$2">
                 <Ionicons name="hand-right-outline" size={18} color="#D4A43D" />
                 <Text testID="auction-nominate-prompt" fontFamily="$mono" fontWeight="700" fontSize={14} color="$colorCricket">
                   {formatUIText("your turn to nominate!")}
                 </Text>
               </XStack>
-              <Text fontFamily="$body" fontSize={11} color="$colorMuted" marginTop={4}>
-                {formatUIText("tap a player from the available list")}
-              </Text>
+
+              {/* AI suggestion */}
+              {topPick && (
+                <YStack backgroundColor="$backgroundSurface" borderRadius={8} padding="$2" marginBottom={baitPick ? "$2" : 0}>
+                  <XStack alignItems="center" gap="$2">
+                    <Ionicons name="sparkles" size={14} color="#5DB882" />
+                    <Text fontFamily="$mono" fontSize={10} fontWeight="700" color="$colorAccent">
+                      {formatUIText("suggested pick")}
+                    </Text>
+                  </XStack>
+                  <XStack
+                    marginTop={4}
+                    alignItems="center"
+                    gap="$2"
+                    backgroundColor="rgba(93, 184, 130, 0.08)"
+                    borderRadius={8}
+                    padding="$2"
+                    borderWidth={1}
+                    borderColor="rgba(93, 184, 130, 0.2)"
+                    onPress={() => handleNominate(topPick.id, topPick.name)}
+                    cursor="pointer"
+                    pressStyle={{ opacity: 0.8 }}
+                  >
+                    <InitialsAvatar
+                      name={topPick.name}
+                      playerRole={((topPick.role ?? "BAT").toUpperCase()) as RoleKey}
+                      ovr={topPick.credits ?? 80}
+                      size={28}
+                      imageUrl={topPick.photoUrl}
+                    />
+                    <YStack flex={1}>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1}>
+                        {topPick.name}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                        {formatRoleShort(topPick.role)} {formatTeamName(topPick.team)} — {topPickReason}
+                      </Text>
+                    </YStack>
+                    <Ionicons name="arrow-forward-circle" size={20} color="#5DB882" />
+                  </XStack>
+                </YStack>
+              )}
+
+              {/* Bait suggestion */}
+              {baitPick && (
+                <YStack backgroundColor="$backgroundSurface" borderRadius={8} padding="$2">
+                  <XStack alignItems="center" gap="$2">
+                    <Ionicons name="flame-outline" size={14} color="#D4A43D" />
+                    <Text fontFamily="$mono" fontSize={10} fontWeight="700" color="$colorCricket">
+                      {formatUIText("bait nomination")}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={8} color="$colorMuted">
+                      drain their budgets
+                    </Text>
+                  </XStack>
+                  <XStack
+                    marginTop={4}
+                    alignItems="center"
+                    gap="$2"
+                    backgroundColor="rgba(212, 164, 61, 0.08)"
+                    borderRadius={8}
+                    padding="$2"
+                    borderWidth={1}
+                    borderColor="rgba(212, 164, 61, 0.15)"
+                    onPress={() => handleNominate(baitPick.id, baitPick.name)}
+                    cursor="pointer"
+                    pressStyle={{ opacity: 0.8 }}
+                  >
+                    <InitialsAvatar
+                      name={baitPick.name}
+                      playerRole={((baitPick.role ?? "BAT").toUpperCase()) as RoleKey}
+                      ovr={baitPick.credits ?? 80}
+                      size={28}
+                      imageUrl={baitPick.photoUrl}
+                    />
+                    <YStack flex={1}>
+                      <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$color" numberOfLines={1}>
+                        {baitPick.name}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                        {formatRoleShort(baitPick.role)} {formatTeamName(baitPick.team)} — you don't need this role
+                      </Text>
+                    </YStack>
+                    <Ionicons name="arrow-forward-circle" size={20} color="#D4A43D" />
+                  </XStack>
+                </YStack>
+              )}
+
+              {!topPick && (
+                <Text fontFamily="$body" fontSize={11} color="$colorMuted" marginTop={4}>
+                  {formatUIText("tap a player from the available list")}
+                </Text>
+              )}
             </YStack>
-          ) : (
+            );
+          })() : (
             <XStack alignItems="center" gap="$2" justifyContent="center" paddingVertical="$2">
               <YStack width={8} height={8} borderRadius={4} backgroundColor="$colorCricket" opacity={0.6} />
               <Text fontFamily="$mono" fontWeight="500" fontSize={13} color="$colorMuted">
