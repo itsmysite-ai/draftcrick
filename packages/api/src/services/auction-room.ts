@@ -519,14 +519,20 @@ export function validateSquadRule(
   currentRoleCounts: Record<string, number>,
   newPlayerRole: string,
   currentTeamSize: number,
-  maxPlayersPerTeam: number,
 ): { valid: boolean; error?: string } {
+  const squadSize = squadRule.squadSize ?? 14;
+
+  // Squad full per the rule's squad size
+  if (currentTeamSize >= squadSize) {
+    return { valid: false, error: `Squad is full (${squadSize} players)` };
+  }
+
   // Map player roles to squad rule categories
   const roleCategory = mapRoleToCategory(newPlayerRole);
   const updated = { ...currentRoleCounts };
   updated[roleCategory] = (updated[roleCategory] ?? 0) + 1;
 
-  // Check max constraints
+  // Check max constraints for this role
   const maxField = `max${roleCategory}` as keyof SquadRule;
   const maxVal = squadRule[maxField] as number;
   if (typeof maxVal === "number" && updated[roleCategory]! > maxVal) {
@@ -534,7 +540,7 @@ export function validateSquadRule(
   }
 
   // Check if remaining slots can still fill minimum requirements
-  const remainingSlots = maxPlayersPerTeam - currentTeamSize - 1; // -1 for the player being added
+  const remainingSlots = squadSize - currentTeamSize - 1; // -1 for the player being added
   const categories = ["WK", "BAT", "BOWL", "AR"] as const;
   let slotsNeeded = 0;
   for (const cat of categories) {

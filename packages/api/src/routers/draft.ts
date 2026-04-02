@@ -327,7 +327,7 @@ export const draftRouter = router({
             }
             const squadCheck = validateSquadRule(
               rule, roleCounts, currentPlayer.role,
-              state.teamSizes[ctx.user.id] ?? 0, state.maxPlayersPerTeam,
+              state.teamSizes[ctx.user.id] ?? 0,
             );
             if (!squadCheck.valid) {
               throw new TRPCError({ code: "BAD_REQUEST", message: squadCheck.error ?? "Squad rule violated" });

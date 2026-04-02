@@ -1909,6 +1909,7 @@ const leagueConfigRouter = router({
     .input(z.object({
       id: z.string().min(1),
       name: z.string().min(1),
+      squadSize: z.number().min(11).max(20).default(14),
       minWK: z.number().min(0), minBAT: z.number().min(0),
       minBOWL: z.number().min(0), minAR: z.number().min(0),
       maxWK: z.number().min(0), maxBAT: z.number().min(0),

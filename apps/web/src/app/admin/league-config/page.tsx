@@ -145,12 +145,13 @@ export default function AuctionConfigPage() {
 interface SquadRuleForm {
   id: string;
   name: string;
+  squadSize: number;
   minWK: number; minBAT: number; minBOWL: number; minAR: number;
   maxWK: number; maxBAT: number; maxBOWL: number; maxAR: number;
 }
 
 const emptyRule: SquadRuleForm = {
-  id: "", name: "", minWK: 1, minBAT: 3, minBOWL: 3, minAR: 1, maxWK: 4, maxBAT: 7, maxBOWL: 7, maxAR: 5,
+  id: "", name: "", squadSize: 14, minWK: 1, minBAT: 3, minBOWL: 3, minAR: 1, maxWK: 4, maxBAT: 7, maxBOWL: 7, maxAR: 5,
 };
 
 function SquadRulesEditor({
@@ -199,7 +200,7 @@ function SquadRulesEditor({
               </span>
             )}
             <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8 }}>
-              WK: {rule.minWK}-{rule.maxWK} | BAT: {rule.minBAT}-{rule.maxBAT} | BOWL: {rule.minBOWL}-{rule.maxBOWL} | AR: {rule.minAR}-{rule.maxAR}
+              {rule.squadSize ?? 14} players | WK: {rule.minWK}-{rule.maxWK} | BAT: {rule.minBAT}-{rule.maxBAT} | BOWL: {rule.minBOWL}-{rule.maxBOWL} | AR: {rule.minAR}-{rule.maxAR}
             </span>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -223,6 +224,17 @@ function SquadRulesEditor({
                 onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                 placeholder="e.g. Balanced"
                 style={{ ...inputStyle, width: "100%", marginTop: 4 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--text-muted)" }}>Squad Size</label>
+              <input
+                type="number"
+                min={11}
+                max={20}
+                value={editing.squadSize}
+                onChange={(e) => setEditing({ ...editing, squadSize: Number(e.target.value) })}
+                style={{ ...inputStyle, marginTop: 4 }}
               />
             </div>
           </div>

@@ -119,7 +119,7 @@ export default function CreateLeagueScreen() {
   const [auctionBidIncrement, setAuctionBidIncrement] = useState(0.1);
   const [auctionSquadRule, setAuctionSquadRule] = useState("none");
   const [customSquadRule, setCustomSquadRule] = useState({
-    minWK: 1, maxWK: 4, minBAT: 3, maxBAT: 6, minBOWL: 3, maxBOWL: 6, minAR: 1, maxAR: 5,
+    squadSize: 14, minWK: 1, maxWK: 4, minBAT: 3, maxBAT: 6, minBOWL: 3, maxBOWL: 6, minAR: 1, maxAR: 5,
   });
   const [auctionSquadVisibility, setAuctionSquadVisibility] = useState("after_sold");
   const [auctionBuyerVisibility, setAuctionBuyerVisibility] = useState("during_auction");
@@ -213,14 +213,27 @@ export default function CreateLeagueScreen() {
       : `${trimmedName} ${suffix}`;
     const rules: Record<string, unknown> = { entryFee };
     if (format === "auction") {
+      // Resolve squad size from the selected rule
+      let maxPlayersPerTeam = 14; // fallback
+      if (auctionSquadRule === "custom") {
+        // Custom: sum of maxes capped at a reasonable number, or let user set it
+        // For now use 14 as default for custom rules
+        maxPlayersPerTeam = customSquadRule.squadSize ?? 14;
+      } else if (auctionSquadRule !== "none") {
+        const selectedRule = (auctionConfig?.squadRules ?? []).find((r: any) => r.id === auctionSquadRule);
+        maxPlayersPerTeam = selectedRule?.squadSize ?? 14;
+      }
+
       rules.auction = {
         bidIncrement: auctionBidIncrement,
         squadRule: auctionSquadRule,
+        maxPlayersPerTeam,
         squadVisibility: auctionSquadVisibility,
         buyerVisibility: auctionBuyerVisibility,
         maxPausesPerMember: auctionMaxPauses,
-        // Embed custom squad rule inline so the auction engine can use it
-        ...(auctionSquadRule === "custom" ? { customSquadRule: { id: "custom", name: "Custom", ...customSquadRule } } : {}),
+        ...(auctionSquadRule === "custom" ? {
+          customSquadRule: { id: "custom", name: "Custom", squadSize: customSquadRule.squadSize ?? 14, ...customSquadRule },
+        } : {}),
       };
     }
     createMutation.mutate({
@@ -497,7 +510,7 @@ export default function CreateLeagueScreen() {
                       {rule.name}
                     </Text>
                     <Text fontFamily="$mono" fontSize={9} color="$colorMuted" marginTop={2}>
-                      WK:{rule.minWK}-{rule.maxWK} BAT:{rule.minBAT}-{rule.maxBAT} BOWL:{rule.minBOWL}-{rule.maxBOWL} AR:{rule.minAR}-{rule.maxAR}
+                      {rule.squadSize ?? 14} players | WK:{rule.minWK}-{rule.maxWK} BAT:{rule.minBAT}-{rule.maxBAT} BOWL:{rule.minBOWL}-{rule.maxBOWL} AR:{rule.minAR}-{rule.maxAR}
                     </Text>
                   </Card>
                 ))}
@@ -523,6 +536,18 @@ export default function CreateLeagueScreen() {
                   <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$color" marginBottom="$2">
                     {formatUIText("custom squad rule")}
                   </Text>
+                  {/* Squad size */}
+                  <XStack justifyContent="space-between" alignItems="center" paddingVertical={4} marginBottom="$2" borderBottomWidth={1} borderBottomColor="$borderColor">
+                    <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$color">
+                      {formatUIText("squad size")}
+                    </Text>
+                    <Stepper
+                      value={customSquadRule.squadSize}
+                      onValue={(v: number) => setCustomSquadRule((prev) => ({ ...prev, squadSize: v }))}
+                      min={11}
+                      max={20}
+                    />
+                  </XStack>
                   {(["WK", "BAT", "BOWL", "AR"] as const).map((role) => {
                     const minKey = `min${role}` as keyof typeof customSquadRule;
                     const maxKey = `max${role}` as keyof typeof customSquadRule;

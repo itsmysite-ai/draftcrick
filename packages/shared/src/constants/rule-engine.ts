@@ -166,6 +166,7 @@ export interface DraftSpecificRules {
 export interface SquadRule {
   id: string;
   name: string;
+  squadSize: number; // total players in squad — replaces maxPlayersPerTeam
   minWK: number;
   minBAT: number;
   minBOWL: number;
@@ -181,24 +182,28 @@ export const DEFAULT_SQUAD_RULES: SquadRule[] = [
   {
     id: "balanced",
     name: "Balanced",
+    squadSize: 14,
     minWK: 1, minBAT: 3, minBOWL: 3, minAR: 1,
     maxWK: 4, maxBAT: 6, maxBOWL: 6, maxAR: 5,
   },
   {
     id: "ipl_style",
     name: "IPL Style",
+    squadSize: 14,
     minWK: 1, minBAT: 3, minBOWL: 3, minAR: 2,
     maxWK: 3, maxBAT: 6, maxBOWL: 6, maxAR: 5,
   },
   {
     id: "bat_heavy",
     name: "Bat Heavy",
+    squadSize: 14,
     minWK: 1, minBAT: 4, minBOWL: 3, minAR: 1,
     maxWK: 3, maxBAT: 7, maxBOWL: 5, maxAR: 4,
   },
   {
     id: "bowl_heavy",
     name: "Bowl Heavy",
+    squadSize: 14,
     minWK: 1, minBAT: 3, minBOWL: 4, minAR: 1,
     maxWK: 3, maxBAT: 5, maxBOWL: 7, maxAR: 4,
   },
