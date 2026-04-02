@@ -1,5 +1,8 @@
 import { createTamagui, createFont } from 'tamagui';
-import { tokens, animations, light, dark, cricket_light, cricket_dark, f1_light, f1_dark } from '@draftplay/ui';
+// Import theme modules directly to avoid loading reanimated-dependent components
+import { tokens } from './packages/ui/src/theme/tokens';
+import { animations } from './packages/ui/src/theme/animations';
+import { light, dark, cricket_light, cricket_dark, f1_light, f1_dark } from './packages/ui/src/theme/themes';
 
 /**
  * draftplay.ai — Tamagui Configuration

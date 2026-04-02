@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, connectAuthEmulator, initializeAuth, browserLocalPersistence } from "firebase/auth";
+import { getAuth, connectAuthEmulator, initializeAuth, inMemoryPersistence } from "firebase/auth";
 
 const emulatorHost = process.env.EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
 
@@ -12,25 +12,22 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]!;
 
-// When using the emulator, initialize auth with emulator connection before any validation
+// Use getAuth which auto-selects persistence per platform
 let auth: ReturnType<typeof getAuth>;
+try {
+  auth = getAuth(app);
+} catch {
+  auth = initializeAuth(app, { persistence: inMemoryPersistence });
+}
+
 if (emulatorHost) {
-  try {
-    // initializeAuth throws if auth is already initialized (e.g. hot reload)
-    auth = initializeAuth(app, { persistence: browserLocalPersistence });
-  } catch {
-    auth = getAuth(app);
-  }
-  // connectAuthEmulator is idempotent — safe to call again on hot reload
   try {
     connectAuthEmulator(auth, `http://${emulatorHost}`, { disableWarnings: true });
   } catch {
     // Already connected — ignore
   }
-} else {
-  auth = getAuth(app);
 }
 
 export { auth };

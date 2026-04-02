@@ -99,7 +99,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const gradientColors = useMemo(
     () =>
       mode === "light"
-        ? (["transparent", "rgba(247, 245, 240, 0.9)", "#F7F5F0"] as const)
+        ? (["rgba(247, 245, 240, 0)", "rgba(247, 245, 240, 0.9)", "#F7F5F0"] as const)
         : Gradients.tabBar,
     [mode],
   );

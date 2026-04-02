@@ -1,5 +1,5 @@
 import { SafeBackButton } from "../../components/SafeBackButton";
-import { TextInput, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import { TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -101,7 +101,7 @@ export default function GuruScreen() {
     ];
   }, [params.teamA, params.teamB]);
 
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<ScrollView>(null);
   const { tier, gate, hasAccess, paywallProps } = usePaywall();
   const usageQuery = trpc.guru.getUsageToday.useQuery(undefined, { staleTime: 60_000 });
   const serverUsed = usageQuery.data?.used ?? 0;
@@ -114,7 +114,7 @@ export default function GuruScreen() {
     {
       id: "welcome",
       role: "guru",
-      content: "hi! i'm your cricket guru. ask me about match conditions, player form, scoring rules, or how features in the app work. for team building and captain picks, check out projected points and captain picks on the match page!",
+      content: "hi! i'm your cricket guru. ask me about match conditions, player form, scoring rules, or how features in the app work.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -204,7 +204,7 @@ export default function GuruScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: theme.background.val }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={100}
+      keyboardVerticalOffset={0}
     >
       <XStack
         justifyContent="space-between"
@@ -222,10 +222,10 @@ export default function GuruScreen() {
         <XStack alignItems="center" gap="$2">
           {serverLimit !== null && (
             <XStack alignItems="center" gap="$1">
-              <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+              <Text fontFamily="$mono" fontSize={10} color={serverLimit - totalUsed <= 1 ? "$error" : "$colorMuted"}>
                 {Math.max(0, serverLimit - totalUsed)}/{serverLimit}
               </Text>
-              <TierBadge tier={tier ?? "basic"} size="sm" />
+              <TierBadge tier={tier ?? "free"} size="sm" />
             </XStack>
           )}
           <HeaderControls />
@@ -250,15 +250,18 @@ export default function GuruScreen() {
         </XStack>
       )}
 
-      <FlatList
+      <ScrollView
         ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
+        contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1, justifyContent: "flex-end" }}
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        testID="guru-messages"
+      >
+        {messages.map((item, index) => (
+          <Animated.View key={item.id} entering={FadeInDown.delay(index * 30).springify()}>
             <YStack
               maxWidth="85%"
-              padding="$4"
+              padding="$3"
               borderRadius="$4"
               alignSelf={item.role === "user" ? "flex-end" : "flex-start"}
               backgroundColor={item.role === "user" ? "$accentBackground" : "$backgroundSurface"}
@@ -271,7 +274,7 @@ export default function GuruScreen() {
                 <XStack alignItems="center" gap="$2" marginBottom="$1">
                   <DraftPlayLogo size={14} />
                   <Badge variant="role" size="sm">
-                    {formatBadgeText("cricket guru")}
+                    {formatBadgeText("guru")}
                   </Badge>
                 </XStack>
               )}
@@ -280,15 +283,15 @@ export default function GuruScreen() {
                   content={item.content}
                   onComplete={() => setTypingMessageId(null)}
                   fontFamily="$body"
-                  fontSize={15}
-                  lineHeight={22}
+                  fontSize={14}
+                  lineHeight={20}
                   color="$color"
                 />
               ) : (
                 <Text
                   fontFamily="$body"
-                  fontSize={15}
-                  lineHeight={22}
+                  fontSize={14}
+                  lineHeight={20}
                   color={item.role === "user" ? "$accentColor" : "$color"}
                 >
                   {item.content}
@@ -296,49 +299,43 @@ export default function GuruScreen() {
               )}
             </YStack>
           </Animated.View>
+        ))}
+        {isSending && (
+          <XStack paddingVertical="$2" gap="$2" alignItems="center">
+            <EggLoadingSpinner size={16} message="" />
+            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+              {formatUIText("guru is thinking...")}
+            </Text>
+          </XStack>
         )}
-        contentContainerStyle={{ padding: 16, gap: 12 }}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        testID="guru-messages"
-      />
-
-      {/* Typing indicator */}
-      {isSending && (
-        <XStack paddingHorizontal="$4" paddingBottom="$2" gap="$2" alignItems="center">
-          <EggLoadingSpinner size={16} message="" />
-          <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
-            {formatUIText("guru is thinking...")}
-          </Text>
-        </XStack>
-      )}
-
-      {/* Suggestion chips */}
-      {messages.length <= 1 && (
-        <XStack flexWrap="wrap" gap="$2" paddingHorizontal="$4" paddingBottom="$3">
-          {suggestions.map((s) => (
-            <XStack
-              key={s}
-              backgroundColor="$backgroundSurface"
-              borderRadius="$round"
-              paddingHorizontal="$4"
-              paddingVertical="$2"
-              borderWidth={1}
-              borderColor="$borderColor"
-              onPress={() => sendMessage(s)}
-              cursor="pointer"
-              pressStyle={{ scale: 0.97, backgroundColor: "$backgroundSurfaceHover" }}
-              testID={`suggestion-${s.slice(0, 10)}`}
-            >
-              <Text fontFamily="$body" fontSize={13} color="$colorSecondary">{s}</Text>
-            </XStack>
-          ))}
-        </XStack>
-      )}
+        {messages.length <= 1 && (
+          <YStack gap="$2.5" paddingTop="$3">
+            {suggestions.map((s) => (
+              <XStack
+                key={s}
+                backgroundColor="$backgroundSurface"
+                borderRadius="$round"
+                paddingHorizontal="$3"
+                paddingVertical="$2"
+                borderWidth={1}
+                borderColor="$borderColor"
+                onPress={() => sendMessage(s)}
+                cursor="pointer"
+                pressStyle={{ scale: 0.97, backgroundColor: "$backgroundSurfaceHover" }}
+                testID={`suggestion-${s.slice(0, 10)}`}
+              >
+                <Text fontFamily="$body" fontSize={12} color="$colorSecondary">{s}</Text>
+              </XStack>
+            ))}
+          </YStack>
+        )}
+      </ScrollView>
 
       {/* Input */}
       <XStack
-        padding="$3"
-        paddingBottom={insets.bottom + 8}
+        paddingHorizontal="$3"
+        paddingVertical="$2"
+        paddingBottom={Math.max(insets.bottom, 8)}
         gap="$2"
         borderTopWidth={1}
         borderTopColor="$borderColor"
@@ -362,18 +359,23 @@ export default function GuruScreen() {
           editable={!isSending}
           testID="guru-input"
         />
-        <Button
-          variant="primary"
-          size="md"
+        <XStack
+          backgroundColor={isSending || !input.trim() ? "$backgroundSurfaceAlt" : "$accentBackground"}
           borderRadius={24}
-          paddingHorizontal="$5"
-          onPress={() => sendMessage()}
-          disabled={isSending || !input.trim()}
+          paddingHorizontal={20}
+          paddingVertical={12}
+          alignItems="center"
+          justifyContent="center"
           opacity={isSending || !input.trim() ? 0.5 : 1}
+          onPress={() => sendMessage()}
+          pressStyle={{ scale: 0.96 }}
+          cursor="pointer"
           testID="guru-send-btn"
         >
-          {formatUIText("send")}
-        </Button>
+          <Text fontFamily="$mono" fontWeight="700" fontSize={13} color={isSending || !input.trim() ? "$colorMuted" : "$accentColor"}>
+            {formatUIText("send")}
+          </Text>
+        </XStack>
       </XStack>
 
       <Paywall {...paywallProps} />

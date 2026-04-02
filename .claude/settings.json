@@ -177,7 +177,9 @@
       "Bash(gcloud auth:*)",
       "Bash(gcloud services:*)",
       "Bash(./scripts/deploy-api.sh 0.1.0 --skip-branch)",
-      "Bash(gcloud projects:*)"
+      "Bash(gcloud projects:*)",
+      "Bash(read f:*)",
+      "Bash(ln -s /Users/chandanreddy/Documents/draftcrick/node_modules/react-native-worklets node_modules/moti/node_modules/react-native-worklets)"
     ],
     "additionalDirectories": [
       "/tmp",
@@ -186,7 +188,9 @@
       "/Users/chandanreddy/Documents/draftcrick/tests/e2e/cricket-story/screenshots",
       "/Users/chandanreddy/Library/Caches/ms-playwright",
       "/Users/chandanreddy/Documents/draftcrick/apps/mobile/app/match",
-      "/private/tmp/claude-501/-Users-chandanreddy-Documents-draftcrick/tasks"
+      "/private/tmp/claude-501/-Users-chandanreddy-Documents-draftcrick/tasks",
+      "/Users/chandanreddy/Documents/draftcrick/packages/*",
+      "/Users/chandanreddy/Documents/draftcrick/node_modules/moti/node_modules/react-native-worklets"
     ]
   }
 }

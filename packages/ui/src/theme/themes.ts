@@ -1,4 +1,4 @@
-import { createTheme } from "tamagui";
+// Tamagui v2: themes are plain objects (createTheme was removed)
 import { tokens } from "./tokens";
 
 /**
@@ -144,7 +144,7 @@ const darkBase = {
  * draftplay.ai — Light theme (default = cricket)
  * Warm off-white backgrounds, earthy green accents.
  */
-export const light = createTheme({
+export const light = ({
   ...lightBase,
   accentBackground: tokens.color.accent,
   accentColor: tokens.color.white,
@@ -165,7 +165,7 @@ export const light = createTheme({
  * draftplay.ai — Dark theme (default = cricket)
  * Deep charcoal-green backgrounds, lighter green accents.
  */
-export const dark = createTheme({
+export const dark = ({
   ...darkBase,
   accentBackground: tokens.color.accentHover,
   accentColor: tokens.color.charcoalDeep,
@@ -184,7 +184,7 @@ export const dark = createTheme({
 
 // ─── Cricket sub-themes (explicit) ─────────────────────────────
 
-export const cricket_light = createTheme({
+export const cricket_light = ({
   ...lightBase,
   accentBackground: tokens.color.accent,
   accentColor: tokens.color.white,
@@ -201,7 +201,7 @@ export const cricket_light = createTheme({
   ...transparentF1Roles,
 });
 
-export const cricket_dark = createTheme({
+export const cricket_dark = ({
   ...darkBase,
   accentBackground: tokens.color.accentHover,
   accentColor: tokens.color.charcoalDeep,
@@ -220,7 +220,7 @@ export const cricket_dark = createTheme({
 
 // ─── F1 sub-themes ─────────────────────────────────────────────
 
-export const f1_light = createTheme({
+export const f1_light = ({
   // F1 light — cool silver/steel instead of warm whites
   background: "#F0F1F5",
   backgroundHover: "#E6E8EE",
@@ -256,7 +256,7 @@ export const f1_light = createTheme({
   ...f1RolesLight,
 });
 
-export const f1_dark = createTheme({
+export const f1_dark = ({
   // F1 dark — deep carbon fiber with blue-steel undertone
   background: "#0C0C14",
   backgroundHover: "#141420",

@@ -35,6 +35,7 @@
     "db:local": "./scripts/local-db.sh start",
     "db:local:stop": "./scripts/local-db.sh stop",
     "db:local:psql": "./scripts/local-db.sh psql",
+    "expo:prod": "cd apps/mobile && cp ../../.env.expo-prod .env.local.bak && cp ../../.env.expo-prod .env.local && npx expo start --clear; mv .env.local.bak .env.local",
     "test:emulator": "node scripts/test-with-emulator.js",
     "test:type-check": "turbo type-check",
     "test:regression": "node scripts/test-regression.js",
@@ -48,9 +49,11 @@
     "typescript": "^5.7.0"
   },
   "pnpm": {
-    "patchedDependencies": {
-      "expo-router@4.0.22": "patches/expo-router@4.0.22.patch",
-      "expo-modules-core@2.2.3": "patches/expo-modules-core@2.2.3.patch"
+    "overrides": {
+      "react": "19.1.0",
+      "react-dom": "19.1.0",
+      "@expo/metro-runtime": "~5.0.4",
+      "react-native-worklets": "0.5.1"
     }
   },
   "packageManager": "pnpm@9.15.4",

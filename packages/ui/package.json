@@ -8,11 +8,18 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "tamagui": "^1.114.0",
-    "@tamagui/config": "^1.114.0",
-    "@tamagui/core": "^1.114.0",
-    "@tamagui/themes": "^1.114.0",
+    "tamagui": "^2.0.0-rc.1",
+    "@tamagui/config": "^2.0.0-rc.1",
+    "@tamagui/core": "^2.0.0-rc.1",
+    "@tamagui/themes": "^2.0.0-rc.1",
+    "@tamagui/animations-css": "^2.0.0-rc.1",
     "react": "^18.3.0"
+  },
+  "peerDependencies": {
+    "react-native-reanimated": "*"
+  },
+  "peerDependenciesMeta": {
+    "react-native-reanimated": { "optional": true }
   },
   "devDependencies": {
     "@draftplay/tsconfig": "workspace:*",

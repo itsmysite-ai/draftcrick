@@ -405,7 +405,7 @@ export default function LiveScreen() {
         <XStack alignItems="center" gap="$2">
           <YStack width={4} height={20} borderRadius={2} backgroundColor="$error" />
           <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
-            {formatUIText("live & upcoming")}
+            {formatUIText("matches")}
           </Text>
         </XStack>
 

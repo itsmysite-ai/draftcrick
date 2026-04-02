@@ -39,6 +39,19 @@ const webShimPath = path.resolve(projectRoot, "web-shims/expo-modules.js");
 // and to handle pnpm's node_modules structure
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Force these modules to resolve from root to avoid moti's nested copies
+  // (moti ships 4.1.7/0.8.1 but Expo Go has native code for 4.1.1/0.5.1)
+  const forceRootModules = {
+    "react-native-worklets": "src/index.ts",
+    "react-native-reanimated": "src/index.ts",
+  };
+  if (forceRootModules[moduleName]) {
+    const rootPkg = path.join(monorepoRoot, "node_modules", moduleName);
+    const entry = path.join(rootPkg, forceRootModules[moduleName]);
+    if (fs.existsSync(entry)) {
+      return { filePath: entry, type: "sourceFile" };
+    }
+  }
   // On web, redirect native-only Expo modules to no-op shim
   if (platform === "web" && nativeOnlyModules.has(moduleName)) {
     return { filePath: webShimPath, type: "sourceFile" };

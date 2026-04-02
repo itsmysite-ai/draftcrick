@@ -169,16 +169,12 @@ export default function LoginScreen() {
     setIsSubmitting(true);
     try {
       await signIn(email, password);
-      // Check if there's a redirect URL (e.g. from Day Pass link)
-      const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
-      if (redirect) {
-        sessionStorage.removeItem("auth_redirect");
-      }
-      // Use window.location on web for a clean navigation (avoids SPA routing issues)
-      if (typeof window !== "undefined") {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
+        if (redirect) sessionStorage.removeItem("auth_redirect");
         window.location.href = redirect || "/";
       } else {
-        router.replace(redirect ? (redirect as any) : "/(tabs)");
+        router.replace("/(tabs)");
       }
     } catch (e: any) {
       setLocalError(e.message ?? "Sign in failed");
@@ -290,12 +286,13 @@ export default function LoginScreen() {
             setIsSubmitting(true);
             try {
               await signInWithGoogle();
-              const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
-              if (redirect) sessionStorage.removeItem("auth_redirect");
-              if (typeof window !== "undefined") {
+              // Navigate after successful sign-in
+              if (Platform.OS === "web" && typeof window !== "undefined") {
+                const redirect = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("auth_redirect") : null;
+                if (redirect) sessionStorage.removeItem("auth_redirect");
                 (window as any).location.href = redirect || "/";
               } else {
-                router.replace(redirect ? (redirect as any) : "/(tabs)");
+                router.replace("/(tabs)");
               }
             } catch (e: any) {
               setLocalError(e.message ?? "Google sign in failed");
@@ -306,8 +303,8 @@ export default function LoginScreen() {
             {isSubmitting ? formatUIText("signing in...") : formatUIText("sign in with google")}
           </Button>
 
-          {/* Email/password sign-in — dev only (emulator doesn't support Google OAuth) */}
-          {__DEV__ && (
+          {/* Email/password sign-in */}
+          {(
             <>
               <XStack alignItems="center" marginVertical="$2">
                 <YStack flex={1} height={1} backgroundColor="$borderColor" />

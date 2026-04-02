@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { Platform } from "react-native";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -7,8 +8,18 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
 } from "firebase/auth";
+import * as AuthSession from "expo-auth-session";
+import * as WebBrowser from "expo-web-browser";
 import { auth } from "../lib/firebase";
 import { setTRPCToken } from "../lib/trpc";
+
+// Required for expo-auth-session to handle the redirect on native
+if (Platform.OS !== "web") {
+  WebBrowser.maybeCompleteAuthSession();
+}
+
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
 interface AuthUser {
   id: string;
@@ -43,13 +54,6 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-/**
- * AuthProvider wraps the app with Firebase Auth state.
- *
- * Firebase Auth handles sign-in (email/password, Google, Apple, Phone OTP).
- * The Firebase ID token is sent to our API server via Authorization: Bearer <token>.
- * The API server verifies the token with firebase-admin and extracts the user.
- */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      // Set token immediately so tRPC calls right after signUp work
       const token = await cred.user.getIdToken();
       setFirebaseToken(token);
       setTRPCToken(token);
@@ -107,12 +110,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleSignInWithGoogle = async () => {
     setError(null);
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      // Set token immediately
-      const token = await result.user.getIdToken();
-      setFirebaseToken(token);
-      setTRPCToken(token);
+      if (Platform.OS === "web") {
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        const token = await result.user.getIdToken();
+        setFirebaseToken(token);
+        setTRPCToken(token);
+      } else {
+        // Native: OAuth via expo-auth-session with Expo proxy for stable HTTPS redirect
+        const proxyRedirectUri = "https://auth.expo.io/@chandan.social.7/draftplay";
+        const discovery = {
+          authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+          tokenEndpoint: "https://oauth2.googleapis.com/token",
+        };
+
+        const request = new AuthSession.AuthRequest({
+          clientId: GOOGLE_WEB_CLIENT_ID || "",
+          redirectUri: proxyRedirectUri,
+          scopes: ["openid", "profile", "email"],
+          responseType: AuthSession.ResponseType.IdToken,
+          usePKCE: false,
+          extraParams: { nonce: Math.random().toString(36).substring(7) },
+        });
+
+        const result = await request.promptAsync(discovery);
+
+        if (result.type === "success" && result.params?.id_token) {
+          const credential = GoogleAuthProvider.credential(result.params.id_token);
+          const fbResult = await signInWithCredential(auth, credential);
+          const token = await fbResult.user.getIdToken();
+          setFirebaseToken(token);
+          setTRPCToken(token);
+        } else if (result.type === "error") {
+          throw new Error(result.error?.message ?? "Google sign in failed");
+        }
+      }
     } catch (e: any) {
       setError(e.message ?? "Google sign in failed");
       throw e;

@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.draftplay.app",
+      "bundleIdentifier": "ai.draftplay.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "DraftPlay uses your location to verify you are in a state where fantasy sports are available.",
         "NSUserTrackingUsageDescription": "DraftPlay uses this to provide a better experience and show relevant content.",
@@ -63,7 +63,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#0A1628"
       },
-      "package": "com.draftplay.app"
+      "package": "ai.draftplay.app"
     },
     "web": {
       "bundler": "metro",

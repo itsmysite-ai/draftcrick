@@ -20,8 +20,11 @@ export function HeaderControls({ hideSport, hideNotifications }: { hideSport?: b
   const { unreadCount } = useNotifications();
   const router = useRouter();
 
-  const showDropdown = !hideSport && availableSports.length > 1;
-  const showStaticBadge = !hideSport && availableSports.length === 1;
+  // TODO: Re-enable when F1 or other sports are implemented
+  // const showDropdown = !hideSport && availableSports.length > 1;
+  // const showStaticBadge = !hideSport && availableSports.length === 1;
+  const showDropdown = false;
+  const showStaticBadge = false;
   const sportLabel = sport === "cricket" ? "Cricket" : "F1";
 
   return (
