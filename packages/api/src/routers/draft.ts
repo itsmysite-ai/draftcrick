@@ -706,7 +706,7 @@ export const draftRouter = router({
 
   // ── Auction Config Options (for league creation) ────────
 
-  getAuctionConfigOptions: protectedProcedure
+  getAuctionConfigOptions: publicProcedure
     .query(async () => {
       const adminSquadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
       // Merge defaults with admin-created rules (admin rules override defaults with same id)
