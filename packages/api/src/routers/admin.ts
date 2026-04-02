@@ -1888,7 +1888,7 @@ const configRouter = router({
     }),
 });
 
-const auctionConfigRouter = router({
+const leagueConfigRouter = router({
   /** Get all auction platform config (squad rules, pause cap, bid increments, defaults) */
   getConfig: adminProcedure.query(async () => {
     const squadRules = await getAdminConfig<any[]>("auction_squad_rules") ?? [];
@@ -2370,7 +2370,7 @@ export const adminRouter = router({
   players: playersRouter,
   contests: contestsRouter,
   config: configRouter,
-  auctionConfig: auctionConfigRouter,
+  leagueConfig: leagueConfigRouter,
   users: usersRouter,
   system: systemRouter,
   revenue: revenueRouter,

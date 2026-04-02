@@ -61,22 +61,29 @@ const btnSecondary: React.CSSProperties = {
 };
 
 export default function AuctionConfigPage() {
-  const config = trpc.admin.auctionConfig.getConfig.useQuery();
-  const upsertSquadRule = trpc.admin.auctionConfig.upsertSquadRule.useMutation({ onSuccess: () => config.refetch() });
-  const deleteSquadRule = trpc.admin.auctionConfig.deleteSquadRule.useMutation({ onSuccess: () => config.refetch() });
-  const updatePlatform = trpc.admin.auctionConfig.updatePlatformSettings.useMutation({ onSuccess: () => config.refetch() });
-  const forceResume = trpc.admin.auctionConfig.forceResume.useMutation({ onSuccess: () => { pausedAuctions.refetch(); } });
-  const pausedAuctions = trpc.admin.auctionConfig.listPaused.useQuery();
+  const config = trpc.admin.leagueConfig.getConfig.useQuery();
+  const upsertSquadRule = trpc.admin.leagueConfig.upsertSquadRule.useMutation({ onSuccess: () => config.refetch() });
+  const deleteSquadRule = trpc.admin.leagueConfig.deleteSquadRule.useMutation({ onSuccess: () => config.refetch() });
+  const updatePlatform = trpc.admin.leagueConfig.updatePlatformSettings.useMutation({ onSuccess: () => config.refetch() });
+  const forceResume = trpc.admin.leagueConfig.forceResume.useMutation({ onSuccess: () => { pausedAuctions.refetch(); } });
+  const pausedAuctions = trpc.admin.leagueConfig.listPaused.useQuery();
 
   return (
     <div>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>Auction Config</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>League Config</h1>
+      <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 24, marginTop: -16 }}>
+        Configure settings for all league formats — auction, draft, salary cap.
+      </p>
+
+      {/* ── Squad Rules (used by auction + draft) ── */}
       <SquadRulesEditor
         rules={config.data?.squadRules ?? []}
         onSave={(rule) => upsertSquadRule.mutate(rule)}
         onDelete={(id) => deleteSquadRule.mutate({ id })}
         saving={upsertSquadRule.isPending}
       />
+
+      {/* ── Auction Settings ── */}
       <PlatformSettingsEditor
         maxPausesCap={config.data?.maxPausesCap ?? 5}
         bidIncrementOptions={config.data?.bidIncrementOptions ?? [0.1, 0.2, 0.5, 1.0]}
@@ -84,6 +91,26 @@ export default function AuctionConfigPage() {
         onSave={(data) => updatePlatform.mutate(data)}
         saving={updatePlatform.isPending}
       />
+
+      {/* ── Draft Settings (placeholder) ── */}
+      <div style={sectionStyle}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Draft Settings</h2>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          Default settings for snake draft leagues (time per pick, keeper slots, max rounds).
+          Currently using template defaults — admin overrides coming soon.
+        </p>
+      </div>
+
+      {/* ── Salary Cap Settings (placeholder) ── */}
+      <div style={sectionStyle}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Salary Cap Settings</h2>
+        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          Default budget, price dynamics, and transfer rules for salary cap leagues.
+          Currently using template defaults — admin overrides coming soon.
+        </p>
+      </div>
+
+      {/* ── Active Paused Auctions (operational) ── */}
       <PausedAuctionsPanel
         auctions={pausedAuctions.data ?? []}
         onForceResume={(roomId) => forceResume.mutate({ roomId })}

@@ -14,7 +14,7 @@ const NAV_ITEMS: { href: string; label: string; icon: string; adminOnly?: boolea
   { href: "/admin/contests", label: "Contests", icon: "C", adminOnly: true },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: "★", adminOnly: true },
   { href: "/admin/config", label: "Config", icon: "#", adminOnly: true },
-  { href: "/admin/auction-config", label: "Auction Config", icon: "A", adminOnly: true },
+  { href: "/admin/league-config", label: "League Config", icon: "L", adminOnly: true },
   { href: "/admin/users", label: "Users", icon: "U" },
   { href: "/admin/system", label: "System", icon: "S", adminOnly: true },
   { href: "/admin/revenue", label: "Revenue", icon: "$", adminOnly: true },
