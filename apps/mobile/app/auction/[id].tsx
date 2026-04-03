@@ -641,7 +641,15 @@ export default function AuctionRoomScreen() {
                       </Text>
                       {!isAcquired && !isGone && (
                         <YStack
-                          onPress={() => toggleTargetMutation.mutate({ roomId: roomId!, playerId: target.playerId })}
+                          onPress={() => {
+                            if (isManual) {
+                              // Manual picks: just remove from list
+                              toggleTargetMutation.mutate({ roomId: roomId!, playerId: target.playerId });
+                            } else {
+                              // AI picks: skip so they don't come back on rebuild
+                              skipMutation.mutate({ roomId: roomId!, playerId: target.playerId });
+                            }
+                          }}
                           cursor="pointer"
                           pressStyle={{ opacity: 0.7 }}
                           padding={2}
