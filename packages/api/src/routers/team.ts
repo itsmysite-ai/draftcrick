@@ -426,19 +426,21 @@ export const teamRouter = router({
         }
       }
 
-      // Budget validation
+      } // end skipRoleValidation
+
+      // Calculate total credits (needed for creditsUsed field)
       let totalCredits = 0;
       for (const p of playerRecords) {
         totalCredits += getPlayerCredits(p.stats as Record<string, unknown>);
       }
 
-      if (totalCredits > rules.maxBudget) {
+      // Budget validation (only for salary cap)
+      if (!skipRoleValidation && totalCredits > rules.maxBudget) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Budget exceeded. Used ${totalCredits.toFixed(1)} / ${rules.maxBudget} credits`,
         });
       }
-      } // end skipRoleValidation
 
       // Auto-generate fun team name if not provided
       let teamName = input.name?.trim() || "";
