@@ -179,15 +179,34 @@ export default function PickXIScreen() {
   });
 
   const handleSubmit = () => {
-    if (!matchId || !contestId || !captainId || !viceCaptainId) return;
+    if (!matchId || !contestId) return;
+    const effCaptain = captainId ?? selectedPlayers[0]?.id;
+    const effVC = viceCaptainId ?? (selectedPlayers.length > 1 ? selectedPlayers[1]?.id : effCaptain);
+    if (!effCaptain || !effVC) return;
     createTeamMutation.mutate({
       matchId,
       contestId,
       players: selectedPlayers.map((p) => ({ playerId: p.id, role: p.role })),
-      captainId,
-      viceCaptainId,
+      captainId: effCaptain,
+      viceCaptainId: effVC,
     });
   };
+
+  // Auto-submit when only 1 eligible player — they're captain, no VC needed
+  const autoSubmittedOnce = useRef(false);
+  useEffect(() => {
+    if (!autoSubmittedOnce.current && effectiveTeamSize === 1 && selectedPlayers.length === 1 && matchId && contestId) {
+      autoSubmittedOnce.current = true;
+      const player = selectedPlayers[0]!;
+      createTeamMutation.mutate({
+        matchId,
+        contestId,
+        players: [{ playerId: player.id, role: player.role }],
+        captainId: player.id,
+        viceCaptainId: player.id, // same player as both C and VC
+      });
+    }
+  }, [effectiveTeamSize, selectedPlayers.length, matchId, contestId]);
 
   // Loading
   if (!squad.length && myPickPlayerIds.length === 0) {
@@ -317,10 +336,20 @@ export default function PickXIScreen() {
             size="lg"
             disabled={selectedIds.size < effectiveTeamSize}
             opacity={selectedIds.size < effectiveTeamSize ? 0.5 : 1}
-            onPress={() => setStep("captain")}
+            onPress={() => {
+              if (effectiveTeamSize <= 2) {
+                // Auto-assign captain (and VC if 2 players) and submit
+                const sorted = selectedPlayers.sort((a, b) => b.credits - a.credits);
+                setCaptainId(sorted[0]?.id ?? null);
+                setViceCaptainId(sorted[1]?.id ?? sorted[0]?.id ?? null);
+                setTimeout(() => handleSubmit(), 100);
+              } else {
+                setStep("captain");
+              }
+            }}
           >
             {selectedIds.size >= effectiveTeamSize
-              ? formatUIText("select captain & vc")
+              ? effectiveTeamSize <= 2 ? formatUIText("confirm team") : formatUIText("select captain & vc")
               : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more players`)}
           </Button>
         </YStack>
