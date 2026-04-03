@@ -1,4 +1,5 @@
 import { SafeBackButton } from "../../components/SafeBackButton";
+import { Fireworks } from "../../components/Fireworks";
 import { ScrollView, RefreshControl, Share as RNShare, Clipboard } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -318,21 +319,11 @@ export default function ContestDetailScreen() {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.background.val }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />} testID="contest-detail-screen">
-      {/* Confetti overlay (#7) */}
-      {showCelebration && (
-        <YStack position="absolute" top={0} left={0} right={0} height={500} zIndex={100} pointerEvents="none">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <ConfettiParticle
-              key={i}
-              delay={i * 80}
-              color={CONFETTI_COLORS[i % CONFETTI_COLORS.length]!}
-              startX={30 + (i * 13) % 300}
-            />
-          ))}
-        </YStack>
-      )}
+    <YStack flex={1} backgroundColor="$background">
+      {/* Fireworks celebration overlay — outside ScrollView for full-screen coverage */}
+      {isSettled && prizeWon > 0 && <Fireworks />}
 
+    <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />} testID="contest-detail-screen">
       {/* Header */}
       <XStack
         justifyContent="space-between"
@@ -1188,5 +1179,6 @@ export default function ContestDetailScreen() {
         </YStack>
       )}
     </ScrollView>
+    </YStack>
   );
 }
