@@ -473,9 +473,16 @@ export const auctionAiRouter = router({
 
       const existing = squad.targets.findIndex((t) => t.playerId === input.playerId);
       if (existing >= 0) {
-        // Remove
-        squad.targets.splice(existing, 1);
-        // Re-prioritize
+        const removed = squad.targets[existing]!;
+        if (removed.addedBy === "ai") {
+          // AI-suggested player removed by user → mark as skipped so AI won't suggest again
+          removed.status = "skipped" as any;
+          removed.addedBy = "manual"; // user made the decision
+        } else {
+          // Manual pick removed → just delete it
+          squad.targets.splice(existing, 1);
+        }
+        // Re-prioritize active targets
         squad.targets.forEach((t, i) => { t.priority = i + 1; });
       } else {
         // Add
