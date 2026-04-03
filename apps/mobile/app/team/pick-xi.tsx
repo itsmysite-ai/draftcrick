@@ -138,17 +138,19 @@ export default function PickXIScreen() {
     });
   }, [squad, teamA, teamB]);
 
-  // Auto-select all eligible players if they fit within 11
+  // Effective team size: can't exceed number of eligible players
+  const effectiveTeamSize = Math.min(TEAM_SIZE, matchEligible.length);
+
+  // Auto-select all eligible players if they fit
   const autoSelectedOnce = useRef(false);
   useEffect(() => {
     if (!autoSelectedOnce.current && matchEligible.length > 0 && selectedIds.size === 0) {
       autoSelectedOnce.current = true;
-      if (matchEligible.length <= TEAM_SIZE) {
+      if (matchEligible.length <= effectiveTeamSize) {
         setSelectedIds(new Set(matchEligible.map((p) => p.id)));
       }
     }
   }, [matchEligible]);
-
   const selectedPlayers = matchEligible.filter((p) => selectedIds.has(p.id));
 
   const togglePlayer = useCallback((id: string) => {
@@ -159,12 +161,12 @@ export default function PickXIScreen() {
         if (captainId === id) setCaptainId(null);
         if (viceCaptainId === id) setViceCaptainId(null);
       } else {
-        if (next.size >= TEAM_SIZE) return prev;
+        if (next.size >= effectiveTeamSize) return prev;
         next.add(id);
       }
       return next;
     });
-  }, [captainId, viceCaptainId]);
+  }, [captainId, viceCaptainId, effectiveTeamSize]);
 
   // Create team mutation
   const createTeamMutation = trpc.team.create.useMutation({
@@ -216,14 +218,14 @@ export default function PickXIScreen() {
         {/* Squad banner */}
         <XStack backgroundColor="$accentBackground" paddingVertical="$2" paddingHorizontal="$4" justifyContent="space-between" alignItems="center">
           <Text fontFamily="$mono" fontWeight="700" fontSize={11} color="$accentColor">
-            {selectedIds.size === TEAM_SIZE
-              ? formatUIText("xi selected — pick captain")
-              : formatUIText(`select ${TEAM_SIZE - selectedIds.size} more`)}
+            {selectedIds.size >= effectiveTeamSize
+              ? formatUIText("all selected — pick captain")
+              : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more`)}
           </Text>
           <Text fontFamily="$mono" fontWeight="700" fontSize={11} color="$accentColor">
-            {selectedIds.size}/{TEAM_SIZE}
+            {selectedIds.size}/{effectiveTeamSize}
             {matchEligible.length < squad.length && (
-              ` (${matchEligible.length} from your squad eligible)`
+              ` (${matchEligible.length} from your squad in this match)`
             )}
           </Text>
         </XStack>
@@ -244,7 +246,7 @@ export default function PickXIScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
           renderItem={({ item, index }) => {
             const isSelected = selectedIds.has(item.id);
-            const isDisabled = !isSelected && selectedIds.size >= TEAM_SIZE;
+            const isDisabled = !isSelected && selectedIds.size >= effectiveTeamSize;
             return (
               <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
                 <XStack
@@ -313,13 +315,13 @@ export default function PickXIScreen() {
           <Button
             variant="primary"
             size="lg"
-            disabled={selectedIds.size !== TEAM_SIZE}
-            opacity={selectedIds.size !== TEAM_SIZE ? 0.5 : 1}
+            disabled={selectedIds.size < effectiveTeamSize}
+            opacity={selectedIds.size < effectiveTeamSize ? 0.5 : 1}
             onPress={() => setStep("captain")}
           >
-            {selectedIds.size === TEAM_SIZE
+            {selectedIds.size >= effectiveTeamSize
               ? formatUIText("select captain & vc")
-              : formatUIText(`select ${TEAM_SIZE - selectedIds.size} more players`)}
+              : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more players`)}
           </Button>
         </YStack>
 
