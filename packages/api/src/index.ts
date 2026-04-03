@@ -102,7 +102,10 @@ const allowedOrigins = (
 ).split(",").map((o) => o.trim());
 
 // Global middleware
-app.use("*", logger());
+// Request logger — enable with LOG_REQUESTS=1 (off by default to reduce dev noise)
+if (process.env.LOG_REQUESTS === "1") {
+  app.use("*", logger());
+}
 app.use(
   "*",
   cors({

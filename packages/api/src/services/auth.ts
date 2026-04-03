@@ -31,15 +31,20 @@ export async function getFirebaseAuth(): Promise<Auth> {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
     if (projectId && privateKey && clientEmail) {
+      // Production: service account credentials
       firebaseApp = initializeApp({
         credential: cert({ projectId, privateKey, clientEmail } as ServiceAccount),
       });
-    } else if (projectId) {
-      // Emulator or project-ID-only mode (no service account credentials)
+    } else if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+      // Local dev: emulator mode — no credentials needed, SDK auto-connects to emulator
       firebaseApp = initializeApp({ projectId });
     } else {
-      // Falls back to GOOGLE_APPLICATION_CREDENTIALS or GCE metadata
-      firebaseApp = initializeApp();
+      // Fallback: ADC (gcloud auth, GCE metadata, or GOOGLE_APPLICATION_CREDENTIALS)
+      const { applicationDefault } = await import("firebase-admin/app");
+      firebaseApp = initializeApp({
+        credential: applicationDefault(),
+        projectId,
+      });
     }
   }
 
@@ -53,6 +58,10 @@ export async function getFirebaseAuth(): Promise<Auth> {
  */
 export async function verifyIdToken(token: string) {
   try {
+    if (!token || token === "null" || token === "undefined" || token.length < 50) {
+      console.error("[AUTH] verifyIdToken: invalid token (empty/short)", { length: token?.length, preview: token?.slice(0, 20) });
+      return null;
+    }
     const auth = await getFirebaseAuth();
     return await auth.verifyIdToken(token);
   } catch (err: any) {
