@@ -254,7 +254,7 @@ export default function PickXIScreen() {
             <XStack alignItems="center" gap="$3">
               <SafeBackButton />
               <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
-                {formatUIText("pick your xi")}
+                {formatUIText("pick from your xi")}
               </Text>
             </XStack>
             <HeaderControls />
@@ -287,14 +287,15 @@ export default function PickXIScreen() {
           </XStack>
         )}
 
-        {/* Player list */}
+        {/* Player list — full squad, eligible first, ineligible grayed out */}
         <FlatList
-          data={matchEligible}
+          data={[...matchEligible, ...squad.filter((p) => !matchEligible.some((e) => e.id === p.id))]}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
           renderItem={({ item, index }) => {
+            const isEligible = matchEligible.some((e) => e.id === item.id);
             const isSelected = selectedIds.has(item.id);
-            const isDisabled = !isSelected && selectedIds.size >= effectiveTeamSize;
+            const isDisabled = !isEligible || (!isSelected && selectedIds.size >= effectiveTeamSize);
             return (
               <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
                 <XStack
@@ -303,8 +304,8 @@ export default function PickXIScreen() {
                   borderBottomWidth={1}
                   borderBottomColor="$borderColor"
                   gap="$2"
-                  opacity={isDisabled ? 0.4 : 1}
-                  onPress={() => !isDisabled && togglePlayer(item.id)}
+                  opacity={!isEligible ? 0.3 : isDisabled ? 0.4 : 1}
+                  onPress={() => isEligible && !isDisabled && togglePlayer(item.id)}
                   cursor="pointer"
                   pressStyle={{ backgroundColor: "$backgroundPress" }}
                 >
@@ -312,11 +313,12 @@ export default function PickXIScreen() {
                   <YStack
                     width={24} height={24} borderRadius={12}
                     borderWidth={2}
-                    borderColor={isSelected ? "$accentBackground" : "$borderColor"}
+                    borderColor={isSelected ? "$accentBackground" : !isEligible ? "$error" : "$borderColor"}
                     backgroundColor={isSelected ? "$accentBackground" : "transparent"}
                     alignItems="center" justifyContent="center"
                   >
                     {isSelected && <Ionicons name="checkmark" size={14} color="white" />}
+                    {!isEligible && <Ionicons name="remove" size={12} color="#E5484D" />}
                   </YStack>
 
                   {/* Avatar */}
@@ -340,6 +342,9 @@ export default function PickXIScreen() {
                       <Badge variant="default" size="sm">{roleLabel(item.role)}</Badge>
                       <Text fontFamily="$mono" fontSize={9} color="$colorMuted">{formatTeamName(item.team)}</Text>
                       <Text fontFamily="$mono" fontSize={9} color="$colorMuted">· {item.credits.toFixed(1)} Cr</Text>
+                      {!isEligible && (
+                        <Text fontFamily="$mono" fontSize={8} color="$error">· not in this match</Text>
+                      )}
                     </XStack>
                   </YStack>
 
