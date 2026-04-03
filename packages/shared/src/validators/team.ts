@@ -17,7 +17,7 @@ export const createTeamSchema = z.object({
     )
     .min(1, "Team must have at least 1 player"),
   captainId: z.string().uuid(),
-  viceCaptainId: z.string().uuid(),
+  viceCaptainId: z.string().uuid().optional(), // optional when only 1 player eligible (auction/draft)
 });
 
 export const updateTeamSchema = z.object({

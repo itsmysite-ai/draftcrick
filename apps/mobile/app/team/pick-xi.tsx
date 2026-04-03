@@ -203,7 +203,7 @@ export default function PickXIScreen() {
         contestId,
         players: [{ playerId: player.id, role: player.role }],
         captainId: player.id,
-        viceCaptainId: player.id, // same player as both C and VC
+        // No VC when only 1 player
       });
     }
   }, [effectiveTeamSize, selectedPlayers.length, matchId, contestId]);

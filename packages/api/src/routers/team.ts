@@ -276,8 +276,11 @@ export const teamRouter = router({
       // Get effective team rules (global + per-tournament overrides)
       const rules = await getEffectiveTeamRules(tournamentId);
 
+      // Vice-captain defaults to captain if not provided (1-player team)
+      const effectiveVC = input.viceCaptainId ?? input.captainId;
+
       // Captain and vice-captain validation (allow same player if only 1 in team)
-      if (input.captainId === input.viceCaptainId && input.players.length > 1) {
+      if (input.captainId === effectiveVC && input.players.length > 1) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Captain and vice-captain must be different players",
@@ -469,7 +472,7 @@ export const teamRouter = router({
             isPlaying: false,
           })),
           captainId: input.captainId,
-          viceCaptainId: input.viceCaptainId,
+          viceCaptainId: effectiveVC,
           creditsUsed: String(totalCredits),
         })
         .returning();
@@ -521,9 +524,9 @@ export const teamRouter = router({
       players: z.array(z.object({
         playerId: z.string().uuid(),
         role: z.enum(["batsman", "bowler", "all_rounder", "wicket_keeper"]),
-      })).length(11),
+      })).min(1).max(11),
       captainId: z.string().uuid(),
-      viceCaptainId: z.string().uuid(),
+      viceCaptainId: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       // Verify team belongs to user
@@ -539,12 +542,13 @@ export const teamRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot edit team — contest is no longer open" });
       }
 
-      if (input.captainId === input.viceCaptainId && input.players.length > 1) {
+      const effectiveVC = input.viceCaptainId ?? input.captainId;
+      if (input.captainId === effectiveVC && input.players!.length > 1) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Captain and vice-captain must be different" });
       }
 
-      const playerIds = input.players.map((p) => p.playerId);
-      if (!playerIds.includes(input.captainId) || !playerIds.includes(input.viceCaptainId)) {
+      const playerIds = input.players!.map((p) => p.playerId);
+      if (!playerIds.includes(input.captainId) || !playerIds.includes(effectiveVC)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Captain and VC must be in selected players" });
       }
 
@@ -573,7 +577,7 @@ export const teamRouter = router({
           name: input.name?.trim() || team.name,
           players: input.players.map((p) => ({ playerId: p.playerId, role: p.role, isPlaying: false })),
           captainId: input.captainId,
-          viceCaptainId: input.viceCaptainId,
+          viceCaptainId: effectiveVC,
           creditsUsed: String(totalCredits),
           updatedAt: new Date(),
         })
