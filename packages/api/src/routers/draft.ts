@@ -533,66 +533,8 @@ export const draftRouter = router({
         current = { ...current, status: "completed", phase: "completed" as any };
       }
 
-      // Auto-buy: if only one user has slots remaining, auto-fill at base price
-      if (current.phase === "nominating" && current.status !== "completed") {
-        const usersWithSlots = current.pickOrder.filter(
-          (uid: string) => (current.teamSizes[uid] ?? 0) < current.maxPlayersPerTeam
-        );
-
-        if (usersWithSlots.length === 1 && availableCount > 0) {
-          const lastUser = usersWithSlots[0]!;
-          const slotsNeeded = Math.min(
-            current.maxPlayersPerTeam - (current.teamSizes[lastUser] ?? 0),
-            availableCount
-          );
-
-          // Get available players from DB
-          const allDbPlayers = await ctx.db.query.players.findMany({
-            where: eq(players.isDisabled, false),
-            columns: { id: true, stats: true },
-            limit: 300,
-          });
-          const available = allDbPlayers.filter((p) => !draftedIds.has(p.id));
-          const toAutoBuy = available.slice(0, slotsNeeded);
-
-          for (const p of toAutoBuy) {
-            const credits = getPlayerCredits((p.stats as Record<string, unknown>) ?? {});
-            const price = getBasePrice(current, credits);
-
-            await persistAuctionSale(ctx.db, current, p.id, lastUser, price);
-            current.soldPlayers.push({
-              playerId: p.id,
-              userId: lastUser,
-              amount: price,
-              pickNumber: current.soldPlayers.length + 1,
-            });
-            current.budgets[lastUser] = (current.budgets[lastUser] ?? 0) - price;
-            current.teamSizes[lastUser] = (current.teamSizes[lastUser] ?? 0) + 1;
-          }
-
-          if (toAutoBuy.length > 0) {
-            sendPushNotification(
-              ctx.db, lastUser, NOTIFICATION_TYPES.STATUS_ALERT,
-              "Auto-Pick Complete!",
-              `${toAutoBuy.length} player(s) were auto-picked at base price to complete your squad.`,
-              { roomId: input.roomId, type: "auction" },
-            ).catch(() => {});
-          }
-
-          // Check completion again after auto-buy
-          const nowAllFull = current.pickOrder.every(
-            (uid: string) => (current.teamSizes[uid] ?? 0) >= current.maxPlayersPerTeam
-          );
-          const nowAllMinimum = current.pickOrder.every(
-            (uid: string) => (current.teamSizes[uid] ?? 0) >= 11
-          );
-          const nowAvailable = available.length - toAutoBuy.length;
-
-          if (nowAllFull || nowAvailable === 0 && nowAllMinimum) {
-            current = { ...current, status: "completed", phase: "completed" as any };
-          }
-        }
-      }
+      // Last user standing: they keep nominating and buying until their squad is full.
+      // No auto-buy — the auction continues normally even with 1 user.
 
       await updateAuctionRoom(ctx.db, current);
 
