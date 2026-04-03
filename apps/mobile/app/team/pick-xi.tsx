@@ -11,7 +11,7 @@
 
 import { FlatList } from "react-native";
 import { useRouter } from "expo-router";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
@@ -125,7 +125,31 @@ export default function PickXIScreen() {
     }).sort((a, b) => b.credits - a.credits);
   }, [playersQuery.data]);
 
-  const selectedPlayers = squad.filter((p) => selectedIds.has(p.id));
+  // Filter to players eligible for THIS match (team matches teamA or teamB)
+  const matchEligible = useMemo(() => {
+    if (!teamA && !teamB) return squad; // fallback: show all if no match context
+    return squad.filter((p) => {
+      const pTeam = (p.team ?? "").toLowerCase();
+      const a = (teamA ?? "").toLowerCase();
+      const b = (teamB ?? "").toLowerCase();
+      // Fuzzy match: team name contains or is contained by teamA/teamB
+      return (a && (pTeam.includes(a) || a.includes(pTeam))) ||
+             (b && (pTeam.includes(b) || b.includes(pTeam)));
+    });
+  }, [squad, teamA, teamB]);
+
+  // Auto-select all eligible players if they fit within 11
+  const autoSelectedOnce = useRef(false);
+  useEffect(() => {
+    if (!autoSelectedOnce.current && matchEligible.length > 0 && selectedIds.size === 0) {
+      autoSelectedOnce.current = true;
+      if (matchEligible.length <= TEAM_SIZE) {
+        setSelectedIds(new Set(matchEligible.map((p) => p.id)));
+      }
+    }
+  }, [matchEligible]);
+
+  const selectedPlayers = matchEligible.filter((p) => selectedIds.has(p.id));
 
   const togglePlayer = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -192,10 +216,15 @@ export default function PickXIScreen() {
         {/* Squad banner */}
         <XStack backgroundColor="$accentBackground" paddingVertical="$2" paddingHorizontal="$4" justifyContent="space-between" alignItems="center">
           <Text fontFamily="$mono" fontWeight="700" fontSize={11} color="$accentColor">
-            {formatUIText(`select ${TEAM_SIZE - selectedIds.size} more`)}
+            {selectedIds.size === TEAM_SIZE
+              ? formatUIText("xi selected — pick captain")
+              : formatUIText(`select ${TEAM_SIZE - selectedIds.size} more`)}
           </Text>
           <Text fontFamily="$mono" fontWeight="700" fontSize={11} color="$accentColor">
             {selectedIds.size}/{TEAM_SIZE}
+            {matchEligible.length < squad.length && (
+              ` (${matchEligible.length} from your squad eligible)`
+            )}
           </Text>
         </XStack>
 
@@ -210,7 +239,7 @@ export default function PickXIScreen() {
 
         {/* Player list */}
         <FlatList
-          data={squad}
+          data={matchEligible}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
           renderItem={({ item, index }) => {
