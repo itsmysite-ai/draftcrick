@@ -237,9 +237,13 @@ export function autoBuildTargetSquad(
     budgetLeft -= player.credits;
   }
 
+  // Append skipped entries so they persist across rebuilds
+  const skippedEntries = existingPicks.filter((p) => p.status === "skipped");
+  const allTargets = [...targets, ...skippedEntries];
+
   return {
-    targets,
-    generatedBy: "ai",
+    targets: allTargets,
+    generatedBy: targets.some((t) => t.addedBy === "manual") ? "hybrid" : "ai",
     strategy,
     lastEvolvedAt: new Date().toISOString(),
   };
