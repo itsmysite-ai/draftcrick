@@ -607,7 +607,8 @@ export const auctionAiRouter = router({
 
       // Load existing picks to preserve: manual picks + acquired + skipped
       const existing = await loadTargetSquad(ctx.db, input.roomId, ctx.user.id);
-      const preservedPicks = (existing?.targets ?? []).filter(
+      const allExisting = existing?.targets ?? [];
+      const preservedPicks = allExisting.filter(
         (t: any) => t.status === "acquired" || t.status === "skipped" || (t.addedBy === "manual" && t.status === "target"),
       );
 

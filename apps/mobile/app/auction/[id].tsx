@@ -607,11 +607,13 @@ export default function AuctionRoomScreen() {
               </XStack>
             </XStack>
             <FlatList
-              data={[...(targetSquadQuery.data?.targets ?? [])].sort((a: any, b: any) => {
-                // Manual picks first, then AI, then acquired, then gone
-                const order = (t: any) => t.addedBy === "manual" && t.status === "target" ? 0 : t.status === "target" ? 1 : t.status === "acquired" ? 2 : 3;
-                return order(a) - order(b);
-              })}
+              data={[...(targetSquadQuery.data?.targets ?? [])]
+                .filter((t: any) => t.status !== "skipped")
+                .sort((a: any, b: any) => {
+                  // Manual picks first, then AI, then acquired, then gone
+                  const order = (t: any) => t.addedBy === "manual" && t.status === "target" ? 0 : t.status === "target" ? 1 : t.status === "acquired" ? 2 : 3;
+                  return order(a) - order(b);
+                })}
               keyExtractor={(item: any) => item.playerId}
               horizontal
               showsHorizontalScrollIndicator={false}
