@@ -156,6 +156,14 @@ export default function AuctionRoomScreen() {
       .filter((t: any) => t.status === "target")
       .map((t: any) => t.playerId),
   );
+  const skippedPlayerIds = new Set(
+    (targetSquadQuery.data?.targets ?? [])
+      .filter((t: any) => t.status === "skipped")
+      .map((t: any) => t.playerId),
+  );
+  const skipMutation = trpc.auctionAi.skipPlayer.useMutation({
+    onSuccess: () => targetSquadQuery.refetch(),
+  });
   const hasTargets = (targetSquadQuery.data?.targets ?? []).length > 0;
 
   // Load persisted strategy from target squad
@@ -349,9 +357,10 @@ export default function AuctionRoomScreen() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const filteredAvailable = (() => {
-    let list = searchQuery
-      ? availablePlayers.filter((p: any) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      : availablePlayers;
+    let list = availablePlayers.filter((p: any) => !skippedPlayerIds.has(p.id));
+    if (searchQuery) {
+      list = list.filter((p: any) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
     // Sort target players to the top
     if (targetPlayerIds.size > 0) {
       list = [...list].sort((a: any, b: any) => {
@@ -1211,9 +1220,28 @@ export default function AuctionRoomScreen() {
       <XStack height={Math.max(windowHeight * 0.5, 400)}>
         {/* Available Players */}
         <YStack width="50%" borderRightWidth={1} borderRightColor="$borderColor">
-          <Text {...textStyles.sectionHeader} padding="$3" paddingBottom="$2">
-            {formatUIText("available")} ({filteredAvailable.length})
-          </Text>
+          <XStack padding="$3" paddingBottom="$2" justifyContent="space-between" alignItems="center">
+            <Text {...textStyles.sectionHeader}>
+              {formatUIText("available")} ({filteredAvailable.length})
+            </Text>
+            {skippedPlayerIds.size > 0 && (
+              <Text
+                fontFamily="$mono"
+                fontSize={9}
+                color="$colorMuted"
+                onPress={() => {
+                  // Unskip all — clear skipped list
+                  for (const pid of skippedPlayerIds) {
+                    skipMutation.mutate({ roomId: roomId!, playerId: pid });
+                  }
+                }}
+                cursor="pointer"
+                pressStyle={{ opacity: 0.7 }}
+              >
+                {skippedPlayerIds.size} hidden · show all
+              </Text>
+            )}
+          </XStack>
           <FlatList
             testID="auction-available-list"
             nestedScrollEnabled
@@ -1279,7 +1307,7 @@ export default function AuctionRoomScreen() {
                         </Text>
                       </XStack>
                     </YStack>
-                    <YStack gap={4} alignItems="flex-end">
+                    <YStack gap={3} alignItems="flex-end">
                       <XStack
                         onPress={(e: any) => { e.stopPropagation(); toggleTargetMutation.mutate({ roomId: roomId!, playerId: item.id }); }}
                         cursor="pointer"
@@ -1298,13 +1326,22 @@ export default function AuctionRoomScreen() {
                           {isTarget ? "targeted" : "target"}
                         </Text>
                       </XStack>
-                      <YStack
-                        onPress={(e: any) => { e.stopPropagation(); setStatsPlayerId(item.id); }}
-                        cursor="pointer"
-                        pressStyle={{ opacity: 0.7 }}
-                      >
-                        <Ionicons name="stats-chart" size={12} color="#5DB882" />
-                      </YStack>
+                      <XStack gap={6} alignItems="center">
+                        <YStack
+                          onPress={(e: any) => { e.stopPropagation(); setStatsPlayerId(item.id); }}
+                          cursor="pointer"
+                          pressStyle={{ opacity: 0.7 }}
+                        >
+                          <Ionicons name="stats-chart" size={12} color="#5DB882" />
+                        </YStack>
+                        <YStack
+                          onPress={(e: any) => { e.stopPropagation(); skipMutation.mutate({ roomId: roomId!, playerId: item.id }); }}
+                          cursor="pointer"
+                          pressStyle={{ opacity: 0.7 }}
+                        >
+                          <Ionicons name="eye-off-outline" size={12} color="#9A9894" />
+                        </YStack>
+                      </XStack>
                     </YStack>
                   </XStack>
                 </Card>

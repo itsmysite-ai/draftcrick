@@ -13,7 +13,7 @@ import type { SquadRule } from "@draftplay/shared";
 export interface TargetPlayer {
   playerId: string;
   priority: number;
-  status: "target" | "acquired" | "gone";
+  status: "target" | "acquired" | "gone" | "skipped";
   boughtAt?: number; // price if acquired
   replacedBy?: string; // playerId of replacement if gone
   addedBy: "manual" | "ai";
@@ -170,9 +170,12 @@ export function autoBuildTargetSquad(
     }
   }
 
-  // Score and sort remaining players by strategy DNA
+  // Preserve skipped players — never suggest them again
+  const skippedIds = new Set(existingPicks.filter((p) => p.status === "skipped").map((p) => p.playerId));
+
+  // Score and sort remaining players by strategy DNA (exclude used + skipped)
   const scored = availablePlayers
-    .filter((p) => !used.has(p.id))
+    .filter((p) => !used.has(p.id) && !skippedIds.has(p.id))
     .map((p) => ({ ...p, _score: scorePlayer(p, strategy) }));
   const sorted = scored.sort((a, b) => b._score - a._score);
 

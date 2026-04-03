@@ -493,6 +493,40 @@ export const auctionAiRouter = router({
       return { targets: squad.targets };
     }),
 
+  /** Mark a player as skipped (not interested) — won't appear in AI suggestions */
+  skipPlayer: protectedProcedure
+    .input(z.object({
+      roomId: z.string().uuid(),
+      playerId: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      let squad = await loadTargetSquad(ctx.db, input.roomId, ctx.user.id);
+      if (!squad) {
+        squad = { targets: [], generatedBy: "manual", lastEvolvedAt: new Date().toISOString() };
+      }
+
+      const existing = squad.targets.findIndex((t) => t.playerId === input.playerId);
+      if (existing >= 0 && squad.targets[existing]!.status === "skipped") {
+        // Unskip — remove from list entirely
+        squad.targets.splice(existing, 1);
+      } else if (existing >= 0) {
+        // Was a target — mark as skipped
+        squad.targets[existing]!.status = "skipped" as any;
+      } else {
+        // New skip
+        squad.targets.push({
+          playerId: input.playerId,
+          priority: 999,
+          status: "skipped" as any,
+          addedBy: "manual",
+        });
+      }
+      squad.lastEvolvedAt = new Date().toISOString();
+
+      await saveTargetSquad(ctx.db, input.roomId, ctx.user.id, squad);
+      return { targets: squad.targets };
+    }),
+
   /** AI auto-build target squad based on strategy DNA */
   autoBuildTargets: protectedProcedure
     .input(z.object({
@@ -564,10 +598,10 @@ export const auctionAiRouter = router({
       const budget = state.budgets[ctx.user.id] ?? state.auctionBudget;
       const squadSize = squadRule?.squadSize ?? state.maxPlayersPerTeam;
 
-      // Load existing picks to preserve: manual picks + acquired (bought) players
+      // Load existing picks to preserve: manual picks + acquired + skipped
       const existing = await loadTargetSquad(ctx.db, input.roomId, ctx.user.id);
       const preservedPicks = (existing?.targets ?? []).filter(
-        (t: any) => t.status === "acquired" || (t.addedBy === "manual" && t.status === "target"),
+        (t: any) => t.status === "acquired" || t.status === "skipped" || (t.addedBy === "manual" && t.status === "target"),
       );
 
       const squad = autoBuildTargetSquad(available, squadRule, budget, squadSize, input.strategy, preservedPicks);
