@@ -294,7 +294,7 @@ export const teamRouter = router({
           message: "Captain must be in selected players",
         });
       }
-      if (!playerIds.includes(input.viceCaptainId)) {
+      if (effectiveVC !== input.captainId && !playerIds.includes(effectiveVC)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Vice-captain must be in selected players",
