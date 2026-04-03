@@ -104,8 +104,9 @@ export function validateBid(
     return { valid: false, error: "No player is currently being auctioned" };
   }
 
-  // Reject bids after deadline
-  if (state.phaseDeadline && new Date(state.phaseDeadline).getTime() < Date.now()) {
+  // Reject bids after the final deadline (goingTwiceEndsAt is the true cutoff)
+  // Using phaseDeadline caused race conditions when advancePhase hadn't persisted yet
+  if (state.goingTwiceEndsAt && new Date(state.goingTwiceEndsAt).getTime() < Date.now()) {
     return { valid: false, error: "Time is up — bidding closed" };
   }
 
