@@ -880,34 +880,61 @@ export default function HomeScreen() {
             <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$color" marginBottom="$2">
               {formatUIText("waiting for your team")}
             </Text>
-            {(pendingContestsQuery.data ?? []).map((pc: any) => (
-              <Animated.View key={pc.id} entering={FadeInDown.springify()}>
-                <Card
-                  marginBottom="$2"
-                  padding="$3"
-                  pressable
-                  onPress={() => router.push(`/contest/${pc.id}`)}
-                  cursor="pointer"
-                  borderColor="$colorAccentLight"
-                  borderWidth={1}
-                >
-                  <XStack justifyContent="space-between" alignItems="center">
-                    <YStack flex={1} gap={2}>
-                      <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
-                        {pc.name}
-                      </Text>
-                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                        {pc.leagueName} · {pc.match ? `${formatTeamName(pc.match.teamHome)} vs ${formatTeamName(pc.match.teamAway)}` : ""}
-                      </Text>
-                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                        {pc.currentEntries}/{pc.maxEntries} {formatUIText("joined")} · {pc.entryFee === 0 ? formatUIText("free") : `${pc.entryFee} PC`}
-                      </Text>
-                    </YStack>
-                    <Badge variant="role" size="sm">{formatBadgeText("pending")}</Badge>
-                  </XStack>
-                </Card>
-              </Animated.View>
-            ))}
+            {[...(pendingContestsQuery.data ?? [])]
+              .sort((a: any, b: any) => {
+                const aTime = a.match?.startTime ? new Date(a.match.startTime).getTime() : Infinity;
+                const bTime = b.match?.startTime ? new Date(b.match.startTime).getTime() : Infinity;
+                return aTime - bTime;
+              })
+              .map((pc: any) => {
+                const matchTime = pc.match?.startTime ? new Date(pc.match.startTime) : null;
+                const now = Date.now();
+                const diffMs = matchTime ? matchTime.getTime() - now : 0;
+                const isUrgent = diffMs > 0 && diffMs < 2 * 60 * 60 * 1000; // < 2 hours
+                let countdown = "";
+                if (matchTime && diffMs > 0) {
+                  const hrs = Math.floor(diffMs / 3600000);
+                  const mins = Math.floor((diffMs % 3600000) / 60000);
+                  countdown = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+                } else if (matchTime && diffMs <= 0) {
+                  countdown = "started";
+                }
+
+                return (
+                <Animated.View key={pc.id} entering={FadeInDown.springify()}>
+                  <Card
+                    marginBottom="$2"
+                    padding="$3"
+                    pressable
+                    onPress={() => router.push(`/contest/${pc.id}`)}
+                    cursor="pointer"
+                    borderColor={isUrgent ? "$error" : "$colorAccentLight"}
+                    borderWidth={1}
+                  >
+                    <XStack justifyContent="space-between" alignItems="center">
+                      <YStack flex={1} gap={2}>
+                        <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" numberOfLines={1}>
+                          {pc.leagueName} · {pc.match ? `${formatTeamName(pc.match.teamHome)} vs ${formatTeamName(pc.match.teamAway)}` : ""}
+                        </Text>
+                        <XStack alignItems="center" gap="$2">
+                          {countdown && (
+                            <XStack alignItems="center" gap={3}>
+                              <Ionicons name="time-outline" size={11} color={isUrgent ? "#E5484D" : "#D4A43D"} />
+                              <Text fontFamily="$mono" fontSize={11} fontWeight="700" color={isUrgent ? "$error" : "$colorCricket"}>
+                                {countdown}
+                              </Text>
+                            </XStack>
+                          )}
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {pc.currentEntries}/{pc.maxEntries} {formatUIText("joined")} · {pc.entryFee === 0 ? formatUIText("free") : `${pc.entryFee} PC`}
+                          </Text>
+                        </XStack>
+                      </YStack>
+                      <Badge variant="role" size="sm">{formatBadgeText("pending")}</Badge>
+                    </XStack>
+                  </Card>
+                </Animated.View>
+              );})}
           </YStack>
         )}
 
