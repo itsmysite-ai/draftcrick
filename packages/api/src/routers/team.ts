@@ -372,7 +372,7 @@ export const teamRouter = router({
         });
         return lg?.format === "auction" || lg?.format === "draft";
       })();
-      const skipRoleValidation = isAuctionDraft && input.players.length < 11;
+      const skipRoleValidation = !!isAuctionDraft;
 
       // Salary cap requires exactly 11 players
       if (!isAuctionDraft && input.players.length !== 11) {
