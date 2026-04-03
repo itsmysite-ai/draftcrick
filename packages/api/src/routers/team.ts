@@ -276,8 +276,8 @@ export const teamRouter = router({
       // Get effective team rules (global + per-tournament overrides)
       const rules = await getEffectiveTeamRules(tournamentId);
 
-      // Captain and vice-captain validation
-      if (input.captainId === input.viceCaptainId) {
+      // Captain and vice-captain validation (allow same player if only 1 in team)
+      if (input.captainId === input.viceCaptainId && input.players.length > 1) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Captain and vice-captain must be different players",
@@ -539,7 +539,7 @@ export const teamRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot edit team — contest is no longer open" });
       }
 
-      if (input.captainId === input.viceCaptainId) {
+      if (input.captainId === input.viceCaptainId && input.players.length > 1) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Captain and vice-captain must be different" });
       }
 
