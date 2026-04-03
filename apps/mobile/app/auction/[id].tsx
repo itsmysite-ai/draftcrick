@@ -710,21 +710,51 @@ export default function AuctionRoomScreen() {
 
       {/* Auction Complete Banner */}
       {auctionState?.status === "completed" && (
-        <YStack backgroundColor="$accentBackground" paddingVertical="$4" paddingHorizontal="$4" alignItems="center" gap="$2">
-          <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$accentColor">
+        <YStack backgroundColor="$accentBackground" paddingVertical="$5" paddingHorizontal="$4" alignItems="center" gap="$3">
+          <Text fontFamily="$mono" fontWeight="800" fontSize={20} color="$accentColor">
             {"🏏 "}Auction Complete!{" 🏏"}
           </Text>
           <Text fontFamily="$body" fontSize={13} color="$accentColor" textAlign="center">
-            All squads are locked. View your report card to see how you did.
+            Your squad is locked. Here's what to do next:
           </Text>
-          <Button
-            variant="secondary"
-            size="md"
-            marginTop="$2"
-            onPress={() => router.push(`/auction/report?roomId=${roomId}` as any)}
-          >
-            View Report Card
-          </Button>
+          <YStack gap="$2" width="100%" maxWidth={320}>
+            <Button
+              variant="primary"
+              size="md"
+              onPress={() => router.push(`/league/${auctionState?.leagueId}` as any)}
+            >
+              <XStack alignItems="center" gap="$2">
+                <Ionicons name="trophy-outline" size={16} color="#fff" />
+                <Text fontFamily="$mono" fontSize={13} fontWeight="700" color="white">
+                  {formatUIText("go to league")}
+                </Text>
+              </XStack>
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={() => router.push(`/auction/report?roomId=${roomId}` as any)}
+            >
+              <XStack alignItems="center" gap="$2">
+                <Ionicons name="document-text-outline" size={16} color="currentColor" />
+                <Text fontFamily="$mono" fontSize={13} fontWeight="700">
+                  {formatUIText("view report card")}
+                </Text>
+              </XStack>
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={() => router.push("/(tabs)" as any)}
+            >
+              <XStack alignItems="center" gap="$2">
+                <Ionicons name="home-outline" size={16} color="currentColor" />
+                <Text fontFamily="$mono" fontSize={13} fontWeight="700">
+                  {formatUIText("back to home")}
+                </Text>
+              </XStack>
+            </Button>
+          </YStack>
         </YStack>
       )}
 

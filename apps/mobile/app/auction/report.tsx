@@ -1,6 +1,6 @@
 import { SafeBackButton } from "../../components/SafeBackButton";
 import { ScrollView } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,7 @@ import { Text } from "../../components/SportText";
 import {
   Card,
   Badge,
+  Button,
   InitialsAvatar,
   AlertModal,
   DesignSystem,
@@ -34,6 +35,7 @@ const roleLabel = (role: string) => ({ wicket_keeper: "WK", all_rounder: "AR", b
 
 export default function AuctionReportCardScreen() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { gate, paywallProps } = usePaywall();
   const [statsPlayer, setStatsPlayer] = useState<any>(null);
@@ -42,6 +44,11 @@ export default function AuctionReportCardScreen() {
     { roomId: roomId! },
     { enabled: !!roomId },
   );
+  const { data: draftRoom } = trpc.draft.getRoom.useQuery(
+    { roomId: roomId! },
+    { enabled: !!roomId },
+  );
+  const leagueId = draftRoom?.leagueId;
 
   const gradeColor = (grade: string) => {
     if (grade.startsWith("A")) return "$colorAccent";
@@ -334,6 +341,51 @@ export default function AuctionReportCardScreen() {
             </YStack>
           </YStack>
         )}
+
+        {/* Next steps */}
+        <YStack padding="$4" gap="$2" marginTop="$4" marginBottom="$6">
+          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" marginBottom="$1">
+            {formatUIText("what's next?")}
+          </Text>
+          {leagueId && (
+            <Button
+              variant="primary"
+              size="md"
+              onPress={() => router.push(`/league/${leagueId}` as any)}
+            >
+              <XStack alignItems="center" gap="$2">
+                <Ionicons name="trophy-outline" size={16} color="#fff" />
+                <Text fontFamily="$mono" fontSize={13} fontWeight="700" color="white">
+                  {formatUIText("go to league")}
+                </Text>
+              </XStack>
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            size="md"
+            onPress={() => router.push("/(tabs)/contests" as any)}
+          >
+            <XStack alignItems="center" gap="$2">
+              <Ionicons name="list-outline" size={16} color="currentColor" />
+              <Text fontFamily="$mono" fontSize={13} fontWeight="700">
+                {formatUIText("view contests")}
+              </Text>
+            </XStack>
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            onPress={() => router.push("/(tabs)" as any)}
+          >
+            <XStack alignItems="center" gap="$2">
+              <Ionicons name="home-outline" size={16} color="currentColor" />
+              <Text fontFamily="$mono" fontSize={13} fontWeight="700">
+                {formatUIText("back to home")}
+              </Text>
+            </XStack>
+          </Button>
+        </YStack>
       </ScrollView>
       <Paywall {...paywallProps} />
     </YStack>
