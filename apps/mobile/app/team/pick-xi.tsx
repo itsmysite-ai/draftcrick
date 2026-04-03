@@ -9,7 +9,7 @@
  *   matchId, contestId, teamA, teamB, format, venue, tournament
  */
 
-import { FlatList } from "react-native";
+import { FlatList, Alert, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -170,10 +170,35 @@ export default function PickXIScreen() {
 
   // Create team mutation
   const createTeamMutation = trpc.team.create.useMutation({
-    onSuccess: () => {
-      router.back();
+    onSuccess: (data: any) => {
+      const navContestId = data?.relevantContestId || data?.contestId || contestId;
+      if (Platform.OS === "web") {
+        setAlert({ title: "team created!", message: "your xi has been entered into the contest." });
+        setTimeout(() => {
+          if (navContestId) {
+            router.replace(`/contest/${navContestId}` as any);
+          } else {
+            router.back();
+          }
+        }, 1200);
+      } else {
+        Alert.alert(
+          formatUIText("team created!"),
+          formatUIText("your xi has been entered into the contest."),
+          [{
+            text: formatUIText("view contest"),
+            onPress: () => {
+              if (navContestId) {
+                router.replace(`/contest/${navContestId}` as any);
+              } else {
+                router.back();
+              }
+            },
+          }],
+        );
+      }
     },
-    onError: (err) => {
+    onError: (err: any) => {
       setAlert({ title: "error", message: err.message });
     },
   });
