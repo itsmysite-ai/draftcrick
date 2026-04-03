@@ -321,7 +321,7 @@ export default function ContestDetailScreen() {
   return (
     <YStack flex={1} backgroundColor="$background">
       {/* Fireworks celebration overlay — outside ScrollView for full-screen coverage */}
-      {isSettled && prizeWon > 0 && <Fireworks />}
+      {isSettled && (prizeWon > 0 || myPosition?.data?.rank === 1) && <Fireworks />}
 
     <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentBackground.val} />} testID="contest-detail-screen">
       {/* Header */}
