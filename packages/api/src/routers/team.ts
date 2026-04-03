@@ -306,10 +306,10 @@ export const teamRouter = router({
         where: inArray(players.id, playerIds),
       });
 
-      if (playerRecords.length !== 11) {
+      if (playerRecords.length < 1) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Found ${playerRecords.length} valid players, need exactly 11`,
+          message: "No valid players found",
         });
       }
 
@@ -556,8 +556,8 @@ export const teamRouter = router({
       const playerRecords = await ctx.db.query.players.findMany({
         where: inArray(players.id, playerIds),
       });
-      if (playerRecords.length !== 11) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Found ${playerRecords.length} valid players, need 11` });
+      if (playerRecords.length < 1) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No valid players found" });
       }
 
       // Budget validation
