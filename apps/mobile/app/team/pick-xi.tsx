@@ -220,7 +220,7 @@ export default function PickXIScreen() {
   // Auto-submit when ≤2 eligible players — no manual picking needed
   const autoSubmittedOnce = useRef(false);
   useEffect(() => {
-    if (!autoSubmittedOnce.current && effectiveTeamSize >= 1 && effectiveTeamSize <= 2 && selectedPlayers.length === effectiveTeamSize && matchId && contestId) {
+    if (!autoSubmittedOnce.current && effectiveTeamSize >= 1 && effectiveTeamSize <= 2 && selectedPlayers.length === effectiveTeamSize && selectedPlayers.length > 0 && matchId && contestId) {
       autoSubmittedOnce.current = true;
       const sorted = [...selectedPlayers].sort((a, b) => b.credits - a.credits);
       const cap = sorted[0]!;
@@ -264,9 +264,11 @@ export default function PickXIScreen() {
         {/* Squad banner */}
         <XStack backgroundColor="$accentBackground" paddingVertical="$2" paddingHorizontal="$4" justifyContent="space-between" alignItems="center">
           <Text fontFamily="$mono" fontWeight="700" fontSize={11} color="$accentColor">
-            {selectedIds.size >= effectiveTeamSize
-              ? formatUIText("all selected — pick captain")
-              : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more`)}
+            {effectiveTeamSize === 0
+              ? formatUIText("no squad players in this match")
+              : selectedIds.size >= effectiveTeamSize
+                ? formatUIText("all selected — pick captain")
+                : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more`)}
           </Text>
           <Text fontFamily="$mono" fontWeight="700" fontSize={11} color="$accentColor">
             {selectedIds.size}/{effectiveTeamSize}
@@ -358,34 +360,43 @@ export default function PickXIScreen() {
 
         {/* Bottom button */}
         <YStack position="absolute" bottom={0} left={0} right={0} padding="$4" paddingBottom={insets.bottom + 16} backgroundColor="$background">
-          <Button
-            variant="primary"
-            size="lg"
-            disabled={selectedIds.size < effectiveTeamSize}
-            opacity={selectedIds.size < effectiveTeamSize ? 0.5 : 1}
-            onPress={() => {
-              if (effectiveTeamSize <= 2) {
-                // Submit directly — don't rely on state
-                if (!matchId || !contestId) return;
-                const sorted = [...selectedPlayers].sort((a, b) => b.credits - a.credits);
-                const cap = sorted[0]!;
-                const vc = sorted.length > 1 ? sorted[1]! : undefined;
-                createTeamMutation.mutate({
-                  matchId,
-                  contestId,
-                  players: sorted.map((p) => ({ playerId: p.id, role: p.role })),
-                  captainId: cap.id,
-                  ...(vc ? { viceCaptainId: vc.id } : {}),
-                });
-              } else {
-                setStep("captain");
-              }
-            }}
-          >
-            {selectedIds.size >= effectiveTeamSize
-              ? effectiveTeamSize <= 2 ? formatUIText("confirm team") : formatUIText("select captain & vc")
-              : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more players`)}
-          </Button>
+          {effectiveTeamSize === 0 ? (
+            <Button
+              variant="secondary"
+              size="lg"
+              onPress={() => router.back()}
+            >
+              {formatUIText("no players available — go back")}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="lg"
+              disabled={selectedIds.size < effectiveTeamSize}
+              opacity={selectedIds.size < effectiveTeamSize ? 0.5 : 1}
+              onPress={() => {
+                if (effectiveTeamSize <= 2) {
+                  if (!matchId || !contestId || selectedPlayers.length === 0) return;
+                  const sorted = [...selectedPlayers].sort((a, b) => b.credits - a.credits);
+                  const cap = sorted[0]!;
+                  const vc = sorted.length > 1 ? sorted[1]! : undefined;
+                  createTeamMutation.mutate({
+                    matchId,
+                    contestId,
+                    players: sorted.map((p) => ({ playerId: p.id, role: p.role })),
+                    captainId: cap.id,
+                    ...(vc ? { viceCaptainId: vc.id } : {}),
+                  });
+                } else {
+                  setStep("captain");
+                }
+              }}
+            >
+              {selectedIds.size >= effectiveTeamSize
+                ? effectiveTeamSize <= 2 ? formatUIText("confirm team") : formatUIText("select captain & vc")
+                : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more players`)}
+            </Button>
+          )}
         </YStack>
 
         {/* Stats popup */}
