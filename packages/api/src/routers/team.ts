@@ -363,12 +363,23 @@ export const teamRouter = router({
         }
       }
 
-      // Role count validation
+      // Role count validation — skip for auction/draft teams with partial squads
+      // (user can only play who they have from their squad for this match)
+      const isAuctionDraft = contestForRoster?.leagueId && await (async () => {
+        const lg = await ctx.db.query.leagues.findFirst({
+          where: eq(leagues.id, contestForRoster.leagueId!),
+          columns: { format: true },
+        });
+        return lg?.format === "auction" || lg?.format === "draft";
+      })();
+      const skipRoleValidation = isAuctionDraft && input.players.length < 11;
+
       const roleCounts: Record<string, number> = {};
       for (const p of input.players) {
         roleCounts[p.role] = (roleCounts[p.role] ?? 0) + 1;
       }
 
+      if (!skipRoleValidation) {
       for (const [role, limits] of Object.entries(rules.roleLimits)) {
         const count = roleCounts[role] ?? 0;
         if (count < limits.min) {
@@ -427,6 +438,7 @@ export const teamRouter = router({
           message: `Budget exceeded. Used ${totalCredits.toFixed(1)} / ${rules.maxBudget} credits`,
         });
       }
+      } // end skipRoleValidation
 
       // Auto-generate fun team name if not provided
       let teamName = input.name?.trim() || "";
