@@ -374,6 +374,14 @@ export const teamRouter = router({
       })();
       const skipRoleValidation = isAuctionDraft && input.players.length < 11;
 
+      // Salary cap requires exactly 11 players
+      if (!isAuctionDraft && input.players.length !== 11) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Team must have exactly 11 players, got ${input.players.length}`,
+        });
+      }
+
       const roleCounts: Record<string, number> = {};
       for (const p of input.players) {
         roleCounts[p.role] = (roleCounts[p.role] ?? 0) + 1;
