@@ -192,18 +192,20 @@ export default function PickXIScreen() {
     });
   };
 
-  // Auto-submit when only 1 eligible player — they're captain, no VC needed
+  // Auto-submit when ≤2 eligible players — no manual picking needed
   const autoSubmittedOnce = useRef(false);
   useEffect(() => {
-    if (!autoSubmittedOnce.current && effectiveTeamSize === 1 && selectedPlayers.length === 1 && matchId && contestId) {
+    if (!autoSubmittedOnce.current && effectiveTeamSize >= 1 && effectiveTeamSize <= 2 && selectedPlayers.length === effectiveTeamSize && matchId && contestId) {
       autoSubmittedOnce.current = true;
-      const player = selectedPlayers[0]!;
+      const sorted = [...selectedPlayers].sort((a, b) => b.credits - a.credits);
+      const cap = sorted[0]!;
+      const vc = sorted.length > 1 ? sorted[1]! : undefined;
       createTeamMutation.mutate({
         matchId,
         contestId,
-        players: [{ playerId: player.id, role: player.role }],
-        captainId: player.id,
-        // No VC when only 1 player
+        players: sorted.map((p) => ({ playerId: p.id, role: p.role })),
+        captainId: cap.id,
+        ...(vc ? { viceCaptainId: vc.id } : {}),
       });
     }
   }, [effectiveTeamSize, selectedPlayers.length, matchId, contestId]);
@@ -338,11 +340,18 @@ export default function PickXIScreen() {
             opacity={selectedIds.size < effectiveTeamSize ? 0.5 : 1}
             onPress={() => {
               if (effectiveTeamSize <= 2) {
-                // Auto-assign captain (and VC if 2 players) and submit
-                const sorted = selectedPlayers.sort((a, b) => b.credits - a.credits);
-                setCaptainId(sorted[0]?.id ?? null);
-                setViceCaptainId(sorted[1]?.id ?? sorted[0]?.id ?? null);
-                setTimeout(() => handleSubmit(), 100);
+                // Submit directly — don't rely on state
+                if (!matchId || !contestId) return;
+                const sorted = [...selectedPlayers].sort((a, b) => b.credits - a.credits);
+                const cap = sorted[0]!;
+                const vc = sorted.length > 1 ? sorted[1]! : undefined;
+                createTeamMutation.mutate({
+                  matchId,
+                  contestId,
+                  players: sorted.map((p) => ({ playerId: p.id, role: p.role })),
+                  captainId: cap.id,
+                  ...(vc ? { viceCaptainId: vc.id } : {}),
+                });
               } else {
                 setStep("captain");
               }
