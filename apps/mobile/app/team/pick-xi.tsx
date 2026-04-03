@@ -217,23 +217,6 @@ export default function PickXIScreen() {
     });
   };
 
-  // Auto-submit when ≤2 eligible players — no manual picking needed
-  const autoSubmittedOnce = useRef(false);
-  useEffect(() => {
-    if (!autoSubmittedOnce.current && effectiveTeamSize >= 1 && effectiveTeamSize <= 2 && selectedPlayers.length === effectiveTeamSize && selectedPlayers.length > 0 && matchId && contestId) {
-      autoSubmittedOnce.current = true;
-      const sorted = [...selectedPlayers].sort((a, b) => b.credits - a.credits);
-      const cap = sorted[0]!;
-      const vc = sorted.length > 1 ? sorted[1]! : undefined;
-      createTeamMutation.mutate({
-        matchId,
-        contestId,
-        players: sorted.map((p) => ({ playerId: p.id, role: p.role })),
-        captainId: cap.id,
-        ...(vc ? { viceCaptainId: vc.id } : {}),
-      });
-    }
-  }, [effectiveTeamSize, selectedPlayers.length, matchId, contestId]);
 
   // Loading
   if (!squad.length && myPickPlayerIds.length === 0) {
@@ -379,26 +362,12 @@ export default function PickXIScreen() {
               size="lg"
               disabled={selectedIds.size < effectiveTeamSize}
               opacity={selectedIds.size < effectiveTeamSize ? 0.5 : 1}
-              onPress={() => {
-                if (effectiveTeamSize <= 2) {
-                  if (!matchId || !contestId || selectedPlayers.length === 0) return;
-                  const sorted = [...selectedPlayers].sort((a, b) => b.credits - a.credits);
-                  const cap = sorted[0]!;
-                  const vc = sorted.length > 1 ? sorted[1]! : undefined;
-                  createTeamMutation.mutate({
-                    matchId,
-                    contestId,
-                    players: sorted.map((p) => ({ playerId: p.id, role: p.role })),
-                    captainId: cap.id,
-                    ...(vc ? { viceCaptainId: vc.id } : {}),
-                  });
-                } else {
-                  setStep("captain");
-                }
-              }}
+              onPress={() => setStep("captain")}
             >
               {selectedIds.size >= effectiveTeamSize
-                ? effectiveTeamSize <= 2 ? formatUIText("confirm team") : formatUIText("select captain & vc")
+                ? effectiveTeamSize === 1
+                  ? formatUIText("select captain")
+                  : formatUIText("select captain & vc")
                 : formatUIText(`select ${effectiveTeamSize - selectedIds.size} more players`)}
             </Button>
           )}
@@ -470,13 +439,15 @@ export default function PickXIScreen() {
             <XStack alignItems="center" gap="$3">
               <YStack onPress={() => setStep("pick")} cursor="pointer"><Ionicons name="chevron-back" size={24} color={theme.color?.val} /></YStack>
               <Text fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
-                {formatUIText("choose captain & vc")}
+                {selectedPlayers.length === 1 ? formatUIText("choose captain") : formatUIText("choose captain & vc")}
               </Text>
             </XStack>
             <HeaderControls />
           </XStack>
           <Text fontFamily="$body" fontSize={12} color="$colorMuted" marginTop="$2">
-            {formatUIText("captain gets 2x points, vice-captain gets 1.5x")}
+            {selectedPlayers.length === 1
+              ? formatUIText("captain gets 2x points")
+              : formatUIText("captain gets 2x points, vice-captain gets 1.5x")}
           </Text>
         </YStack>
 
@@ -508,16 +479,18 @@ export default function PickXIScreen() {
                   >
                     <Text fontFamily="$mono" fontWeight="800" fontSize={12} color={isCaptain ? "white" : "$colorMuted"}>C</Text>
                   </YStack>
-                  <YStack
-                    width={36} height={36} borderRadius={18}
-                    backgroundColor={isVC ? "$colorCricket" : "$backgroundSurface"}
-                    borderWidth={2} borderColor={isVC ? "$colorCricket" : "$borderColor"}
-                    alignItems="center" justifyContent="center"
-                    onPress={() => { setViceCaptainId(item.id); if (captainId === item.id) setCaptainId(null); }}
-                    cursor="pointer"
-                  >
-                    <Text fontFamily="$mono" fontWeight="800" fontSize={12} color={isVC ? "white" : "$colorMuted"}>VC</Text>
-                  </YStack>
+                  {selectedPlayers.length > 1 && (
+                    <YStack
+                      width={36} height={36} borderRadius={18}
+                      backgroundColor={isVC ? "$colorCricket" : "$backgroundSurface"}
+                      borderWidth={2} borderColor={isVC ? "$colorCricket" : "$borderColor"}
+                      alignItems="center" justifyContent="center"
+                      onPress={() => { setViceCaptainId(item.id); if (captainId === item.id) setCaptainId(null); }}
+                      cursor="pointer"
+                    >
+                      <Text fontFamily="$mono" fontWeight="800" fontSize={12} color={isVC ? "white" : "$colorMuted"}>VC</Text>
+                    </YStack>
+                  )}
                 </XStack>
               </XStack>
             );
@@ -528,11 +501,15 @@ export default function PickXIScreen() {
           <Button
             variant="primary"
             size="lg"
-            disabled={!captainId || !viceCaptainId}
-            opacity={!captainId || !viceCaptainId ? 0.5 : 1}
+            disabled={!captainId || (selectedPlayers.length > 1 && !viceCaptainId)}
+            opacity={!captainId || (selectedPlayers.length > 1 && !viceCaptainId) ? 0.5 : 1}
             onPress={() => setStep("review")}
           >
-            {!captainId ? formatUIText("select a captain") : !viceCaptainId ? formatUIText("select a vice-captain") : formatUIText("review team")}
+            {!captainId
+              ? formatUIText("select a captain")
+              : selectedPlayers.length > 1 && !viceCaptainId
+                ? formatUIText("select a vice-captain")
+                : formatUIText("review team")}
           </Button>
         </YStack>
       </YStack>
