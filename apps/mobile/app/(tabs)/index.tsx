@@ -3,6 +3,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { parseTeamScores, didTeamAWin } from "../../lib/score-utils";
 import { useState, useCallback, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import {
   XStack,
