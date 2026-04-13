@@ -24,6 +24,7 @@ import { HeaderControls } from "../../components/HeaderControls";
 import { usePaywall } from "../../hooks/usePaywall";
 import { useSubscription } from "../../hooks/useSubscription";
 
+// cricket_manager is admin-only — players browse/join those via "Public Leagues"
 type LeagueFormat = "salary_cap" | "draft" | "auction" | "prediction";
 
 const FORMATS: { value: LeagueFormat; label: string; desc: string; comingSoon?: boolean }[] = [

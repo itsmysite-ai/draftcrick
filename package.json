@@ -35,7 +35,9 @@
     "db:local": "./scripts/local-db.sh start",
     "db:local:stop": "./scripts/local-db.sh stop",
     "db:local:psql": "./scripts/local-db.sh psql",
-    "expo:prod": "cd apps/mobile && cp ../../.env.expo-prod .env.local.bak && cp ../../.env.expo-prod .env.local && npx expo start --clear; mv .env.local.bak .env.local",
+    "emulator": "npx firebase emulators:start --only auth --project demo-draftcrick",
+    "dev:all": "npx concurrently --names emu,api,web,app --prefix-colors yellow,cyan,magenta,green \"pnpm emulator\" \"sleep 2 && pnpm --filter @draftplay/api dev\" \"sleep 2 && pnpm --filter @draftplay/web dev\" \"sleep 4 && pnpm --filter @draftplay/mobile dev\"",
+    "expo:prod": "cd apps/mobile && cp .env.local .env.local.bak && cp ../../.env.expo-prod .env.local && trap 'mv .env.local.bak .env.local' EXIT && npx expo start --clear",
     "test:emulator": "node scripts/test-with-emulator.js",
     "test:type-check": "turbo type-check",
     "test:regression": "node scripts/test-regression.js",
@@ -43,6 +45,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "concurrently": "^9.2.1",
     "pixelmatch": "^5.3.0",
     "pngjs": "^7.0.0",
     "turbo": "^2.3.0",

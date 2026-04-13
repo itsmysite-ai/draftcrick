@@ -17,6 +17,7 @@ import { lockMatchContests, completeMatch } from "../jobs/score-updater";
 import { settleMatchContests } from "../jobs/settle-contest";
 import { sendBatchNotifications } from "./notifications";
 import { autoCloseMatchPredictions, autoAbandonUnresolvedPredictions } from "./live-predictions";
+import { onMatchPhaseTransition as cmOnMatchPhaseTransition } from "./cm-service";
 import { getLogger } from "../lib/logger";
 
 const log = getLogger("match-lifecycle");
@@ -47,6 +48,70 @@ async function getMatchParticipantUserIds(db: Database, matchId: string): Promis
   });
 
   return [...new Set(teams.map(t => t.userId))];
+}
+
+/**
+ * Canonical "change a match's phase" helper. Every code path that needs to
+ * alter `matches.match_phase` — admin mutations, refresh jobs, background
+ * fetches, automated ticks — MUST go through this function. It:
+ *
+ *   1. Reads the current phase (so this is idempotent — no-op on same phase)
+ *   2. Writes the new phase to the matches table
+ *   3. Calls onPhaseTransition() to fire every downstream side-effect
+ *      (draft enablement, contest status flips, notifications, CM hooks,
+ *       prediction grace periods, settlement)
+ *
+ * Prior to this helper, refresh/background paths silently wrote
+ * `match_phase` directly and skipped side-effects — leading to "drafts open
+ * but no users notified", "contests stuck at upcoming", "CM rounds never
+ * transitioning", etc. Never write to matches.match_phase without calling
+ * this function.
+ *
+ * @param source free-form label for logs — e.g. "admin:updatePhase",
+ *               "refresh:refreshMatch", "tick:idle_to_pre_match"
+ */
+export async function applyMatchPhaseChange(
+  db: Database,
+  matchId: string,
+  toPhase: string,
+  source: string
+): Promise<PhaseTransitionResult | null> {
+  const match = await db.query.matches.findFirst({
+    where: eq(matches.id, matchId),
+    columns: { id: true, matchPhase: true },
+  });
+  if (!match) {
+    log.warn({ matchId, source }, "applyMatchPhaseChange: match not found");
+    return null;
+  }
+
+  const fromPhase = match.matchPhase ?? "idle";
+  if (fromPhase === toPhase) {
+    // No-op — phase already at target
+    return { fromPhase, toPhase, actions: [] };
+  }
+
+  // Persist the phase change
+  await db
+    .update(matches)
+    .set({ matchPhase: toPhase })
+    .where(eq(matches.id, matchId));
+
+  log.info(
+    { matchId, fromPhase, toPhase, source },
+    "Match phase updated"
+  );
+
+  // Fire all downstream side-effects
+  try {
+    return await onPhaseTransition(db, matchId, fromPhase, toPhase);
+  } catch (err) {
+    log.error(
+      { err, matchId, fromPhase, toPhase, source },
+      "onPhaseTransition failed after phase change"
+    );
+    return { fromPhase, toPhase, actions: ["phase-transition-error"] };
+  }
 }
 
 /**
@@ -263,6 +328,19 @@ export async function onPhaseTransition(
     actions.push("Draft disabled, deadline cleared");
 
     log.info({ matchId, matchLabel, actions }, "Phase → idle");
+  }
+
+  // Cricket Manager rounds piggyback on the same phase transitions:
+  //  - pre_match: refresh player pool + open the round
+  //  - live:      lock entries, round → live
+  //  - completed: settle the round if this was its last match
+  try {
+    await cmOnMatchPhaseTransition(db, matchId, toPhase);
+  } catch (err) {
+    log.warn(
+      { matchId, toPhase, err: String(err) },
+      "CM phase transition hook failed (non-fatal)"
+    );
   }
 
   return { fromPhase, toPhase, actions };

@@ -4,7 +4,8 @@ export type LeagueFormat =
   | "salary_cap"
   | "draft"
   | "auction"
-  | "prediction";
+  | "prediction"
+  | "cricket_manager";
 
 export type LeagueTemplate = "casual" | "competitive" | "pro" | "custom";
 export type LeagueStatus = "active" | "completed" | "archived";
@@ -68,6 +69,17 @@ export interface LeagueRules {
   // Playoffs
   playoffSize?: number;
   playoffFormat?: "knockout" | "round_robin";
+
+  // Cricket Manager format
+  cricketManager?: {
+    ballLimit?: number;              // default 120
+    minBowlersInSquad?: number;      // default 5
+    maxOversPerBowler?: number;      // default 4
+    prizeDistribution?: Array<{ rank: number; percent: number }>;
+    roundPrizeSplit?: { perRoundPct?: number; finalPct?: number };
+    prizePool?: number;              // guaranteed pool (Pop Coins)
+    entryFee?: number;               // one-time fee to join the league (PC)
+  };
 
   // Custom rules stored as JSON
   customRules?: Record<string, unknown>;

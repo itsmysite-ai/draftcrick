@@ -21,8 +21,12 @@ import {
   dataRefreshLog,
   adminConfig,
   draftRooms,
+  leagues,
+  leagueMembers,
   getDb,
 } from "@draftplay/db";
+import { randomBytes } from "crypto";
+import { createLeagueSchema } from "@draftplay/shared";
 import { eq, desc, asc, sql, and, ilike, count, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
@@ -54,7 +58,11 @@ import type { Sport } from "@draftplay/shared";
 import { determineMatchPhase, calculateNextRefreshAfter, calculateFantasyPoints, DEFAULT_T20_SCORING, DEFAULT_SQUAD_RULES } from "@draftplay/shared";
 import { lockMatchContests, processScoreUpdate, completeMatch } from "../jobs/score-updater";
 import { settleMatchContests } from "../jobs/settle-contest";
-import { onPhaseTransition, finalizePredictionsAndSettle } from "../services/match-lifecycle";
+import {
+  applyMatchPhaseChange,
+  onPhaseTransition,
+  finalizePredictionsAndSettle,
+} from "../services/match-lifecycle";
 
 const log = getLogger("admin-router");
 
@@ -401,14 +409,16 @@ const matchesRouter = router({
     .input(
       z.object({
         tournamentId: z.string().uuid().optional(),
+        tournament: z.string().optional(),
         status: z.string().optional(),
-        limit: z.number().min(1).max(100).default(50),
+        limit: z.number().min(1).max(500).default(50),
         offset: z.number().min(0).default(0),
       })
     )
     .query(async ({ ctx, input }) => {
       const conditions = [];
       if (input.tournamentId) conditions.push(eq(matches.tournamentId, input.tournamentId));
+      if (input.tournament) conditions.push(eq(matches.tournament, input.tournament));
       if (input.status) conditions.push(eq(matches.status, input.status));
 
       const rows = await ctx.db
@@ -711,37 +721,21 @@ const matchesRouter = router({
   updatePhase: adminProcedure
     .input(z.object({ matchId: z.string().uuid(), phase: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      // Get current phase before updating
-      const current = await ctx.db.query.matches.findFirst({
-        where: eq(matches.id, input.matchId),
-        columns: { matchPhase: true },
-      });
-      if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
-
-      const fromPhase = current.matchPhase ?? "idle";
-
-      // Update the phase
-      const [updated] = await ctx.db
-        .update(matches)
-        .set({ matchPhase: input.phase })
-        .where(eq(matches.id, input.matchId))
-        .returning();
-
-      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
-
-      // Fire lifecycle automation for phase transition
-      let lifecycle: { actions: string[] } = { actions: [] };
-      if (fromPhase !== input.phase) {
-        try {
-          lifecycle = await onPhaseTransition(ctx.db, input.matchId, fromPhase, input.phase);
-          log.info({ matchId: input.matchId, fromPhase, toPhase: input.phase, actions: lifecycle.actions }, "Phase transition automation executed");
-        } catch (err) {
-          log.error({ matchId: input.matchId, fromPhase, toPhase: input.phase, error: err instanceof Error ? err.message : String(err) }, "Phase transition automation failed");
-          // Don't throw — phase was already updated, automation failure is non-blocking
-        }
+      // Canonical helper: phase write + all side-effects in one call
+      const result = await applyMatchPhaseChange(
+        ctx.db,
+        input.matchId,
+        input.phase,
+        "admin:updatePhase"
+      );
+      if (!result) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Match not found" });
       }
 
-      return { ...updated, lifecycleActions: lifecycle.actions };
+      const updated = await ctx.db.query.matches.findFirst({
+        where: eq(matches.id, input.matchId),
+      });
+      return { ...updated, lifecycleActions: result.actions };
     }),
 
   refreshMatch: adminProcedure
@@ -798,21 +792,16 @@ const matchesRouter = router({
       if (match.matchPhase !== phase) changes.push(`phase: ${match.matchPhase} → ${phase}`);
       const nextRefresh = calculateNextRefreshAfter(phase, now);
 
+      // Data fields only — match_phase is NOT written here. It's updated
+      // by applyMatchPhaseChange below so all side-effects fire consistently
+      // (draft enablement, contest transitions, notifications, CM hooks).
       const updateSet: Record<string, any> = {
         status: newStatus,
-        matchPhase: phase,
         lastRefreshedAt: now,
         nextRefreshAfter: nextRefresh,
         lastFetchAction: "updated",
         lastFetchedAt: now,
       };
-
-      // Sync draftEnabled with phase transitions
-      if (phase === "pre_match") {
-        updateSet.draftEnabled = true;
-      } else if (phase === "live" || phase === "completed" || phase === "post_match") {
-        updateSet.draftEnabled = false;
-      }
 
       if (geminiUpdate?.result) updateSet.result = geminiUpdate.result;
       if (geminiUpdate?.scoreSummary) {
@@ -835,51 +824,20 @@ const matchesRouter = router({
         .where(eq(matches.id, input.matchId))
         .returning();
 
-      await invalidateHotCache("dashboard:");
-
-      // --- Auto-transition contests when match status changes ---
-      let contestsTransitioned = 0;
-
-      if (newStatus === "completed") {
-        // Match is completed → close any still-open or live contests
-        // "live" contests → "settling" (ready for settlement)
-        const settlingResult = await ctx.db
-          .update(contests)
-          .set({ status: "settling" })
-          .where(and(eq(contests.matchId, input.matchId), eq(contests.status, "live")))
-          .returning({ id: contests.id });
-
-        // "open" contests → "cancelled" (match ended before they went live)
-        const cancelledResult = await ctx.db
-          .update(contests)
-          .set({ status: "cancelled" })
-          .where(and(eq(contests.matchId, input.matchId), eq(contests.status, "open")))
-          .returning({ id: contests.id });
-
-        contestsTransitioned = settlingResult.length + cancelledResult.length;
-        if (settlingResult.length > 0) {
-          changes.push(`${settlingResult.length} contest(s) → settling`);
-        }
-        if (cancelledResult.length > 0) {
-          changes.push(`${cancelledResult.length} open contest(s) → cancelled`);
-        }
-        if (contestsTransitioned > 0) {
-          log.info({ matchId: input.matchId, settling: settlingResult.length, cancelled: cancelledResult.length }, "Contests transitioned on match completion");
-        }
-      } else if (newStatus === "live") {
-        // Match is live → lock any still-open contests
-        const lockedResult = await ctx.db
-          .update(contests)
-          .set({ status: "live" })
-          .where(and(eq(contests.matchId, input.matchId), eq(contests.status, "open")))
-          .returning({ id: contests.id });
-
-        contestsTransitioned = lockedResult.length;
-        if (lockedResult.length > 0) {
-          changes.push(`${lockedResult.length} contest(s) → live`);
-          log.info({ matchId: input.matchId, locked: lockedResult.length }, "Contests locked on match going live");
-        }
+      // Apply phase change via the canonical helper (no-op if unchanged).
+      // This fires draft enablement, contest transitions, user notifications,
+      // CM round hooks, prediction grace periods — everything.
+      const phaseResult = await applyMatchPhaseChange(
+        ctx.db,
+        input.matchId,
+        phase,
+        "admin:refreshMatch"
+      );
+      if (phaseResult && phaseResult.actions.length > 0) {
+        changes.push(...phaseResult.actions);
       }
+
+      await invalidateHotCache("dashboard:");
 
       log.info({ matchId: input.matchId, changes, geminiAvailable: !!geminiUpdate }, "Match status refreshed via Gemini");
 
@@ -888,7 +846,6 @@ const matchesRouter = router({
         status: newStatus,
         phase,
         changes,
-        contestsTransitioned,
         unchanged: changes.length === 0,
       };
     }),
@@ -1022,7 +979,9 @@ const matchesRouter = router({
         return total;
       };
 
-      // 1. Refresh match score — prefer direct scorecard fetch if we have externalId
+      // 1. Refresh match score — prefer direct scorecard fetch if we have externalId.
+      // Data fields only — match_phase is NOT written in either branch. It's
+      // applied at the end via applyMatchPhaseChange so side-effects fire.
       let newStatus = match.status;
       const cbIdMatch = match.externalId?.match(/cb-(?:match-)?(\d+)/);
       if (cbIdMatch) {
@@ -1045,12 +1004,10 @@ const matchesRouter = router({
           if (cbScore.tossWinner) { updateSet.tossWinner = cbScore.tossWinner; }
           if (cbScore.tossDecision) { updateSet.tossDecision = cbScore.tossDecision; }
 
-          // Sync matchPhase and draftEnabled with status
+          // Recompute and persist next-refresh schedule even though phase
+          // transition happens below.
           const phase = determineMatchPhase(match.startTime, null, newStatus);
-          if (match.matchPhase !== phase) { updateSet.matchPhase = phase; matchChanges.push(`phase: ${match.matchPhase} → ${phase}`); }
           updateSet.nextRefreshAfter = calculateNextRefreshAfter(phase, now);
-          if (phase === "pre_match") updateSet.draftEnabled = true;
-          else if (phase === "live" || phase === "completed" || phase === "post_match") updateSet.draftEnabled = false;
 
           await ctx.db.update(matches).set(updateSet).where(eq(matches.id, input.matchId));
         }
@@ -1079,31 +1036,28 @@ const matchesRouter = router({
           if (providerUpdate.tossWinner) { updateSet.tossWinner = providerUpdate.tossWinner; }
           if (providerUpdate.tossDecision) { updateSet.tossDecision = providerUpdate.tossDecision; }
 
-          // Sync matchPhase and draftEnabled with status
           const phase = determineMatchPhase(match.startTime, null, newStatus);
-          if (match.matchPhase !== phase) { updateSet.matchPhase = phase; matchChanges.push(`phase: ${match.matchPhase} → ${phase}`); }
           updateSet.nextRefreshAfter = calculateNextRefreshAfter(phase, now);
-          if (phase === "pre_match") updateSet.draftEnabled = true;
-          else if (phase === "live" || phase === "completed" || phase === "post_match") updateSet.draftEnabled = false;
 
           await ctx.db.update(matches).set(updateSet).where(eq(matches.id, input.matchId));
         }
       }
 
-      // 2. Auto-transition contests when match status changes
-      if (newStatus !== match.status) {
-        if (newStatus === "live") {
-          const locked = await ctx.db.update(contests).set({ status: "live" })
-            .where(and(eq(contests.matchId, input.matchId), eq(contests.status, "open"))).returning({ id: contests.id });
-          if (locked.length > 0) matchChanges.push(`${locked.length} contest(s) → live`);
-        } else if (newStatus === "completed") {
-          const settling = await ctx.db.update(contests).set({ status: "settling" })
-            .where(and(eq(contests.matchId, input.matchId), eq(contests.status, "live"))).returning({ id: contests.id });
-          const cancelled = await ctx.db.update(contests).set({ status: "cancelled" })
-            .where(and(eq(contests.matchId, input.matchId), eq(contests.status, "open"))).returning({ id: contests.id });
-          if (settling.length > 0) matchChanges.push(`${settling.length} contest(s) → settling`);
-          if (cancelled.length > 0) matchChanges.push(`${cancelled.length} open contest(s) → cancelled`);
-        }
+      // 2. Apply phase change via canonical helper — fires draft enablement,
+      // contest transitions, user notifications, CM hooks, prediction grace
+      // periods. This replaces the hand-rolled contest transition block.
+      const newPhase = determineMatchPhase(match.startTime, null, newStatus);
+      if (match.matchPhase !== newPhase) {
+        matchChanges.push(`phase: ${match.matchPhase} → ${newPhase}`);
+      }
+      const phaseResult = await applyMatchPhaseChange(
+        ctx.db,
+        input.matchId,
+        newPhase,
+        "admin:refreshScores"
+      );
+      if (phaseResult && phaseResult.actions.length > 0) {
+        matchChanges.push(...phaseResult.actions);
       }
 
       // 3. Fetch confirmed playing XI if toss has happened
@@ -2368,6 +2322,110 @@ const revenueRouter = router({
 });
 
 // ---------------------------------------------------------------------------
+// Admin Leagues — create and manage leagues on behalf of the platform
+// ---------------------------------------------------------------------------
+
+const leaguesRouter = router({
+  list: adminProcedure
+    .input(
+      z
+        .object({
+          format: z
+            .enum([
+              "salary_cap",
+              "draft",
+              "auction",
+              "prediction",
+              "cricket_manager",
+            ])
+            .optional(),
+          limit: z.number().min(1).max(100).default(50),
+          offset: z.number().min(0).default(0),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [];
+      if (input?.format) conditions.push(eq(leagues.format, input.format));
+
+      const rows = await ctx.db
+        .select({
+          id: leagues.id,
+          name: leagues.name,
+          format: leagues.format,
+          tournament: leagues.tournament,
+          isPrivate: leagues.isPrivate,
+          maxMembers: leagues.maxMembers,
+          status: leagues.status,
+          ownerId: leagues.ownerId,
+          createdAt: leagues.createdAt,
+        })
+        .from(leagues)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(leagues.createdAt))
+        .limit(input?.limit ?? 50)
+        .offset(input?.offset ?? 0);
+
+      return rows;
+    }),
+
+  create: adminProcedure
+    .input(createLeagueSchema.extend({ isPrivate: z.boolean().default(false) }))
+    .mutation(async ({ ctx, input }) => {
+      const inviteCode = randomBytes(6).toString("hex");
+
+      const [league] = await ctx.db
+        .insert(leagues)
+        .values({
+          name: input.name,
+          ownerId: ctx.user.id,
+          format: input.format,
+          sport: input.sport,
+          tournament: input.tournament,
+          season: input.season,
+          isPrivate: input.isPrivate,
+          inviteCode,
+          maxMembers: input.maxMembers,
+          template: input.template,
+          rules: (input.rules ?? {}) as Record<string, unknown>,
+        })
+        .returning();
+
+      await ctx.db.insert(leagueMembers).values({
+        leagueId: league!.id,
+        userId: ctx.user.id,
+        role: "owner",
+      });
+
+      log.info({ leagueId: league!.id, format: input.format }, "Admin league created");
+      return league;
+    }),
+
+  get: adminProcedure
+    .input(z.object({ leagueId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const league = await ctx.db.query.leagues.findFirst({
+        where: eq(leagues.id, input.leagueId),
+      });
+      if (!league) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "League not found" });
+      }
+      const members = await ctx.db
+        .select()
+        .from(leagueMembers)
+        .where(eq(leagueMembers.leagueId, input.leagueId));
+      return { ...league, members };
+    }),
+
+  delete: adminProcedure
+    .input(z.object({ leagueId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(leagues).where(eq(leagues.id, input.leagueId));
+      return { deleted: true };
+    }),
+});
+
+// ---------------------------------------------------------------------------
 // Merged admin router
 // ---------------------------------------------------------------------------
 
@@ -2376,6 +2434,7 @@ export const adminRouter = router({
   matches: matchesRouter,
   players: playersRouter,
   contests: contestsRouter,
+  leagues: leaguesRouter,
   config: configRouter,
   leagueConfig: leagueConfigRouter,
   users: usersRouter,

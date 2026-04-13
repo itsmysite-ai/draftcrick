@@ -2,7 +2,13 @@ import { z } from "zod";
 
 export const createLeagueSchema = z.object({
   name: z.string().min(1).max(100),
-  format: z.enum(["salary_cap", "draft", "auction", "prediction"]),
+  format: z.enum([
+    "salary_cap",
+    "draft",
+    "auction",
+    "prediction",
+    "cricket_manager",
+  ]),
   sport: z.enum(["cricket", "football", "kabaddi", "basketball"]).default("cricket"),
   tournament: z.string().min(1),
   season: z.string().optional(),

@@ -395,18 +395,20 @@ export const leagueRouter = router({
   create: protectedProcedure
     .input(createLeagueSchema)
     .mutation(async ({ ctx, input }) => {
-      // Check league count limit based on user's tier
-      const tier = await getUserTier(ctx.db, ctx.user.id);
-      const tierConfig = DEFAULT_TIER_CONFIGS[tier];
-      const [ownedCount] = await ctx.db
-        .select({ count: count() })
-        .from(leagues)
-        .where(eq(leagues.ownerId, ctx.user.id));
-      if (ownedCount && ownedCount.count >= tierConfig.features.maxLeagues) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `You've reached the ${tierConfig.features.maxLeagues} league limit for ${tierConfig.name} tier. Upgrade to create more leagues.`,
-        });
+      // Check league count limit based on user's tier (admins bypass the cap)
+      if (ctx.user.role !== "admin") {
+        const tier = await getUserTier(ctx.db, ctx.user.id);
+        const tierConfig = DEFAULT_TIER_CONFIGS[tier];
+        const [ownedCount] = await ctx.db
+          .select({ count: count() })
+          .from(leagues)
+          .where(eq(leagues.ownerId, ctx.user.id));
+        if (ownedCount && ownedCount.count >= tierConfig.features.maxLeagues) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `You've reached the ${tierConfig.features.maxLeagues} league limit for ${tierConfig.name} tier. Upgrade to create more leagues.`,
+          });
+        }
       }
 
       const inviteCode = randomBytes(6).toString("hex");
@@ -443,7 +445,8 @@ export const leagueRouter = router({
         role: "owner",
       });
 
-      // Auto-create contests for all league formats immediately
+      // Auto-create contests for match-based league formats
+      // (cricket_manager rounds are composed manually by admin)
       if (input.format === "salary_cap" || input.format === "auction" || input.format === "draft") {
         try {
           const created = await autoCreateContestsForLeague(
@@ -535,6 +538,53 @@ export const leagueRouter = router({
       };
     }),
 
+  /** Join a public league by id (no invite code needed). */
+  joinPublic: protectedProcedure
+    .input(z.object({ leagueId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const league = await ctx.db.query.leagues.findFirst({
+        where: eq(leagues.id, input.leagueId),
+      });
+      if (!league) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "League not found" });
+      }
+      if (league.isPrivate) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "League is private — use invite code",
+        });
+      }
+
+      const memberCount = await ctx.db
+        .select({ count: count() })
+        .from(leagueMembers)
+        .where(eq(leagueMembers.leagueId, league.id));
+
+      if (memberCount[0] && memberCount[0].count >= league.maxMembers) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "League is full" });
+      }
+
+      const existing = await ctx.db.query.leagueMembers.findFirst({
+        where: and(
+          eq(leagueMembers.leagueId, league.id),
+          eq(leagueMembers.userId, ctx.user.id)
+        ),
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Already a member",
+        });
+      }
+
+      await ctx.db.insert(leagueMembers).values({
+        leagueId: league.id,
+        userId: ctx.user.id,
+        role: "member",
+      });
+      return league;
+    }),
+
   join: protectedProcedure
     .input(z.object({ inviteCode: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -582,6 +632,52 @@ export const leagueRouter = router({
     });
     return memberships;
   }),
+
+  /** Browse public leagues open to join (primarily admin-curated leagues) */
+  browsePublic: protectedProcedure
+    .input(
+      z
+        .object({
+          format: z
+            .enum([
+              "salary_cap",
+              "draft",
+              "auction",
+              "prediction",
+              "cricket_manager",
+            ])
+            .optional(),
+          limit: z.number().int().min(1).max(100).default(30),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [eq(leagues.isPrivate, false), eq(leagues.status, "active")];
+      if (input?.format) conditions.push(eq(leagues.format, input.format));
+
+      const rows = await ctx.db
+        .select({
+          id: leagues.id,
+          name: leagues.name,
+          format: leagues.format,
+          tournament: leagues.tournament,
+          maxMembers: leagues.maxMembers,
+          rules: leagues.rules,
+          createdAt: leagues.createdAt,
+        })
+        .from(leagues)
+        .where(and(...conditions))
+        .orderBy(desc(leagues.createdAt))
+        .limit(input?.limit ?? 30);
+
+      // Exclude leagues the user has already joined
+      const myMemberships = await ctx.db
+        .select({ leagueId: leagueMembers.leagueId })
+        .from(leagueMembers)
+        .where(eq(leagueMembers.userId, ctx.user.id));
+      const joinedIds = new Set(myMemberships.map((m) => m.leagueId));
+      return rows.filter((l) => !joinedIds.has(l.id));
+    }),
 
   /** Get active auctions across all leagues the user is in */
   myActiveAuctions: protectedProcedure.query(async ({ ctx }) => {
