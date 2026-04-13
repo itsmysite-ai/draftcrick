@@ -91,6 +91,11 @@ export default function LeagueDetailScreen() {
     </YStack>
   );
 
+  // Cricket Manager format has its own layout — rounds + season standings
+  if (league.format === "cricket_manager") {
+    return <CricketManagerLeagueView league={league} leagueId={id!} />;
+  }
+
   // Match by DB UUID or by email (user.id is Firebase UID, members use DB UUID)
   const myMembership = league.members?.find((m: any) =>
     m.userId === user?.id || m.user?.email === user?.email
@@ -507,6 +512,369 @@ export default function LeagueDetailScreen() {
           ]}
         />
       )}
+    </YStack>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cricket Manager league view — rounds list + season standings
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CM_STATUS_VARIANT: Record<
+  string,
+  "default" | "live" | "role" | "warning" | "danger" | "success"
+> = {
+  upcoming: "role",
+  open: "success",
+  locked: "role",
+  live: "live",
+  settled: "default",
+  void: "danger",
+};
+
+function CricketManagerLeagueView({
+  league,
+  leagueId,
+}: {
+  league: any;
+  leagueId: string;
+}) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const [cmTab, setCmTab] = useState<"rounds" | "standings" | "members">("rounds");
+
+  const roundsQuery = trpc.cricketManager.getLeagueRounds.useQuery(
+    { leagueId },
+    { refetchInterval: 15000 }
+  );
+  const standingsQuery = trpc.cricketManager.getLeagueStandings.useQuery(
+    { leagueId, limit: 200, offset: 0 },
+    { enabled: cmTab === "standings", refetchInterval: 15000 }
+  );
+
+  const roundsData = roundsQuery.data ?? [];
+  const standingsData = standingsQuery.data ?? [];
+  const data =
+    cmTab === "rounds"
+      ? roundsData
+      : cmTab === "standings"
+      ? standingsData
+      : league.members ?? [];
+
+  return (
+    <YStack flex={1} backgroundColor="$background" testID="cm-league-detail">
+      <FlatList
+        data={data as any[]}
+        keyExtractor={(item: any) =>
+          item.id ?? item.userId ?? `${Math.random()}`
+        }
+        contentContainerStyle={{ padding: 16 }}
+        ListHeaderComponent={
+          <>
+            <XStack
+              justifyContent="space-between"
+              alignItems="center"
+              paddingTop={insets.top + 8}
+              paddingBottom="$3"
+              marginBottom="$3"
+            >
+              <XStack alignItems="center" gap="$3">
+                <SafeBackButton />
+              </XStack>
+              <HeaderControls />
+            </XStack>
+            <AnnouncementBanner marginHorizontal={0} />
+
+            {/* League header */}
+            <Card padding="$5" marginBottom="$4">
+              <Text
+                fontFamily="$mono"
+                fontWeight="500"
+                fontSize={17}
+                color="$color"
+                letterSpacing={-0.5}
+              >
+                {league.name}
+              </Text>
+              <XStack marginTop="$2" gap="$3" flexWrap="wrap">
+                <Badge variant="role" size="sm">
+                  cricket manager
+                </Badge>
+                <Text
+                  fontFamily="$mono"
+                  fontSize={12}
+                  color="$colorMuted"
+                  alignSelf="center"
+                >
+                  {league.members?.length ?? 0}/{league.maxMembers}{" "}
+                  {formatUIText("members")}
+                </Text>
+              </XStack>
+              <Text
+                fontFamily="$body"
+                fontSize={13}
+                color="$colorMuted"
+                marginTop="$2"
+              >
+                {league.tournament}
+              </Text>
+              {league.rules?.cricketManager?.prizePool > 0 && (
+                <Text
+                  fontFamily="$mono"
+                  fontSize={12}
+                  color="$colorCricket"
+                  marginTop="$1"
+                >
+                  prize pool: {league.rules.cricketManager.prizePool} PC
+                </Text>
+              )}
+            </Card>
+
+            {/* Tab switcher */}
+            <XStack
+              marginBottom="$3"
+              borderRadius="$3"
+              backgroundColor="$backgroundSurfaceAlt"
+              padding="$1"
+              gap="$1"
+            >
+              {([
+                { key: "rounds" as const, label: "rounds" },
+                { key: "standings" as const, label: "standings" },
+                { key: "members" as const, label: "members" },
+              ]).map((t) => (
+                <SegmentTab
+                  key={t.key}
+                  active={cmTab === t.key}
+                  onPress={() => setCmTab(t.key)}
+                >
+                  <Text
+                    fontFamily="$body"
+                    fontWeight="600"
+                    fontSize={13}
+                    color={cmTab === t.key ? "$color" : "$colorMuted"}
+                  >
+                    {formatUIText(t.label)}
+                  </Text>
+                </SegmentTab>
+              ))}
+            </XStack>
+          </>
+        }
+        renderItem={({ item, index }: { item: any; index: number }) => {
+          if (cmTab === "rounds") {
+            const round = item;
+            return (
+              <Animated.View
+                entering={FadeInDown.delay(index * 40).springify()}
+              >
+                <Card
+                  pressable
+                  marginBottom="$2"
+                  padding="$4"
+                  onPress={() =>
+                    router.push(
+                      `/league/${leagueId}/round/${round.id}` as never
+                    )
+                  }
+                  borderColor={
+                    round.status === "live" ? "$colorCricket" : "$borderColor"
+                  }
+                  borderWidth={round.status === "live" ? 2 : 1}
+                  testID={`cm-round-${round.id}`}
+                >
+                  <XStack justifyContent="space-between" alignItems="flex-start">
+                    <XStack alignItems="center" gap="$2" flex={1}>
+                      <Text
+                        fontFamily="$mono"
+                        fontWeight="700"
+                        fontSize={12}
+                        color="$accentBackground"
+                        backgroundColor="rgba(61,153,104,0.1)"
+                        paddingHorizontal="$2"
+                        paddingVertical={2}
+                        borderRadius="$2"
+                      >
+                        R{round.roundNumber}
+                      </Text>
+                      <Text
+                        fontFamily="$body"
+                        fontWeight="700"
+                        fontSize={14}
+                        color="$color"
+                        flex={1}
+                        numberOfLines={1}
+                      >
+                        {round.name}
+                      </Text>
+                    </XStack>
+                    <Badge
+                      variant={CM_STATUS_VARIANT[round.status] ?? "default"}
+                      size="sm"
+                    >
+                      {formatBadgeText(round.status)}
+                    </Badge>
+                  </XStack>
+                  <Text
+                    fontFamily="$body"
+                    fontSize={11}
+                    color="$colorMuted"
+                    marginTop="$2"
+                  >
+                    {round.matchesTotal} {formatUIText("matches")} ·{" "}
+                    {new Date(round.windowStart).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                    {" → "}
+                    {new Date(round.windowEnd).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </Text>
+                  {round.totalEntries > 0 && (
+                    <Text
+                      fontFamily="$mono"
+                      fontSize={11}
+                      color="$colorCricket"
+                      marginTop="$1"
+                    >
+                      {round.totalEntries} {formatUIText("entries")}
+                      {round.bestNrr != null &&
+                        ` · best NRR ${Number(round.bestNrr).toFixed(2)}`}
+                    </Text>
+                  )}
+                </Card>
+              </Animated.View>
+            );
+          }
+
+          if (cmTab === "standings") {
+            const s = item;
+            const isMe = s.userId === user?.id;
+            const label = s.email ? s.email.split("@")[0] : "player";
+            return (
+              <Animated.View
+                entering={FadeInDown.delay(index * 30).springify()}
+              >
+                <Card
+                  marginBottom="$2"
+                  padding="$3"
+                  borderColor={isMe ? "$accentBackground" : "$borderColor"}
+                  borderWidth={isMe ? 2 : 1}
+                >
+                  <XStack alignItems="center">
+                    <YStack width={32} alignItems="center">
+                      <Text
+                        fontFamily="$mono"
+                        fontWeight="800"
+                        fontSize={14}
+                        color={
+                          index === 0
+                            ? "$colorCricket"
+                            : index === 1
+                            ? "$colorSecondary"
+                            : "$color"
+                        }
+                      >
+                        #{s.rank ?? index + 1}
+                      </Text>
+                    </YStack>
+                    <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
+                      <InitialsAvatar
+                        name={label}
+                        playerRole="BAT"
+                        ovr={0}
+                        size={32}
+                        hideBadge
+                      />
+                      <YStack flex={1}>
+                        <Text {...textStyles.playerName}>{label}</Text>
+                        {isMe && (
+                          <Badge
+                            variant="live"
+                            size="sm"
+                            alignSelf="flex-start"
+                          >
+                            {formatUIText("you")}
+                          </Badge>
+                        )}
+                      </YStack>
+                    </XStack>
+                    <YStack alignItems="flex-end">
+                      <Text
+                        fontFamily="$mono"
+                        fontWeight="700"
+                        fontSize={15}
+                        color="$accentBackground"
+                      >
+                        {Number(s.totalNrr).toFixed(2)}
+                      </Text>
+                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                        {s.roundsPlayed}{" "}
+                        {formatUIText(
+                          s.roundsPlayed === 1 ? "round" : "rounds"
+                        )}
+                      </Text>
+                    </YStack>
+                  </XStack>
+                </Card>
+              </Animated.View>
+            );
+          }
+
+          // Members tab
+          const m = item;
+          return (
+            <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
+              <Card marginBottom="$2" padding="$4">
+                <XStack alignItems="center" gap="$3">
+                  <InitialsAvatar
+                    name={m.user?.displayName ?? m.user?.username ?? "?"}
+                    playerRole="BAT"
+                    ovr={0}
+                    size={36}
+                    hideBadge
+                  />
+                  <YStack flex={1}>
+                    <Text {...textStyles.playerName}>
+                      {m.user?.displayName ??
+                        m.user?.username ??
+                        formatUIText("unknown")}
+                    </Text>
+                    <Badge
+                      variant="role"
+                      size="sm"
+                      alignSelf="flex-start"
+                      marginTop={2}
+                    >
+                      {formatBadgeText(m.role)}
+                    </Badge>
+                  </YStack>
+                </XStack>
+              </Card>
+            </Animated.View>
+          );
+        }}
+        ListEmptyComponent={
+          cmTab === "rounds" ? (
+            <Card padding="$5" alignItems="center">
+              <Text {...textStyles.hint}>
+                {formatUIText(
+                  "no rounds yet — check back when the admin composes the first round"
+                )}
+              </Text>
+            </Card>
+          ) : cmTab === "standings" ? (
+            <Card padding="$5" alignItems="center">
+              <Text {...textStyles.hint}>
+                {formatUIText("no standings yet — submit a round entry to appear")}
+              </Text>
+            </Card>
+          ) : null
+        }
+      />
     </YStack>
   );
 }

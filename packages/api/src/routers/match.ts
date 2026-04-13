@@ -5,6 +5,7 @@ import { matches, contests, tournaments } from "@draftplay/db";
 import { getVisibleTournamentNames } from "../services/admin-config";
 import { getLogger } from "../lib/logger";
 import { determineMatchPhase, calculateNextRefreshAfter } from "@draftplay/shared";
+import { applyMatchPhaseChange } from "../services/match-lifecycle";
 
 const log = getLogger("match-router");
 
@@ -51,27 +52,24 @@ async function backgroundRefreshMatch(db: any, match: any) {
       if (cbScore.tossWinner) updateSet.tossWinner = cbScore.tossWinner;
       if (cbScore.tossDecision) updateSet.tossDecision = cbScore.tossDecision;
 
-      // Sync matchPhase + draftEnabled
+      // Compute the next-refresh schedule based on the incoming phase.
+      // match_phase itself is NOT written here — applyMatchPhaseChange below
+      // is the canonical path that fires all side-effects (draft, contests,
+      // notifications, CM hooks).
       const phase = determineMatchPhase(match.startTime, null, newStatus);
-      if (match.matchPhase !== phase) updateSet.matchPhase = phase;
       updateSet.nextRefreshAfter = calculateNextRefreshAfter(phase, now);
-      if (phase === "live") updateSet.draftEnabled = false;
-      else if (phase === "completed" || phase === "post_match") updateSet.draftEnabled = false;
 
       await db.update(matches).set(updateSet).where(eq(matches.id, match.id));
 
-      // Auto-transition contests on status change
-      if (newStatus !== match.status) {
-        if (newStatus === "live") {
-          await db.update(contests).set({ status: "live" })
-            .where(and(eq(contests.matchId, match.id), eq(contests.status, "open")));
-        } else if (newStatus === "completed") {
-          await db.update(contests).set({ status: "settling" })
-            .where(and(eq(contests.matchId, match.id), eq(contests.status, "live")));
-          await db.update(contests).set({ status: "cancelled" })
-            .where(and(eq(contests.matchId, match.id), eq(contests.status, "open")));
-        }
-      }
+      // Apply phase change canonically (no-op if unchanged). Side-effects:
+      // draft enablement/disablement, contest status transitions, user
+      // notifications, CM round hooks, prediction grace periods.
+      await applyMatchPhaseChange(
+        db,
+        match.id,
+        phase,
+        "background:liveMatchRefresh"
+      );
     }
 
     // 2. Fetch confirmed playing XI if toss just happened

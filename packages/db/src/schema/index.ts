@@ -23,3 +23,4 @@ export * from "./admin-config";
 export * from "./subscriptions";
 export * from "./cache";
 export * from "./chat";
+export * from "./cricket-manager";

@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { ActivityIndicator, View, Platform } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 // Sentry — no-op stub (install @sentry/react-native to enable)
 const Sentry = {
   init: (..._args: unknown[]) => {},
@@ -102,6 +103,10 @@ function InnerLayout() {
         <Stack.Screen name="league/[id]" />
         <Stack.Screen name="league/[id]/trades" />
         <Stack.Screen name="league/[id]/settings" />
+        <Stack.Screen name="league/[id]/round/[roundId]/index" />
+        <Stack.Screen name="league/[id]/round/[roundId]/build" />
+        <Stack.Screen name="league/[id]/round/[roundId]/leaderboard" />
+        <Stack.Screen name="league/[id]/round/[roundId]/reveal/[userId]" />
         <Stack.Screen name="draft/[id]" />
         <Stack.Screen name="auction/[id]" />
         <Stack.Screen name="subscription/index" />
@@ -181,19 +186,21 @@ function RootLayout() {
   }
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <NotificationProvider>
-            <ThemeProvider>
-              <WebLayoutWrapper>
-                <InnerLayout />
-              </WebLayoutWrapper>
-            </ThemeProvider>
-          </NotificationProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <NotificationProvider>
+              <ThemeProvider>
+                <WebLayoutWrapper>
+                  <InnerLayout />
+                </WebLayoutWrapper>
+              </ThemeProvider>
+            </NotificationProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </GestureHandlerRootView>
   );
 }
 

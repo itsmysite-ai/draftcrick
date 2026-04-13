@@ -31,7 +31,25 @@ const TXN_LABELS: Record<string, string> = {
   pack_purchase: "coin pack",
   streak_bonus: "streak bonus",
   achievement: "achievement",
+  cm_contest_entry: "cricket manager entry",
+  cm_contest_win: "cricket manager win",
+  cm_league_entry: "cricket manager league entry",
 };
+
+// The signup bonus is logged with type=achievement + metadata.reason=signup_bonus.
+// Detect it and override the label so it reads as "sign on bonus" instead of
+// the generic "achievement".
+function txnLabel(type: string, metadata: unknown): string {
+  if (
+    type === "achievement" &&
+    metadata &&
+    typeof metadata === "object" &&
+    (metadata as { reason?: unknown }).reason === "signup_bonus"
+  ) {
+    return "sign on bonus";
+  }
+  return TXN_LABELS[type] ?? type;
+}
 
 const CREDIT_TYPES = new Set([
   "daily_claim",
@@ -40,6 +58,7 @@ const CREDIT_TYPES = new Set([
   "referral_bonus",
   "streak_bonus",
   "achievement",
+  "cm_contest_win",
 ]);
 
 function StreakPulseDot({ day, isMilestone }: { day: number; isMilestone: boolean }) {
@@ -318,7 +337,7 @@ export default function WalletScreen() {
                   <XStack justifyContent="space-between" alignItems="center">
                     <YStack flex={1}>
                       <Text fontFamily="$mono" fontWeight="600" fontSize={13} color="$color">
-                        {formatBadgeText(TXN_LABELS[txn.type] ?? txn.type)}
+                        {formatBadgeText(txnLabel(txn.type, txn.metadata))}
                       </Text>
                       <Text fontFamily="$mono" fontSize={11} color="$colorMuted" marginTop={2}>
                         {new Date(txn.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}

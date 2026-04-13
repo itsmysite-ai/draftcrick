@@ -2,7 +2,7 @@
 
 > **Status:** Design Phase
 > **Working Title:** Cricket Manager
-> **Concept:** A no-budget, multi-member tactical contest. Members each pick 11 players from a multi-day match window, set their batting order and bowling priority, make a "Bat First / Bowl First" call, then watch a **live 120-ball internal match** unfold as real cricket happens. Each member's Batting Total races against their own Bowling Total — the resulting NRR is compared on a shared contest leaderboard. Highest NRR wins the prize pool.
+> **Concept:** A no-budget, multi-member tactical contest. Members each pick 11 players from a multi-day match window, set their batting order and bowling priority, then watch a **live 120-ball internal match** unfold as real cricket happens. Each member's Batting Total races against their own Bowling Total — the resulting NRR is compared on a shared contest leaderboard. Highest NRR wins the prize pool.
 
 ---
 
@@ -12,7 +12,7 @@
 2. [The 120-Ball Engine](#2-the-120-ball-engine)
 3. [Contest Structure (Multi-Member)](#3-contest-structure-multi-member)
 4. [Round Structure (Multi-Match Window)](#4-round-structure-multi-match-window)
-5. [The 4 Phases of a Round](#5-the-4-phases-of-a-round)
+5. [The 3 Phases of a Round](#5-the-3-phases-of-a-round)
 6. [Live Scoring & Progress](#6-live-scoring--progress)
 7. [Leaderboard & NRR](#7-leaderboard--nrr)
 8. [Data Requirements](#8-data-requirements)
@@ -66,7 +66,7 @@ LAYER 2 — THE CONTEST (all members)
        │
 2. MEMBERS JOIN              2-1000 members join, pay entry fee (Pop Coins)
        │
-3. EACH MEMBER BUILDS        Pick 11 → Set batting order → Set bowling priority → Toss call
+3. EACH MEMBER BUILDS        Pick 11 → Set batting order → Set bowling priority
    THEIR ENTRY               (independently, can't see others' picks)
        │
 4. ENTRIES LOCK              30 min before first match in the window
@@ -184,29 +184,17 @@ If the bowling order takes **10 wickets**, the Bowling Total **freezes at the mo
 - This rewards picking wicket-taking bowlers, not just economical ones
 - Creates a distinct strategy: "wicket-hunting" vs "run-suppressing"
 
-### 2.4 The Toss Bonus
-
-Before the round locks, each member makes a "Bat First" or "Bowl First" call:
-
-- **Bat First:** Final Batting Total = Raw Batting Total × 1.05 (+5%)
-- **Bowl First:** Final Bowling Total = Raw Bowling Total × 0.95 (-5%)
-
-Applied AFTER the 120-ball simulation, BEFORE NRR calculation.
-
-### 2.5 Victory Condition (Per Member)
+### 2.4 Victory Condition (Per Member)
 
 ```
-Adjusted Batting Total = battingTotal × (toss == 'bat_first' ? 1.05 : 1.0)
-Adjusted Bowling Total = bowlingTotal × (toss == 'bowl_first' ? 0.95 : 1.0)
-
-WIN:  Adjusted Batting Total > Adjusted Bowling Total
-LOSS: Adjusted Batting Total < Adjusted Bowling Total
-TIE:  Adjusted Batting Total == Adjusted Bowling Total
+WIN:  Batting Total > Bowling Total
+LOSS: Batting Total < Bowling Total
+TIE:  Batting Total == Bowling Total
 ```
 
 A "win" doesn't mean you win the contest — it means your batting beat your bowling. Your **NRR** determines where you rank among all members.
 
-### 2.6 All-Rounder Handling
+### 2.5 All-Rounder Handling
 
 A player who both bats and bowls contributes to **BOTH** sides of the simulation:
 
@@ -221,7 +209,7 @@ This is the core strategic tension. Example:
 
 The decision: is his batting value worth the bowling cost?
 
-### 2.7 Multi-Match Aggregation
+### 2.6 Multi-Match Aggregation
 
 Since a round spans multiple real matches, a player's stats are **summed across all matches** they play in the window:
 
@@ -250,17 +238,18 @@ If Bumrah plays twice in the window (MI vs CSK and MI vs DC) and bowls 4+4 = 8 o
 
 A CM contest is a **group of members** competing on the same round. Everyone picks from the same player pool, builds their entry independently, and is ranked by NRR on a shared leaderboard.
 
-Think of it like a golf tournament — everyone plays the same course (same player pool), but your score (NRR) depends entirely on your own strategy (squad, order, toss). There's no direct interaction between members during the game.
+Think of it like a golf tournament — everyone plays the same course (same player pool), but your score (NRR) depends entirely on your own strategy (squad, batting order, bowling priority). There's no direct interaction between members during the game.
 
 ### 3.2 Contest Types
 
 | Type | Members | Entry Fee | Prize Pool | Created By |
 |------|---------|-----------|------------|------------|
-| **Public** | Up to 100 | 10-100 PC | Entry fees pooled | System (auto per round) |
+| **Mega League** | Up to 10,000 | Set by admin | Guaranteed pool (set by admin) | **Admin** (one per tournament — the flagship public league) |
 | **Private** | 2-20 | Custom (or free) | Entry fees pooled | Any user (invite code) |
 | **H2H** | Exactly 2 | Matched stakes | Winner takes all | User-initiated |
-| **Mega** | Up to 1000 | 20 PC | Guaranteed pool | System (big match days) |
 | **Free** | Up to 50 | 0 PC | Small PC prizes | System (casual/onboarding) |
+
+The **Mega League** is the primary public contest: admin creates it, hand-composes rounds, defines prize pool, and users join it once to compete across the entire tournament. Private contests and H2H are user-initiated alternatives within the same round structure.
 
 ### 3.3 Prize Distribution
 
@@ -288,7 +277,7 @@ For larger contests (50+ members):
 |-------|---------------------|
 | **Building entries** | Nothing about other members' picks |
 | **Live phase** | Other members' NRR, batting total, bowling total — but NOT their squad, batting order, or bowling priority |
-| **After settlement** | Everything — full squad, batting order, bowling priority, toss call, per-player breakdown |
+| **After settlement** | Everything — full squad, batting order, bowling priority, per-player breakdown |
 
 This creates:
 - **During live:** Tension ("CricketGuru is ahead of me but I don't know why!")
@@ -300,47 +289,85 @@ A member can join **multiple contests** for the same round — but they submit t
 - Gaming by submitting different entries to hedge
 - Complexity of managing multiple squads
 
-One squad + one order + one toss = one entry. That entry competes in every contest you've joined for that round.
+One squad + one batting order + one bowling priority = one entry. That entry competes in every contest you've joined for that round.
 
 > **Design decision:** This is simpler and fairer. You commit to one strategy, and it's judged across all your contests. Same as most fantasy platforms.
 
 ---
 
-## 4. Round Structure (Multi-Match Window)
+## 4. Round Structure (Admin-Curated Match Groupings)
 
 ### 4.1 What Is a Round?
 
-A round is a **window of time** (3-7 days) covering multiple real matches. All players from those matches form the available pool.
+A round is an **admin-curated group of real matches** that form a single CM contest window. All players from those matches form the available pool. Rounds are hand-composed by an admin when they create a Mega League — they are *not* auto-windowed by date.
 
 ```
-Example: IPL Round 5
-├── Day 1: MI vs CSK     (Apr 10, 7:30pm)
-├── Day 2: RCB vs KKR    (Apr 11, 3:30pm)
-│          DC vs SRH     (Apr 11, 7:30pm)
-├── Day 3: GT vs PBKS    (Apr 12, 7:30pm)
-├── Day 4: LSG vs RR     (Apr 13, 3:30pm)
-│          MI vs DC      (Apr 13, 7:30pm)
-└── Day 5: CSK vs RCB    (Apr 14, 7:30pm)
+Example: IPL 2026 Mega League (admin-composed)
+├── Round 1 — "Opening Fixtures" (5 matches, one per team's first game)
+│     ├── RCB vs SRH    (Mar 28)
+│     ├── MI vs KKR     (Mar 29)
+│     ├── RR vs CSK     (Mar 30)
+│     ├── PBKS vs GT    (Mar 31)
+│     └── LSG vs DC     (Apr 1)
+├── Round 2 — "Second Fixtures" (5 matches)
+│     ├── KKR vs SRH    (Apr 2)
+│     ├── CSK vs PBKS   (Apr 3)
+│     ├── DC vs MI      (Apr 4)
+│     ├── GT vs RR      (Apr 4)
+│     └── SRH vs LSG    (Apr 5)
+├── Round 3 — "Third Fixtures" (5 matches)
+│     ...
+├── …
+└── Final Round — "IPL Final" (1 match)
 
-Player Pool: ~154 players across 7 matches
-Each member picks 11 from this pool
+Player Pool per round: players from that round's matches only
+Each member picks 11 from that pool, per round
 ```
+
+The admin decides how matches group together — typical pattern is **"each team plays once per round"** (so Round 1 = each team's first match, Round 2 = each team's second, etc.), with knockouts/finals as single-match rounds. But admin is free to group however they want (by date window, by stage, etc.).
 
 ### 4.2 Round Configuration
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `name` | Display name ("IPL Round 5") | Auto-generated |
-| `matchIds` | Array of match IDs in this window | Auto from schedule |
-| `windowStart` | First match start time | From schedule |
-| `windowEnd` | Last match estimated end | From schedule |
-| `lockTime` | When entries freeze | 30 min before first match |
+| Field | Description | Set By |
+|-------|-------------|--------|
+| `name` | Display name ("Round 1 — Opening Fixtures") | Admin |
+| `matchIds` | Array of match IDs hand-picked by admin | Admin |
+| `roundNumber` | Sequence within the mega league (1, 2, 3, …) | Admin |
+| `windowStart` | Earliest match start time | Derived from `matchIds` |
+| `windowEnd` | Latest match estimated end | Derived from `matchIds` |
+| `lockTime` | When entries freeze | Default: 30 min before first match (admin can override) |
 | `ballLimit` | Balls for simulation | 120 |
 | `minBowlers` | Min bowlers in squad | 5 |
-| `minWicketKeepers` | Min WKs in squad | 1 |
 | `maxOversPerBowler` | Bowling cap per bowler | 4 (24 balls) |
 
-### 4.3 Round Lifecycle
+### 4.3 Mega League (Admin-Created Parent)
+
+Rounds live inside a **Mega League** — a public, admin-created container that spans an entire tournament (e.g. "IPL 2026 Mega League"). The admin defines:
+
+| Field | Description |
+|-------|-------------|
+| `name` | Display name ("IPL 2026 Mega League") |
+| `tournamentId` | Tournament this league is tied to |
+| `visibility` | `public` (open to all users) — default for admin-created leagues |
+| `entryFee` | PC cost to join the mega league (one-time, covers all rounds) |
+| `prizePool` | Total guaranteed prize pool for the league |
+| `prizeDistribution` | How the pool splits across final season standings |
+| `roundPrizeSplit` | Optional per-round sub-pool (e.g. 10% of pool awarded per round, 50% held for finals) |
+| `maxMembers` | Cap on total members |
+| `createdBy` | Admin user ID |
+
+**Flow:**
+1. Admin creates Mega League for a tournament
+2. Admin composes Round 1 (picks matches, sets name, sets lock time)
+3. Admin composes Round 2, Round 3, … Final Round
+4. League opens for public joining. Users join once → automatically entered in every round
+5. Each round runs through its own lifecycle (upcoming → open → locked → live → settled)
+6. Season leaderboard = cumulative NRR across all settled rounds
+7. At tournament end, prize pool distributes per `prizeDistribution`
+
+> Admins can add/edit future rounds as the real tournament schedule firms up, but cannot modify a round once it has entered `locked` state.
+
+### 4.4 Round Lifecycle
 
 ```
 ┌───────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
@@ -361,7 +388,7 @@ Triggers:
 
 ---
 
-## 5. The 4 Phases of a Round
+## 5. The 3 Phases of a Round
 
 ### Phase 1: Squad Selection ("The Draft")
 
@@ -373,8 +400,9 @@ When: Round OPEN → lockTime
 - Select exactly **11 players**
 - **Validation:**
   - Exactly 11 players
-  - Min 1 wicket-keeper
   - Min 5 bowlers (bowler or all-rounder)
+
+> **No wicketkeeper requirement.** The simulation only scores batting runs and bowling figures — keeping (catches/stumpings/byes) isn't an input to either total, so a WK is functionally just a batter. No positional constraint on WKs.
 - Stats shown: Recent Strike Rate, Average, Economy, Bowling SR
 - **Why it's fun:** No budget → build your Dream XI. But every batter is a "ball resource" to manage.
 
@@ -396,18 +424,7 @@ When: Same as Phase 1 (tabs 2 & 3 of the entry builder)
 - Each bowler capped at 4 overs (24 balls) regardless of how much they bowled IRL
 - Visual aid: Economy Rate and Bowling SR next to each name
 
-### Phase 3: The Toss Call
-
-```
-When: Final step before submitting entry
-```
-
-- Binary choice: **Bat First** or **Bowl First**
-- Bat First: +5% to Batting Total
-- Bowl First: -5% to Bowling Total (reduction)
-- UI: Animated coin flip (cosmetic — user chooses, not random)
-
-### Phase 4: The Live Match
+### Phase 3: The Live Match
 
 ```
 When: LOCKED → LIVE → SETTLED (plays out over days)
@@ -436,7 +453,7 @@ This is what makes CM engaging. Members watch a multi-day race unfold:
 │  YOUR INTERNAL MATCH                                 │
 │  BAT  ━━━━━━━━━━━━━━━━━━━▓▓▓░░░  178               │
 │  BOWL ━━━━━━━━━━━━━━━░░░░░░░░░░  142               │
-│  NRR: +1.80    Bat First (+5%)   BATTING LEADS      │
+│  NRR: +1.80                      BATTING LEADS      │
 │                                                      │
 │  ─── CONTEST STANDINGS (LIVE) ────────────────────  │
 │  #1  CricketGuru    NRR +3.20  ▲  Bat:195 Bowl:131 │
@@ -514,21 +531,13 @@ Overs bowled: 14.0/20
 
 ### 7.1 NRR Formula
 
-The exact formula used for ranking:
+The exact formula used for ranking — mirrors real cricket ICC NRR:
 
 ```
-NRR = (Adjusted Batting Total / 20) - (Adjusted Bowling Total / 20)
+NRR = (Batting Total / 20) - (Bowling Total / 20)
 ```
 
-Where:
-- If toss = Bat First: Adjusted Batting = Raw Batting × 1.05, Adjusted Bowling = Raw Bowling
-- If toss = Bowl First: Adjusted Batting = Raw Batting, Adjusted Bowling = Raw Bowling × 0.95
-
-**Special case — all out (10 wickets lost in batting):**
-```
-Batting NRR = Adjusted Batting Total / (ballsUsed / 6)   ← actual overs, NOT 20
-```
-This penalizes getting "all out" — your batting run rate is divided by fewer overs, making it look better per-over but you scored fewer total runs because the innings ended early.
+Both innings always use the full 20-over allocation as the denominator. Per real NRR rules, if a team is bowled out, the full quota of overs is still used — so getting all out is naturally penalized by scoring fewer runs over the same 20 overs, not by changing the denominator.
 
 ### 7.2 Tie-Breakers
 
@@ -544,7 +553,6 @@ This penalizes getting "all out" — your batting run rate is divided by fewer o
 Per-contest ranking of all members by NRR. Shows:
 - Rank, username, NRR, batting total, bowling total
 - Rank movement arrows (up/down since last update) during live phase
-- Toss choice icon (bat/bowl)
 
 ### 7.4 Season Leaderboard
 
@@ -586,7 +594,7 @@ The engine needs these data points per player per match, all sourced from existi
 |-------|--------|----------|
 | `name` | `players.name` | Display |
 | `team` | `players.team` | Grouping / filtering |
-| `role` | `players.role` | Validation (min bowlers, min WK) |
+| `role` | `players.role` | Validation (min bowlers) |
 | `battingStyle` | `players.battingStyle` | Info display |
 | `bowlingStyle` | `players.bowlingStyle` | Info display |
 | `recentSR` | Derived from last 5 `playerMatchScores` | Batting order aid |
@@ -610,13 +618,52 @@ High-efficiency players for testing the engine:
 
 ## 9. Database Schema
 
-### 9.1 `cm_rounds` — A multi-match window
+### 9.0 `cm_mega_leagues` — Admin-created parent container
+
+```sql
+CREATE TABLE cm_mega_leagues (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id       UUID NOT NULL REFERENCES tournaments(id),
+  name                TEXT NOT NULL,                 -- "IPL 2026 Mega League"
+  description         TEXT,
+  visibility          TEXT NOT NULL DEFAULT 'public',
+    -- public | private
+
+  -- Economics
+  entry_fee           INTEGER NOT NULL DEFAULT 0,    -- Pop Coins (one-time)
+  prize_pool          INTEGER NOT NULL DEFAULT 0,    -- Total guaranteed
+  prize_distribution  JSONB NOT NULL DEFAULT '[]',
+    -- Final season standings split
+  round_prize_split   JSONB NOT NULL DEFAULT '{}',
+    -- Optional per-round sub-pool config
+    -- { perRoundPct: 10, finalPct: 50 } → 10% of pool awarded per round, 50% held for finals
+
+  -- Capacity
+  max_members         INTEGER NOT NULL DEFAULT 10000,
+  current_members     INTEGER NOT NULL DEFAULT 0,
+
+  -- Status
+  status              TEXT NOT NULL DEFAULT 'draft',
+    -- draft | open | in_progress | settled | cancelled
+
+  created_by          UUID NOT NULL REFERENCES users(id),   -- Admin
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_cm_mega_leagues_tournament ON cm_mega_leagues(tournament_id);
+CREATE INDEX idx_cm_mega_leagues_status ON cm_mega_leagues(status);
+```
+
+### 9.1 `cm_rounds` — A hand-composed group of matches
 
 ```sql
 CREATE TABLE cm_rounds (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  mega_league_id  UUID NOT NULL REFERENCES cm_mega_leagues(id) ON DELETE CASCADE,
   tournament_id   UUID NOT NULL REFERENCES tournaments(id),
-  name            TEXT NOT NULL,                    -- "IPL Round 5"
+  round_number    INTEGER NOT NULL,                 -- Sequence within mega league
+  name            TEXT NOT NULL,                    -- "Round 1 — Opening Fixtures"
   status          TEXT NOT NULL DEFAULT 'upcoming',
     -- upcoming | open | locked | live | settled | void
   format          TEXT NOT NULL DEFAULT 'standard',
@@ -635,9 +682,8 @@ CREATE TABLE cm_rounds (
   -- Config
   ball_limit              INTEGER NOT NULL DEFAULT 120,
   min_bowlers             INTEGER NOT NULL DEFAULT 5,
-  min_wicket_keepers      INTEGER NOT NULL DEFAULT 1,
   max_overs_per_bowler    INTEGER NOT NULL DEFAULT 4,
-  toss_bonus_pct          DECIMAL(4,2) NOT NULL DEFAULT 5.0,
+
   
   -- Progress
   matches_completed INTEGER NOT NULL DEFAULT 0,
@@ -652,8 +698,10 @@ CREATE TABLE cm_rounds (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX idx_cm_rounds_mega_league ON cm_rounds(mega_league_id);
 CREATE INDEX idx_cm_rounds_tournament ON cm_rounds(tournament_id);
 CREATE INDEX idx_cm_rounds_status ON cm_rounds(status);
+CREATE UNIQUE INDEX idx_cm_rounds_number ON cm_rounds(mega_league_id, round_number);
 ```
 
 ### 9.2 `cm_contests` — A group of members competing on a round
@@ -716,28 +764,22 @@ CREATE TABLE cm_entries (
   -- Bowling strategy (priority ranked)
   bowling_priority JSONB NOT NULL,
     -- [{priority: 1, playerId}, {priority: 2, playerId}, ...]
-  
-  -- Toss decision
-  toss_choice     TEXT NOT NULL DEFAULT 'bat_first',
-    -- 'bat_first' | 'bowl_first'
-  
+
   -- Chip (optional)
   chip_used       TEXT,
   chip_target     TEXT,
-  
+
   -- Simulation results (updated live, finalized on settlement)
   batting_total       INTEGER DEFAULT 0,
   batting_balls_used  INTEGER DEFAULT 0,
   batting_wickets     INTEGER DEFAULT 0,
   batting_details     JSONB,     -- Per-batter breakdown
-  
+
   bowling_total         INTEGER DEFAULT 0,
   bowling_balls_bowled  INTEGER DEFAULT 0,
   bowling_wickets       INTEGER DEFAULT 0,
   bowling_details       JSONB,   -- Per-bowler breakdown
-  
-  adjusted_batting    INTEGER DEFAULT 0,
-  adjusted_bowling    INTEGER DEFAULT 0,
+
   nrr                 DECIMAL(8,4) DEFAULT 0,
   batting_sr          DECIMAL(8,4) DEFAULT 0,
   
@@ -821,19 +863,23 @@ CREATE TABLE cm_chips (
 ```
 tournaments
   │
-  ├── cm_rounds (1:many — rounds per tournament)
+  ├── cm_mega_leagues (1:many — admin-created league parents)
   │     │
-  │     ├── cm_contests (1:many — multiple contests per round)
-  │     │     │
-  │     │     └── cm_contest_members (1:many — members in each contest)
-  │     │           │
-  │     │           └── references cm_entries (member's shared entry for the round)
+  │     ├── cm_mega_league_members (1:many — users who joined the league)
   │     │
-  │     └── cm_entries (1:many — one entry per user per round)
+  │     └── cm_rounds (1:many — admin-composed rounds)
   │           │
-  │           └── uses playerMatchScores (existing) for simulation
+  │           ├── cm_contests (1:many — contest buckets inside each round; public/private/H2H)
+  │           │     │
+  │           │     └── cm_contest_members (1:many — members in each contest)
+  │           │           │
+  │           │           └── references cm_entries (member's shared entry for the round)
+  │           │
+  │           └── cm_entries (1:many — one entry per user per round)
+  │                 │
+  │                 └── uses playerMatchScores (existing) for simulation
   │
-  ├── cm_season_standings (1:many — cumulative stats per user)
+  ├── cm_season_standings (1:many — cumulative stats per user per mega league)
   │
   └── cm_chips (1:many — chip inventory per user)
 
@@ -920,7 +966,6 @@ export const cricketManagerRouter = router({
         priority: z.number().min(1),
         playerId: z.string().uuid(),
       })).min(5),
-      tossChoice: z.enum(['bat_first', 'bowl_first']),
       chipUsed: z.string().optional(),
       chipTarget: z.string().optional(),
     }))
@@ -965,17 +1010,65 @@ export const cricketManagerRouter = router({
     .input(z.object({ tournamentId: z.string().uuid() }))
     .query(),
   
+  // ─── Mega Leagues (public, browsable by users) ──────────
+
+  listMegaLeagues: protectedProcedure
+    .input(z.object({ tournamentId: z.string().uuid().optional() }))
+    .query(),
+
+  getMegaLeague: protectedProcedure
+    .input(z.object({ megaLeagueId: z.string().uuid() }))
+    .query(),
+
+  joinMegaLeague: protectedProcedure
+    .input(z.object({ megaLeagueId: z.string().uuid() }))
+    .mutation(),  // Pays entry fee, auto-enters every round
+
   // ─── Admin ──────────────────────────────────────────────
-  
-  createRound: adminProcedure
+
+  createMegaLeague: adminProcedure
     .input(z.object({
       tournamentId: z.string().uuid(),
       name: z.string(),
-      matchIds: z.array(z.string().uuid()),
-      lockTime: z.date(),
+      description: z.string().optional(),
+      entryFee: z.number().int().nonnegative(),
+      prizePool: z.number().int().nonnegative(),
+      prizeDistribution: z.array(z.object({ rank: z.number(), percent: z.number() })),
+      roundPrizeSplit: z.object({
+        perRoundPct: z.number().optional(),
+        finalPct: z.number().optional(),
+      }).optional(),
+      maxMembers: z.number().int().positive().optional(),
     }))
     .mutation(),
-  
+
+  composeRound: adminProcedure
+    .input(z.object({
+      megaLeagueId: z.string().uuid(),
+      roundNumber: z.number().int().positive(),
+      name: z.string(),
+      matchIds: z.array(z.string().uuid()).min(1),
+      lockTime: z.date().optional(),
+    }))
+    .mutation(),
+
+  updateRound: adminProcedure
+    .input(z.object({
+      roundId: z.string().uuid(),
+      name: z.string().optional(),
+      matchIds: z.array(z.string().uuid()).optional(),
+      lockTime: z.date().optional(),
+    }))
+    .mutation(),  // Only allowed while round is 'upcoming'
+
+  deleteRound: adminProcedure
+    .input(z.object({ roundId: z.string().uuid() }))
+    .mutation(),  // Only allowed while round is 'upcoming'
+
+  publishMegaLeague: adminProcedure
+    .input(z.object({ megaLeagueId: z.string().uuid() }))
+    .mutation(),  // draft → open
+
   settleRound: adminProcedure
     .input(z.object({ roundId: z.string().uuid() }))
     .mutation(),
@@ -1000,24 +1093,20 @@ function validateEntry(input, round, playerPool) {
   // 4. No duplicates
   assert(new Set(input.players.map(p => p.playerId)).size === 11, 'No duplicates');
   
-  // 5. Min 1 WK
-  const wks = input.players.filter(p => getRole(p, playerPool) === 'wicket_keeper');
-  assert(wks.length >= 1, 'Need at least 1 WK');
-  
-  // 6. Min 5 bowlers
+  // 5. Min 5 bowlers
   const bowlers = input.players.filter(p => canBowl(p, playerPool));
   assert(bowlers.length >= 5, 'Need at least 5 bowlers');
-  
-  // 7. Batting order = all 11, positions 1-11
+
+  // 6. Batting order = all 11, positions 1-11
   assert(input.battingOrder.length === 11, 'Batting order must have 11');
   const positions = new Set(input.battingOrder.map(b => b.position));
   assert(positions.size === 11, 'Positions 1-11 required');
-  
-  // 8. Bowling priority: all bowlers from squad ranked
+
+  // 7. Bowling priority: all bowlers from squad ranked
   const bowlerIds = new Set(bowlers.map(b => b.playerId));
   input.bowlingPriority.forEach(b => assert(bowlerIds.has(b.playerId), 'Not a bowler'));
-  
-  // 9. Chip validation (if used)
+
+  // 8. Chip validation (if used)
   if (input.chipUsed) validateChip(input, round);
 }
 ```
@@ -1072,11 +1161,10 @@ Cricket Manager tab (bottom nav or section)
 │   ├── Recent results
 │   └── Season standings mini
 │
-├── Entry Builder (3 tabs + toss)
+├── Entry Builder (3 tabs)
 │   ├── Tab 1: Squad Selection
 │   ├── Tab 2: Batting Order (drag & drop)
-│   ├── Tab 3: Bowling Priority (drag & drop)
-│   └── Toss Call (bat first / bowl first)
+│   └── Tab 3: Bowling Priority (drag & drop)
 │
 ├── Contest Browser
 │   ├── Public contests for current round
@@ -1105,19 +1193,17 @@ Cricket Manager tab (bottom nav or section)
 ```
 ┌─────────────────────────────────────────────────────┐
 │  BUILD YOUR XI              IPL Week 5 │ 7 matches │
-│  ─── Squad ─── Batting ─── Bowling ─── Toss ──────│
+│  ─── Squad ─── Batting ─── Bowling ───────────────│
 │─────────────────────────────────────────────────────│
 │  🔍 Search...                   Filter: All ▾      │
-│  Selected: 8/11 │ Bowlers: 4/5 min │ WK: 1 ✓      │
+│  Selected: 8/11 │ Bowlers: 4/5 min                 │
 │─────────────────────────────────────────────────────│
-│  WICKET-KEEPERS                                     │
-│  ☑ R Pant       DC    SR: 155   Avg: 35            │
-│  ☐ KL Rahul     LSG   SR: 128   Avg: 42            │
-│                                                     │
 │  BATSMEN                                            │
 │  ☑ V Kohli      RCB   SR: 142   Avg: 48            │
 │  ☑ S Gill       GT    SR: 138   Avg: 42            │
 │  ☑ A Sharma     SRH   SR: 190   Avg: 28            │
+│  ☑ R Pant       DC    SR: 155   Avg: 35            │
+│  ☐ KL Rahul     LSG   SR: 128   Avg: 42            │
 │                                                     │
 │  ALL-ROUNDERS                                       │
 │  ☑ H Pandya     MI    SR: 148   Econ: 8.5          │
@@ -1138,7 +1224,7 @@ Cricket Manager tab (bottom nav or section)
 ```
 ┌─────────────────────────────────────────────────────┐
 │  BATTING ORDER                                      │
-│  ─── Squad ─── Batting ─── Bowling ─── Toss ──────│
+│  ─── Squad ─── Batting ─── Bowling ───────────────│
 │─────────────────────────────────────────────────────│
 │  Drag to reorder. High SR at top = more runs.       │
 │─────────────────────────────────────────────────────│
@@ -1165,7 +1251,7 @@ Cricket Manager tab (bottom nav or section)
 ```
 ┌─────────────────────────────────────────────────────┐
 │  BOWLING PRIORITY                                   │
-│  ─── Squad ─── Batting ─── Bowling ─── Toss ──────│
+│  ─── Squad ─── Batting ─── Bowling ───────────────│
 │─────────────────────────────────────────────────────│
 │  Rank bowlers by priority. Best economy at top.     │
 │  Each bowler capped at 4 overs (24 balls).          │
@@ -1186,28 +1272,7 @@ Cricket Manager tab (bottom nav or section)
 └─────────────────────────────────────────────────────┘
 ```
 
-### 11.5 Toss Call
-
-```
-┌─────────────────────────────────────────────────────┐
-│  YOUR TOSS CALL                                     │
-│  ─── Squad ─── Batting ─── Bowling ─── Toss ──────│
-│─────────────────────────────────────────────────────│
-│                                                     │
-│       ┌───────────────┐    ┌───────────────┐        │
-│       │  BAT FIRST    │    │  BOWL FIRST   │        │
-│       │               │    │               │        │
-│       │  +5% Batting  │    │  -5% Bowling  │        │
-│       │  Total        │    │  Total        │        │
-│       └───────────────┘    └───────────────┘        │
-│                                                     │
-│  Your squad: 3 elite batters, 4 strong bowlers      │
-│                                                     │
-│                               [Submit Entry]        │
-└─────────────────────────────────────────────────────┘
-```
-
-### 11.6 Contest Browser
+### 11.5 Contest Browser
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -1240,58 +1305,91 @@ Cricket Manager tab (bottom nav or section)
 
 ## 12. Data Pipeline Integration
 
-### 12.1 Auto-Create Rounds
+### 12.1 Admin-Create Mega League & Rounds
+
+Rounds are **not auto-generated**. An admin composes the mega league and its rounds manually through the admin portal. The system then manages lifecycle transitions automatically.
 
 ```typescript
-// Runs when tournament schedule is refreshed
+// Admin flow — called from admin portal
 
-async function autoCreateRounds(tournamentId: string) {
-  const matches = await getUpcomingMatches(tournamentId);
-  const windows = groupMatchesIntoWindows(matches, { windowDays: 5 });
-  
-  for (const window of windows) {
-    const existing = await findExistingRound(tournamentId, window.matchIds);
-    if (existing) continue;
-    
-    await db.insert(cmRounds).values({
-      tournamentId,
-      name: `${tournament.name} Round ${window.number}`,
-      matchIds: window.matchIds,
-      windowStart: window.firstMatchTime,
-      windowEnd: window.lastMatchEndEstimate,
-      lockTime: subMinutes(window.firstMatchTime, 30),
-      matchesTotal: window.matchIds.length,
-    });
-    
-    // Auto-create public contests for this round
-    await createDefaultContests(round.id);
-  }
+async function createMegaLeague(adminUserId: string, input: CreateMegaLeagueInput) {
+  assertAdmin(adminUserId);
+
+  const league = await db.insert(cmMegaLeagues).values({
+    tournamentId: input.tournamentId,
+    name: input.name,                        // "IPL 2026 Mega League"
+    description: input.description,
+    visibility: 'public',
+    entryFee: input.entryFee,
+    prizePool: input.prizePool,
+    prizeDistribution: input.prizeDistribution,
+    roundPrizeSplit: input.roundPrizeSplit,  // Optional per-round sub-pool config
+    maxMembers: input.maxMembers ?? 10000,
+    status: 'draft',
+    createdBy: adminUserId,
+  }).returning();
+
+  return league;
 }
 
-async function createDefaultContests(roundId: string) {
-  // Mega contest (large, low entry fee)
-  await db.insert(cmContests).values({
-    roundId, name: 'Mega Contest', contestType: 'mega',
-    entryFee: 20, maxMembers: 1000, isGuaranteed: true,
-    prizePool: 15000,
-    prizeDistribution: MEGA_PRIZE_TABLE,
-  });
-  
-  // Small stakes
-  await db.insert(cmContests).values({
-    roundId, name: 'Small Stakes', contestType: 'public',
-    entryFee: 10, maxMembers: 100,
-    prizeDistribution: SMALL_PRIZE_TABLE,
-  });
-  
-  // Free practice
-  await db.insert(cmContests).values({
-    roundId, name: 'Free Practice', contestType: 'free',
-    entryFee: 0, maxMembers: 50, prizePool: 100,
-    prizeDistribution: FREE_PRIZE_TABLE,
-  });
+async function composeRound(adminUserId: string, input: ComposeRoundInput) {
+  assertAdmin(adminUserId);
+
+  const league = await getMegaLeague(input.megaLeagueId);
+  assert(league.status === 'draft' || league.status === 'open',
+    'Cannot add rounds to an in-progress or settled league');
+
+  // Admin picks which matches belong to this round
+  const matches = await getMatchesByIds(input.matchIds);
+  assert(matches.length === input.matchIds.length, 'Invalid match IDs');
+  assert(matches.every(m => m.tournamentId === league.tournamentId),
+    'All matches must belong to the league tournament');
+
+  // Derive window from selected matches
+  const windowStart = min(matches.map(m => m.startTime));
+  const windowEnd   = max(matches.map(m => m.estimatedEndTime));
+  const lockTime    = input.lockTime ?? subMinutes(windowStart, 30);
+
+  const round = await db.insert(cmRounds).values({
+    megaLeagueId: league.id,
+    tournamentId: league.tournamentId,
+    roundNumber: input.roundNumber,
+    name: input.name,                        // "Round 1 — Opening Fixtures"
+    matchIds: input.matchIds,
+    windowStart,
+    windowEnd,
+    lockTime,
+    matchesTotal: input.matchIds.length,
+    status: 'upcoming',
+  }).returning();
+
+  return round;
+}
+
+async function publishMegaLeague(adminUserId: string, megaLeagueId: string) {
+  assertAdmin(adminUserId);
+  const league = await getMegaLeague(megaLeagueId);
+  assert(league.status === 'draft', 'League already published');
+
+  const rounds = await getRounds(megaLeagueId);
+  assert(rounds.length >= 1, 'League must have at least one round');
+
+  await db.update(cmMegaLeagues)
+    .set({ status: 'open' })
+    .where(eq(cmMegaLeagues.id, megaLeagueId));
 }
 ```
+
+**Lifecycle automation (system-managed, not admin):**
+- When a round's `windowStart - 30min` is reached → `upcoming → open` (player pool populated from squads)
+- When `lockTime` is reached → `open → locked`
+- When first match starts → `locked → live`
+- When all matches in `matchIds` are final → `live → settled` (triggers settlement, updates season standings)
+
+**Editing rules:**
+- Admin can add, edit, or delete `upcoming` rounds freely
+- Once a round transitions to `locked`, its `matchIds` and config are immutable
+- Admin cannot delete a mega league that has any round past `upcoming`
 
 ### 12.2 Live Score Hook
 
@@ -1388,7 +1486,7 @@ DraftPlay App
 ├── 🆕 Cricket Manager ←── Standalone mode
 │     ├── Round Hub
 │     ├── Contest Browser
-│     ├── Entry Builder (3 tabs + toss)
+│     ├── Entry Builder (3 tabs)
 │     ├── Live Match View
 │     ├── Results & Reveal
 │     └── Season Dashboard
@@ -1459,7 +1557,6 @@ Live predictions can overlay on CM rounds:
 | Tactician | Top 10% in a contest |
 | Bowling Masterclass | Bowling takes 10 wickets |
 | Season Champion | #1 in season standings |
-| Coin Flip King | Optimal toss choice 5 rounds in a row |
 
 ### 13.8 Guru AI
 
@@ -1467,7 +1564,7 @@ Live predictions can overlay on CM rounds:
 |---------|------|---------|
 | Rate My XI | Pro+ | "Strong batting, weak death bowling" |
 | Order Suggestion | Elite | AI-optimized batting order |
-| Toss Advice | Pro+ | "Bat First gives +12% expected NRR" |
+| Bowling Priority Advice | Pro+ | "Open with Bumrah, save Rashid for middle overs" |
 
 ---
 
@@ -1514,7 +1611,7 @@ One of each per tournament. Once used, gone.
 | Scenario | Rule |
 |----------|------|
 | All batters DNB | Batting total = 0. Heavy negative NRR. |
-| All out (10 wickets) | Batting NRR uses actual overs as denominator. |
+| All out (10 wickets) | Batting innings ends early. Denominator stays at 20 overs (real NRR rule) — fewer total runs = lower NRR. |
 | Bowlers don't cover 120 balls | Remaining balls = 0 conceded (benefits user). |
 | NRR tie | Batting SR tie-breaker. |
 
@@ -1535,12 +1632,13 @@ One of each per tournament. Once used, gone.
 
 | Task | Files |
 |------|-------|
-| DB schema (cm_rounds, cm_contests, cm_entries, cm_contest_members) | `packages/db/src/schema/cricket-manager.ts` |
-| 120-ball engine (batting + bowling + toss + lethality) | `packages/api/src/services/cm-engine.ts` |
-| Round manager (auto-create, open, lock, settle) | `packages/api/src/services/cm-round-manager.ts` |
-| tRPC router (rounds, contests, entries, leaderboard) | `packages/api/src/routers/cricket-manager.ts` |
+| DB schema (cm_mega_leagues, cm_rounds, cm_contests, cm_entries, cm_contest_members) | `packages/db/src/schema/cricket-manager.ts` |
+| 120-ball engine (batting + bowling + lethality) | `packages/api/src/services/cm-engine.ts` |
+| Round manager (lifecycle transitions, settlement) | `packages/api/src/services/cm-round-manager.ts` |
+| tRPC router (mega leagues, rounds, contests, entries, leaderboard) | `packages/api/src/routers/cricket-manager.ts` |
+| Admin mega-league composer (create league, compose rounds, publish) | `apps/web/app/admin/cricket-manager/` |
 | Contest creation + join + prize distribution | `packages/api/src/services/cm-contest.ts` |
-| Entry builder UI (3 tabs + toss) | `apps/mobile/app/cricket-manager/` |
+| Entry builder UI (3 tabs) | `apps/mobile/app/cricket-manager/` |
 | Contest browser UI | `apps/mobile/app/cricket-manager/contests/` |
 | Round leaderboard UI | Reuse leaderboard components |
 | Score-updater hook for live updates | `packages/api/src/jobs/score-updater.ts` |
@@ -1571,7 +1669,7 @@ One of each per tournament. Once used, gone.
 | Task | Details |
 |------|---------|
 | Subscription tier gating | Free/Pro/Elite feature gates |
-| Guru AI integration | Rate XI, suggest order, toss advice |
+| Guru AI integration | Rate XI, suggest batting order, suggest bowling priority |
 | "What If" analysis | Post-round optimization |
 | Round variants | Powerplay, Death Overs |
 | H2H contests | Direct 1v1 duels |
@@ -1586,8 +1684,7 @@ One of each per tournament. Once used, gone.
 **Contest:** Mega Contest (342 members, 20 PC entry, 15,000 PC pool)
 
 **Member "You":**
-- Squad: Kohli, Gill, Pant(WK), Pandya(AR), Jadeja(AR), Ishan, Bumrah, Shami, Chahal, Rashid, Chahar
-- Toss: Bat First (+5%)
+- Squad: Kohli, Gill, Pant, Pandya(AR), Jadeja(AR), Ishan, Bumrah, Shami, Chahal, Rashid, Chahar
 
 ### Aggregated Real Stats
 
@@ -1633,17 +1730,251 @@ One of each per tournament. Once used, gone.
 ### Result
 
 ```
-Toss: Bat First → Batting × 1.05
-Adjusted Batting: 190 × 1.05 = 199
-Adjusted Bowling: 136
+Batting Total: 190
+Bowling Total: 136
 
-NRR = (199/20) - (136/20) = 9.95 - 6.80 = +3.15
+NRR = (190/20) - (136/20) = 9.50 - 6.80 = +2.70
 Batting SR = (190/120) × 100 = 158.33
 
-Contest Rank: #3 of 342 → Won 200 PC
+Contest Rank: #5 of 342 → Won 150 PC
 ```
 
-**Why #3?** Members #1 and #2 found better batting orders — they put Abhishek Sharma (SR: 190) at #1 instead of Kohli, freeing up more balls for the middle order. Same concept, different strategy, different result. That's Cricket Manager.
+**Why #5?** Members ranked above you found better batting orders — they put Abhishek Sharma (SR: 190) at #1 instead of Kohli, freeing up more balls for the middle order. Same concept, different strategy, different result. That's Cricket Manager.
+
+---
+
+## Appendix A — Known Loopholes & Edge Cases (Revisit Later)
+
+This appendix catalogs loopholes in the engine that remain under the current admin convention: **one match per player per round (N=1)**. Several of the original concerns (mega-player match-count concentration, binary dismissal flag, round-wide 4-over cap mismatch, linear bowling smoothing, wicket rounding at share<1) are naturally eliminated by the N=1 rule and are not included here. What follows is the residual list, ordered by severity.
+
+### Loophole #1 — Dead bowler / DNB quota fraud (**✅ FIXED 2026-04-13**)
+
+**Where:** [packages/api/src/services/cm-engine.ts:135](packages/api/src/services/cm-engine.ts#L135) and [:260](packages/api/src/services/cm-engine.ts#L260)
+
+**Original mechanism:** Two engine behaviors colluded:
+- Batters with `ballsFaced === 0 && runs === 0` were silently skipped (no slot cost).
+- Bowlers with `realBalls === 0` were silently skipped (no priority cost).
+- The "min 5 bowlers" rule checked the pick's role tag, not actual match participation.
+- NRR divided by a fixed 20 overs regardless of how many balls were actually bowled.
+
+**Original exploit:** Pick 3 real bowlers + 2 token "bowlers" from teams with deep attacks where the 7th/8th bowlers reliably don't bowl. The 2 tokens contribute zero runs conceded, but the bowling denominator stays at 20 overs — creating ~48 "free dot balls" worth of NRR. Measured swing: **+3.15 NRR** for zero effort.
+
+#### The fix we shipped
+
+We rejected a settlement-time validator (punitive, false positives on injuries, binary rejection) and fixed the underlying **asymmetry** instead. The root cause wasn't ghost bowlers — it was that short batting was naturally penalized (fewer runs against a fixed 20-over denominator) while short bowling was *rewarded* by the same denominator. Two complementary mechanisms now close both exits:
+
+**1. Phantom-fill (`bat_first` only)** — when `simulateBowling` runs with `applyPhantomFill = true` and the real bowling innings ends with unused balls remaining *and* fewer than 10 wickets, the gap is filled with notional runs at the round's own average ER:
+
+```ts
+// packages/api/src/services/cm-engine.ts
+if (
+  applyPhantomFill &&
+  ballsBowled < ballLimit &&
+  wickets < 10 &&
+  config.phantomFillER !== undefined &&
+  config.phantomFillER > 0
+) {
+  const phantomBalls = ballLimit - ballsBowled;
+  const phantomOvers = phantomBalls / BALLS_PER_OVER;
+  const phantomRuns = Math.round(phantomOvers * config.phantomFillER);
+  total += phantomRuns;
+  ballsBowled = ballLimit;
+  phantomApplied = true;
+}
+```
+
+The `wickets < 10` guard preserves lethality — a legitimate bowling-out still gets full credit for the short innings. Phantom fill only closes gaps from *missing* bowling capacity.
+
+**2. Round-average ER is computed from the round's own match data** — not a hardcoded constant. Added `computeRoundAvgER` in [packages/api/src/services/cm-service.ts](packages/api/src/services/cm-service.ts) which sums runs conceded and balls bowled across every real bowler in every match of the round. Self-calibrates to batting-paradise vs bowler-friendly conditions. Fallback of 8.5 ER only used when no real bowling data exists (e.g. before match 1 starts).
+
+**3. `runEntrySimulation` threads `phantomFillER` into `RoundConfig`** — every sim call now computes the round's avg ER and passes it through. No hardcoded league constants anywhere.
+
+#### Round 5 before vs after (using the user's own data)
+
+| | Before fix | After fix |
+|---|---|---|
+| Real balls bowled | 65 | 65 |
+| Real runs conceded | 82 | 82 |
+| Phantom balls | 0 | 55 (9.1 overs) |
+| Round avg ER | — | ~9.5 (high-scoring round) |
+| Phantom runs | 0 | round(9.1 × 9.5) = **87** |
+| Total bowling runs | 82 | **169** |
+| Final NRR | **+6.65** | **+2.30** |
+
+The fake cushion disappears. The user still wins on genuine batting (215 runs is real), but the ghost bowlers no longer contribute free "dot balls" to the denominator.
+
+#### Why this is strictly better than a validator
+
+| Concern | Validator approach | Phantom-fill approach |
+|---|---|---|
+| Injured bowler (1 real over) | Voids entire entry ❌ | Small penalty proportional to gap ✅ |
+| Ghost bowler exploit | Rejects | Mathematically nullifies the edge ✅ |
+| User experience | "Your entry was voided" | Normal settlement, just lower NRR ✅ |
+| Detects partial shortness | Binary detection only | Linear penalty ✅ |
+| False positive rate | High | Zero ✅ |
+
+#### Regression tests added
+
+In [tests/unit/cm-engine.test.ts](tests/unit/cm-engine.test.ts):
+- `phantom-fill: 5 real 4-over bowlers pay zero penalty (honest baseline)` — ensures honest entries pay nothing
+- `phantom-fill: ghost bowler cheater gets charged at round-avg ER (bat_first)` — reproduces the exploit with exact numbers
+- `phantom-fill: NOT triggered when bowling-out (wickets >= 10)` — preserves lethality rule
+
+---
+
+### Loophole #2 — `bat_first` is strictly dominant (**✅ FIXED 2026-04-13**)
+
+**Where:** [packages/api/src/services/cm-engine.ts:307-327](packages/api/src/services/cm-engine.ts#L307-L327)
+
+**Original mechanism:** NRR = `batting/20 - bowling/20` with **both** divisors fixed at 20 overs. `bowl_first` capped the batting numerator (chase target) but left the denominator the same, guaranteeing a lower NRR. There was no scenario where `bowl_first` produced a strictly better NRR than `bat_first`.
+
+#### The fix we shipped
+
+Fixed in the same patch as #1 — the two loopholes shared a root cause (the 20/20 denominator model). `bowl_first` now uses **actual-overs denominators** (rate-based), while `bat_first` keeps the 20/20 baseline with phantom fill. This is ICC-aligned: the chasing side in real cricket is scored on actual overs faced, which is exactly what the user pointed out in the original NRR conversation.
+
+```ts
+// packages/api/src/services/cm-engine.ts — simulateEntry
+if (toss === "bowl_first") {
+  // Risk play: real bowling innings (no phantom fill) then chase.
+  // Rate-based denominators reward fast chases and punish short bowling.
+  bowling = simulateBowling(entry, statsByPlayerId, config, false);
+  batting = simulateBatting(entry, statsByPlayerId, config, bowling.total + 1);
+  const battingOvers = batting.chaseComplete
+    ? batting.ballsUsed / BALLS_PER_OVER
+    : OVERS_PER_INNINGS; // failed chase → ICC full-allocation penalty
+  const bowlingOvers =
+    bowling.ballsBowled > 0 ? bowling.ballsBowled / BALLS_PER_OVER : OVERS_PER_INNINGS;
+  nrr = computeNrr(batting.total, bowling.total, battingOvers, bowlingOvers);
+} else {
+  // Safe baseline: freeroll batting + phantom-filled bowling, 20 / 20 denominators.
+  bowling = simulateBowling(entry, statsByPlayerId, config, true);
+  batting = simulateBatting(entry, statsByPlayerId, config);
+  nrr = computeNrr(batting.total, bowling.total);
+}
+```
+
+`computeNrr` now accepts optional `battingOvers` and `bowlingOvers` parameters that default to 20. A failed chase in `bowl_first` falls back to a 20-over batting denominator (ICC's all-out rule equivalent), so `bowl_first` becomes a genuine risk/reward lever: commit to a chase and get rate-based rewards, or fail the chase and eat the full-allocation penalty.
+
+#### Two modes, two legitimate strategies
+
+| Scenario | `bat_first` NRR | `bowl_first` NRR | Winner |
+|---|---|---|---|
+| Low bowling + efficient chase (100r bowled, 101-target chased fast) | moderate | **higher rate** | bowl_first |
+| High bowling + long slow batting (worked example: 190 vs 136) | **+2.70** | +2.44 | bat_first |
+| Failed chase (batting can't reach target) | safe baseline | **−2.00 penalty** | bat_first |
+
+The toss mechanic now has real consequences. Neither mode strictly dominates — choice matters.
+
+#### Regression tests added
+
+- `bowl_first fast chase: rate-based denominators reward efficient chase` — proves bowl_first can beat bat_first
+- `bowl_first failed chase: falls back to 20-over batting denominator` — proves the failed-chase penalty fires
+- `toss bowl_first: batters stop when chase target reached (rate-based denominators)` — existing test updated: NRR now **+2.436** instead of the broken +0.05
+
+---
+
+### Loophole #3 — Chase-mode mid-round NRR preview is mathematically wrong (UX bug)
+
+**Where:** [packages/api/src/services/cm-engine.ts:307-327](packages/api/src/services/cm-engine.ts#L307-L327)
+
+**Mechanism:** `simulateEntry` runs `simulateBowling` first, then (for `bowl_first`) runs `simulateBatting` with `target = bowling.total + 1`. During a **live** round, `bowling.total` is a running partial that will change at settlement.
+
+**Example:** Round 5 state — bowling total so far = 45 (4 of 5 matches done).
+
+User A (bat_first) and User B (bowl_first) pick identical 11 players.
+
+- **User A preview:** NRR = `205/20 - 45/20 = +8.00` ✅
+- **User B preview:** chase target = 46, batters stop at Rohit's 16th run → `NRR = 46/20 - 45/20 = +0.05` ❌
+
+User B panics seeing +0.05. But at settlement, final bowling total will be (say) 140, target becomes 141, and their real NRR is a totally different number. The preview has shown a **meaningless** value based on a target that won't exist at settlement.
+
+**Fix options:**
+
+1. **Skip chase during live preview:**
+   ```ts
+   const isLive = round.status === "live";
+   const toss = isLive ? "bat_first" : entry.toss;
+   ```
+   With disclaimer: *"Live projection — toss applied at settlement."*
+2. **Show both bounds:** Display both `bat_first` NRR and `bowl_first` NRR with a note.
+
+**Severity:** Low for correctness (settlement math is fine). High for UX trust — users seeing preview jump from +0.05 to +X.XX at settlement will assume the engine is broken.
+
+---
+
+### Loophole #4 — Partial-status dismissal escape (cosmetic under N=1)
+
+**Where:** [packages/api/src/services/cm-engine.ts:191-192](packages/api/src/services/cm-engine.ts#L191-L192)
+```ts
+const dismissedThisSlot = stats.dismissed && status === "full" && !stoppedByChase;
+```
+
+**Mechanism:** A real-life dismissal in a slot that got cut short by the 120-ball budget (`status: "partial"`) is silently discarded from the wicket count.
+
+**Honest assessment under N=1:** After a partial slot, `ballsUsed === ballLimit` exactly, so every subsequent slot becomes `didnt_bat`. This means the fix **never changes `total`, never changes `ballsUsed`**, so it **never changes NRR or SR**. The only thing affected is the `wickets` number in the returned payload, which is a display field.
+
+**Fix (1-line change):**
+```ts
+const dismissedThisSlot = stats.dismissed && !stoppedByChase;
+```
+
+**Why fix it anyway:**
+- Prevents regression if N ever increases (the loophole reactivates with full force under multi-match rounds)
+- Correctness for any future tiebreaker or display that reads `wickets`
+- 1-line change, zero risk
+
+**Severity under N=1:** Zero exploit value. Fix for code hygiene, not for balance.
+
+---
+
+### Loophole #5 — Budget-wall bowling rounding (corner case)
+
+**Where:** [packages/api/src/services/cm-engine.ts:263-271](packages/api/src/services/cm-engine.ts#L263-L271)
+
+**Mechanism:** When priorities 1–5 don't fully consume the 120-ball budget and a 6th+ bowler spills into the remainder, `share = remainingBudget / realBalls < 1` and `wicketsTaken = Math.round(stats.wickets × share)` can round a real wicket down to zero.
+
+**Example:** Priorities 1–5 use 100 balls. Bowler #6 Jadeja 4-0-36-4 (24 real balls) spills into the remaining 20 balls.
+- `share = 20/24 = 0.833`
+- `wicketsTaken = round(4 × 0.833) = round(3.33) = 3`
+
+One wicket vanished. If preserved, cumulative wickets would reach 10 → lethality stop triggers → bowling innings ends ~15 balls earlier → bowling total ~23 runs lower → NRR better by ~1.15.
+
+**Trigger conditions (all must hold):**
+1. Priority list has 6+ bowlers (most entries have exactly 5)
+2. Priorities 1–5 don't fully use the 120-ball budget (requires short spells — rain, early finish)
+3. A wicket-rich bowler sits in the spillover position
+
+Combined probability: ~5–10% of entries.
+
+**Fix options:**
+
+1. **Fractional wicket tracking:**
+   ```ts
+   cumulativeFractionalWickets += stats.wickets * share;
+   const wicketsTaken = Math.floor(cumulativeFractionalWickets) - previouslyCounted;
+   ```
+2. **Count real wickets against the 10-wicket gate** (conceded runs still scaled):
+   ```ts
+   wickets = Math.min(10, wickets + stats.wickets);
+   ```
+
+**Severity:** Low in typical cases, medium in corners. Not exploitable deterministically under N=1.
+
+---
+
+### Summary & status
+
+| # | Loophole | NRR impact | Exploitable? | Status |
+|---|---|---|---|---|
+| 1 | Dead bowler / DNB quota fraud | +2 to +4 per round | **Yes, deterministically** | **✅ FIXED 2026-04-13** — phantom-fill at round-avg ER |
+| 2 | `bat_first` dominance | +2 to +3 for informed users | No (dominant strategy) | **✅ FIXED 2026-04-13** — rate-based denominators for `bowl_first` |
+| 3 | Chase preview mid-round | Zero (display only) | No | Open — UI label only |
+| 4 | Partial dismissal escape | Zero under N=1 | No | Open — 1 line hygiene fix |
+| 5 | Budget-wall rounding | +1 to +1.5 in ~5–10% of entries | Mild | Open — ~3 lines |
+
+**The 2026-04-13 patch closed loopholes #1 and #2 together** via a single root-cause fix: the 20/20 NRR denominator model was the shared bug. `bat_first` now applies phantom-fill (computed from the round's own avg ER) to close the ghost-bowler exploit; `bowl_first` uses ICC-style rate-based denominators (actual overs for successful chases, 20-over fallback for failed chases) to revive the toss mechanic. Both fixes land in [packages/api/src/services/cm-engine.ts](packages/api/src/services/cm-engine.ts) and [packages/api/src/services/cm-service.ts](packages/api/src/services/cm-service.ts) with 5 new regression tests in [tests/unit/cm-engine.test.ts](tests/unit/cm-engine.test.ts). The 3 remaining loopholes (#3, #4, #5) are all low-impact and can ship post-launch.
+
+**Dependency on N=1:** This analysis assumes admins always compose rounds so that each player appears in exactly one match. If that convention changes, re-read Appendix A in full — loopholes originally covered by N=1 (mega-player concentration, binary dismissal flag, 4-over cap mismatch) reactivate with severity scaling in N.
 
 ---
 

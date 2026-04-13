@@ -8,6 +8,10 @@ import {
 } from "@draftplay/db";
 import { calculateFantasyPoints, DEFAULT_T20_SCORING } from "@draftplay/shared";
 import { updateContestRanks } from "../services/leaderboard";
+import {
+  onMatchScoreUpdate as cmOnMatchScoreUpdate,
+  tickRoundLifecycles as cmTickRoundLifecycles,
+} from "../services/cm-service";
 
 /**
  * Score updater job.
@@ -127,6 +131,22 @@ export async function processScoreUpdate(
 
     // Update contest ranks
     await updateContestRanks(db, contest.id);
+  }
+
+  // Cricket Manager: re-simulate all live CM entries touching this match,
+  // then run a lifecycle reconciliation pass so any CM rounds drifting out
+  // of sync with their match states (e.g. open but matches completed) get
+  // flipped automatically. Errors are swallowed — score update must not
+  // block on CM.
+  try {
+    await cmOnMatchScoreUpdate(db, matchId);
+  } catch {
+    // logged inside cm-service
+  }
+  try {
+    await cmTickRoundLifecycles(db);
+  } catch {
+    // logged inside cm-service
   }
 }
 
