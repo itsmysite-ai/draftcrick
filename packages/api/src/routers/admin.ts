@@ -12,6 +12,7 @@ import {
   playerMatchScores,
   contests,
   fantasyTeams,
+  livePredictions,
   users,
   userProfiles,
   wallets,
@@ -21,8 +22,16 @@ import {
   dataRefreshLog,
   adminConfig,
   draftRooms,
+  draftPicks,
+  trades,
   leagues,
   leagueMembers,
+  leagueAwards,
+  commissionerActions,
+  h2hMatchups,
+  tournamentLeagues,
+  predictionAnswers,
+  predictionStandings,
   getDb,
 } from "@draftplay/db";
 import { randomBytes } from "crypto";
@@ -2420,7 +2429,56 @@ const leaguesRouter = router({
   delete: adminProcedure
     .input(z.object({ leagueId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(leagues).where(eq(leagues.id, input.leagueId));
+      // Cascade-delete all child rows in the right dependency order.
+      // CM tables (cm_rounds, cm_contests, cm_entries, cm_contest_members,
+      // cm_league_standings, cm_chips) use ON DELETE CASCADE at the FK
+      // level — Postgres handles them automatically when we drop the
+      // league row. Everything else below uses NO ACTION, so we clear
+      // it manually inside a transaction.
+      await ctx.db.transaction(async (tx) => {
+        // Grandchildren of contests (fantasy_teams, live_predictions)
+        const leagueContests = await tx
+          .select({ id: contests.id })
+          .from(contests)
+          .where(eq(contests.leagueId, input.leagueId));
+        if (leagueContests.length > 0) {
+          const contestIds = leagueContests.map((c) => c.id);
+          await tx
+            .delete(fantasyTeams)
+            .where(inArray(fantasyTeams.contestId, contestIds));
+          await tx
+            .delete(livePredictions)
+            .where(inArray(livePredictions.contestId, contestIds));
+        }
+        // Grandchildren of draft_rooms (draft_picks)
+        const leagueDraftRooms = await tx
+          .select({ id: draftRooms.id })
+          .from(draftRooms)
+          .where(eq(draftRooms.leagueId, input.leagueId));
+        if (leagueDraftRooms.length > 0) {
+          const roomIds = leagueDraftRooms.map((r) => r.id);
+          await tx
+            .delete(draftPicks)
+            .where(inArray(draftPicks.roomId, roomIds));
+        }
+
+        // Direct children of leagues (non-cascading FKs)
+        await tx.delete(contests).where(eq(contests.leagueId, input.leagueId));
+        await tx.delete(draftRooms).where(eq(draftRooms.leagueId, input.leagueId));
+        await tx.delete(trades).where(eq(trades.leagueId, input.leagueId));
+        await tx.delete(h2hMatchups).where(eq(h2hMatchups.leagueId, input.leagueId));
+        await tx.delete(leagueAwards).where(eq(leagueAwards.leagueId, input.leagueId));
+        await tx.delete(commissionerActions).where(eq(commissionerActions.leagueId, input.leagueId));
+        await tx.delete(tournamentLeagues).where(eq(tournamentLeagues.leagueId, input.leagueId));
+        await tx.delete(predictionAnswers).where(eq(predictionAnswers.leagueId, input.leagueId));
+        await tx.delete(predictionStandings).where(eq(predictionStandings.leagueId, input.leagueId));
+        await tx.delete(leagueMembers).where(eq(leagueMembers.leagueId, input.leagueId));
+
+        // Finally the league row itself — CM tables cascade here via FK.
+        await tx.delete(leagues).where(eq(leagues.id, input.leagueId));
+      });
+
+      log.info({ leagueId: input.leagueId }, "Admin league deleted with cascade");
       return { deleted: true };
     }),
 });
