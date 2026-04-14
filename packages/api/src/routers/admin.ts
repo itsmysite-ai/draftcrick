@@ -32,6 +32,8 @@ import {
   tournamentLeagues,
   predictionAnswers,
   predictionStandings,
+  cmRounds,
+  cmChips,
   getDb,
 } from "@draftplay/db";
 import { randomBytes } from "crypto";
@@ -2460,6 +2462,20 @@ const leaguesRouter = router({
           await tx
             .delete(draftPicks)
             .where(inArray(draftPicks.roomId, roomIds));
+        }
+
+        // CM chips reference cm_rounds via NO ACTION FK — clear them
+        // before the league delete cascades through cm_rounds. Without
+        // this, deleting a league with used chips would 500.
+        const leagueCmRounds = await tx
+          .select({ id: cmRounds.id })
+          .from(cmRounds)
+          .where(eq(cmRounds.leagueId, input.leagueId));
+        if (leagueCmRounds.length > 0) {
+          const roundIds = leagueCmRounds.map((r) => r.id);
+          await tx
+            .delete(cmChips)
+            .where(inArray(cmChips.usedInRound, roundIds));
         }
 
         // Direct children of leagues (non-cascading FKs)
