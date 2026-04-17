@@ -656,6 +656,8 @@ export const leagueRouter = router({
               "cricket_manager",
             ])
             .optional(),
+          tournament: z.string().optional(),
+          sort: z.enum(["newest", "largest"]).default("newest"),
           limit: z.number().int().min(1).max(100).default(30),
         })
         .optional()
@@ -663,6 +665,11 @@ export const leagueRouter = router({
     .query(async ({ ctx, input }) => {
       const conditions = [eq(leagues.isPrivate, false), eq(leagues.status, "active")];
       if (input?.format) conditions.push(eq(leagues.format, input.format));
+      if (input?.tournament) conditions.push(eq(leagues.tournament, input.tournament));
+
+      // Pull a slightly larger working set so the post-filter (exclude
+      // already-joined) still yields approximately the requested limit.
+      const workingLimit = Math.min((input?.limit ?? 30) * 2, 100);
 
       const rows = await ctx.db
         .select({
@@ -677,7 +684,7 @@ export const leagueRouter = router({
         .from(leagues)
         .where(and(...conditions))
         .orderBy(desc(leagues.createdAt))
-        .limit(input?.limit ?? 30);
+        .limit(workingLimit);
 
       // Exclude leagues the user has already joined
       const myMemberships = await ctx.db
@@ -685,7 +692,35 @@ export const leagueRouter = router({
         .from(leagueMembers)
         .where(eq(leagueMembers.userId, ctx.user.id));
       const joinedIds = new Set(myMemberships.map((m) => m.leagueId));
-      return rows.filter((l) => !joinedIds.has(l.id));
+      const filtered = rows.filter((l) => !joinedIds.has(l.id));
+
+      // Member counts for the returned set — single aggregate query,
+      // keyed by league id.
+      const ids = filtered.map((l) => l.id);
+      const countRows = ids.length > 0
+        ? await ctx.db
+            .select({
+              leagueId: leagueMembers.leagueId,
+              count: sql<number>`count(*)::int`.as("count"),
+            })
+            .from(leagueMembers)
+            .where(inArray(leagueMembers.leagueId, ids))
+            .groupBy(leagueMembers.leagueId)
+        : [];
+      const countMap = new Map(countRows.map((r) => [r.leagueId, r.count]));
+
+      const withCounts = filtered.map((l) => ({
+        ...l,
+        memberCount: countMap.get(l.id) ?? 0,
+      }));
+
+      // Sort in memory — `newest` is already sorted by the DB ORDER BY,
+      // `largest` sorts by memberCount desc.
+      if (input?.sort === "largest") {
+        withCounts.sort((a, b) => b.memberCount - a.memberCount);
+      }
+
+      return withCounts.slice(0, input?.limit ?? 30);
     }),
 
   /** Get active auctions across all leagues the user is in */

@@ -29,6 +29,7 @@ import {
 } from "@draftplay/ui";
 import { useTheme, useSport } from "../../providers/ThemeProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+import { DiscoverPublicLeagues } from "../../components/DiscoverPublicLeagues";
 import { SubHeader } from "../../components/SubHeader";
 import { useAuth } from "../../providers/AuthProvider";
 import { trpc } from "../../lib/trpc";
@@ -951,6 +952,11 @@ export default function HomeScreen() {
               );})}
           </YStack>
         )}
+
+        {/* ── Discover public leagues — hides itself when there's nothing
+            new to show. Sits here so it naturally fills the "what now?"
+            gap between pending-contest callouts and live match surface. */}
+        {user && <DiscoverPublicLeagues limit={3} />}
 
         {/* ── Progressive Onboarding — adapts to user stage ── */}
         {user && leagueCount === 0 && teamCount === 0 && (

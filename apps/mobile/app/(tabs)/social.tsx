@@ -30,9 +30,14 @@ function LeagueCard({
     draft: { color: t.accent, label: "DRAFT" },
     auction: { color: t.amber, label: "AUCTION" },
     salary_cap: { color: t.blue, label: "SALARY CAP" },
+    cricket_manager: { color: t.accent, label: "CRICKET MANAGER" },
+    prediction: { color: t.accent, label: "PREDICTION" },
   };
 
-  const fmt = FMT[league.format] ?? FMT.draft;
+  // Never fall back to a specific format label — that's how CM leagues
+  // were showing as "DRAFT". Unknown format → neutral "LEAGUE" chip so
+  // it's at least not lying about the game mode.
+  const fmt = FMT[league.format] ?? { color: t.accent, label: "LEAGUE" };
 
   return (
     <Animated.View entering={FadeInDown.delay(80 + index * 50).springify()}>
