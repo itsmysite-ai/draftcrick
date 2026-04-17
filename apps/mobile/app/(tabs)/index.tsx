@@ -687,6 +687,16 @@ export default function HomeScreen() {
     staleTime: 30_000,
   });
 
+  // Cricket Manager — home-feed integration
+  const cmPendingRoundsQuery = trpc.cricketManager.pendingRoundsForMe.useQuery(
+    { daysAhead: 7 },
+    { enabled: !!user, retry: false, staleTime: 30_000 }
+  );
+  const cmActiveEntriesQuery = trpc.cricketManager.myActiveEntries.useQuery(
+    undefined,
+    { enabled: !!user, retry: false, staleTime: 30_000, refetchInterval: 60_000 }
+  );
+
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -698,9 +708,11 @@ export default function HomeScreen() {
       myTeamsQuery.refetch(),
       myContestsQuery.refetch(),
       pendingContestsQuery.refetch(),
+      cmPendingRoundsQuery.refetch(),
+      cmActiveEntriesQuery.refetch(),
     ]);
     setRefreshing(false);
-  }, [dashboardQuery, dbLive, profileQuery, walletQuery, myTeamsQuery, myContestsQuery, pendingContestsQuery]);
+  }, [dashboardQuery, dbLive, profileQuery, walletQuery, myTeamsQuery, myContestsQuery, pendingContestsQuery, cmPendingRoundsQuery, cmActiveEntriesQuery]);
 
   // Refetch key queries when tab gains focus (e.g. after creating a league)
   useFocusEffect(
@@ -889,8 +901,14 @@ export default function HomeScreen() {
           </YStack>
         )}
 
-        {/* ── Pending League Contests — contests user hasn't entered yet ── */}
-        {user && (pendingContestsQuery.data?.length ?? 0) > 0 && (
+        {/* ── Waiting for your team — both salary-cap contests AND CM rounds
+            that the user is eligible for but hasn't built a team / entry
+            for yet. Unified section so users don't have to check two
+            places. CM cards carry round-specific info (matches, lock time). */}
+        {user && (
+          ((pendingContestsQuery.data?.length ?? 0) > 0 ||
+            (cmPendingRoundsQuery.data?.length ?? 0) > 0)
+        ) && (
           <YStack marginBottom="$4" paddingHorizontal="$4">
             <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$color" marginBottom="$2">
               {formatUIText("waiting for your team")}
@@ -950,6 +968,140 @@ export default function HomeScreen() {
                   </Card>
                 </Animated.View>
               );})}
+
+            {/* CM rounds pending entry — same visual pattern, sub-headered
+                with a 🏆 so users can tell rounds apart from contests. */}
+            {(cmPendingRoundsQuery.data ?? []).map((r: any) => {
+              const lockTime = r.windowStart ? new Date(r.windowStart) : null;
+              const nowMs = Date.now();
+              const diffMs = lockTime ? lockTime.getTime() - nowMs : 0;
+              const isUrgent = diffMs > 0 && diffMs < 24 * 60 * 60 * 1000; // < 1d
+              let countdown = "";
+              if (lockTime && diffMs > 0) {
+                const days = Math.floor(diffMs / 86400000);
+                const hrs = Math.floor((diffMs % 86400000) / 3600000);
+                countdown = days > 0 ? `${days}d ${hrs}h` : `${hrs}h`;
+              } else if (lockTime && diffMs <= 0) {
+                countdown = "starting";
+              }
+              return (
+                <Animated.View key={r.id} entering={FadeInDown.springify()}>
+                  <Card
+                    marginBottom="$2"
+                    padding="$3"
+                    pressable
+                    onPress={() => router.push(`/league/${r.leagueId}/round/${r.id}/build`)}
+                    cursor="pointer"
+                    borderColor={isUrgent ? "$error" : "$colorAccentLight"}
+                    borderWidth={1}
+                  >
+                    <XStack justifyContent="space-between" alignItems="center">
+                      <YStack flex={1} gap={2}>
+                        <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" numberOfLines={3}>
+                          🏆 {r.leagueName} · {r.name}
+                        </Text>
+                        <XStack alignItems="center" gap="$2">
+                          {countdown && (
+                            <XStack alignItems="center" gap={3}>
+                              <Ionicons name="time-outline" size={11} color={isUrgent ? "#E5484D" : "#D4A43D"} />
+                              <Text fontFamily="$mono" fontSize={11} fontWeight="700" color={isUrgent ? "$error" : "$colorCricket"}>
+                                {formatUIText("locks in")} {countdown}
+                              </Text>
+                            </XStack>
+                          )}
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {r.matchesTotal} {formatUIText("matches")}
+                          </Text>
+                        </XStack>
+                      </YStack>
+                      <Badge variant="role" size="sm">{formatBadgeText("build entry")}</Badge>
+                    </XStack>
+                  </Card>
+                </Animated.View>
+              );
+            })}
+          </YStack>
+        )}
+
+        {/* ── My CM Entries — rounds with a submitted entry, still in
+            progress (not settled). CM equivalent of "my contests". */}
+        {user && (cmActiveEntriesQuery.data?.length ?? 0) > 0 && (
+          <YStack marginBottom="$4" paddingHorizontal="$4">
+            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$color" marginBottom="$2">
+              {formatUIText("your cricket manager entries")}
+            </Text>
+            {(cmActiveEntriesQuery.data ?? []).map((e: any) => {
+              const isLive = e.roundStatus === "live";
+              const progress = e.matchesTotal > 0 ? e.matchesCompleted / e.matchesTotal : 0;
+              const nrrLabel = e.nrr > 0 ? `+${e.nrr.toFixed(2)}` : e.nrr.toFixed(2);
+              return (
+                <Animated.View key={e.entryId} entering={FadeInDown.springify()}>
+                  <Card
+                    marginBottom="$2"
+                    padding="$3"
+                    pressable
+                    onPress={() => router.push(`/league/${e.leagueId}/round/${e.roundId}`)}
+                    cursor="pointer"
+                    borderColor={isLive ? "$colorCricket" : "$borderColor"}
+                    borderWidth={isLive ? 2 : 1}
+                  >
+                    <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+                      <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" flex={1} numberOfLines={1}>
+                        🏆 {e.leagueName} · {e.roundName}
+                      </Text>
+                      <Badge variant={isLive ? "live" : "role"} size="sm">
+                        {formatBadgeText(e.roundStatus)}
+                      </Badge>
+                    </XStack>
+                    <XStack justifyContent="space-between" alignItems="center">
+                      <XStack gap="$3" alignItems="center">
+                        <YStack>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatBadgeText("nrr")}
+                          </Text>
+                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={e.nrr >= 0 ? "$colorCricket" : "$error"}>
+                            {nrrLabel}
+                          </Text>
+                        </YStack>
+                        <YStack>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatBadgeText("bat")}
+                          </Text>
+                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
+                            {e.battingTotal ?? 0}
+                          </Text>
+                        </YStack>
+                        <YStack>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatBadgeText("bowl")}
+                          </Text>
+                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
+                            {e.bowlingTotal ?? 0}
+                          </Text>
+                        </YStack>
+                      </XStack>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                        {e.matchesCompleted}/{e.matchesTotal} {formatUIText("matches")}
+                      </Text>
+                    </XStack>
+                    {/* Thin progress bar under the stats */}
+                    <YStack
+                      marginTop="$2"
+                      height={3}
+                      backgroundColor="$backgroundSurfaceAlt"
+                      borderRadius={2}
+                      overflow="hidden"
+                    >
+                      <YStack
+                        width={`${Math.round(progress * 100)}%`}
+                        height={3}
+                        backgroundColor={isLive ? "$colorCricket" : "$accentBackground"}
+                      />
+                    </YStack>
+                  </Card>
+                </Animated.View>
+              );
+            })}
           </YStack>
         )}
 

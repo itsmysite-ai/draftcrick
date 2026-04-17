@@ -242,6 +242,171 @@ export const cricketManagerRouter = router({
       return { rows, contestId: contest.id };
     }),
 
+  /**
+   * Home-feed: CM rounds the caller is a member of but hasn't built an
+   * entry for yet. Filtered to rounds still accepting submissions
+   * (status: open) and closing within the next N days (default 7).
+   * Used on the mobile home screen under "waiting for your team".
+   */
+  pendingRoundsForMe: protectedProcedure
+    .input(
+      z
+        .object({
+          daysAhead: z.number().int().min(1).max(30).default(7),
+        })
+        .optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const daysAhead = input?.daysAhead ?? 7;
+      const now = new Date();
+      const cutoff = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+
+      // Find all leagues the user is a member of
+      const memberships = await ctx.db
+        .select({ leagueId: leagueMembers.leagueId })
+        .from(leagueMembers)
+        .where(eq(leagueMembers.userId, ctx.user.id));
+      if (memberships.length === 0) return [];
+      const leagueIds = memberships.map((m) => m.leagueId);
+
+      // Rounds in those leagues that are currently open
+      const openRounds = await ctx.db
+        .select({
+          id: cmRounds.id,
+          leagueId: cmRounds.leagueId,
+          roundNumber: cmRounds.roundNumber,
+          name: cmRounds.name,
+          windowStart: cmRounds.windowStart,
+          lockTime: cmRounds.lockTime,
+          matchesTotal: cmRounds.matchesTotal,
+          status: cmRounds.status,
+        })
+        .from(cmRounds)
+        .where(
+          and(
+            inArray(cmRounds.leagueId, leagueIds),
+            eq(cmRounds.status, "open"),
+            sql`${cmRounds.windowStart} <= ${cutoff}`
+          )
+        );
+      if (openRounds.length === 0) return [];
+
+      // Entries the user has already submitted for any of these rounds
+      const existingEntries = await ctx.db
+        .select({ roundId: cmEntries.roundId })
+        .from(cmEntries)
+        .where(
+          and(
+            eq(cmEntries.userId, ctx.user.id),
+            inArray(
+              cmEntries.roundId,
+              openRounds.map((r) => r.id)
+            )
+          )
+        );
+      const submitted = new Set(existingEntries.map((e) => e.roundId));
+      const pending = openRounds.filter((r) => !submitted.has(r.id));
+      if (pending.length === 0) return [];
+
+      // Hydrate with league name for display
+      const leagueRows = await ctx.db
+        .select({
+          id: leagues.id,
+          name: leagues.name,
+        })
+        .from(leagues)
+        .where(
+          inArray(
+            leagues.id,
+            pending.map((r) => r.leagueId)
+          )
+        );
+      const leagueMap = new Map(leagueRows.map((l) => [l.id, l.name]));
+
+      return pending
+        .map((r) => ({
+          id: r.id,
+          leagueId: r.leagueId,
+          leagueName: leagueMap.get(r.leagueId) ?? "League",
+          roundNumber: r.roundNumber,
+          name: r.name,
+          windowStart: r.windowStart,
+          lockTime: r.lockTime,
+          matchesTotal: r.matchesTotal,
+        }))
+        .sort(
+          (a, b) =>
+            new Date(a.windowStart).getTime() -
+            new Date(b.windowStart).getTime()
+        );
+    }),
+
+  /**
+   * Home-feed: CM entries the caller has submitted, for rounds still in
+   * progress (open or live — NOT settled). Used on the mobile home
+   * screen as the CM equivalent of "my contests".
+   */
+  myActiveEntries: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        entryId: cmEntries.id,
+        roundId: cmEntries.roundId,
+        battingTotal: cmEntries.battingTotal,
+        bowlingTotal: cmEntries.bowlingTotal,
+        nrr: cmEntries.nrr,
+        submittedAt: cmEntries.submittedAt,
+        leagueId: cmRounds.leagueId,
+        roundNumber: cmRounds.roundNumber,
+        roundName: cmRounds.name,
+        roundStatus: cmRounds.status,
+        matchesTotal: cmRounds.matchesTotal,
+        matchesCompleted: cmRounds.matchesCompleted,
+        windowStart: cmRounds.windowStart,
+      })
+      .from(cmEntries)
+      .innerJoin(cmRounds, eq(cmEntries.roundId, cmRounds.id))
+      .where(
+        and(
+          eq(cmEntries.userId, ctx.user.id),
+          inArray(cmRounds.status, ["open", "live"])
+        )
+      );
+    if (rows.length === 0) return [];
+
+    const leagueRows = await ctx.db
+      .select({ id: leagues.id, name: leagues.name })
+      .from(leagues)
+      .where(
+        inArray(
+          leagues.id,
+          rows.map((r) => r.leagueId)
+        )
+      );
+    const leagueMap = new Map(leagueRows.map((l) => [l.id, l.name]));
+
+    return rows
+      .map((r) => ({
+        entryId: r.entryId,
+        roundId: r.roundId,
+        leagueId: r.leagueId,
+        leagueName: leagueMap.get(r.leagueId) ?? "League",
+        roundNumber: r.roundNumber,
+        roundName: r.roundName,
+        roundStatus: r.roundStatus,
+        battingTotal: r.battingTotal,
+        bowlingTotal: r.bowlingTotal,
+        nrr: Number(r.nrr ?? 0),
+        matchesTotal: r.matchesTotal,
+        matchesCompleted: r.matchesCompleted,
+        windowStart: r.windowStart,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.windowStart).getTime() -
+          new Date(a.windowStart).getTime()
+      );
+  }),
+
   getLeagueStandings: protectedProcedure
     .input(
       z.object({
