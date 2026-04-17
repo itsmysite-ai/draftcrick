@@ -379,13 +379,15 @@ export default function ContestsScreen() {
       )}
 
       {/* Status filter chips — scrollable horizontally so they never
-          overflow regardless of label width or how many filters we add. */}
+          overflow regardless of label width or how many filters we add.
+          Height is explicitly capped so this row stays a tight strip and
+          doesn't eat the vertical scroll budget of the FlatList below. */}
       {user && activeItems.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-          style={{ marginBottom: 12, flexGrow: 0 }}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 8, alignItems: "center" }}
+          style={{ marginBottom: 12, flexGrow: 0, flexShrink: 0, height: 44 }}
         >
           {(["all", "live", "upcoming", "completed"] as const).map((f) => {
             const isActive = statusFilter === f;
