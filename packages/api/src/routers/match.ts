@@ -57,7 +57,20 @@ async function backgroundRefreshMatch(db: any, match: any) {
       // is the canonical path that fires all side-effects (draft, contests,
       // notifications, CM hooks).
       const phase = determineMatchPhase(match.startTime, null, newStatus);
-      updateSet.nextRefreshAfter = calculateNextRefreshAfter(phase, now);
+      // Imminent override: when the match is within 30 min of start (or just
+      // past it but still tagged upcoming), stamp a 5-min refresh window so
+      // toss/playing-XI announcements + the upcoming → live status flip get
+      // picked up promptly. Without this, pre_match's default 2h window would
+      // mask the most critical period right before kickoff.
+      const startMs = new Date(match.startTime).getTime();
+      const msToStart = startMs - now.getTime();
+      const isImminent =
+        phase === "pre_match" &&
+        msToStart > -5 * 60 * 1000 &&
+        msToStart <= 30 * 60 * 1000;
+      updateSet.nextRefreshAfter = isImminent
+        ? new Date(now.getTime() + 5 * 60 * 1000)
+        : calculateNextRefreshAfter(phase, now);
 
       await db.update(matches).set(updateSet).where(eq(matches.id, match.id));
 
@@ -211,6 +224,7 @@ export const matchRouter = router({
     //     required a live match to already exist — chicken-and-egg.
     const now = Date.now();
     const in48hMs = now + 48 * 60 * 60 * 1000;
+    const IMMINENT_WINDOW_MS = 30 * 60 * 1000; // 30 min before start
     for (const m of result) {
       if (!m.externalId) continue;
       if (m.status === "completed") continue;
@@ -218,15 +232,23 @@ export const matchRouter = router({
       const lastRefresh = m.lastRefreshedAt ? new Date(m.lastRefreshedAt).getTime() : 0;
       const nextRefresh = m.nextRefreshAfter ? new Date(m.nextRefreshAfter).getTime() : 0;
       const startMs = m.startTime ? new Date(m.startTime).getTime() : 0;
+      const msToStart = startMs - now;
+      const isImminent = msToStart > -REFRESH_STALE_MS && msToStart <= IMMINENT_WINDOW_MS;
 
       let shouldRefresh = false;
       if (m.status === "live") {
         // Always refresh live matches if stale
         shouldRefresh = now - lastRefresh > REFRESH_STALE_MS;
+      } else if (isImminent && m.status === "upcoming") {
+        // Imminent window — start is within 30 min (or just passed but not
+        // yet flipped to live). Refresh at live cadence (5 min) to catch
+        // toss + playing XI announcements + the pre_match → live status
+        // flip. The 2h pre_match interval baked into nextRefreshAfter is
+        // far too coarse for this window.
+        shouldRefresh = now - lastRefresh > REFRESH_STALE_MS;
       } else if (m.status === "upcoming" && startMs > 0 && startMs < in48hMs) {
-        // Upcoming matches within 48h: refresh if due, or if never refreshed.
-        // Phase-based interval (pre_match = 2h, idle = 12h) is encoded in
-        // nextRefreshAfter by the previous call to calculateNextRefreshAfter.
+        // Upcoming but not imminent — respect nextRefreshAfter (12h idle,
+        // 2h pre_match) so we don't hammer Cricbuzz for matches days away.
         if (!m.nextRefreshAfter) {
           shouldRefresh = now - lastRefresh > REFRESH_STALE_MS;
         } else {
