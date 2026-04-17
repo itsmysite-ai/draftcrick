@@ -50,7 +50,7 @@ function TabItem({
     opacity: tabOpacity.value,
   }));
 
-  const tab = TABS[route as keyof typeof TABS] ?? TABS.index;
+  const tab = TABS[route as keyof typeof TABS] ?? TABS.index!;
   const isLive = route === "live";
 
   const iconColor = isFocused ? (isLive ? t.red : t.accent) : t.text;
@@ -113,16 +113,22 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             { backgroundColor: t.bgSurface, borderColor: t.border },
           ]}
         >
-          {state.routes
-            .filter((route) => {
-              // Profile lives in the header now — hide from tab bar
+          {(() => {
+            // Explicit display order — independent of how Tabs.Screen are
+            // declared in the router. Keeps the tab bar stable as we add or
+            // re-shuffle screens. Anything not listed here that's still in
+            // TABS would never render.
+            const ORDER = ["index", "social", "contests", "buzz"];
+            const visible = state.routes.filter((route) => {
               if (route.name === "profile") return false;
-              // Live tab retired — the home page surfaces live matches inline.
-              // The route file is kept for any existing deep links, but it
-              // no longer occupies a tab slot. Buzz takes its place.
               if (route.name === "live") return false;
-              return route.name in TABS;
-            })
+              return route.name in TABS && ORDER.includes(route.name);
+            });
+            visible.sort(
+              (a, b) => ORDER.indexOf(a.name) - ORDER.indexOf(b.name)
+            );
+            return visible;
+          })()
             .map((route) => {
               const idx = state.routes.findIndex((r) => r.key === route.key);
               return (

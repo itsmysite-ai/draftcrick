@@ -1,6 +1,8 @@
 import {
   FlatList,
   RefreshControl,
+  ScrollView,
+  Pressable,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useCallback, useMemo } from "react";
@@ -376,41 +378,60 @@ export default function ContestsScreen() {
         </XStack>
       )}
 
-      {/* Status filter chips */}
+      {/* Status filter chips — scrollable horizontally so they never
+          overflow regardless of label width or how many filters we add. */}
       {user && activeItems.length > 0 && (
-        <XStack marginHorizontal="$5" marginBottom="$3" borderRadius="$3" backgroundColor="$backgroundSurfaceAlt" padding="$1" gap="$1">
-          {(["all", "live", "upcoming", "completed"] as const).map((f) => (
-            <SegmentTab
-              key={f}
-              active={statusFilter === f}
-              onPress={() => setStatusFilter(f)}
-              testID={`filter-${f}`}
-            >
-              <Text fontFamily="$body" fontWeight="600" fontSize={13} color={statusFilter === f ? "$color" : "$colorMuted"}>
-                {formatUIText(f)}
-              </Text>
-              {filterCounts[f] > 0 && (
-                <YStack
-                  paddingHorizontal={6}
-                  paddingVertical={1}
-                  borderRadius={8}
-                  backgroundColor={statusFilter === f ? "$backgroundSurfaceAlt" : "$backgroundSurface"}
-                  minWidth={20}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
+          style={{ marginBottom: 12, flexGrow: 0 }}
+        >
+          {(["all", "live", "upcoming", "completed"] as const).map((f) => {
+            const isActive = statusFilter === f;
+            return (
+              <Pressable
+                key={f}
+                onPress={() => setStatusFilter(f)}
+                testID={`filter-${f}`}
+              >
+                <XStack
                   alignItems="center"
+                  gap="$2"
+                  paddingHorizontal="$3"
+                  paddingVertical="$2"
+                  borderRadius="$3"
+                  backgroundColor={isActive ? "$backgroundSurface" : "$backgroundSurfaceAlt"}
+                  borderWidth={1}
+                  borderColor={isActive ? "$accentBackground" : "transparent"}
                 >
-                  <Text
-                    fontFamily="$mono"
-                    fontSize={10}
-                    fontWeight="700"
-                    color={statusFilter === f ? "$color" : "$colorMuted"}
-                  >
-                    {filterCounts[f]}
+                  <Text fontFamily="$body" fontWeight="600" fontSize={13} color={isActive ? "$color" : "$colorMuted"}>
+                    {formatUIText(f)}
                   </Text>
-                </YStack>
-              )}
-            </SegmentTab>
-          ))}
-        </XStack>
+                  {filterCounts[f] > 0 && (
+                    <YStack
+                      paddingHorizontal={6}
+                      paddingVertical={1}
+                      borderRadius={8}
+                      backgroundColor={isActive ? "$backgroundSurfaceAlt" : "$backgroundSurface"}
+                      minWidth={20}
+                      alignItems="center"
+                    >
+                      <Text
+                        fontFamily="$mono"
+                        fontSize={10}
+                        fontWeight="700"
+                        color={isActive ? "$color" : "$colorMuted"}
+                      >
+                        {filterCounts[f]}
+                      </Text>
+                    </YStack>
+                  )}
+                </XStack>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       )}
 
       {/* Content */}

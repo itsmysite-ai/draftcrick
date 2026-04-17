@@ -28,6 +28,7 @@ import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
 import { MemberBreakdownSheet } from "../../components/MemberBreakdownSheet";
+import { FullStandingsSheet } from "../../components/FullStandingsSheet";
 
 const STATUS_ORDER: Record<string, number> = { live: 0, open: 1, upcoming: 2, locked: 3, settling: 4, settled: 5, cancelled: 6 };
 const STATUS_VARIANT: Record<string, string> = { live: "live", open: "default", upcoming: "role", locked: "role", settling: "role", settled: "default", cancelled: "danger" };
@@ -47,10 +48,13 @@ export default function LeagueDetailScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const theme = useTamaguiTheme();
-  const [tab, setTab] = useState<"members" | "standings" | "contests">("contests");
+  // Standings has been promoted to its own podium card + bottom sheet —
+  // the tab switcher only needs contests / members now.
+  const [tab, setTab] = useState<"members" | "contests">("contests");
   const [showQR, setShowQR] = useState(false);
+  const [showFullStandings, setShowFullStandings] = useState(false);
   const [confirmAlert, setConfirmAlert] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
-  // Drill-down state for the standings tab — tapping a row opens a bottom
+  // Drill-down state for the standings rows — tapping any opens a bottom
   // sheet with the per-contest breakdown for that member.
   const [selectedMember, setSelectedMember] = useState<{
     userId: string;
@@ -137,7 +141,7 @@ export default function LeagueDetailScreen() {
 
   return (
     <YStack flex={1} backgroundColor="$background" testID="league-detail-screen">
-      <FlatList data={tab === "contests" ? sortedContests : tab === "standings" ? (standings.data ?? []) : (league.members ?? [])} keyExtractor={(item: any) => item.id ?? item.userId} contentContainerStyle={{ padding: 16 }}
+      <FlatList data={tab === "contests" ? sortedContests : (league.members ?? [])} keyExtractor={(item: any) => item.id ?? item.userId} contentContainerStyle={{ padding: 16 }}
         ListHeaderComponent={<>
           <XStack
             justifyContent="space-between"
@@ -183,6 +187,7 @@ export default function LeagueDetailScreen() {
             </Text>
           </Card>
 
+          {(league.members?.length ?? 0) < league.maxMembers && (
           <Card testID="league-invite-code" marginBottom="$4" padding="$4">
             <XStack justifyContent="space-between" alignItems="center" marginBottom={showQR ? 16 : 0}>
               <YStack>
@@ -209,6 +214,7 @@ export default function LeagueDetailScreen() {
               </YStack>
             )}
           </Card>
+          )}
 
           {/* Active auction/draft — join banner for ALL members */}
           {activeDraftRoom && (
@@ -344,6 +350,23 @@ export default function LeagueDetailScreen() {
                   );
                 })}
               </XStack>
+              {/* "See all standings" — only show if there are members beyond
+                  the top 2 already displayed in the podium. */}
+              {(standings.data?.length ?? 0) > 2 && (
+                <Pressable onPress={() => setShowFullStandings(true)} style={{ marginTop: 12 }}>
+                  <XStack
+                    alignItems="center"
+                    justifyContent="center"
+                    paddingVertical="$2"
+                    borderRadius="$3"
+                    backgroundColor="$backgroundSurfaceAlt"
+                  >
+                    <Text fontFamily="$body" fontWeight="600" fontSize={12} color="$accentBackground">
+                      {formatUIText("see all standings")} →
+                    </Text>
+                  </XStack>
+                </Pressable>
+              )}
             </Card>
             );
           })()}
@@ -360,7 +383,8 @@ export default function LeagueDetailScreen() {
             </Button>
           )}
 
-          {/* Tab switcher: Contests / Members / Standings */}
+          {/* Tab switcher: Contests / Members. Standings has its own podium
+              card above + "see all" sheet, so it doesn't need a tab here. */}
           <XStack
             marginBottom="$3"
             borderRadius="$3"
@@ -371,7 +395,6 @@ export default function LeagueDetailScreen() {
             {([
               { key: "contests" as const, label: "Contests" },
               { key: "members" as const, label: "Members" },
-              { key: "standings" as const, label: "Standings" },
             ]).map((tb) => (
               <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
                 <Text fontFamily="$body" fontWeight="600" fontSize={13} color={tab === tb.key ? "$color" : "$colorMuted"}>
@@ -495,61 +518,8 @@ export default function LeagueDetailScreen() {
               </Animated.View>
             );
           }
-          // Standings tab (#8)
-          if (tab === "standings") {
-            const standingsData = standings.data ?? [];
-            if (index >= standingsData.length) return null;
-            const s = standingsData[index];
-            if (!s) return null;
-            const isMe = s.userId === user?.id;
-            // Trophy is reserved for actually-won leagues. During the season
-            // we use gold/silver/bronze medals to mark placement. At
-            // settlement, #1's gold medal becomes the championship trophy.
-            const isLeagueSettled = league.status === "completed" || league.status === "archived";
-            const rankLabel = isLeagueSettled
-              ? (s.rank === 1 ? "🏆" : s.rank === 2 ? "🥈" : s.rank === 3 ? "🥉" : `#${s.rank}`)
-              : (s.rank === 1 ? "🥇" : s.rank === 2 ? "🥈" : s.rank === 3 ? "🥉" : `#${s.rank}`);
-            const rankColor =
-              s.rank === 1 ? "$colorCricket" : s.rank === 2 ? "$colorSecondary" : "$color";
-            return (
-              <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
-                <Pressable
-                  onPress={() =>
-                    setSelectedMember({
-                      userId: s.userId,
-                      displayName: s.displayName,
-                      rank: s.rank,
-                      totalPoints: s.totalPoints,
-                      contestsPlayed: s.contestsPlayed,
-                    })
-                  }
-                >
-                  <Card marginBottom="$2" padding="$3" borderColor={isMe ? "$accentBackground" : "$borderColor"} borderWidth={isMe ? 2 : 1}>
-                    <XStack alignItems="center" gap="$3">
-                      <YStack width={32} alignItems="center" justifyContent="center">
-                        <Text fontFamily="$mono" fontWeight="800" fontSize={s.rank <= 3 ? 20 : 14} color={rankColor}>
-                          {rankLabel}
-                        </Text>
-                      </YStack>
-                      <InitialsAvatar name={s.displayName} playerRole="BAT" ovr="" size={32} hideBadge />
-                      <YStack flex={1}>
-                        <Text {...textStyles.playerName} numberOfLines={1}>
-                          {s.displayName}
-                        </Text>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                          {isMe ? "you · " : ""}{s.contestsPlayed} contest{s.contestsPlayed !== 1 ? "s" : ""}
-                        </Text>
-                      </YStack>
-                      <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground">
-                        {s.totalPoints.toFixed(1)}
-                      </Text>
-                    </XStack>
-                  </Card>
-                </Pressable>
-              </Animated.View>
-            );
-          }
-          // Members tab (original)
+          // Members tab (original) — standings has its own podium card +
+          // FullStandingsSheet, so we don't render it inside this list.
           return (
           <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
             <Card testID={`league-member-${item.userId}`} marginBottom="$2" padding="$4">
@@ -593,12 +563,6 @@ export default function LeagueDetailScreen() {
                 {formatUIText("no contests yet — contests will appear here as matches are scheduled")}
               </Text>
             </Card>
-          ) : tab === "standings" ? (
-            <Card padding="$5" alignItems="center">
-              <Text fontFamily="$body" fontSize={13} color="$colorMuted" textAlign="center">
-                {formatUIText("no standings yet — play contests to climb the leaderboard")}
-              </Text>
-            </Card>
           ) : null
         }
         ListFooterComponent={!isOwner && myMembership ? (
@@ -636,6 +600,14 @@ export default function LeagueDetailScreen() {
           isMe={selectedMember.userId === user?.id}
         />
       )}
+      <FullStandingsSheet
+        visible={showFullStandings}
+        onClose={() => setShowFullStandings(false)}
+        rows={(standings.data ?? []) as any}
+        isLeagueSettled={league.status === "completed" || league.status === "archived"}
+        currentUserId={user?.id}
+        onSelectMember={(entry) => setSelectedMember(entry)}
+      />
     </YStack>
   );
 }

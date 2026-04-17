@@ -115,10 +115,15 @@ export function ChatRoom({ matchId = null, compact = false, keyboardOffset, skip
           justifyContent: messages?.length ? "flex-end" : "center",
         }}
         ListEmptyComponent={
-          <YStack flex={1} alignItems="center" justifyContent="center" padding="$4">
-            <Text fontSize={32} marginBottom="$2">🏏</Text>
-            <Text fontFamily="$mono" fontWeight="500" fontSize={14} color="$colorMuted" textAlign="center">
+          <YStack flex={1} alignItems="center" justifyContent="center" padding="$4" gap="$2">
+            <Text fontSize={36} marginBottom="$2">🏏</Text>
+            <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" textAlign="center">
               {formatUIText("be the first to say something")}
+            </Text>
+            <Text fontFamily="$body" fontSize={12} color="$colorMuted" textAlign="center" maxWidth={240} lineHeight={16}>
+              {matchId
+                ? formatUIText("trash-talk this match with everyone watching")
+                : formatUIText("everyone in your contests can see this — say hi, drop predictions, share heat")}
             </Text>
           </YStack>
         }
