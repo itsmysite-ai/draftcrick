@@ -2937,7 +2937,13 @@ function ScenarioBar({
   );
 }
 
-// ─── NrrExplainerModal — simple, mobile-responsive how-it-works overlay ─
+// ─── NrrExplainerModal — mobile-responsive how-it-works overlay
+//
+// Uses a native RN Modal instead of a position:absolute YStack overlay
+// because the latter doesn't reliably honour `maxHeight: "92%"` on
+// mobile web Safari (no fixed-height containing block) — it would
+// either expand past the viewport or collapse to zero, sometimes
+// crashing the page when the auto-show fired on first visit.
 function NrrExplainerModal({
   visible,
   onClose,
@@ -2945,42 +2951,47 @@ function NrrExplainerModal({
   visible: boolean;
   onClose: () => void;
 }) {
-  if (!visible) return null;
+  const insets = useSafeAreaInsets();
   return (
-    <YStack
-      position="absolute"
-      top={0}
-      left={0}
-      right={0}
-      bottom={0}
-      zIndex={300}
-      backgroundColor="rgba(0,0,0,0.6)"
-      alignItems="center"
-      justifyContent="center"
-      padding="$4"
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <Pressable
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
-        onPress={onClose}
-      />
       <YStack
-        width="100%"
-        maxWidth={420}
-        maxHeight="92%"
-        backgroundColor="$backgroundSurface"
-        borderRadius={20}
-        borderWidth={1}
-        borderColor="$borderColor"
-        overflow="hidden"
+        flex={1}
+        backgroundColor="rgba(0,0,0,0.6)"
+        alignItems="center"
+        justifyContent="center"
+        padding="$4"
       >
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
-          {/* Title */}
+        <Pressable
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+          onPress={onClose}
+        />
+        <YStack
+          width="100%"
+          maxWidth={420}
+          flex={1}
+          maxHeight={760}
+          marginTop={insets.top + 24}
+          marginBottom={insets.bottom + 24}
+          backgroundColor="$backgroundSurface"
+          borderRadius={20}
+          borderWidth={1}
+          borderColor="$borderColor"
+          overflow="hidden"
+        >
+          <ScrollView contentContainerStyle={{ padding: 20 }}>
+            {/* Title */}
           <Text
             fontFamily="$mono"
             fontWeight="700"
@@ -3328,8 +3339,9 @@ function NrrExplainerModal({
           <Button variant="primary" size="lg" onPress={onClose}>
             {formatUIText("got it, let's play")}
           </Button>
-        </ScrollView>
+          </ScrollView>
+        </YStack>
       </YStack>
-    </YStack>
+    </Modal>
   );
 }
