@@ -16,6 +16,7 @@ import {
   AnnouncementBanner,
   AlertModal,
   DesignSystem,
+  EggLoadingSpinner,
   textStyles,
   formatUIText,
   formatBadgeText,
@@ -1070,7 +1071,19 @@ function CricketManagerLeagueView({
           );
         }}
         ListEmptyComponent={
-          cmTab === "rounds" ? (
+          // Show a loading spinner while the relevant query is in
+          // flight — without this the empty state flashes for a beat
+          // before the rounds load, which made users think their league
+          // had no rounds when it actually had several.
+          cmTab === "rounds" && roundsQuery.isLoading ? (
+            <YStack alignItems="center" paddingVertical="$8">
+              <EggLoadingSpinner size={40} message={formatUIText("loading rounds")} />
+            </YStack>
+          ) : cmTab === "standings" && standingsQuery.isLoading ? (
+            <YStack alignItems="center" paddingVertical="$8">
+              <EggLoadingSpinner size={40} message={formatUIText("loading standings")} />
+            </YStack>
+          ) : cmTab === "rounds" ? (
             <Card padding="$5" alignItems="center">
               <Text {...textStyles.hint}>
                 {formatUIText(

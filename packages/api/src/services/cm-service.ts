@@ -1094,6 +1094,12 @@ export async function tickRoundLifecycles(db: Database) {
 
   // ── Pass 1: pre-phase upcoming matches to pre_match if start is within 24h
   try {
+    // postgres-js doesn't auto-bind Date inside raw sql`` templates —
+    // it needs an ISO string. Drizzle's typed gte/lte do the conversion;
+    // raw templates don't. Without this the whole tick was failing
+    // silently every poll, blocking idle→pre_match transitions and the
+    // round lifecycle reconciliation that follows.
+    const in24hIso = in24h.toISOString();
     const toPhaseUp = await db
       .select({ id: matches.id, teamHome: matches.teamHome, teamAway: matches.teamAway })
       .from(matches)
@@ -1101,7 +1107,7 @@ export async function tickRoundLifecycles(db: Database) {
         and(
           eq(matches.status, "upcoming"),
           eq(matches.matchPhase, "idle"),
-          sql`${matches.startTime} < ${in24h}`
+          sql`${matches.startTime} < ${in24hIso}`
         )
       );
 

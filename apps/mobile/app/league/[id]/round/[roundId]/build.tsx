@@ -1,5 +1,5 @@
 import { SafeBackButton } from "../../../../../components/SafeBackButton";
-import { ScrollView, Alert, Pressable, TextInput, Modal } from "react-native";
+import { ScrollView, Alert, Pressable, TextInput, Modal, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -2939,11 +2939,12 @@ function ScenarioBar({
 
 // ─── NrrExplainerModal — mobile-responsive how-it-works overlay
 //
-// Uses a native RN Modal instead of a position:absolute YStack overlay
-// because the latter doesn't reliably honour `maxHeight: "92%"` on
-// mobile web Safari (no fixed-height containing block) — it would
-// either expand past the viewport or collapse to zero, sometimes
-// crashing the page when the auto-show fired on first visit.
+// Uses a native RN Modal with plain View style props (not Tamagui
+// shorthand) because Tamagui props like `marginTop={insets.top + 24}`
+// can resolve to NaN on web before SafeAreaProvider hydrates, which
+// crashed the page on iOS Chrome with "Can't open this page". The
+// MemberBreakdownSheet pattern (plain style objects with explicit
+// numeric values) renders consistently across iOS, Android, and web.
 function NrrExplainerModal({
   visible,
   onClose,
@@ -2952,6 +2953,10 @@ function NrrExplainerModal({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  // Defensive: insets can be undefined on web before SafeAreaProvider
+  // hydrates. Coalesce to 0 so we never compute NaN.
+  const safeTop = typeof insets?.top === "number" ? insets.top : 0;
+  const safeBottom = typeof insets?.bottom === "number" ? insets.bottom : 0;
   return (
     <Modal
       visible={visible}
@@ -2960,12 +2965,16 @@ function NrrExplainerModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <YStack
-        flex={1}
-        backgroundColor="rgba(0,0,0,0.6)"
-        alignItems="center"
-        justifyContent="center"
-        padding="$4"
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.6)",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 16,
+          paddingTop: safeTop + 24,
+          paddingBottom: safeBottom + 24,
+        }}
       >
         <Pressable
           style={{
@@ -2977,18 +2986,17 @@ function NrrExplainerModal({
           }}
           onPress={onClose}
         />
-        <YStack
-          width="100%"
-          maxWidth={420}
-          flex={1}
-          maxHeight={760}
-          marginTop={insets.top + 24}
-          marginBottom={insets.bottom + 24}
-          backgroundColor="$backgroundSurface"
-          borderRadius={20}
-          borderWidth={1}
-          borderColor="$borderColor"
-          overflow="hidden"
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            flexShrink: 1,
+            backgroundColor: "#1a1a1a",
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: "#333",
+            overflow: "hidden",
+          }}
         >
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             {/* Title */}
@@ -3340,8 +3348,8 @@ function NrrExplainerModal({
             {formatUIText("got it, let's play")}
           </Button>
           </ScrollView>
-        </YStack>
-      </YStack>
+        </View>
+      </View>
     </Modal>
   );
 }

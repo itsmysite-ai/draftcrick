@@ -349,6 +349,10 @@ export const cricketManagerRouter = router({
       const daysAhead = input?.daysAhead ?? 7;
       const now = new Date();
       const cutoff = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+      // postgres-js doesn't auto-bind Date inside raw sql`` templates —
+      // it needs an ISO string. Drizzle's typed helpers (gte/lte) do
+      // the conversion, raw templates don't.
+      const cutoffIso = cutoff.toISOString();
 
       // Find all leagues the user is a member of
       const memberships = await ctx.db
@@ -375,7 +379,7 @@ export const cricketManagerRouter = router({
           and(
             inArray(cmRounds.leagueId, leagueIds),
             eq(cmRounds.status, "open"),
-            sql`${cmRounds.windowStart} <= ${cutoff}`
+            sql`${cmRounds.windowStart} <= ${cutoffIso}`
           )
         );
       if (openRounds.length === 0) return [];
