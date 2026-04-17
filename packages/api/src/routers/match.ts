@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../trpc";
-import { eq, desc, asc, and, or, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, or, lte, inArray } from "drizzle-orm";
 import { matches, contests, tournaments } from "@draftplay/db";
 import { getVisibleTournamentNames } from "../services/admin-config";
 import { getLogger } from "../lib/logger";
@@ -176,32 +176,77 @@ export const matchRouter = router({
     const visibleNames = await getVisibleTournamentNames();
     if (visibleNames.length === 0) return [];
 
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Return ALL matches for visible tournaments (live + upcoming + every
+    // completed). Mobile home needs the full completed set so the DB lookup
+    // on older matches doesn't fall through to a stale AI "upcoming" flag —
+    // which was causing weeks-old matches to render in "more matches" and
+    // "next match" sections. `result` size is bounded by visible tournaments,
+    // which is small (~1-3 leagues × ~70 matches each).
     const result = await ctx.db.query.matches.findMany({
       where: and(
         inArray(matches.tournament, visibleNames),
         or(
           eq(matches.status, "live"),
           eq(matches.status, "upcoming"),
-          and(
-            eq(matches.status, "completed"),
-            gte(matches.startTime, oneDayAgo),
-          ),
+          eq(matches.status, "completed"),
         ),
       ),
       orderBy: [desc(matches.status), asc(matches.startTime)],
     });
 
-    // Fire-and-forget: refresh any stale live matches in the background
+    // Fire-and-forget background work for every poll:
+    //
+    // (a) Refresh matches that are due — live matches every 5m, pre_match
+    //     every 2h (when toss/XI info lands, status flips to live),
+    //     idle within 48h every 12h. Without this, upcoming matches never
+    //     got re-pulled from Cricbuzz, so transitions like pre_match → live
+    //     and toss-time XI fetches never fired. We respect each match's
+    //     own `nextRefreshAfter` column (computed by calculateNextRefreshAfter
+    //     during the previous refresh); if null (never refreshed), refresh
+    //     eagerly for live/upcoming matches that are within 48h of start.
+    //
+    // (b) Run tickRoundLifecycles so time-based transitions (idle →
+    //     pre_match at T-24h) fire even when no match has produced a
+    //     score yet. Previously only called from processScoreUpdate which
+    //     required a live match to already exist — chicken-and-egg.
     const now = Date.now();
+    const in48hMs = now + 48 * 60 * 60 * 1000;
     for (const m of result) {
-      if (m.status !== "live") continue;
       if (!m.externalId) continue;
+      if (m.status === "completed") continue;
+
       const lastRefresh = m.lastRefreshedAt ? new Date(m.lastRefreshedAt).getTime() : 0;
-      if (now - lastRefresh > REFRESH_STALE_MS) {
+      const nextRefresh = m.nextRefreshAfter ? new Date(m.nextRefreshAfter).getTime() : 0;
+      const startMs = m.startTime ? new Date(m.startTime).getTime() : 0;
+
+      let shouldRefresh = false;
+      if (m.status === "live") {
+        // Always refresh live matches if stale
+        shouldRefresh = now - lastRefresh > REFRESH_STALE_MS;
+      } else if (m.status === "upcoming" && startMs > 0 && startMs < in48hMs) {
+        // Upcoming matches within 48h: refresh if due, or if never refreshed.
+        // Phase-based interval (pre_match = 2h, idle = 12h) is encoded in
+        // nextRefreshAfter by the previous call to calculateNextRefreshAfter.
+        if (!m.nextRefreshAfter) {
+          shouldRefresh = now - lastRefresh > REFRESH_STALE_MS;
+        } else {
+          shouldRefresh = nextRefresh <= now;
+        }
+      }
+
+      if (shouldRefresh) {
         backgroundRefreshMatch(ctx.db, m);
       }
     }
+
+    // Time-based CM round lifecycle sweep. Fire-and-forget; errors logged
+    // inside cm-service. Runs on every home/live poll so idle→pre_match
+    // catches up even when nothing else triggers it.
+    import("../services/cm-service")
+      .then(({ tickRoundLifecycles }) => tickRoundLifecycles(ctx.db))
+      .catch((err) =>
+        log.error({ err }, "tickRoundLifecycles from match.live failed")
+      );
 
     return result;
   }),

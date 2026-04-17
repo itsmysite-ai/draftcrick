@@ -22,9 +22,11 @@ import {
   DraftPlayLogo,
 } from "@draftplay/ui";
 import QRCode from "react-native-qrcode-svg";
+import { Pressable } from "react-native";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
+import { MemberBreakdownSheet } from "../../components/MemberBreakdownSheet";
 
 const STATUS_ORDER: Record<string, number> = { live: 0, open: 1, upcoming: 2, locked: 3, settling: 4, settled: 5, cancelled: 6 };
 const STATUS_VARIANT: Record<string, string> = { live: "live", open: "default", upcoming: "role", locked: "role", settling: "role", settled: "default", cancelled: "danger" };
@@ -47,6 +49,15 @@ export default function LeagueDetailScreen() {
   const [tab, setTab] = useState<"members" | "standings" | "contests">("contests");
   const [showQR, setShowQR] = useState(false);
   const [confirmAlert, setConfirmAlert] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  // Drill-down state for the standings tab — tapping a row opens a bottom
+  // sheet with the per-contest breakdown for that member.
+  const [selectedMember, setSelectedMember] = useState<{
+    userId: string;
+    displayName: string;
+    rank: number;
+    totalPoints: number;
+    contestsPlayed: number;
+  } | null>(null);
   const { data: league, isLoading, refetch } = trpc.league.getById.useQuery({ id: id! }, { refetchInterval: 10000 });
   const standings = trpc.league.memberStandings.useQuery({ leagueId: id! }, { enabled: !!id, refetchInterval: 10000 });
   const leagueContests = trpc.league.leagueContests.useQuery({ leagueId: id! }, { enabled: !!id, refetchInterval: 10000 });
@@ -411,30 +422,42 @@ export default function LeagueDetailScreen() {
             const isMe = s.userId === user?.id;
             return (
               <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
-                <Card marginBottom="$2" padding="$4" borderColor={isMe ? "$accentBackground" : "$borderColor"} borderWidth={isMe ? 2 : 1}>
-                  <XStack alignItems="center">
-                    <YStack width={32} alignItems="center">
-                      <Text fontFamily="$mono" fontWeight="800" fontSize={14} color={index === 0 ? "$colorCricket" : index === 1 ? "$colorSecondary" : "$color"}>
-                        #{s.rank}
-                      </Text>
-                    </YStack>
-                    <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
-                      <InitialsAvatar name={s.displayName} playerRole="BAT" ovr={`#${s.rank}`} size={32} />
-                      <YStack flex={1}>
-                        <Text {...textStyles.playerName}>{s.displayName}</Text>
-                        {isMe && <Badge variant="live" size="sm" alignSelf="flex-start">{formatBadgeText("you")}</Badge>}
+                <Pressable
+                  onPress={() =>
+                    setSelectedMember({
+                      userId: s.userId,
+                      displayName: s.displayName,
+                      rank: s.rank,
+                      totalPoints: s.totalPoints,
+                      contestsPlayed: s.contestsPlayed,
+                    })
+                  }
+                >
+                  <Card marginBottom="$2" padding="$4" borderColor={isMe ? "$accentBackground" : "$borderColor"} borderWidth={isMe ? 2 : 1}>
+                    <XStack alignItems="center">
+                      <YStack width={32} alignItems="center">
+                        <Text fontFamily="$mono" fontWeight="800" fontSize={14} color={index === 0 ? "$colorCricket" : index === 1 ? "$colorSecondary" : "$color"}>
+                          #{s.rank}
+                        </Text>
+                      </YStack>
+                      <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
+                        <InitialsAvatar name={s.displayName} playerRole="BAT" ovr={`#${s.rank}`} size={32} />
+                        <YStack flex={1}>
+                          <Text {...textStyles.playerName}>{s.displayName}</Text>
+                          {isMe && <Badge variant="live" size="sm" alignSelf="flex-start">{formatBadgeText("you")}</Badge>}
+                        </YStack>
+                      </XStack>
+                      <YStack alignItems="flex-end">
+                        <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground">
+                          {s.totalPoints.toFixed(1)}
+                        </Text>
+                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                          {s.contestsPlayed} contest{s.contestsPlayed !== 1 ? "s" : ""} · tap for breakdown
+                        </Text>
                       </YStack>
                     </XStack>
-                    <YStack alignItems="flex-end">
-                      <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground">
-                        {s.totalPoints.toFixed(1)}
-                      </Text>
-                      <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                        {s.contestsPlayed} contest{s.contestsPlayed !== 1 ? "s" : ""}
-                      </Text>
-                    </YStack>
-                  </XStack>
-                </Card>
+                  </Card>
+                </Pressable>
               </Animated.View>
             );
           }
@@ -510,6 +533,19 @@ export default function LeagueDetailScreen() {
             { label: "cancel", variant: "ghost", onPress: () => setConfirmAlert(null) },
             { label: "start", variant: "primary", onPress: confirmAlert.onConfirm },
           ]}
+        />
+      )}
+      {selectedMember && id && (
+        <MemberBreakdownSheet
+          visible={!!selectedMember}
+          onClose={() => setSelectedMember(null)}
+          leagueId={id}
+          userId={selectedMember.userId}
+          displayName={selectedMember.displayName}
+          rank={selectedMember.rank}
+          totalPoints={selectedMember.totalPoints}
+          contestsPlayed={selectedMember.contestsPlayed}
+          isMe={selectedMember.userId === user?.id}
         />
       )}
     </YStack>

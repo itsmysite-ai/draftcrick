@@ -1029,6 +1029,90 @@ export const leagueRouter = router({
       }));
     }),
 
+  /**
+   * Per-contest breakdown for a specific user in a league. Powers the
+   * "tap a row in standings → see how those points were earned" drill-down
+   * on the league page. Covers salary_cap / draft / auction formats that
+   * all use the shared `contests` + `fantasy_teams` tables. Cricket
+   * Manager has its own round/entry model and is handled separately.
+   */
+  memberContestBreakdown: protectedProcedure
+    .input(
+      z.object({
+        leagueId: z.string().uuid(),
+        userId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      // Join fantasy_teams → contests → matches filtered to this league + user
+      const rows = await ctx.db
+        .select({
+          teamId: fantasyTeams.id,
+          totalPoints: fantasyTeams.totalPoints,
+          rank: fantasyTeams.rank,
+          createdAt: fantasyTeams.createdAt,
+          contestId: contests.id,
+          contestName: contests.name,
+          contestStatus: contests.status,
+          prizePool: contests.prizePool,
+          prizeDistribution: contests.prizeDistribution,
+          matchId: matches.id,
+          teamHome: matches.teamHome,
+          teamAway: matches.teamAway,
+          matchStartTime: matches.startTime,
+          matchStatus: matches.status,
+          matchResult: matches.result,
+        })
+        .from(fantasyTeams)
+        .innerJoin(contests, eq(fantasyTeams.contestId, contests.id))
+        .innerJoin(matches, eq(contests.matchId, matches.id))
+        .where(
+          and(
+            eq(contests.leagueId, input.leagueId),
+            eq(fantasyTeams.userId, input.userId)
+          )
+        )
+        .orderBy(desc(matches.startTime));
+
+      return rows.map((r) => {
+        const totalPoints = Number(r.totalPoints ?? 0);
+        // Compute prize won from rank + prize distribution (same math as settlement)
+        let prizeWon = 0;
+        if (r.rank && r.prizePool && r.prizeDistribution) {
+          const dist = r.prizeDistribution as Array<{
+            rank: number;
+            percent?: number;
+            amount?: number;
+          }>;
+          const slot = dist.find((d) => d.rank === r.rank);
+          if (slot) {
+            if (typeof slot.amount === "number") {
+              prizeWon = slot.amount;
+            } else if (typeof slot.percent === "number") {
+              prizeWon = Math.round((r.prizePool * slot.percent) / 100);
+            }
+          }
+        }
+        return {
+          teamId: r.teamId,
+          contestId: r.contestId,
+          contestName: r.contestName,
+          contestStatus: r.contestStatus,
+          totalPoints,
+          rank: r.rank,
+          prizeWon,
+          match: {
+            id: r.matchId,
+            teamHome: r.teamHome,
+            teamAway: r.teamAway,
+            startTime: r.matchStartTime,
+            status: r.matchStatus,
+            result: r.matchResult,
+          },
+        };
+      });
+    }),
+
   leagueContests: protectedProcedure
     .input(z.object({ leagueId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {

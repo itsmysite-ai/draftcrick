@@ -114,7 +114,12 @@ export default function CreateLeagueScreen() {
   const [tournament, setTournament] = useState("");
   const [maxMembers, setMaxMembers] = useState(10);
   const [entryFee, setEntryFee] = useState(0);
-  const [isPrivate, setIsPrivate] = useState(true);
+  // User-created leagues are always private. Public leagues are admin-only and
+  // created via the admin portal. The `isPrivate` state + UI toggle below are
+  // kept (commented out) so the functionality can be restored quickly if
+  // that policy changes.
+  const isPrivate = true;
+  // const [isPrivate, setIsPrivate] = useState(true);
 
   // ── Auction-specific settings ──
   const [auctionBidIncrement, setAuctionBidIncrement] = useState(0.1);
@@ -648,7 +653,9 @@ export default function CreateLeagueScreen() {
             </YStack>
           )}
 
-          {/* ── Visibility ── */}
+          {/* ── Visibility (hidden — user-created leagues are always private;
+              admin portal handles public-league creation). Kept as commented
+              JSX so the toggle can be restored quickly if policy changes. ──
           <Text {...textStyles.sectionHeader} marginBottom="$2">
             {formatUIText("visibility")}
           </Text>
@@ -684,6 +691,7 @@ export default function CreateLeagueScreen() {
               </Text>
             </Card>
           </XStack>
+          */}
         </>
       )}
 

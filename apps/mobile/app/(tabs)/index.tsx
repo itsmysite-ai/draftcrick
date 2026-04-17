@@ -742,8 +742,21 @@ export default function HomeScreen() {
       draftEnabled: db?.draftEnabled ?? false,
     };
   });
+  // Defensive filter: the backend sometimes lags on flipping status from
+  // "upcoming" to "completed" (phase transitions can miss matches), so drop
+  // anything whose start time is more than 6h in the past unless it's
+  // actively live. Without this guard, weeks-old matches leak into
+  // "more matches" as ghost "upcoming" rows.
+  const nowMs = Date.now();
+  const upcomingCutoffMs = nowMs - 6 * 60 * 60 * 1000;
   const upcomingMatches = allMatches
-    .filter((m: any) => m.status === "upcoming" || m.status === "live")
+    .filter((m: any) => {
+      if (m.status === "live") return true;
+      if (m.status !== "upcoming") return false;
+      if (!m.date) return true; // no date — keep, we can't judge
+      const t = parseSafeDate(m.date, m.time).getTime();
+      return t >= upcomingCutoffMs;
+    })
     .sort((a: any, b: any) => {
       // Live matches first, then sort by date ascending
       if (a.status === "live" && b.status !== "live") return -1;
@@ -1106,13 +1119,11 @@ export default function HomeScreen() {
           </Animated.View>
         )}
 
-        {/* ── Next Match (no draft open) ── */}
-        {draftOpenMatches.length === 0 && nextMatch && (
+        {/* ── Next Match (only when no draft open AND no live match — those have their own sections above) ── */}
+        {draftOpenMatches.length === 0 && liveMatches.length === 0 && nextMatch && (
           <Animated.View entering={FadeInDown.delay(60).springify()}>
             <Text {...textStyles.sectionHeader} marginBottom="$2">
-              {formatUIText(nextMatch.status === "live"
-                ? "live now — join the action"
-                : (sport === "f1" ? "next race" : "next match"))}
+              {formatUIText(sport === "f1" ? "next race" : "next match")}
             </Text>
             <FeaturedMatchCard
               match={nextMatch}

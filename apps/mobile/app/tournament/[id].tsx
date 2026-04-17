@@ -407,6 +407,18 @@ export default function TournamentScreen() {
         scoreSummary: ai.scoreSummary || db?.scoreSummary || null,
         result: ai.result || db?.result || null,
       };
+    })
+    .sort((a: any, b: any) => {
+      // Live first, then upcoming (soonest next), then completed (most recent first).
+      // Within each bucket, chronological order.
+      const rank = (s: string) => (s === "live" ? 0 : s === "upcoming" ? 1 : 2);
+      const ra = rank(a.status ?? "");
+      const rb = rank(b.status ?? "");
+      if (ra !== rb) return ra - rb;
+      const ta = parseSafeDate(a.date, a.time).getTime();
+      const tb = parseSafeDate(b.date, b.time).getTime();
+      // Completed: most recent first. Live/upcoming: soonest first.
+      return (a.status === "completed" ? tb - ta : ta - tb);
     });
 
   // ── Standings query ──

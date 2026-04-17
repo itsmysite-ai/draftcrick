@@ -123,15 +123,21 @@ export default function TeamBuilderScreen() {
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [viceCaptainId, setViceCaptainId] = useState<string | null>(null);
-  const [step, setStep] = useState<"contest_select" | "pick" | "captain" | "review">("contest_select");
-  // Reset to contest_select on mount (handles SPA re-navigation)
+  // Initial step depends on whether the user already picked a contest before
+  // landing here. If the navigation context or URL brought a contestId (e.g.
+  // came from the contest page's "join contest" button), skip the contest
+  // picker and drop straight into the player-pick step. Same for h2h flows.
+  const initialStep: "contest_select" | "pick" =
+    flowState?.contestType === "h2h" || !!contestId ? "pick" : "contest_select";
+  const [step, setStep] = useState<"contest_select" | "pick" | "captain" | "review">(initialStep);
+  // Reset on mount (handles SPA re-navigation between matches/contests)
   useEffect(() => {
-    if (flowState?.contestType === "h2h") {
+    if (flowState?.contestType === "h2h" || contestId) {
       setStep("pick");
     } else {
       setStep("contest_select");
     }
-  }, [matchId]);
+  }, [matchId, contestId]);
   const [teamName, setTeamName] = useState(() => generateTeamName(navCtx?.teamA, navCtx?.teamB));
   // AI team naming flow
   const [teamNameStep, setTeamNameStep] = useState<"default" | "picking" | "done">("default");
@@ -249,7 +255,12 @@ export default function TeamBuilderScreen() {
   const [nameGenStep, setNameGenStep] = useState<"config" | "q1" | "q2" | "picking" | "done">("config");
   const [leagueSize, setLeagueSize] = useState(10);
   const [leagueEntryFee, setLeagueEntryFee] = useState(0);
-  const [leaguePrivate, setLeaguePrivate] = useState(true);
+  // User-created leagues are always private. Public leagues are admin-only
+  // (created via the admin portal). The `leaguePrivate` state + visibility UI
+  // below are kept as commented JSX so the toggle can be restored quickly if
+  // that policy changes.
+  const leaguePrivate = true;
+  // const [leaguePrivate, setLeaguePrivate] = useState(true);
   const leagueSizePresetMatch = LEAGUE_SIZE_PRESETS.find((p) => leagueSize >= p.min && leagueSize <= p.max);
 
   const createLeague = trpc.league.create.useMutation({
@@ -1109,7 +1120,9 @@ export default function TeamBuilderScreen() {
                         </YStack>
                       )}
 
-                      {/* Visibility */}
+                      {/* Visibility (hidden — user-created leagues are always
+                          private; public leagues are admin-only via the admin
+                          portal). JSX retained as a comment for easy restore.
                       <YStack gap="$1">
                         <Text fontFamily="$mono" fontSize={10} fontWeight="600" color="$colorMuted" letterSpacing={0.5}>
                           {formatBadgeText("visibility")}
@@ -1153,6 +1166,7 @@ export default function TeamBuilderScreen() {
                           </Pressable>
                         </XStack>
                       </YStack>
+                      */}
 
                       {/* Format */}
                       <YStack gap="$1">
