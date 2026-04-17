@@ -83,16 +83,32 @@ export default function LeagueDetailScreen() {
   const kickMutation = trpc.league.kickMember.useMutation({ onSuccess: () => refetch() });
   const promoteMutation = trpc.league.promoteMember.useMutation({ onSuccess: () => refetch() });
 
+  // Sorted contest list. Items are tagged with `joined` from the
+  // server. We materialize a flat list here that interleaves section
+  // headers ("your contests" / "available to join") between the two
+  // groups, so the FlatList can render one continuous stream while the
+  // user reads it as two distinct sections.
   const sortedContests = useMemo(() => {
-    const data = leagueContests.data ?? [];
-    return [...data].sort((a, b) => {
+    const data = (leagueContests.data ?? []) as any[];
+    const sortFn = (a: any, b: any) => {
       const statusDiff = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
       if (statusDiff !== 0) return statusDiff;
-      // Within same status, sort by match start time ascending
       const timeA = a.match?.startTime ? new Date(a.match.startTime).getTime() : 0;
       const timeB = b.match?.startTime ? new Date(b.match.startTime).getTime() : 0;
       return timeA - timeB;
-    });
+    };
+    const joined = data.filter((c) => c.joined).sort(sortFn);
+    const available = data.filter((c) => !c.joined).sort(sortFn);
+    const items: any[] = [];
+    if (joined.length > 0) {
+      items.push({ __section: true, id: "header-joined", label: "your contests" });
+      items.push(...joined);
+    }
+    if (available.length > 0) {
+      items.push({ __section: true, id: "header-available", label: "available to join" });
+      items.push(...available);
+    }
+    return items;
   }, [leagueContests.data]);
 
   if (isLoading) return (
@@ -175,11 +191,25 @@ export default function LeagueDetailScreen() {
               <Badge variant="role" size="sm">
                 {formatBadgeText(league.format)}
               </Badge>
-              <Badge variant="role" size="sm">
-                {formatBadgeText(league.template)}
-              </Badge>
+              {/* Public leagues get a clear "OPEN" trust signal in place of
+                  the casual/competitive template badge — that template
+                  taxonomy is private-friend-group language. */}
+              {league.isPrivate ? (
+                <Badge variant="role" size="sm">
+                  {formatBadgeText(league.template)}
+                </Badge>
+              ) : (
+                <Badge variant="success" size="sm">
+                  {formatBadgeText("public")}
+                </Badge>
+              )}
               <Text fontFamily="$mono" fontSize={12} color="$colorMuted" alignSelf="center">
-                {league.members?.length ?? 0}/{league.maxMembers} {formatUIText("members")}
+                {/* For unlimited / very-large leagues the cap is noise —
+                    just show the live count. Private + small public still
+                    show "X/Y" because the cap is meaningful there. */}
+                {league.maxMembers >= 10000
+                  ? `${league.members?.length ?? 0} ${formatUIText("members")}`
+                  : `${league.members?.length ?? 0}/${league.maxMembers} ${formatUIText("members")}`}
               </Text>
             </XStack>
             <Text fontFamily="$body" fontSize={13} color="$colorMuted" marginTop="$2">
@@ -187,7 +217,10 @@ export default function LeagueDetailScreen() {
             </Text>
           </Card>
 
-          {(league.members?.length ?? 0) < league.maxMembers && (
+          {/* Invite friends is private-league only — public leagues are
+              joined from the leagues directory, no invite code needed.
+              Also hidden when the league is full. */}
+          {league.isPrivate && (league.members?.length ?? 0) < league.maxMembers && (
           <Card testID="league-invite-code" marginBottom="$4" padding="$4">
             <XStack justifyContent="space-between" alignItems="center" marginBottom={showQR ? 16 : 0}>
               <YStack>
@@ -350,6 +383,55 @@ export default function LeagueDetailScreen() {
                   );
                 })}
               </XStack>
+
+              {/* My-rank tile — when the current user isn't in the top 2,
+                  surface their rank inline so they can immediately answer
+                  "where do I stand?" without opening the full standings.
+                  Especially important in large public leagues. */}
+              {(() => {
+                const me = standings.data?.find((s: any) => s.userId === user?.id);
+                if (!me || me.rank <= 2) return null;
+                return (
+                  <Pressable
+                    onPress={() =>
+                      setSelectedMember({
+                        userId: me.userId,
+                        displayName: me.displayName,
+                        rank: me.rank,
+                        totalPoints: me.totalPoints,
+                        contestsPlayed: me.contestsPlayed,
+                      })
+                    }
+                  >
+                    <XStack
+                      marginTop="$3"
+                      paddingHorizontal="$3"
+                      paddingVertical="$3"
+                      borderRadius="$3"
+                      backgroundColor="$backgroundSurfaceAlt"
+                      borderWidth={1}
+                      borderColor="$accentBackground"
+                      alignItems="center"
+                      gap="$2"
+                    >
+                      <YStack flex={1}>
+                        <Text fontFamily="$mono" fontSize={10} fontWeight="700" color="$accentBackground" letterSpacing={0.5}>
+                          {formatBadgeText("you")}
+                        </Text>
+                        <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" marginTop={2}>
+                          #{me.rank} · {me.totalPoints.toFixed(1)} pts
+                        </Text>
+                      </YStack>
+                      <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
+                        {(standings.data?.length ?? 0) - me.rank > 0
+                          ? `${(standings.data?.length ?? 0) - me.rank} ${formatUIText("behind you")}`
+                          : ""}
+                      </Text>
+                    </XStack>
+                  </Pressable>
+                );
+              })()}
+
               {/* "See all standings" — only show if there are members beyond
                   the top 2 already displayed in the podium. */}
               {(standings.data?.length ?? 0) > 2 && (
@@ -385,24 +467,30 @@ export default function LeagueDetailScreen() {
 
           {/* Tab switcher: Contests / Members. Standings has its own podium
               card above + "see all" sheet, so it doesn't need a tab here. */}
-          <XStack
-            marginBottom="$3"
-            borderRadius="$3"
-            backgroundColor="$backgroundSurfaceAlt"
-            padding="$1"
-            gap="$1"
-          >
-            {([
-              { key: "contests" as const, label: "Contests" },
-              { key: "members" as const, label: "Members" },
-            ]).map((tb) => (
-              <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
-                <Text fontFamily="$body" fontWeight="600" fontSize={13} color={tab === tb.key ? "$color" : "$colorMuted"}>
-                  {formatUIText(tb.label)}
-                </Text>
-              </SegmentTab>
-            ))}
-          </XStack>
+          {/* Members tab is private-league only — for public leagues with
+              hundreds of strangers, browsing the full member list is
+              meaningless and the kick/promote actions are admin-only
+              anyway. Public leagues just see Contests. */}
+          {league.isPrivate ? (
+            <XStack
+              marginBottom="$3"
+              borderRadius="$3"
+              backgroundColor="$backgroundSurfaceAlt"
+              padding="$1"
+              gap="$1"
+            >
+              {([
+                { key: "contests" as const, label: "Contests" },
+                { key: "members" as const, label: "Members" },
+              ]).map((tb) => (
+                <SegmentTab key={tb.key} active={tab === tb.key} onPress={() => setTab(tb.key)}>
+                  <Text fontFamily="$body" fontWeight="600" fontSize={13} color={tab === tb.key ? "$color" : "$colorMuted"}>
+                    {formatUIText(tb.label)}
+                  </Text>
+                </SegmentTab>
+              ))}
+            </XStack>
+          ) : null}
 
           {/* Progressive tip for contests tab */}
           {tab === "contests" && sortedContests.length > 0 && (() => {
@@ -444,9 +532,32 @@ export default function LeagueDetailScreen() {
         renderItem={({ item, index }: { item: any; index: number }) => {
           // Contests tab
           if (tab === "contests") {
+            // Section header rendered as a row inside the contest stream
+            if (item.__section) {
+              return (
+                <Text
+                  {...textStyles.sectionHeader}
+                  marginTop={index === 0 ? "$0" : "$3"}
+                  marginBottom="$2"
+                  testID={`section-${item.id}`}
+                >
+                  {formatUIText(item.label)}
+                </Text>
+              );
+            }
             const contest = item;
             const match = contest.match;
             const statusVariant = STATUS_VARIANT[contest.status] ?? "default";
+            // Drop the league-name prefix from the contest title — the
+            // user is already on the league page, so the league name is
+            // redundant. Server-generated names look like
+            // "<League Name>" by default; if the contest name is exactly
+            // the league name, fall back to the match label.
+            const matchLabel = match ? `${match.teamHome} vs ${match.teamAway}` : "";
+            const cleanedName =
+              contest.name && contest.name !== league.name
+                ? contest.name.replace(new RegExp(`^${league.name}\\s*[·-]\\s*`), "")
+                : matchLabel || contest.name;
             return (
               <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
                 <Card
@@ -466,7 +577,7 @@ export default function LeagueDetailScreen() {
                 >
                   <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
                     <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" flex={1} numberOfLines={1}>
-                      {contest.name}
+                      {cleanedName}
                     </Text>
                     <Badge variant={statusVariant as any} size="sm">
                       {formatBadgeText(contest.status)}
@@ -568,7 +679,12 @@ export default function LeagueDetailScreen() {
         ListFooterComponent={!isOwner && myMembership ? (
           <Button variant="danger" size="md" marginTop="$4" onPress={() => Alert.alert(
             formatUIText("leave league?"),
-            formatUIText("you will lose your team and progress."),
+            // Salary cap + CM build per-contest/round teams; nothing to
+            // "lose" beyond future participation. Draft + auction have a
+            // persistent roster you forfeit.
+            league.format === "draft" || league.format === "auction"
+              ? formatUIText("your roster will be released and you'll forfeit your standing.")
+              : formatUIText("you'll stop appearing in this league's standings going forward — your past contest history is preserved."),
             [{ text: formatUIText("cancel"), style: "cancel" }, { text: formatUIText("leave"), style: "destructive", onPress: () => leaveMutation.mutate({ leagueId: id! }) }],
           )}>
             {formatUIText("leave league")}

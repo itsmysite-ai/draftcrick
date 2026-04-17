@@ -85,15 +85,24 @@ export async function autoCreateContestsForLeague(
   const leagueEntryFee = (league?.rules as any)?.entryFee ?? 0;
   const isPublicLeague = league?.isPrivate === false;
 
+  // For large public leagues (or unlimited via the 100k sentinel), the
+  // legacy `entryFee × maxMembers` prize pool would be either nonsensical
+  // (free × 100k = 0) or astronomically inflated (e.g. 10 × 100k = 1M PC
+  // never-paid pool). For public leagues we mark the pool as $0 at
+  // creation and let the live prize pool grow with `currentEntries × fee`
+  // as people join — same model real-money fantasy uses. Private leagues
+  // keep the pre-computed pool model since their member cap is small.
+  const useDynamicPool = isPublicLeague && maxMembers > 1000;
+
   const contestValues = newMatches.map((m) => ({
     matchId: m.id,
     leagueId,
     name: leagueName,
     entryFee: leagueEntryFee,
-    prizePool: leagueEntryFee * maxMembers,
+    prizePool: useDynamicPool ? 0 : leagueEntryFee * maxMembers,
     maxEntries: maxMembers,
     contestType: isPublicLeague ? "public" as const : "private" as const,
-    isGuaranteed: false,
+    isGuaranteed: !useDynamicPool,
     prizeDistribution: [] as { rank: number; amount: number }[],
     status: m.draftEnabled ? "open" as const : "upcoming" as const,
   }));
@@ -1122,6 +1131,23 @@ export const leagueRouter = router({
         orderBy: (c, { desc: d }) => [d(c.createdAt)],
       });
 
+      // Resolve which contests the caller has already joined — used by
+      // the mobile UI to split the list into "your contests" vs
+      // "available to join". Single roundtrip query, indexed lookup.
+      const myTeamRows = await ctx.db
+        .select({ contestId: fantasyTeams.contestId })
+        .from(fantasyTeams)
+        .where(
+          and(
+            eq(fantasyTeams.userId, ctx.user.id),
+            inArray(
+              fantasyTeams.contestId,
+              leagueContestRows.map((c) => c.id)
+            )
+          )
+        );
+      const joinedSet = new Set(myTeamRows.map((r) => r.contestId).filter(Boolean) as string[]);
+
       return leagueContestRows.map((c) => ({
         id: c.id,
         name: c.name,
@@ -1131,6 +1157,7 @@ export const leagueRouter = router({
         currentEntries: c.currentEntries,
         maxEntries: c.maxEntries,
         contestType: c.contestType,
+        joined: joinedSet.has(c.id),
         match: c.match
           ? {
               id: c.match.id,

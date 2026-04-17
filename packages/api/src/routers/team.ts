@@ -187,10 +187,15 @@ export const teamRouter = router({
           relevantContestId = input.contestId;
           // Unlink old team from contest
           await ctx.db.update(fantasyTeams).set({ contestId: null }).where(eq(fantasyTeams.id, existingTeam.id));
-          // Decrement entry count (the new team will increment it back)
+          // Decrement entry count + drop the entry fee from the dynamic
+          // prize pool. The new team's insert below will increment both
+          // back, leaving the pool net-unchanged for an auto-swap.
           await ctx.db
             .update(contests)
-            .set({ currentEntries: sql`GREATEST(${contests.currentEntries} - 1, 0)` })
+            .set({
+              currentEntries: sql`GREATEST(${contests.currentEntries} - 1, 0)`,
+              prizePool: sql`CASE WHEN ${contests.isGuaranteed} THEN ${contests.prizePool} ELSE GREATEST(${contests.prizePool} - ${contests.entryFee}, 0) END`,
+            })
             .where(eq(contests.id, input.contestId));
           // Keep contestId so the new team gets linked
         }
@@ -499,11 +504,18 @@ export const teamRouter = router({
         })
         .returning();
 
-      // Increment contest entry count
+      // Increment contest entry count, and grow the prize pool for
+      // dynamic-pool contests (large public leagues where the pool
+      // wasn't pre-funded at contest creation — see autoCreateContests
+      // in league.ts). For pre-funded contests (private leagues +
+      // small public leagues), the pool stays as-is.
       if (input.contestId) {
         await ctx.db
           .update(contests)
-          .set({ currentEntries: sql`${contests.currentEntries} + 1` })
+          .set({
+            currentEntries: sql`${contests.currentEntries} + 1`,
+            prizePool: sql`CASE WHEN ${contests.isGuaranteed} THEN ${contests.prizePool} ELSE ${contests.prizePool} + ${contests.entryFee} END`,
+          })
           .where(eq(contests.id, input.contestId));
 
         // Notify other league members that a team was created
