@@ -556,6 +556,10 @@ export default function TeamSolverScreen() {
                     isCaptain: !!p.isCaptain,
                     isViceCaptain: !!p.isViceCaptain,
                   }));
+                  // Preserve contestId / editTeamId / contestType from the
+                  // inbound context — the user may have arrived here via the
+                  // "join contest" flow, in which case we don't want to drop
+                  // them back on the contest picker after they pick this XI.
                   setMatchContext({
                     matchId,
                     teamA,
@@ -564,6 +568,8 @@ export default function TeamSolverScreen() {
                     venue: venue || undefined,
                     tournament: tournament || undefined,
                     solverPicks: picks,
+                    ...(matchCtx?.contestId ? { contestId: matchCtx.contestId } : {}),
+                    ...(matchCtx?.editTeamId ? { editTeamId: matchCtx.editTeamId } : {}),
                   });
                   router.push("/team/create");
                 }}
