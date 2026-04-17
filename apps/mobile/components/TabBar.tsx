@@ -117,8 +117,10 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             .filter((route) => {
               // Profile lives in the header now — hide from tab bar
               if (route.name === "profile") return false;
-              // On web, buzz lives in the sidebar — hide it from tab bar
-              if (route.name === "buzz" && Platform.OS === "web") return false;
+              // Live tab retired — the home page surfaces live matches inline.
+              // The route file is kept for any existing deep links, but it
+              // no longer occupies a tab slot. Buzz takes its place.
+              if (route.name === "live") return false;
               return route.name in TABS;
             })
             .map((route) => {

@@ -379,7 +379,7 @@ export default function ContestsScreen() {
       {/* Status filter chips */}
       {user && activeItems.length > 0 && (
         <XStack marginHorizontal="$5" marginBottom="$3" borderRadius="$3" backgroundColor="$backgroundSurfaceAlt" padding="$1" gap="$1">
-          {(["live", "upcoming", "completed", "all"] as const).map((f) => (
+          {(["all", "live", "upcoming", "completed"] as const).map((f) => (
             <SegmentTab
               key={f}
               active={statusFilter === f}
@@ -390,9 +390,23 @@ export default function ContestsScreen() {
                 {formatUIText(f)}
               </Text>
               {filterCounts[f] > 0 && (
-                <Text fontFamily="$mono" fontSize={11} color={statusFilter === f ? "$colorSecondary" : "$colorMuted"}>
-                  {filterCounts[f]}
-                </Text>
+                <YStack
+                  paddingHorizontal={6}
+                  paddingVertical={1}
+                  borderRadius={8}
+                  backgroundColor={statusFilter === f ? "$backgroundSurfaceAlt" : "$backgroundSurface"}
+                  minWidth={20}
+                  alignItems="center"
+                >
+                  <Text
+                    fontFamily="$mono"
+                    fontSize={10}
+                    fontWeight="700"
+                    color={statusFilter === f ? "$color" : "$colorMuted"}
+                  >
+                    {filterCounts[f]}
+                  </Text>
+                </YStack>
               )}
             </SegmentTab>
           ))}

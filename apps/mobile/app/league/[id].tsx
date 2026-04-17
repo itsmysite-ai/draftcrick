@@ -23,6 +23,7 @@ import {
 } from "@draftplay/ui";
 import QRCode from "react-native-qrcode-svg";
 import { Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
@@ -152,9 +153,20 @@ export default function LeagueDetailScreen() {
           </XStack>
           <AnnouncementBanner marginHorizontal={0} />
           <Card padding="$5" marginBottom="$4">
-            <Text testID="league-name" fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
-              {league.name}
-            </Text>
+            <XStack justifyContent="space-between" alignItems="flex-start">
+              <Text testID="league-name" flex={1} fontFamily="$mono" fontWeight="500" fontSize={17} color="$color" letterSpacing={-0.5}>
+                {league.name}
+              </Text>
+              {isAdmin && (
+                <Pressable
+                  onPress={() => router.push(`/league/${id}/settings` as any)}
+                  hitSlop={10}
+                  testID="league-settings-icon"
+                >
+                  <Ionicons name="settings-outline" size={20} color={theme.colorMuted?.val ?? "#888"} />
+                </Pressable>
+              )}
+            </XStack>
             <XStack marginTop="$2" gap="$3" flexWrap="wrap">
               <Badge variant="role" size="sm">
                 {formatBadgeText(league.format)}
@@ -253,8 +265,9 @@ export default function LeagueDetailScreen() {
             </Card>
           )}
 
-          {/* Admin controls — only show start button if no active or completed auction */}
-          {isAdmin && !activeDraftRoom && !completedDraftRoom && (
+          {/* Admin controls — only show start button if no active or completed auction.
+              Settings has been moved to the gear icon in the league header card. */}
+          {isAdmin && !activeDraftRoom && !completedDraftRoom && (league.format === "draft" || league.format === "auction") && (
             <XStack gap="$3" marginBottom="$4">
               {league.format === "draft" && (
                 <Button testID="league-start-draft-btn" variant="primary" size="md" flex={1} onPress={() => handleStartDraft("snake_draft")}>
@@ -266,17 +279,86 @@ export default function LeagueDetailScreen() {
                   {formatUIText("start auction")}
                 </Button>
               )}
-              <Button variant="secondary" size="md" flex={1} onPress={() => router.push(`/league/${id}/settings` as any)}>
-                {formatUIText("settings")}
-              </Button>
             </XStack>
           )}
 
-          <Button testID="league-view-trades-btn" variant="secondary" size="md" marginBottom="$4" onPress={() => router.push(`/league/${id}/trades` as any)}>
-            <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-              {formatUIText("view trades")}
-            </Text>
-          </Button>
+          {/* Podium preview — winner + runner-up at a glance, replacing the
+              old standalone settings button. Only shows when at least one
+              member has scored points (no point teasing an empty board).
+              Trophy is reserved for actually-won leagues; while in progress
+              we use silver/bronze to mark the leader and chaser. */}
+          {(standings.data?.length ?? 0) > 0 && (() => {
+            const isLeagueSettled = league.status === "completed" || league.status === "archived";
+            return (
+            <Card marginBottom="$4" padding="$4">
+              <Text {...textStyles.hint} marginBottom="$3">{formatBadgeText("standings")}</Text>
+              <XStack gap="$3">
+                {standings.data!.slice(0, 2).map((s: any, i: number) => {
+                  const isFirst = i === 0;
+                  // Settled: 🏆 / 🥈 with WINNER / RUNNER labels.
+                  // In progress: 🥇 / 🥈 with LEADING / CHASING labels —
+                  // medal family marks placement, trophy is reserved for the
+                  // actual championship outcome.
+                  const emoji = isLeagueSettled
+                    ? (isFirst ? "🏆" : "🥈")
+                    : (isFirst ? "🥇" : "🥈");
+                  const label = isLeagueSettled
+                    ? (isFirst ? "winner" : "runner")
+                    : (isFirst ? "leading" : "chasing");
+                  const color = isFirst ? "$colorCricket" : "$colorSecondary";
+                  return (
+                    <Pressable
+                      key={s.userId}
+                      style={{ flex: 1 }}
+                      onPress={() =>
+                        setSelectedMember({
+                          userId: s.userId,
+                          displayName: s.displayName,
+                          rank: s.rank,
+                          totalPoints: s.totalPoints,
+                          contestsPlayed: s.contestsPlayed,
+                        })
+                      }
+                    >
+                      <Card
+                        padding="$3"
+                        borderWidth={1}
+                        borderColor={color}
+                      >
+                        <XStack alignItems="center" gap="$2" marginBottom="$2">
+                          <Text fontFamily="$mono" fontSize={16}>
+                            {emoji}
+                          </Text>
+                          <Text fontFamily="$mono" fontSize={10} fontWeight="700" color={color} letterSpacing={0.5}>
+                            {formatBadgeText(label)}
+                          </Text>
+                        </XStack>
+                        <Text {...textStyles.playerName} numberOfLines={1}>
+                          {s.displayName}
+                        </Text>
+                        <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground" marginTop={2}>
+                          {s.totalPoints.toFixed(1)}
+                        </Text>
+                      </Card>
+                    </Pressable>
+                  );
+                })}
+              </XStack>
+            </Card>
+            );
+          })()}
+
+          {/* Trades only apply to draft/auction formats — those have a
+              persistent player roster that members can trade. Salary cap
+              builds a fresh team per contest, so there's nothing to trade.
+              CM uses a separate render path entirely (renderCricketManagerView). */}
+          {(league.format === "draft" || league.format === "auction") && (
+            <Button testID="league-view-trades-btn" variant="secondary" size="md" marginBottom="$4" onPress={() => router.push(`/league/${id}/trades` as any)}>
+              <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
+                {formatUIText("view trades")}
+              </Text>
+            </Button>
+          )}
 
           {/* Tab switcher: Contests / Members / Standings */}
           <XStack
@@ -420,6 +502,15 @@ export default function LeagueDetailScreen() {
             const s = standingsData[index];
             if (!s) return null;
             const isMe = s.userId === user?.id;
+            // Trophy is reserved for actually-won leagues. During the season
+            // we use gold/silver/bronze medals to mark placement. At
+            // settlement, #1's gold medal becomes the championship trophy.
+            const isLeagueSettled = league.status === "completed" || league.status === "archived";
+            const rankLabel = isLeagueSettled
+              ? (s.rank === 1 ? "🏆" : s.rank === 2 ? "🥈" : s.rank === 3 ? "🥉" : `#${s.rank}`)
+              : (s.rank === 1 ? "🥇" : s.rank === 2 ? "🥈" : s.rank === 3 ? "🥉" : `#${s.rank}`);
+            const rankColor =
+              s.rank === 1 ? "$colorCricket" : s.rank === 2 ? "$colorSecondary" : "$color";
             return (
               <Animated.View entering={FadeInDown.delay(index * 30).springify()}>
                 <Pressable
@@ -433,28 +524,25 @@ export default function LeagueDetailScreen() {
                     })
                   }
                 >
-                  <Card marginBottom="$2" padding="$4" borderColor={isMe ? "$accentBackground" : "$borderColor"} borderWidth={isMe ? 2 : 1}>
-                    <XStack alignItems="center">
-                      <YStack width={32} alignItems="center">
-                        <Text fontFamily="$mono" fontWeight="800" fontSize={14} color={index === 0 ? "$colorCricket" : index === 1 ? "$colorSecondary" : "$color"}>
-                          #{s.rank}
+                  <Card marginBottom="$2" padding="$3" borderColor={isMe ? "$accentBackground" : "$borderColor"} borderWidth={isMe ? 2 : 1}>
+                    <XStack alignItems="center" gap="$3">
+                      <YStack width={32} alignItems="center" justifyContent="center">
+                        <Text fontFamily="$mono" fontWeight="800" fontSize={s.rank <= 3 ? 20 : 14} color={rankColor}>
+                          {rankLabel}
                         </Text>
                       </YStack>
-                      <XStack alignItems="center" gap="$2" flex={1} marginLeft="$2">
-                        <InitialsAvatar name={s.displayName} playerRole="BAT" ovr={`#${s.rank}`} size={32} />
-                        <YStack flex={1}>
-                          <Text {...textStyles.playerName}>{s.displayName}</Text>
-                          {isMe && <Badge variant="live" size="sm" alignSelf="flex-start">{formatBadgeText("you")}</Badge>}
-                        </YStack>
-                      </XStack>
-                      <YStack alignItems="flex-end">
-                        <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground">
-                          {s.totalPoints.toFixed(1)}
+                      <InitialsAvatar name={s.displayName} playerRole="BAT" ovr="" size={32} hideBadge />
+                      <YStack flex={1}>
+                        <Text {...textStyles.playerName} numberOfLines={1}>
+                          {s.displayName}
                         </Text>
-                        <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                          {s.contestsPlayed} contest{s.contestsPlayed !== 1 ? "s" : ""} · tap for breakdown
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                          {isMe ? "you · " : ""}{s.contestsPlayed} contest{s.contestsPlayed !== 1 ? "s" : ""}
                         </Text>
                       </YStack>
+                      <Text fontFamily="$mono" fontWeight="700" fontSize={15} color="$accentBackground">
+                        {s.totalPoints.toFixed(1)}
+                      </Text>
                     </XStack>
                   </Card>
                 </Pressable>

@@ -927,7 +927,7 @@ export default function HomeScreen() {
                   >
                     <XStack justifyContent="space-between" alignItems="center">
                       <YStack flex={1} gap={2}>
-                        <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" numberOfLines={1}>
+                        <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" numberOfLines={3}>
                           {pc.leagueName} · {pc.match ? `${formatTeamName(pc.match.teamHome)} vs ${formatTeamName(pc.match.teamAway)}` : ""}
                         </Text>
                         <XStack alignItems="center" gap="$2">

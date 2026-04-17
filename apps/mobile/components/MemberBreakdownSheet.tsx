@@ -199,6 +199,14 @@ export function MemberBreakdownSheet({
                 const away = formatTeamName(r.match.teamAway ?? "TBA");
                 const isSettled = r.contestStatus === "settled";
                 const matchLive = r.match.status === "live";
+                // Same medal language as the league standings — trophy is
+                // reserved for finished contests, medals mark placement
+                // while the contest is still live.
+                const rankBadge = r.rank
+                  ? isSettled
+                    ? r.rank === 1 ? "🏆" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`
+                    : r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`
+                  : null;
                 return (
                   <Pressable
                     onPress={() => {
@@ -222,6 +230,11 @@ export function MemberBreakdownSheet({
                                 {formatBadgeText("live")}
                               </Badge>
                             )}
+                            {rankBadge && (
+                              <Text fontFamily="$mono" fontSize={14}>
+                                {rankBadge}
+                              </Text>
+                            )}
                           </XStack>
                           <Text
                             fontFamily="$mono"
@@ -230,9 +243,6 @@ export function MemberBreakdownSheet({
                             marginTop={2}
                           >
                             {formatMatchDate(r.match.startTime)}
-                            {" · "}
-                            {r.contestName}
-                            {r.rank ? ` · rank #${r.rank}` : ""}
                           </Text>
                         </YStack>
                         <YStack alignItems="flex-end">
