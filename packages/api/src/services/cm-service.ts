@@ -210,6 +210,12 @@ export async function composeRound(db: Database, input: ComposeRoundInput) {
     );
   }
 
+  // Fire-and-forget: prewarm AI projections for every match in this round
+  // so the build-entry UI never sees a mix of cached-for-some / blank-for-rest.
+  prewarmRoundProjections(db, round.id).catch((err) => {
+    log.warn({ err, roundId: round.id }, "Projection prewarm failed — baseline will cover");
+  });
+
   // Auto-create the default Mega contest for this round
   const roundPrizePool =
     cfg.roundPrizeSplit.perRoundPct != null
@@ -409,6 +415,79 @@ export async function populateRoundPlayerPool(
 
   log.info({ roundId, count: eligible.length }, "Populated round player pool");
   return eligible;
+}
+
+/**
+ * Prewarm AI projections for every match in a CM round.
+ *
+ * Called once after populateRoundPlayerPool completes so by the time
+ * users open the build-entry UI, projections are already in cache for
+ * every eligible player. Without this, only players whose matches were
+ * previously opened by salary-cap users had projections, which biased
+ * CM team-building.
+ *
+ * Fire-and-forget: errors are logged but never thrown — a failed
+ * prewarm falls back to the stats baseline at read time. Each match is
+ * projected independently so a single Gemini failure doesn't sink the
+ * whole round.
+ */
+export async function prewarmRoundProjections(
+  db: Database,
+  roundId: string
+): Promise<{ matches: number; prewarmed: number }> {
+  const round = await db.query.cmRounds.findFirst({
+    where: eq(cmRounds.id, roundId),
+  });
+  if (!round) return { matches: 0, prewarmed: 0 };
+
+  const matchRows = await db
+    .select()
+    .from(matches)
+    .where(inArray(matches.id, round.matchIds));
+  if (matchRows.length === 0) return { matches: 0, prewarmed: 0 };
+
+  // For each match, gather the playing roster (teams' players) and call
+  // the shared projection engine — same cache key salary-cap uses.
+  const { getProjectionsForMatch } = await import("./projection-engine");
+
+  let prewarmed = 0;
+  for (const m of matchRows) {
+    try {
+      const rosterRows = await db
+        .select({
+          id: players.id,
+          name: players.name,
+          role: players.role,
+          team: players.team,
+        })
+        .from(players)
+        .where(inArray(players.team, [m.teamHome, m.teamAway]));
+
+      if (rosterRows.length === 0) continue;
+
+      const result = await getProjectionsForMatch(
+        db,
+        m.id,
+        m.teamHome,
+        m.teamAway,
+        m.format ?? "T20",
+        m.venue ?? null,
+        m.tournament ?? "unknown",
+        rosterRows
+      );
+      if (result && result.players.length > 0) {
+        prewarmed += result.players.length;
+      }
+    } catch (err) {
+      log.error(
+        { err, roundId, matchId: m.id },
+        "Failed to prewarm projections for match — baseline will cover it"
+      );
+    }
+  }
+
+  log.info({ roundId, matches: matchRows.length, prewarmed }, "Prewarmed CM round projections");
+  return { matches: matchRows.length, prewarmed };
 }
 
 // ─── Entry validation + submission ─────────────────────────────────────
@@ -900,6 +979,14 @@ export async function onMatchPhaseTransition(
             "pre_match pool refresh failed"
           );
         }
+        // Re-prewarm projections once lineups / form data may have been
+        // updated. Fire-and-forget — baseline covers any shortfall.
+        prewarmRoundProjections(db, round.id).catch((err) => {
+          log.warn(
+            { err, roundId: round.id },
+            "pre_match projection prewarm failed"
+          );
+        });
       }
 
       // live: first match in the round just started → round → live,

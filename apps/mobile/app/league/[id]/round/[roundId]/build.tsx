@@ -256,34 +256,30 @@ export default function EntryBuilderScreen() {
     return map;
   }, [round?.matches]);
 
-  // ── AI queries (scoped to the round's first/opening match) ────────
-  // Pass players:[] — the server-side resolver looks them up from matchId to
-  // avoid stuffing 100+ players into a GET URL (hits ~20KB and gets rejected).
-  const projectionsQuery = trpc.analytics.getPlayerProjections.useQuery(
+  // ── Round-level projections ────────────────────────────────────────
+  // Covers every eligible player across every match in the round. The
+  // server merges AI projections (when cached — usually after the round
+  // is composed via prewarmRoundProjections) with a stats baseline for
+  // any player the AI didn't cover. Result: every player gets a number;
+  // no bias between cached-vs-uncached matches.
+  const projectionsQuery = trpc.cricketManager.getRoundProjections.useQuery(
+    { roundId: roundId ?? "" },
     {
-      matchId: firstMatch?.id ?? "",
-      teamA: firstMatch?.teamHome ?? "",
-      teamB: firstMatch?.teamAway ?? "",
-      format: firstMatch?.format ?? "T20",
-      venue: firstMatch?.venue ?? null,
-      tournament: firstMatch?.tournament ?? "unknown",
-      players: [],
-    },
-    {
-      enabled: !!firstMatch && canAccess("hasProjectedPoints"),
+      enabled: !!roundId && canAccess("hasProjectedPoints"),
       staleTime: 60 * 60_000,
       retry: 1,
     }
   );
 
   const projectionsByPlayerId = useMemo(() => {
-    const map = new Map<string, Projection>();
-    const players = (projectionsQuery.data as any)?.players;
-    if (!Array.isArray(players)) return map;
-    for (const p of players) {
+    const map = new Map<string, Projection & { source?: "ai" | "baseline" }>();
+    const rows = (projectionsQuery.data as any)?.projections;
+    if (!Array.isArray(rows)) return map;
+    for (const p of rows) {
       map.set(p.playerId, {
         projectedPoints: Number(p.projectedPoints),
         captainRank: Number(p.captainRank ?? 999),
+        source: p.source,
       });
     }
     return map;
@@ -1377,7 +1373,10 @@ export default function EntryBuilderScreen() {
                                   {proj.projectedPoints.toFixed(1)}
                                 </Text>
                                 <Text {...textStyles.hint}>
-                                  {formatUIText("pts")}
+                                  {/* ✨ marks AI-enhanced projections; plain
+                                      "pts" means the row is using the
+                                      stats-based baseline fallback. */}
+                                  {(proj as any).source === "ai" ? "✨ pts" : formatUIText("pts")}
                                 </Text>
                               </YStack>
                             )}

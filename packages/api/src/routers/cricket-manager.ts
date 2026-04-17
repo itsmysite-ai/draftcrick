@@ -243,6 +243,95 @@ export const cricketManagerRouter = router({
     }),
 
   /**
+   * Merged projections for every eligible player in a CM round.
+   *
+   * Scans the AI projection cache (player_projections table) for each
+   * of the round's matches and overlays a stats-based baseline for any
+   * player that's missing an AI entry. Returns one map keyed by
+   * playerId so the build-entry UI never shows a mix of
+   * cached-for-some / blank-for-rest — every player gets a number.
+   *
+   * `source: "ai"` is the AI-enhanced layer, `"baseline"` is the
+   * fallback. UI can use this to show a subtle ✨ badge on AI rows.
+   */
+  getRoundProjections: protectedProcedure
+    .input(z.object({ roundId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const round = await ctx.db.query.cmRounds.findFirst({
+        where: eq(cmRounds.id, input.roundId),
+      });
+      if (!round) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Round not found" });
+      }
+
+      const pool = (round.eligiblePlayers as EligiblePlayer[]) ?? [];
+      if (pool.length === 0) return { projections: [] as Array<{
+        playerId: string; projectedPoints: number; source: "ai" | "baseline"; captainRank?: number;
+      }> };
+
+      const playerIds = pool.map((p) => p.playerId);
+      const rolesById = new Map(pool.map((p) => [p.playerId, p.role]));
+
+      // 1. Pull every AI projection for this round's matches, once.
+      const { playerProjections } = await import("@draftplay/db");
+      const aiRows = await ctx.db
+        .select({
+          playerId: playerProjections.playerId,
+          matchId: playerProjections.matchId,
+          projectedPoints: playerProjections.projectedPoints,
+          captainRank: playerProjections.captainRank,
+        })
+        .from(playerProjections)
+        .where(inArray(playerProjections.matchId, round.matchIds));
+
+      // If a player plays multiple matches in the round (multi-match
+      // team), average their AI projections across those matches.
+      const aiAgg = new Map<string, { sum: number; count: number; captainRank: number | null }>();
+      for (const r of aiRows) {
+        const prev = aiAgg.get(r.playerId) ?? { sum: 0, count: 0, captainRank: null };
+        prev.sum += Number(r.projectedPoints);
+        prev.count += 1;
+        if (r.captainRank !== null) {
+          prev.captainRank =
+            prev.captainRank === null
+              ? r.captainRank
+              : Math.min(prev.captainRank, r.captainRank);
+        }
+        aiAgg.set(r.playerId, prev);
+      }
+
+      // 2. Figure out who's missing an AI projection and run the
+      //    baseline layer just for those (avoids redundant SQL).
+      const missingIds = playerIds.filter((id) => !aiAgg.has(id));
+      const { computeBaselineProjections } = await import("../services/projection-engine");
+      const baselineMap =
+        missingIds.length > 0
+          ? await computeBaselineProjections(ctx.db, missingIds, rolesById)
+          : new Map();
+
+      // 3. Merge: AI wins when present, baseline otherwise.
+      const projections = playerIds.map((id) => {
+        const ai = aiAgg.get(id);
+        if (ai) {
+          return {
+            playerId: id,
+            projectedPoints: Math.round((ai.sum / ai.count) * 10) / 10,
+            source: "ai" as const,
+            captainRank: ai.captainRank ?? undefined,
+          };
+        }
+        const base = baselineMap.get(id);
+        return {
+          playerId: id,
+          projectedPoints: base?.projectedPoints ?? 8,
+          source: "baseline" as const,
+        };
+      });
+
+      return { projections };
+    }),
+
+  /**
    * Home-feed: CM rounds the caller is a member of but hasn't built an
    * entry for yet. Filtered to rounds still accepting submissions
    * (status: open) and closing within the next N days (default 7).

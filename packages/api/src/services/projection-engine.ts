@@ -10,8 +10,9 @@
 import { getLogger } from "../lib/logger";
 import { createGeminiClientGlobal } from "./gemini-client";
 import { getFromHotCache, setHotCache } from "./sports-cache";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 import type { Database } from "@draftplay/db";
+import { playerMatchScores } from "@draftplay/db";
 
 const log = getLogger("projection-engine");
 
@@ -366,6 +367,108 @@ export async function getProjectionsForMatch(
   if (result && result.players.length > 0) {
     await persistProjections(db, result);
     await setHotCache(cacheKey, result, PROJECTION_CACHE_TTL);
+  }
+
+  return result;
+}
+
+// ── Baseline stats-based projection ──────────────────────────────────
+//
+// The AI layer is expensive, so CM rounds need a projection that's
+// always available for every eligible player — otherwise the few
+// players whose matches were opened earlier by salary-cap users are
+// the only ones that show a number, which biases team-building.
+//
+// This baseline uses recent-form + season-avg fantasy points from
+// existing player_match_scores data. No AI call, one SQL query,
+// runs in a few ms for hundreds of players.
+
+const BASELINE_RECENT_FORM_WEIGHT = 0.6;
+const BASELINE_SEASON_AVG_WEIGHT = 0.4;
+const BASELINE_RECENT_FORM_MATCHES = 5;
+const BASELINE_ROLE_FLOOR: Record<string, number> = {
+  batsman: 8,
+  bowler: 10,
+  all_rounder: 12,
+  wicket_keeper: 8,
+};
+
+export interface BaselineProjection {
+  playerId: string;
+  projectedPoints: number;
+  matchesUsed: number;
+  source: "baseline";
+}
+
+/**
+ * Compute stats-based projections for a list of players using their
+ * historical fantasy points. Returns a map keyed by playerId.
+ *
+ * Formula:
+ *   projection = recent_form_avg * 0.6 + season_avg * 0.4
+ * With a role-based floor so unknown/new players aren't projected at 0.
+ */
+export async function computeBaselineProjections(
+  db: Database,
+  playerIds: string[],
+  rolesById?: Map<string, string>
+): Promise<Map<string, BaselineProjection>> {
+  const result = new Map<string, BaselineProjection>();
+  if (playerIds.length === 0) return result;
+
+  // Pull all historical match rows for these players, newest first.
+  // We'll slice the first N per-player client-side for recent form.
+  const rows = await db
+    .select({
+      playerId: playerMatchScores.playerId,
+      fantasyPoints: playerMatchScores.fantasyPoints,
+      updatedAt: playerMatchScores.updatedAt,
+    })
+    .from(playerMatchScores)
+    .where(inArray(playerMatchScores.playerId, playerIds))
+    .orderBy(sql`${playerMatchScores.updatedAt} DESC`);
+
+  const grouped = new Map<string, number[]>();
+  for (const r of rows) {
+    const pts = Number(r.fantasyPoints ?? 0);
+    const arr = grouped.get(r.playerId) ?? [];
+    arr.push(pts);
+    grouped.set(r.playerId, arr);
+  }
+
+  for (const pid of playerIds) {
+    const points = grouped.get(pid) ?? [];
+    const role = rolesById?.get(pid) ?? "batsman";
+    const floor = BASELINE_ROLE_FLOOR[role] ?? 8;
+
+    if (points.length === 0) {
+      // No history at all — lean on role floor
+      result.set(pid, {
+        playerId: pid,
+        projectedPoints: floor,
+        matchesUsed: 0,
+        source: "baseline",
+      });
+      continue;
+    }
+
+    const recent = points.slice(0, BASELINE_RECENT_FORM_MATCHES);
+    const recentAvg = recent.reduce((s, p) => s + p, 0) / recent.length;
+    const seasonAvg = points.reduce((s, p) => s + p, 0) / points.length;
+
+    const blended =
+      recentAvg * BASELINE_RECENT_FORM_WEIGHT +
+      seasonAvg * BASELINE_SEASON_AVG_WEIGHT;
+    // Floor: never project below the role's baseline so new-ish
+    // players don't read as "worthless".
+    const projection = Math.max(blended, floor);
+
+    result.set(pid, {
+      playerId: pid,
+      projectedPoints: Math.round(projection * 10) / 10,
+      matchesUsed: points.length,
+      source: "baseline",
+    });
   }
 
   return result;
