@@ -144,6 +144,7 @@ function CricketManagerSection({
               <RoundRow
                 key={r.id}
                 round={r}
+                tournament={tournament}
                 onChanged={() => roundsQuery.refetch()}
               />
             ))}
@@ -156,12 +157,25 @@ function CricketManagerSection({
 
 function RoundRow({
   round,
+  tournament,
   onChanged,
 }: {
   round: any;
+  tournament: string;
   onChanged: () => void;
 }) {
-  const deleteRound = trpc.cricketManager.deleteRound.useMutation({ onSuccess: onChanged });
+  const [editing, setEditing] = useState(false);
+  const deleteRound = trpc.cricketManager.deleteRound.useMutation({
+    onSuccess: onChanged,
+    onError: (err) => alert(err.message),
+  });
+
+  // Edit and delete are only valid until the round becomes settled OR a
+  // match in it has started — the backend enforces both, but we hide the
+  // buttons for settled rounds proactively. For "live" rounds we still
+  // show but the backend will reject if any match has started; that's
+  // intentional so the admin can attempt and see the reason.
+  const canMutate = round.status !== "settled";
 
   return (
     <div
@@ -170,49 +184,227 @@ function RoundRow({
         backgroundColor: "var(--bg-surface)",
         border: "1px solid var(--border)",
         borderRadius: 8,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
       }}
     >
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            style={{
-              fontFamily: "var(--font-data)",
-              fontSize: 12,
-              fontWeight: 700,
-              backgroundColor: "rgba(61,153,104,0.1)",
-              color: "var(--accent)",
-              padding: "2px 8px",
-              borderRadius: 4,
-            }}
-          >
-            R{round.roundNumber}
-          </span>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>{round.name}</div>
-          <Tag>{round.status}</Tag>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span
+              style={{
+                fontFamily: "var(--font-data)",
+                fontSize: 12,
+                fontWeight: 700,
+                backgroundColor: "rgba(61,153,104,0.1)",
+                color: "var(--accent)",
+                padding: "2px 8px",
+                borderRadius: 4,
+              }}
+            >
+              R{round.roundNumber}
+            </span>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{round.name}</div>
+            <Tag>{round.status}</Tag>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-secondary)" }}>
+            {round.matchesTotal} matches · window {formatDate(round.windowStart)} →{" "}
+            {formatDate(round.windowEnd)} · lock {formatDate(round.lockTime)}
+            {round.totalEntries > 0 && ` · ${round.totalEntries} entries`}
+          </div>
         </div>
-        <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-secondary)" }}>
-          {round.matchesTotal} matches · window {formatDate(round.windowStart)} →{" "}
-          {formatDate(round.windowEnd)} · lock {formatDate(round.lockTime)}
-          {round.totalEntries > 0 && ` · ${round.totalEntries} entries`}
-        </div>
+
+        {canMutate && (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={() => setEditing((v) => !v)}
+              style={actionBtn("neutral")}
+            >
+              {editing ? "Cancel" : "Edit"}
+            </button>
+            <button
+              onClick={() => {
+                const msg =
+                  round.totalEntries > 0
+                    ? `Delete round "${round.name}"? ${round.totalEntries} entr${
+                        round.totalEntries === 1 ? "y" : "ies"
+                      } will also be removed.`
+                    : `Delete round "${round.name}"?`;
+                if (confirm(msg))
+                  deleteRound.mutate({ roundId: round.id });
+              }}
+              style={actionBtn("danger")}
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </div>
 
-      <div style={{ display: "flex", gap: 6 }}>
-        {round.status === "upcoming" && (
-          <button
-            onClick={() => {
-              if (confirm(`Delete round "${round.name}"?`))
-                deleteRound.mutate({ roundId: round.id });
-            }}
-            style={actionBtn("danger")}
-          >
-            Delete
-          </button>
+      {editing && (
+        <RoundEditor
+          round={round}
+          tournament={tournament}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            onChanged();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function RoundEditor({
+  round,
+  tournament,
+  onCancel,
+  onSaved,
+}: {
+  round: any;
+  tournament: string;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const matchesQuery = trpc.admin.matches.list.useQuery({
+    tournament,
+    limit: 500,
+  });
+  const updateRound = trpc.cricketManager.updateRound.useMutation({
+    onSuccess: onSaved,
+    onError: (err) => setError(err.message),
+  });
+
+  const [name, setName] = useState<string>(round.name ?? "");
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(round.matchIds ?? [])
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const sortedMatches = useMemo(() => {
+    return [...(matchesQuery.data ?? [])].sort(
+      (a: any, b: any) =>
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+  }, [matchesQuery.data]);
+
+  function toggle(id: string) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  }
+
+  function handleSave() {
+    setError(null);
+    if (selected.size === 0) {
+      setError("Select at least one match");
+      return;
+    }
+    updateRound.mutate({
+      roundId: round.id,
+      name: name.trim() || round.name,
+      matchIds: Array.from(selected),
+    });
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        paddingTop: 16,
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>Round name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+
+      <label style={labelStyle}>
+        Matches ({selected.size} selected)
+      </label>
+      <div
+        style={{
+          maxHeight: 300,
+          overflow: "auto",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          backgroundColor: "var(--bg)",
+        }}
+      >
+        {matchesQuery.isLoading ? (
+          <div style={{ padding: 12, color: "var(--text-secondary)", fontSize: 13 }}>
+            Loading matches…
+          </div>
+        ) : sortedMatches.length === 0 ? (
+          <div style={{ padding: 12, color: "var(--text-secondary)", fontSize: 13 }}>
+            No matches found.
+          </div>
+        ) : (
+          sortedMatches.map((m: any) => {
+            const isSelected = selected.has(m.id);
+            const isStarted = m.status === "live" || m.status === "completed";
+            return (
+              <label
+                key={m.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderBottom: "1px solid var(--border)",
+                  cursor: isStarted ? "not-allowed" : "pointer",
+                  opacity: isStarted ? 0.4 : 1,
+                  backgroundColor: isSelected
+                    ? "rgba(61,153,104,0.06)"
+                    : "transparent",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  disabled={isStarted}
+                  onChange={() => toggle(m.id)}
+                />
+                <div style={{ flex: 1, fontSize: 13 }}>
+                  {m.teamHome} vs {m.teamAway}
+                  <span style={{ color: "var(--text-secondary)", marginLeft: 8, fontSize: 11 }}>
+                    {formatDate(m.startTime)} · {m.status}
+                  </span>
+                </div>
+              </label>
+            );
+          })
         )}
+      </div>
+
+      {error && (
+        <div style={{ marginTop: 8, color: "var(--danger)", fontSize: 13 }}>{error}</div>
+      )}
+
+      <div style={{ marginTop: 12, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button onClick={onCancel} style={actionBtn("neutral")}>
+          Cancel
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={updateRound.isPending}
+          style={actionBtn("accent")}
+        >
+          {updateRound.isPending ? "Saving…" : "Save changes"}
+        </button>
       </div>
     </div>
   );

@@ -2381,7 +2381,18 @@ const leaguesRouter = router({
     }),
 
   create: adminProcedure
-    .input(createLeagueSchema.extend({ isPrivate: z.boolean().default(false) }))
+    // Admin-created leagues use a relaxed maxMembers cap (up to 100000 — a
+    // practical "unlimited" stand-in that avoids touching every existing
+    // `count >= maxMembers` comparison in the codebase). The user-facing
+    // createLeagueSchema still caps at 200 for protected procedures.
+    .input(
+      createLeagueSchema
+        .omit({ maxMembers: true })
+        .extend({
+          isPrivate: z.boolean().default(false),
+          maxMembers: z.number().int().positive().max(100000).default(10),
+        })
+    )
     .mutation(async ({ ctx, input }) => {
       const inviteCode = randomBytes(6).toString("hex");
 

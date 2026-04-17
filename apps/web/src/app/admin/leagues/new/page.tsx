@@ -46,7 +46,14 @@ export default function NewAdminLeaguePage() {
   const [format, setFormat] = useState<Format>("cricket_manager");
   const [name, setName] = useState("");
   const [tournament, setTournament] = useState<string>("");
+  // 100000 is the "practically unlimited" sentinel — the existing
+  // count-vs-cap comparison logic across the codebase still works (count
+  // will never realistically reach 100k members), so we don't need a DB
+  // migration to add a separate "unlimited" flag.
+  const UNLIMITED_MEMBERS = 100000;
   const [maxMembers, setMaxMembers] = useState(100);
+  const [unlimitedMembers, setUnlimitedMembers] = useState(false);
+  const effectiveMaxMembers = unlimitedMembers ? UNLIMITED_MEMBERS : maxMembers;
   const [entryFee, setEntryFee] = useState(0);
   const [prizePool, setPrizePool] = useState(0);
   const [ballLimit, setBallLimit] = useState(120);
@@ -102,7 +109,7 @@ export default function NewAdminLeaguePage() {
       sport: "cricket",
       tournament,
       isPrivate: false,
-      maxMembers,
+      maxMembers: effectiveMaxMembers,
       template: "custom",
       rules,
     });
@@ -178,14 +185,40 @@ export default function NewAdminLeaguePage() {
         </Field>
 
         <Field label="Max Members">
-          <input
-            type="number"
-            value={maxMembers}
-            onChange={(e) => setMaxMembers(Number(e.target.value))}
-            min={2}
-            max={100000}
-            style={inputStyle}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <input
+              type="number"
+              value={unlimitedMembers ? "" : maxMembers}
+              placeholder={unlimitedMembers ? "unlimited" : ""}
+              onChange={(e) => setMaxMembers(Number(e.target.value))}
+              min={1}
+              max={100000}
+              disabled={unlimitedMembers}
+              style={{
+                ...inputStyle,
+                opacity: unlimitedMembers ? 0.5 : 1,
+                flex: 1,
+              }}
+            />
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 13,
+                color: "var(--text-secondary)",
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={unlimitedMembers}
+                onChange={(e) => setUnlimitedMembers(e.target.checked)}
+              />
+              no limit
+            </label>
+          </div>
         </Field>
 
         <Field label="Entry Fee (Pop Coins, one-time)">
