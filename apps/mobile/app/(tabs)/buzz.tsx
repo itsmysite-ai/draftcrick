@@ -4,7 +4,7 @@ import { Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-nativ
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../../components/SportText";
-import { Card, formatUIText, formatBadgeText, DraftPlayLogo, Badge } from "@draftplay/ui";
+import { Card, formatUIText, formatBadgeText, formatTeamName, DraftPlayLogo, Badge } from "@draftplay/ui";
 import { HeaderControls } from "../../components/HeaderControls";
 import { SubHeader } from "../../components/SubHeader";
 import { ChatRoom, RoomPickerSheet, type BuzzRoom } from "../../components/chat";
@@ -13,6 +13,17 @@ import { trpc } from "../../lib/trpc";
 // Tab bar height (pill bar + outer padding)
 const TAB_BAR_HEIGHT = 70;
 const STICKY_ROOM_KEY = "draftplay.buzz.lastRoomId";
+
+/**
+ * Server returns match-room names as "Gujarat Titans vs Kolkata Knight
+ * Riders" — far too wide for a chat header. Convert each side via the
+ * design-system formatTeamName helper so we display "GT vs KKR".
+ */
+function abbreviateMatchRoom(name: string): string {
+  const parts = name.split(/\s+vs\s+/i);
+  if (parts.length !== 2) return name;
+  return `${formatTeamName(parts[0]!)} vs ${formatTeamName(parts[1]!)}`;
+}
 
 export default function BuzzScreen() {
   const insets = useSafeAreaInsets();
@@ -27,11 +38,13 @@ export default function BuzzScreen() {
   });
 
   // Always include the general room (id: null) as the first option,
-  // followed by any active match rooms returned from the server.
+  // followed by any active match rooms returned from the server. Match
+  // names are abbreviated up front so the rest of the screen never has
+  // to re-format them.
   const allRooms: BuzzRoom[] = useMemo(() => {
     const base: BuzzRoom = { id: null, name: "general", type: "general" };
     const matchRooms = (rooms ?? []).map(
-      (r): BuzzRoom => ({ id: r.id, name: r.name, type: "match" })
+      (r: any): BuzzRoom => ({ id: r.id, name: abbreviateMatchRoom(r.name), type: "match" })
     );
     return [base, ...matchRooms];
   }, [rooms]);
@@ -64,7 +77,7 @@ export default function BuzzScreen() {
   // If the sticky room has gone away (match concluded), fall back to general.
   useEffect(() => {
     if (!rooms || activeRoom === null) return;
-    const exists = rooms.some((r) => r.id === activeRoom);
+    const exists = rooms.some((r: any) => r.id === activeRoom);
     if (!exists) setActiveRoom(null);
   }, [rooms, activeRoom]);
 
@@ -111,7 +124,9 @@ export default function BuzzScreen() {
 
         <SubHeader />
 
-        {/* Room switcher — single chip showing active room. Tap → picker sheet. */}
+        {/* Room switcher — single chip showing active room. Tap → picker sheet.
+            When the active room is a live match, a subtle red dot inline next
+            to the room name signals you're in a live conversation. */}
         <YStack paddingHorizontal="$4" marginBottom="$3">
           <Pressable onPress={() => setPickerOpen(true)}>
             <XStack
@@ -128,9 +143,16 @@ export default function BuzzScreen() {
                 {activeRoomMeta.type === "general" ? "💬" : "🏏"}
               </Text>
               <YStack flex={1}>
-                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" numberOfLines={1}>
-                  {activeRoomMeta.type === "general" ? "general" : activeRoomMeta.name}
-                </Text>
+                <XStack alignItems="center" gap="$2">
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" numberOfLines={1} flexShrink={1}>
+                    {activeRoomMeta.type === "general" ? "general" : activeRoomMeta.name}
+                  </Text>
+                  {activeRoomMeta.type === "match" && (
+                    <Badge variant="live" size="sm">
+                      {formatBadgeText("live")}
+                    </Badge>
+                  )}
+                </XStack>
                 <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={1}>
                   {activeRoomMeta.type === "general"
                     ? formatUIText("league-wide chat")
@@ -144,8 +166,9 @@ export default function BuzzScreen() {
           </Pressable>
 
           {/* Live match banner — only visible when in general AND a match
-              room is active. Lets users opt-in to match-specific chat without
-              auto-redirecting them. */}
+              room is active. The LIVE badge sits *next to* the match name
+              so it's unambiguous which thing is live (the match below,
+              not the general room above). */}
           {liveMatchRoom && (
             <Pressable onPress={() => setActiveRoom(liveMatchRoom.id)} style={{ marginTop: 8 }}>
               <Card
@@ -154,13 +177,21 @@ export default function BuzzScreen() {
                 borderWidth={1}
               >
                 <XStack alignItems="center" gap="$2">
-                  <Badge variant="live" size="sm">
-                    {formatBadgeText("live")}
-                  </Badge>
-                  <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" flex={1} numberOfLines={1}>
-                    {liveMatchRoom.name} — {formatUIText("join the chat")}
-                  </Text>
-                  <Text fontFamily="$mono" fontSize={12} color="$accentBackground">
+                  <Text fontSize={16}>🏏</Text>
+                  <YStack flex={1}>
+                    <XStack alignItems="center" gap="$2">
+                      <Text fontFamily="$body" fontWeight="700" fontSize={13} color="$color" numberOfLines={1} flexShrink={1}>
+                        {abbreviateMatchRoom(liveMatchRoom.name)}
+                      </Text>
+                      <Badge variant="live" size="sm">
+                        {formatBadgeText("live")}
+                      </Badge>
+                    </XStack>
+                    <Text fontFamily="$body" fontSize={11} color="$colorMuted" marginTop={1}>
+                      {formatUIText("tap to join the match chat")}
+                    </Text>
+                  </YStack>
+                  <Text fontFamily="$mono" fontSize={16} color="$accentBackground">
                     →
                   </Text>
                 </XStack>

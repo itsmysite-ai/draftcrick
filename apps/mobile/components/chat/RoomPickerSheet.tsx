@@ -12,7 +12,7 @@ import Animated, { FadeIn, SlideInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, useTheme as useTamaguiTheme } from "tamagui";
 import { Text } from "../SportText";
-import { Card, formatUIText, formatBadgeText, textStyles } from "@draftplay/ui";
+import { Card, Badge, formatUIText, formatBadgeText, textStyles } from "@draftplay/ui";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -122,9 +122,20 @@ export function RoomPickerSheet({
                         {room.type === "general" ? "💬" : "🏏"}
                       </Text>
                       <YStack flex={1}>
-                        <Text {...textStyles.playerName} numberOfLines={1}>
-                          {room.type === "general" ? "general" : room.name}
-                        </Text>
+                        <XStack alignItems="center" gap="$2">
+                          <Text {...textStyles.playerName} numberOfLines={1} flexShrink={1}>
+                            {room.type === "general" ? "general" : room.name}
+                          </Text>
+                          {/* Match rooms only exist when their match is live
+                              (server filters by status === "live"), so show
+                              a live badge so the user can spot active chats
+                              at a glance. */}
+                          {room.type === "match" && (
+                            <Badge variant="live" size="sm">
+                              {formatBadgeText("live")}
+                            </Badge>
+                          )}
+                        </XStack>
                         <Text fontFamily="$mono" fontSize={10} color="$colorMuted" marginTop={2}>
                           {room.type === "general"
                             ? formatUIText("league-wide chat")
