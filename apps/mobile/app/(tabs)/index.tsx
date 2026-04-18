@@ -1239,10 +1239,10 @@ export default function HomeScreen() {
                   </YStack>
                   <YStack flex={1}>
                     <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("create or join a league")}
+                      {formatUIText("join or create a league")}
                     </Text>
                     <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                      {formatUIText("pick a tournament (ipl, world cup, etc.), invite friends with a code")}
+                      {formatUIText("jump into a public league above, or create a private one with friends")}
                     </Text>
                   </YStack>
                 </XStack>
@@ -1252,10 +1252,10 @@ export default function HomeScreen() {
                   </YStack>
                   <YStack flex={1}>
                     <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
-                      {formatUIText("contests appear each match day")}
+                      {formatUIText("contests & rounds open before every match")}
                     </Text>
                     <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
-                      {formatUIText("auto-created for every match in your tournament — no setup needed")}
+                      {formatUIText("salary cap = per-match, cricket manager = multi-match rounds — the app surfaces both automatically")}
                     </Text>
                   </YStack>
                 </XStack>
@@ -1265,21 +1265,38 @@ export default function HomeScreen() {
                   </YStack>
                   <YStack flex={1}>
                     <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
-                      {formatUIText("build your team & compete")}
+                      {formatUIText("build your 11 & compete")}
                     </Text>
                     <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
-                      {formatUIText("pick 11 players within budget — best fantasy team wins")}
+                      {formatUIText("pick players within a budget, or strategise a batting + bowling order across a round — climb the standings")}
                     </Text>
                   </YStack>
                 </XStack>
               </YStack>
-              <Button variant="primary" size="md" marginTop="$3" onPress={() => router.push("/league/create" as any)} testID="how-it-works-get-started-btn">
-                {formatUIText("create a league")}
-              </Button>
+              <XStack gap="$2" marginTop="$3">
+                <Button variant="secondary" size="md" flex={1} onPress={() => router.push("/leagues/browse" as any)} testID="how-it-works-browse-public-btn">
+                  {formatUIText("browse public")}
+                </Button>
+                <Button variant="primary" size="md" flex={1} onPress={() => router.push("/league/create" as any)} testID="how-it-works-get-started-btn">
+                  {formatUIText("create a league")}
+                </Button>
+              </XStack>
             </Card>
           </Animated.View>
         )}
-        {user && leagueCount > 0 && teamCount === 0 && (
+        {user && leagueCount > 0 && teamCount === 0 && (() => {
+          // Figure out which format the user's leagues are — when they
+          // have a pending CM round, send them there instead of the
+          // salary-cap next-match flow. The CM path was missing
+          // entirely before, so CM-only users got stranded on
+          // "your next contest opens closer to match time" forever.
+          const firstCmPending = (cmPendingRoundsQuery.data ?? [])[0];
+          const hasCmLeague =
+            (myLeaguesQuery.data ?? []).some(
+              (m: any) => m.league?.format === "cricket_manager"
+            );
+
+          return (
           <Animated.View entering={FadeInDown.delay(30).springify()}>
             <Card padding="$4" marginBottom="$4" testID="onboard-build-team-card">
               <XStack alignItems="center" gap="$3" marginBottom="$3">
@@ -1287,10 +1304,53 @@ export default function HomeScreen() {
                   <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">2</Text>
                 </YStack>
                 <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
-                  {formatUIText("next: build your team")}
+                  {formatUIText(
+                    firstCmPending ? "next: build your round entry" : "next: build your team"
+                  )}
                 </Text>
               </XStack>
-              {nextMatch ? (
+              {firstCmPending ? (
+                // CM branch — pending round takes priority over salary-cap
+                // next-match, since round locking is time-bounded.
+                <YStack gap="$2">
+                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                    {formatUIText(
+                      "your cricket manager league has a round open — pick 11 players across the round's matches, set your batting and bowling orders."
+                    )}
+                  </Text>
+                  <Card padding="$3" marginTop="$1">
+                    <XStack justifyContent="space-between" alignItems="center">
+                      <YStack flex={1} gap={2}>
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
+                          🏆 {formatBadgeText(firstCmPending.leagueName ?? "cricket manager")}
+                        </Text>
+                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                          {firstCmPending.name ?? `Round ${firstCmPending.roundNumber}`}
+                        </Text>
+                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                          {firstCmPending.matchesTotal} {formatUIText("matches")}
+                        </Text>
+                      </YStack>
+                      <Badge variant="live" size="sm">
+                        {formatBadgeText("open")}
+                      </Badge>
+                    </XStack>
+                  </Card>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    marginTop="$1"
+                    onPress={() =>
+                      router.push(
+                        `/league/${firstCmPending.leagueId}/round/${firstCmPending.id}/build`
+                      )
+                    }
+                    testID="onboard-go-to-cm-round-btn"
+                  >
+                    {formatUIText("build entry")}
+                  </Button>
+                </YStack>
+              ) : nextMatch ? (
                 <YStack gap="$2">
                   <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
                     {formatUIText(nextMatch.draftEnabled
@@ -1329,7 +1389,11 @@ export default function HomeScreen() {
               ) : (
                 <YStack gap="$2">
                   <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                    {formatUIText("no upcoming matches right now. contests will appear automatically when matches are scheduled.")}
+                    {formatUIText(
+                      hasCmLeague
+                        ? "no rounds open right now. the admin will compose new rounds as matches approach — we'll surface them here."
+                        : "no upcoming matches right now. contests will appear automatically when matches are scheduled."
+                    )}
                   </Text>
                   <Button variant="secondary" size="md" marginTop="$1" onPress={() => router.push("/(tabs)/social")} testID="onboard-go-to-league-btn">
                     {formatUIText("view my leagues")}
@@ -1338,7 +1402,8 @@ export default function HomeScreen() {
               )}
             </Card>
           </Animated.View>
-        )}
+          );
+        })()}
         {user && leagueCount > 0 && teamCount > 0 && (myContestsQuery.data?.length ?? 0) === 0 && nextMatch && !nextMatch.draftEnabled && (
           <Animated.View entering={FadeInDown.delay(30).springify()}>
             <Card padding="$4" marginBottom="$4" testID="onboard-next-match-card">
