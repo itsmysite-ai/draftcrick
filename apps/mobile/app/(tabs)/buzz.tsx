@@ -37,16 +37,28 @@ export default function BuzzScreen() {
     refetchInterval: 30000,
   });
 
-  // Always include the general room (id: null) as the first option,
-  // followed by any active match rooms returned from the server. Match
-  // names are abbreviated up front so the rest of the screen never has
-  // to re-format them.
+  // Server's getActiveRooms already includes the general room at the
+  // head of its response. Previously we were prepending our own
+  // hardcoded general entry AND re-typing every server room as a match
+  // — which produced two "general" rows in the picker (one hardcoded,
+  // one from the server mistyped) and also caused the live-match
+  // banner to say "general LIVE" because it picked up the server's
+  // general row treated as the first match room.
   const allRooms: BuzzRoom[] = useMemo(() => {
-    const base: BuzzRoom = { id: null, name: "general", type: "general" };
-    const matchRooms = (rooms ?? []).map(
-      (r: any): BuzzRoom => ({ id: r.id, name: abbreviateMatchRoom(r.name), type: "match" })
+    const fromServer = rooms ?? [];
+    const mapped = fromServer.map(
+      (r: any): BuzzRoom => ({
+        id: r.id ?? null,
+        name: r.type === "match" ? abbreviateMatchRoom(r.name) : r.name,
+        type: r.type === "match" ? "match" : "general",
+      })
     );
-    return [base, ...matchRooms];
+    // Fallback: if the server hasn't responded yet, make sure we at
+    // least have the general room so the picker never renders empty.
+    if (mapped.length === 0) {
+      return [{ id: null, name: "general", type: "general" }];
+    }
+    return mapped;
   }, [rooms]);
 
   const activeRoomMeta = useMemo(
@@ -81,12 +93,14 @@ export default function BuzzScreen() {
     if (!exists) setActiveRoom(null);
   }, [rooms, activeRoom]);
 
-  // Live match banner — show in general room when at least one match is
-  // chatting, suggesting the user opt in.
+  // Live match banner — show in general room when at least one actual
+  // match room exists, suggesting the user opt in. Explicitly find the
+  // first room of type "match" — rooms[0] is the general room from the
+  // server, which would have made the banner say "general LIVE".
   const liveMatchRoom = useMemo(() => {
     if (activeRoom !== null) return null;
     if (!rooms || rooms.length === 0) return null;
-    return rooms[0] ?? null;
+    return (rooms as any[]).find((r) => r.type === "match") ?? null;
   }, [activeRoom, rooms]);
 
   const tabBarOffset = TAB_BAR_HEIGHT + Math.max(insets.bottom, 8);

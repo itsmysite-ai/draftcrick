@@ -2761,6 +2761,15 @@ function OrderRow({
   downDisabled?: boolean;
   readonly?: boolean;
 }) {
+  // The previous layout packed 5 columns into a mobile row (position,
+  // avatar, name+meta, projected pts column, up/down buttons), which
+  // left ~120px for the name+meta stack. "Vaibhav Sooryavanshi" became
+  // "Vaibhav So…" and "RR · BOWL · vs DC" became "RR · B… · vs …".
+  //
+  // New layout reclaims the horizontal budget by:
+  //   • inlining projected pts into the meta line (no standalone column)
+  //   • shrinking arrows to icon-sized buttons (~28px each, no chrome)
+  //   • keeping the position + avatar tight
   return (
     <Card
       padding="$3"
@@ -2770,19 +2779,17 @@ function OrderRow({
       backgroundColor="$backgroundSurface"
     >
       <XStack alignItems="center" gap="$2">
-        {/* Position number */}
-        <YStack width={28} alignItems="center">
+        <YStack width={22} alignItems="center">
           <Text
             fontFamily="$mono"
             fontWeight="800"
-            fontSize={16}
+            fontSize={15}
             color={accentColor}
           >
             {position}
           </Text>
         </YStack>
 
-        {/* Avatar */}
         <InitialsAvatar
           name={player.name}
           playerRole={roleToBadge(player.role)}
@@ -2792,12 +2799,11 @@ function OrderRow({
           imageUrl={player.photoUrl ?? undefined}
         />
 
-        {/* Name + team/role + opponent */}
         <YStack flex={1} marginLeft="$2">
-          <Text {...textStyles.playerName} numberOfLines={1}>
+          <Text {...textStyles.playerName} fontSize={14} numberOfLines={1}>
             {player.name}
           </Text>
-          <XStack alignItems="center" gap={6}>
+          <XStack alignItems="center" gap={6} flexWrap="nowrap">
             <Text
               fontFamily="$mono"
               fontSize={11}
@@ -2817,49 +2823,60 @@ function OrderRow({
                 vs {opponent}
               </Text>
             )}
+            {projected != null && (
+              <Text
+                fontFamily="$mono"
+                fontSize={11}
+                fontWeight="700"
+                color={accentColor}
+                numberOfLines={1}
+              >
+                · {projected.toFixed(0)} pts
+              </Text>
+            )}
           </XStack>
         </YStack>
 
-        {/* Projected pts — fixed width column so rows align whether data exists or not */}
-        <YStack alignItems="center" width={42} marginRight="$2">
-          {projected != null ? (
-            <>
-              <Text
-                fontFamily="$mono"
-                fontWeight="700"
-                fontSize={14}
-                color={accentColor}
-              >
-                {projected.toFixed(0)}
-              </Text>
-              <Text {...textStyles.hint}>pts</Text>
-            </>
-          ) : (
-            <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
-              —
-            </Text>
-          )}
-        </YStack>
-
-        {/* Arrows — hidden in readonly (review) mode */}
         {!readonly && (
-          <XStack gap="$1">
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={upDisabled}
+          <XStack gap={4}>
+            <Pressable
               onPress={onUp}
+              disabled={upDisabled}
+              hitSlop={4}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "#444",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: upDisabled ? 0.3 : 1,
+              }}
             >
-              ↑
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={downDisabled}
+              <Text fontFamily="$mono" fontSize={14} color="$color">
+                ↑
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={onDown}
+              disabled={downDisabled}
+              hitSlop={4}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "#444",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: downDisabled ? 0.3 : 1,
+              }}
             >
-              ↓
-            </Button>
+              <Text fontFamily="$mono" fontSize={14} color="$color">
+                ↓
+              </Text>
+            </Pressable>
           </XStack>
         )}
       </XStack>
