@@ -1,5 +1,5 @@
 import { SafeBackButton } from "../../../../../components/SafeBackButton";
-import { ScrollView, Alert, Pressable, TextInput, Modal, View } from "react-native";
+import { ScrollView, Alert, Pressable, TextInput, Modal, View, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -1203,24 +1203,48 @@ export default function EntryBuilderScreen() {
             </XStack>
           )}
 
-          {/* Player list */}
-          <ScrollView
+          {/* Player list — virtualized via FlatList. Previously this was a
+              ScrollView mapping all 247 eligible players at once, which
+              hit iOS WebKit's per-tab memory ceiling and crashed the
+              tab ("Can't open this page"). FlatList only mounts the
+              visible window plus a small buffer, so memory stays
+              constant regardless of pool size. Drops the row-by-row
+              FadeInDown animation too — staggering 247 reanimated
+              springs was its own memory tax. */}
+          <FlatList
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 16 }}
-          >
-            {currentRolePlayers.length > 0 ? (
-              currentRolePlayers.map((player, i) => {
-                const isSelected = selectedIds.includes(player.playerId);
-                const isDisabled =
-                  !isSelected && selectedIds.length >= TEAM_SIZE;
-                const proj = projectionsByPlayerId.get(player.playerId);
-                const xiStatus = playingXIStatus.get(player.name.toLowerCase());
-                const isDiff = differentialNames.has(player.name.toLowerCase());
-                return (
-                  <Animated.View
-                    key={player.playerId}
-                    entering={FadeInDown.delay(Math.min(i * 20, 300)).springify()}
-                  >
+            data={currentRolePlayers}
+            keyExtractor={(p) => p.playerId}
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews
+            ListEmptyComponent={
+              <Card padding="$8" alignItems="center">
+                <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
+                <Text {...textStyles.hint} textAlign="center" lineHeight={20}>
+                  {selectedTab === "picked"
+                    ? formatUIText(
+                        "no players picked yet — switch to any tab to start selecting"
+                      )
+                    : search.trim()
+                    ? formatUIText("no players match your search")
+                    : formatUIText(
+                        "player pool not populated yet — check back closer to match time"
+                      )}
+                </Text>
+              </Card>
+            }
+            renderItem={({ item: player }: { item: EligiblePlayer }) => {
+              const isSelected = selectedIds.includes(player.playerId);
+              const isDisabled =
+                !isSelected && selectedIds.length >= TEAM_SIZE;
+              const proj = projectionsByPlayerId.get(player.playerId);
+              const xiStatus = playingXIStatus.get(player.name.toLowerCase());
+              const isDiff = differentialNames.has(player.name.toLowerCase());
+              return (
+                <View>
                     <Card
                       marginBottom="$1"
                       padding={0}
@@ -1435,26 +1459,10 @@ export default function EntryBuilderScreen() {
                         </Pressable>
                       </XStack>
                     </Card>
-                  </Animated.View>
+                  </View>
                 );
-              })
-            ) : (
-              <Card padding="$8" alignItems="center">
-                <DraftPlayLogo size={DesignSystem.emptyState.iconSize} />
-                <Text {...textStyles.hint} textAlign="center" lineHeight={20}>
-                  {selectedTab === "picked"
-                    ? formatUIText(
-                        "no players picked yet — switch to any tab to start selecting"
-                      )
-                    : search.trim()
-                    ? formatUIText("no players match your search")
-                    : formatUIText(
-                        "player pool not populated yet — check back closer to match time"
-                      )}
-                </Text>
-              </Card>
-            )}
-          </ScrollView>
+            }}
+          />
         </>
       )}
 
