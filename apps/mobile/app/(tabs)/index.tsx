@@ -910,7 +910,7 @@ export default function HomeScreen() {
             (X/Y matches) + entry-fee stance. */}
         {user && (cmActiveEntriesQuery.data?.length ?? 0) > 0 && (
           <Animated.View entering={FadeInDown.delay(0).springify()}>
-            <YStack marginBottom="$4" paddingHorizontal="$4">
+            <YStack marginBottom="$4">
               <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
                 <Text {...textStyles.sectionHeader}>
                   {formatUIText("my cricket manager entries")}
