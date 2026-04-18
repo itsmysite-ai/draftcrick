@@ -10,20 +10,21 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "^15.1.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "tamagui": "^1.114.0",
+    "@draftplay/shared": "workspace:*",
+    "@draftplay/ui": "workspace:*",
     "@tamagui/config": "^1.114.0",
     "@tamagui/next-plugin": "^1.114.0",
     "@tanstack/react-query": "^5.62.0",
     "@trpc/client": "^11.0.0-rc.0",
     "@trpc/react-query": "^11.0.0-rc.0",
     "firebase": "^11.0.0",
+    "next": "^15.1.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
     "superjson": "^2.2.0",
-    "zustand": "^5.0.0",
-    "@draftplay/ui": "workspace:*",
-    "@draftplay/shared": "workspace:*"
+    "tamagui": "^1.114.0",
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@draftplay/tsconfig": "workspace:*",

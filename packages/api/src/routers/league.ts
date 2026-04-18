@@ -3,7 +3,8 @@ import { router, protectedProcedure, publicProcedure } from "../trpc";
 import { createLeagueSchema, DEFAULT_TIER_CONFIGS } from "@draftplay/shared";
 import { LEAGUE_TEMPLATES, FULL_LEAGUE_TEMPLATES } from "@draftplay/shared";
 import { eq, and, count, desc, sql, inArray, ilike, ne } from "drizzle-orm";
-import { leagues, leagueMembers, draftRooms, contests, fantasyTeams, users, matches } from "@draftplay/db";
+import { leagues, leagueMembers, draftRooms, contests, fantasyTeams, users, matches, leaguePrizes } from "@draftplay/db";
+import { asc } from "drizzle-orm";
 import type { Database } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "crypto";
@@ -401,6 +402,18 @@ async function ensureUniqueName(db: any, name: string): Promise<string> {
 }
 
 export const leagueRouter = router({
+  // Prizes announced on a league (goods/services only). Public to any
+  // signed-in user — prizes are part of what draws followers in.
+  getPrizes: protectedProcedure
+    .input(z.object({ leagueId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(leaguePrizes)
+        .where(eq(leaguePrizes.leagueId, input.leagueId))
+        .orderBy(asc(leaguePrizes.displayOrder), asc(leaguePrizes.rankFrom));
+    }),
+
   create: protectedProcedure
     .input(createLeagueSchema)
     .mutation(async ({ ctx, input }) => {

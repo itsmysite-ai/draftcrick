@@ -56,6 +56,34 @@ export const leagueMembers = pgTable(
   ]
 );
 
+// Prizes announced on a league — free-form cards with image + rank band.
+// Strictly for goods / services / experiences (no cash). Editable by
+// platform admins at any time; visible to members on the league page.
+export const leaguePrizes = pgTable(
+  "league_prizes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leagueId: uuid("league_id")
+      .notNull()
+      .references(() => leagues.id, { onDelete: "cascade" }),
+    rankFrom: integer("rank_from").notNull(),
+    rankTo: integer("rank_to").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    imageUrl: text("image_url"),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_league_prizes_league").on(table.leagueId, table.displayOrder),
+  ]
+);
+
 export const contests = pgTable(
   "contests",
   {

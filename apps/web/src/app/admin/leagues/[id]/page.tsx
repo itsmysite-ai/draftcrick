@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import { trpc } from "@/lib/trpc";
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -37,7 +38,7 @@ export default function AdminLeagueDetailPage() {
         >
           ← Admin Leagues
         </Link>
-        <h1 style={{ fontSize: 26, fontWeight: 700, marginTop: 8 }}>{league.name}</h1>
+        <EditableNameHeader leagueId={id} initialName={league.name} />
         <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 13, color: "var(--text-secondary)", flexWrap: "wrap" }}>
           <Tag>{FORMAT_LABELS[league.format] ?? league.format}</Tag>
           <Tag>{league.tournament}</Tag>
@@ -47,6 +48,15 @@ export default function AdminLeagueDetailPage() {
           <Tag>{league.members?.length ?? 0} member(s)</Tag>
         </div>
       </div>
+
+      <ShareSection inviteCode={league.inviteCode ?? ""} leagueName={league.name} />
+
+      <CoAdminsSection
+        leagueId={id}
+        members={(league.members ?? []) as MemberRow[]}
+      />
+
+      <PrizesSection leagueId={id} />
 
       {league.format === "cricket_manager" ? (
         <CricketManagerSection leagueId={id} tournament={league.tournament} />
@@ -62,9 +72,632 @@ export default function AdminLeagueDetailPage() {
           }}
         >
           This league format uses the standard contest flow. Contests are auto-created from the
-          league's tournament schedule. Manage them via the Contests page.
+          league&apos;s tournament schedule. Manage them via the Contests page.
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Shared types ──────────────────────────────────────────────────────────
+
+type MemberRow = {
+  leagueId: string;
+  userId: string;
+  role: string;
+  joinedAt: string | Date;
+  email: string | null;
+  username: string | null;
+  displayName: string | null;
+};
+
+// ─── Editable name header ──────────────────────────────────────────────────
+
+function EditableNameHeader({
+  leagueId,
+  initialName,
+}: {
+  leagueId: string;
+  initialName: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(initialName);
+  const utils = trpc.useUtils();
+  const updateMut = trpc.admin.leagues.update.useMutation({
+    onSuccess: () => {
+      utils.admin.leagues.get.invalidate({ leagueId });
+      setEditing(false);
+    },
+  });
+
+  if (!editing) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700 }}>{initialName}</h1>
+        <button
+          onClick={() => {
+            setName(initialName);
+            setEditing(true);
+          }}
+          style={actionBtn("neutral")}
+        >
+          edit name
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const trimmed = name.trim();
+        if (!trimmed || trimmed === initialName) {
+          setEditing(false);
+          return;
+        }
+        updateMut.mutate({ leagueId, name: trimmed });
+      }}
+      style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}
+    >
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        maxLength={120}
+        style={{ ...inputStyle, flex: 1, fontSize: 20, fontWeight: 700 }}
+      />
+      <button
+        type="submit"
+        disabled={updateMut.isPending}
+        style={actionBtn("accent")}
+      >
+        {updateMut.isPending ? "saving…" : "save"}
+      </button>
+      <button type="button" onClick={() => setEditing(false)} style={actionBtn("neutral")}>
+        cancel
+      </button>
+    </form>
+  );
+}
+
+// ─── Share + QR ────────────────────────────────────────────────────────────
+
+function ShareSection({
+  inviteCode,
+  leagueName,
+}: {
+  inviteCode: string;
+  leagueName: string;
+}) {
+  const shareUrl = inviteCode
+    ? `https://app.draftplay.ai/league/join?code=${inviteCode}`
+    : "";
+
+  if (!inviteCode) return null;
+
+  return (
+    <Section title="Share link + QR">
+      <div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 320px", minWidth: 260 }}>
+          <label style={labelStyle}>Invite URL</label>
+          <input
+            readOnly
+            value={shareUrl}
+            onFocus={(e) => e.currentTarget.select()}
+            style={inputStyle}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(shareUrl);
+                } catch {
+                  /* clipboard may be blocked */
+                }
+              }}
+              style={actionBtn("neutral")}
+            >
+              copy link
+            </button>
+            <button onClick={() => downloadQr(leagueName, shareUrl)} style={actionBtn("neutral")}>
+              download QR (PNG)
+            </button>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.5 }}>
+            Hand this to the influencer for publicity. Anyone with the link can join the league.
+          </p>
+        </div>
+        <div style={{ padding: 16, backgroundColor: "white", borderRadius: 8 }} id="league-qr-wrap">
+          <QRCodeSVG value={shareUrl} size={180} level="M" />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function downloadQr(leagueName: string, url: string) {
+  const svg = document.querySelector("#league-qr-wrap svg");
+  if (!svg) return;
+  const serializer = new XMLSerializer();
+  const source = serializer.serializeToString(svg);
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 720;
+    canvas.height = 720;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((pngBlob) => {
+      if (!pngBlob) return;
+      const pngUrl = URL.createObjectURL(pngBlob);
+      const a = document.createElement("a");
+      a.href = pngUrl;
+      a.download = `${leagueName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-qr.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(pngUrl);
+    }, "image/png");
+    URL.revokeObjectURL(objectUrl);
+  };
+  img.src = objectUrl;
+  // URL stays used to bind `url` into bundlers that tree-shake unused params.
+  void url;
+}
+
+// ─── Co-admins ─────────────────────────────────────────────────────────────
+
+function CoAdminsSection({
+  leagueId,
+  members,
+}: {
+  leagueId: string;
+  members: MemberRow[];
+}) {
+  const utils = trpc.useUtils();
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const addMut = trpc.admin.leagues.addCoAdmin.useMutation({
+    onSuccess: () => {
+      setEmail("");
+      setError(null);
+      utils.admin.leagues.get.invalidate({ leagueId });
+    },
+    onError: (err: { message: string }) => setError(err.message),
+  });
+  const removeMut = trpc.admin.leagues.removeCoAdmin.useMutation({
+    onSuccess: () => utils.admin.leagues.get.invalidate({ leagueId }),
+  });
+
+  const owner = members.find((m) => m.role === "owner");
+  const coAdmins = members.filter((m) => m.role === "admin");
+
+  return (
+    <Section title="League admins">
+      <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 12, lineHeight: 1.5 }}>
+        Co-admins appear as league managers to members on mobile. The owner (the platform admin who
+        created this league) always retains full control.
+      </p>
+
+      {owner && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>OWNER</div>
+          <MemberRowCard member={owner} />
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>CO-ADMINS</div>
+      {coAdmins.length === 0 ? (
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", fontStyle: "italic", marginBottom: 12 }}>
+          none yet
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+          {coAdmins.map((m) => (
+            <MemberRowCard
+              key={m.userId}
+              member={m}
+              onRemove={() =>
+                removeMut.mutate({ leagueId, userId: m.userId })
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const trimmed = email.trim();
+          if (!trimmed) return;
+          addMut.mutate({ leagueId, email: trimmed });
+        }}
+        style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}
+      >
+        <div style={{ flex: "1 1 280px" }}>
+          <label style={labelStyle}>Add by email</label>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="user@example.com"
+            style={inputStyle}
+          />
+        </div>
+        <button type="submit" disabled={addMut.isPending} style={actionBtn("accent")}>
+          {addMut.isPending ? "adding…" : "add co-admin"}
+        </button>
+      </form>
+      {error && (
+        <div style={{ fontSize: 12, color: "var(--red)", marginTop: 8 }}>{error}</div>
+      )}
+    </Section>
+  );
+}
+
+function MemberRowCard({
+  member,
+  onRemove,
+}: {
+  member: MemberRow;
+  onRemove?: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "8px 12px",
+        backgroundColor: "var(--bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 6,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>
+          {member.displayName || member.username || member.email || member.userId}
+        </div>
+        {member.email && (
+          <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>{member.email}</div>
+        )}
+      </div>
+      {onRemove && (
+        <button onClick={onRemove} style={actionBtn("danger")}>
+          remove
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Prizes ────────────────────────────────────────────────────────────────
+
+function PrizesSection({ leagueId }: { leagueId: string }) {
+  const utils = trpc.useUtils();
+  const prizesQuery = trpc.admin.leagues.listPrizes.useQuery({ leagueId });
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const createMut = trpc.admin.leagues.createPrize.useMutation({
+    onSuccess: () => {
+      utils.admin.leagues.listPrizes.invalidate({ leagueId });
+      setShowForm(false);
+    },
+  });
+  const updateMut = trpc.admin.leagues.updatePrize.useMutation({
+    onSuccess: () => {
+      utils.admin.leagues.listPrizes.invalidate({ leagueId });
+      setEditingId(null);
+    },
+  });
+  const deleteMut = trpc.admin.leagues.deletePrize.useMutation({
+    onSuccess: () => utils.admin.leagues.listPrizes.invalidate({ leagueId }),
+  });
+
+  const prizes = prizesQuery.data ?? [];
+
+  return (
+    <Section title="Prizes">
+      <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 12, lineHeight: 1.5 }}>
+        Free-form rewards announced to league members. <strong>Goods / services / experiences only — no
+        cash</strong>. Editable any time.
+      </p>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+        {prizes.map((p) =>
+          editingId === p.id ? (
+            <PrizeForm
+              key={p.id}
+              initial={p}
+              onCancel={() => setEditingId(null)}
+              onSubmit={(data) =>
+                updateMut.mutate({ prizeId: p.id, ...data })
+              }
+              submitting={updateMut.isPending}
+            />
+          ) : (
+            <PrizeCard
+              key={p.id}
+              prize={p}
+              onEdit={() => setEditingId(p.id)}
+              onDelete={() => {
+                if (confirm(`Delete prize "${p.title}"?`)) {
+                  deleteMut.mutate({ prizeId: p.id });
+                }
+              }}
+            />
+          )
+        )}
+      </div>
+
+      {showForm ? (
+        <PrizeForm
+          onCancel={() => setShowForm(false)}
+          onSubmit={(data) => createMut.mutate({ leagueId, ...data })}
+          submitting={createMut.isPending}
+        />
+      ) : (
+        <button onClick={() => setShowForm(true)} style={actionBtn("accent")}>
+          + add prize
+        </button>
+      )}
+    </Section>
+  );
+}
+
+type PrizeRow = {
+  id: string;
+  leagueId: string;
+  rankFrom: number;
+  rankTo: number;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  displayOrder: number;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+};
+
+type PrizeFormData = {
+  rankFrom: number;
+  rankTo: number;
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  displayOrder: number;
+};
+
+function PrizeCard({
+  prize,
+  onEdit,
+  onDelete,
+}: {
+  prize: PrizeRow;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const rankLabel =
+    prize.rankFrom === prize.rankTo
+      ? `Rank ${prize.rankFrom}`
+      : `Ranks ${prize.rankFrom}–${prize.rankTo}`;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        padding: 12,
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        backgroundColor: "var(--bg)",
+      }}
+    >
+      {prize.imageUrl ? (
+        <img
+          src={prize.imageUrl}
+          alt={prize.title}
+          style={{
+            width: 72,
+            height: 72,
+            objectFit: "cover",
+            borderRadius: 6,
+            flexShrink: 0,
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 72,
+            height: 72,
+            backgroundColor: "var(--bg-surface)",
+            borderRadius: 6,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            color: "var(--text-secondary)",
+          }}
+        >
+          no image
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600, marginBottom: 2 }}>
+          {rankLabel}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{prize.title}</div>
+        {prize.description && (
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.4 }}>
+            {prize.description}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button onClick={onEdit} style={actionBtn("neutral")}>
+          edit
+        </button>
+        <button onClick={onDelete} style={actionBtn("danger")}>
+          delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PrizeForm({
+  initial,
+  onCancel,
+  onSubmit,
+  submitting,
+}: {
+  initial?: PrizeRow;
+  onCancel: () => void;
+  onSubmit: (data: PrizeFormData) => void;
+  submitting: boolean;
+}) {
+  const [rankFrom, setRankFrom] = useState(initial?.rankFrom ?? 1);
+  const [rankTo, setRankTo] = useState(initial?.rankTo ?? 1);
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "");
+  const [displayOrder, setDisplayOrder] = useState(initial?.displayOrder ?? 0);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit({
+          rankFrom,
+          rankTo: Math.max(rankTo, rankFrom),
+          title: title.trim(),
+          description: description.trim() || undefined,
+          imageUrl: imageUrl.trim() || undefined,
+          displayOrder,
+        });
+      }}
+      style={{
+        padding: 12,
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        backgroundColor: "var(--bg)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div>
+          <label style={labelStyle}>Rank from</label>
+          <input
+            type="number"
+            min={1}
+            required
+            value={rankFrom}
+            onChange={(e) => setRankFrom(Number(e.target.value) || 1)}
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Rank to</label>
+          <input
+            type="number"
+            min={1}
+            required
+            value={rankTo}
+            onChange={(e) => setRankTo(Number(e.target.value) || 1)}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>Title</label>
+        <input
+          required
+          maxLength={120}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Signed jersey from @influencer"
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label style={labelStyle}>Description (optional)</label>
+        <textarea
+          maxLength={500}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          style={{ ...inputStyle, resize: "vertical" }}
+          placeholder="Details about the prize. No cash — goods/services/experiences only."
+        />
+      </div>
+      <div>
+        <label style={labelStyle}>Image URL (optional)</label>
+        <input
+          type="url"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          placeholder="https://…"
+          style={inputStyle}
+        />
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt="preview"
+            style={{ marginTop: 8, maxWidth: 160, maxHeight: 120, borderRadius: 4, border: "1px solid var(--border)" }}
+          />
+        )}
+      </div>
+      <div style={{ maxWidth: 160 }}>
+        <label style={labelStyle}>Display order</label>
+        <input
+          type="number"
+          min={0}
+          value={displayOrder}
+          onChange={(e) => setDisplayOrder(Number(e.target.value) || 0)}
+          style={inputStyle}
+        />
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" disabled={submitting || !title.trim()} style={actionBtn("accent")}>
+          {submitting ? "saving…" : initial ? "save" : "add prize"}
+        </button>
+        <button type="button" onClick={onCancel} style={actionBtn("neutral")}>
+          cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Section wrapper ──────────────────────────────────────────────────────
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        marginBottom: 24,
+        padding: 20,
+        backgroundColor: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+      }}
+    >
+      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>{title}</h2>
+      {children}
     </div>
   );
 }

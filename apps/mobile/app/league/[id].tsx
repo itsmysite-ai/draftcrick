@@ -1,5 +1,5 @@
 import { SafeBackButton } from "../../components/SafeBackButton";
-import { FlatList, Alert, Share } from "react-native";
+import { FlatList, Alert, Share, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -286,6 +286,8 @@ export default function LeagueDetailScreen() {
             )}
           </Card>
           )}
+
+          <LeaguePrizesCard leagueId={id!} />
 
           {/* Active auction/draft — join banner for ALL members */}
           {activeDraftRoom && (
@@ -881,6 +883,8 @@ function CricketManagerLeagueView({
               )}
             </Card>
 
+            <LeaguePrizesCard leagueId={leagueId} />
+
             {/* Tab switcher */}
             <XStack
               marginBottom="$3"
@@ -1140,5 +1144,98 @@ function CricketManagerLeagueView({
         }
       />
     </YStack>
+  );
+}
+
+// ─── Prizes card — shown on league page for any format ─────────────────────
+// Rendered when an admin has announced one or more prizes on the league.
+// Purely read-only on mobile; editing happens in the admin portal.
+
+function LeaguePrizesCard({ leagueId }: { leagueId: string }) {
+  const prizesQuery = trpc.league.getPrizes.useQuery(
+    { leagueId },
+    { enabled: !!leagueId }
+  );
+  const prizes = prizesQuery.data ?? [];
+  if (prizes.length === 0) return null;
+
+  return (
+    <Card padding="$4" marginBottom="$4">
+      <XStack alignItems="center" gap="$2" marginBottom="$3">
+        <Text fontSize={18}>🎁</Text>
+        <Text
+          fontFamily="$mono"
+          fontWeight="700"
+          fontSize={14}
+          color="$color"
+          letterSpacing={-0.3}
+        >
+          {formatUIText("prizes")}
+        </Text>
+        <Badge variant="role" size="sm">
+          {formatBadgeText(`${prizes.length}`)}
+        </Badge>
+      </XStack>
+      <YStack gap="$3">
+        {prizes.map((p: any) => {
+          const rankLabel =
+            p.rankFrom === p.rankTo
+              ? `#${p.rankFrom}`
+              : `#${p.rankFrom}–${p.rankTo}`;
+          return (
+            <XStack key={p.id} gap="$3" alignItems="flex-start">
+              {p.imageUrl ? (
+                <Image
+                  source={{ uri: p.imageUrl }}
+                  style={{ width: 56, height: 56, borderRadius: 6 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <YStack
+                  width={56}
+                  height={56}
+                  borderRadius={6}
+                  backgroundColor="$backgroundSurfaceAlt"
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  <Text fontSize={22}>🏆</Text>
+                </YStack>
+              )}
+              <YStack flex={1} minWidth={0}>
+                <Text
+                  fontFamily="$mono"
+                  fontWeight="700"
+                  fontSize={11}
+                  color="$accentBackground"
+                  marginBottom={2}
+                >
+                  {rankLabel}
+                </Text>
+                <Text
+                  fontFamily="$body"
+                  fontWeight="600"
+                  fontSize={13}
+                  color="$color"
+                >
+                  {p.title}
+                </Text>
+                {p.description ? (
+                  <Text
+                    fontFamily="$body"
+                    fontSize={11}
+                    color="$colorMuted"
+                    marginTop={2}
+                    lineHeight={15}
+                  >
+                    {p.description}
+                  </Text>
+                ) : null}
+              </YStack>
+            </XStack>
+          );
+        })}
+      </YStack>
+    </Card>
   );
 }

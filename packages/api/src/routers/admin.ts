@@ -34,6 +34,7 @@ import {
   predictionStandings,
   cmRounds,
   cmChips,
+  leaguePrizes,
   getDb,
 } from "@draftplay/db";
 import { randomBytes } from "crypto";
@@ -2433,10 +2434,218 @@ const leaguesRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "League not found" });
       }
       const members = await ctx.db
-        .select()
+        .select({
+          leagueId: leagueMembers.leagueId,
+          userId: leagueMembers.userId,
+          role: leagueMembers.role,
+          joinedAt: leagueMembers.joinedAt,
+          email: users.email,
+          username: users.username,
+          displayName: users.displayName,
+        })
         .from(leagueMembers)
+        .leftJoin(users, eq(users.id, leagueMembers.userId))
         .where(eq(leagueMembers.leagueId, input.leagueId));
       return { ...league, members };
+    }),
+
+  update: adminProcedure
+    .input(
+      z.object({
+        leagueId: z.string().uuid(),
+        name: z.string().trim().min(1).max(120).optional(),
+        maxMembers: z.number().int().positive().max(100000).optional(),
+        isPrivate: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updates: Record<string, unknown> = {};
+      if (input.name !== undefined) updates.name = input.name;
+      if (input.maxMembers !== undefined) updates.maxMembers = input.maxMembers;
+      if (input.isPrivate !== undefined) updates.isPrivate = input.isPrivate;
+      if (Object.keys(updates).length === 0) return { updated: false };
+      await ctx.db
+        .update(leagues)
+        .set(updates)
+        .where(eq(leagues.id, input.leagueId));
+      log.info({ leagueId: input.leagueId, updates }, "Admin league updated");
+      return { updated: true };
+    }),
+
+  // Add a platform user as a co-admin (role="admin") of the league.
+  // Lookup is by email. If the user is already a member, their role
+  // is promoted to "admin". Owner role is never overwritten.
+  addCoAdmin: adminProcedure
+    .input(
+      z.object({
+        leagueId: z.string().uuid(),
+        email: z.string().trim().email(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const user = await ctx.db.query.users.findFirst({
+        where: eq(users.email, input.email.toLowerCase()),
+      });
+      if (!user) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `No user found with email ${input.email}`,
+        });
+      }
+      const existing = await ctx.db.query.leagueMembers.findFirst({
+        where: and(
+          eq(leagueMembers.leagueId, input.leagueId),
+          eq(leagueMembers.userId, user.id)
+        ),
+      });
+      if (existing?.role === "owner") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User is already the league owner",
+        });
+      }
+      if (existing) {
+        await ctx.db
+          .update(leagueMembers)
+          .set({ role: "admin" })
+          .where(
+            and(
+              eq(leagueMembers.leagueId, input.leagueId),
+              eq(leagueMembers.userId, user.id)
+            )
+          );
+      } else {
+        await ctx.db.insert(leagueMembers).values({
+          leagueId: input.leagueId,
+          userId: user.id,
+          role: "admin",
+        });
+      }
+      log.info(
+        { leagueId: input.leagueId, userId: user.id },
+        "Co-admin added"
+      );
+      return { userId: user.id, email: input.email };
+    }),
+
+  removeCoAdmin: adminProcedure
+    .input(
+      z.object({
+        leagueId: z.string().uuid(),
+        userId: z.string().uuid(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.leagueMembers.findFirst({
+        where: and(
+          eq(leagueMembers.leagueId, input.leagueId),
+          eq(leagueMembers.userId, input.userId)
+        ),
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Not a member" });
+      }
+      if (existing.role === "owner") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot demote the league owner",
+        });
+      }
+      // Downgrade to regular member rather than kicking — keeps their
+      // league history and any entries intact.
+      await ctx.db
+        .update(leagueMembers)
+        .set({ role: "member" })
+        .where(
+          and(
+            eq(leagueMembers.leagueId, input.leagueId),
+            eq(leagueMembers.userId, input.userId)
+          )
+        );
+      return { removed: true };
+    }),
+
+  // ── Prizes (free-form, goods/services only) ────────────────────────
+  listPrizes: adminProcedure
+    .input(z.object({ leagueId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select()
+        .from(leaguePrizes)
+        .where(eq(leaguePrizes.leagueId, input.leagueId))
+        .orderBy(asc(leaguePrizes.displayOrder), asc(leaguePrizes.rankFrom));
+    }),
+
+  createPrize: adminProcedure
+    .input(
+      z.object({
+        leagueId: z.string().uuid(),
+        rankFrom: z.number().int().min(1),
+        rankTo: z.number().int().min(1),
+        title: z.string().trim().min(1).max(120),
+        description: z.string().trim().max(500).optional(),
+        imageUrl: z.string().trim().url().optional(),
+        displayOrder: z.number().int().min(0).default(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (input.rankTo < input.rankFrom) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "rankTo must be >= rankFrom",
+        });
+      }
+      const [row] = await ctx.db
+        .insert(leaguePrizes)
+        .values({
+          leagueId: input.leagueId,
+          rankFrom: input.rankFrom,
+          rankTo: input.rankTo,
+          title: input.title,
+          description: input.description ?? null,
+          imageUrl: input.imageUrl ?? null,
+          displayOrder: input.displayOrder,
+        })
+        .returning();
+      return row;
+    }),
+
+  updatePrize: adminProcedure
+    .input(
+      z.object({
+        prizeId: z.string().uuid(),
+        rankFrom: z.number().int().min(1).optional(),
+        rankTo: z.number().int().min(1).optional(),
+        title: z.string().trim().min(1).max(120).optional(),
+        description: z.string().trim().max(500).nullable().optional(),
+        imageUrl: z.string().trim().url().nullable().optional(),
+        displayOrder: z.number().int().min(0).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      if (input.rankFrom !== undefined) updates.rankFrom = input.rankFrom;
+      if (input.rankTo !== undefined) updates.rankTo = input.rankTo;
+      if (input.title !== undefined) updates.title = input.title;
+      if (input.description !== undefined)
+        updates.description = input.description;
+      if (input.imageUrl !== undefined) updates.imageUrl = input.imageUrl;
+      if (input.displayOrder !== undefined)
+        updates.displayOrder = input.displayOrder;
+      await ctx.db
+        .update(leaguePrizes)
+        .set(updates)
+        .where(eq(leaguePrizes.id, input.prizeId));
+      return { updated: true };
+    }),
+
+  deletePrize: adminProcedure
+    .input(z.object({ prizeId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(leaguePrizes)
+        .where(eq(leaguePrizes.id, input.prizeId));
+      return { deleted: true };
     }),
 
   delete: adminProcedure
