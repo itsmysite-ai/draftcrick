@@ -169,16 +169,20 @@ export default function EntryBuilderScreen() {
   const [showExplainer, setShowExplainer] = useState(false);
   const [showGuru, setShowGuru] = useState(false);
 
-  // Show NRR explainer once on first visit
-  useEffect(() => {
-    AsyncStorage.getItem("cm_explainer_seen").then((v) => {
-      if (!v) setShowExplainer(true);
-    });
-  }, []);
-
+  // Auto-show on first visit was causing a renderer crash on iOS Chrome
+  // ("Can't open this page") — the modal racing with initial render +
+  // 247-player projection load was hitting WebKit's memory ceiling.
+  // Now strictly user-initiated via the help icons in the header and
+  // toss row.
   function dismissExplainer() {
     setShowExplainer(false);
-    AsyncStorage.setItem("cm_explainer_seen", "1").catch(() => {});
+    try {
+      // Wrap in try/catch in addition to .catch — some WebKit
+      // contexts throw synchronously from AsyncStorage backends.
+      AsyncStorage.setItem("cm_explainer_seen", "1").catch(() => {});
+    } catch {
+      // ignore — explainer dismissal is best-effort
+    }
   }
 
   const [alert, setAlert] = useState<{
@@ -1373,10 +1377,13 @@ export default function EntryBuilderScreen() {
                                   {proj.projectedPoints.toFixed(1)}
                                 </Text>
                                 <Text {...textStyles.hint}>
-                                  {/* ✨ marks AI-enhanced projections; plain
-                                      "pts" means the row is using the
-                                      stats-based baseline fallback. */}
-                                  {(proj as any).source === "ai" ? "✨ pts" : formatUIText("pts")}
+                                  {/* "ai" badge marks AI-enhanced
+                                      projections; plain "pts" means the
+                                      row is using the stats-based
+                                      baseline fallback. Plain text
+                                      instead of an emoji because some
+                                      WebKit contexts hitched on it. */}
+                                  {(proj as any).source === "ai" ? "ai pts" : formatUIText("pts")}
                                 </Text>
                               </YStack>
                             )}
