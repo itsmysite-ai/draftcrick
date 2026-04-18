@@ -137,6 +137,15 @@ export default function LeagueDetailScreen() {
   const isAdmin = myMembership?.role === "admin" || isOwner;
   const shareLink = `https://app.draftplay.ai/league/join?code=${league.inviteCode}`;
   const shareInvite = () => { Share.share({ message: `${formatUIText("join my draftplay league")} "${league.name}"!\n${shareLink}` }); };
+  // Public leagues don't need an invite code — a direct link to the
+  // league page is enough since anyone can join from there. Sharing
+  // that link is how public leagues grow.
+  const publicShareLink = `https://app.draftplay.ai/league/${id}`;
+  const sharePublicLeague = () => {
+    Share.share({
+      message: `${formatUIText("check out this public draftplay league")} "${league.name}" — ${league.tournament}\n${publicShareLink}`,
+    });
+  };
   const handleStartDraft = (type: "snake_draft" | "auction") => {
     const label = type === "auction" ? "auction" : "snake draft";
     setConfirmAlert({
@@ -218,9 +227,37 @@ export default function LeagueDetailScreen() {
             </Text>
           </Card>
 
-          {/* Invite friends is private-league only — public leagues are
-              joined from the leagues directory, no invite code needed.
-              Also hidden when the league is full. */}
+          {/* Public leagues don't need an invite code — a direct share
+              link to the league page is enough. Anyone who taps it lands
+              on this same page and can join from here. Different shape
+              from the private invite card (no code, no QR), just a
+              single share button. Hidden when the league is full. */}
+          {!league.isPrivate && (league.members?.length ?? 0) < league.maxMembers && (
+            <Card marginBottom="$4" padding="$4">
+              <XStack justifyContent="space-between" alignItems="center" gap="$3">
+                <YStack flex={1}>
+                  <Text {...textStyles.hint}>{formatBadgeText("share this league")}</Text>
+                  <Text
+                    fontFamily="$body"
+                    fontSize={12}
+                    color="$colorMuted"
+                    marginTop={2}
+                    lineHeight={16}
+                  >
+                    {formatUIText(
+                      "public — anyone can join from a share link, no code needed"
+                    )}
+                  </Text>
+                </YStack>
+                <Button variant="primary" size="sm" onPress={sharePublicLeague} testID="league-public-share-btn">
+                  {formatUIText("share link")}
+                </Button>
+              </XStack>
+            </Card>
+          )}
+
+          {/* Invite friends is private-league only — public leagues use
+              the share card above instead. Hidden when the league is full. */}
           {league.isPrivate && (league.members?.length ?? 0) < league.maxMembers && (
           <Card testID="league-invite-code" marginBottom="$4" padding="$4">
             <XStack justifyContent="space-between" alignItems="center" marginBottom={showQR ? 16 : 0}>
