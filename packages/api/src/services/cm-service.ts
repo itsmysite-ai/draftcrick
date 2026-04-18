@@ -24,6 +24,7 @@ import {
   players,
   playerMatchScores,
   tournaments,
+  notifications,
 } from "@draftplay/db";
 import type { Database } from "@draftplay/db";
 import type { LeagueRules } from "@draftplay/shared";
@@ -238,6 +239,29 @@ export async function composeRound(db: Database, input: ComposeRoundInput) {
     { roundId: round.id, leagueId: input.leagueId },
     "CM round composed"
   );
+
+  // Notify every league member that a new round is available. This is
+  // the "come play" nudge — without it, silent round creation meant
+  // users wouldn't know a new round opened until they checked the app.
+  try {
+    const lockLabel = windowStart.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    await notifyLeagueMembers(
+      db,
+      league.id,
+      "status_alert",
+      `New round in ${league.name}`,
+      `${round.name} · ${input.matchIds.length} matches · locks ${lockLabel}. build your entry now.`,
+      { type: "cm_round_composed", roundId: round.id, leagueId: league.id }
+    );
+  } catch (err) {
+    log.warn({ err, roundId: round.id }, "round-composed notify failed");
+  }
+
   return round;
 }
 
@@ -323,6 +347,42 @@ export async function updateRound(db: Database, input: UpdateRoundInput) {
   if (input.lockTime !== undefined) updates.lockTime = input.lockTime;
 
   await db.update(cmRounds).set(updates).where(eq(cmRounds.id, input.roundId));
+
+  // Notify members with existing entries that the round changed — their
+  // picks may no longer be optimal if the match list shifted.
+  try {
+    const entryUsers = await db
+      .select({ userId: cmEntries.userId })
+      .from(cmEntries)
+      .where(eq(cmEntries.roundId, input.roundId));
+    const uids = [...new Set(entryUsers.map((e) => e.userId))];
+    if (uids.length > 0) {
+      const matchesChanged = input.matchIds !== undefined;
+      const nameChanged = input.name !== undefined && input.name !== round.name;
+      const body = matchesChanged
+        ? "the match list has changed — review your entry before lock time."
+        : nameChanged
+          ? "the round was renamed — your entry is unchanged."
+          : "the round schedule was updated.";
+      await sendBatchNotifications(
+        db,
+        uids,
+        NOTIFICATION_TYPES.STATUS_ALERT,
+        `${round.name} was updated`,
+        body,
+        {
+          type: "cm_round_edited",
+          roundId: input.roundId,
+          leagueId: round.leagueId,
+        }
+      );
+    }
+  } catch (err) {
+    log.warn(
+      { err, roundId: input.roundId },
+      "round-edited notify failed"
+    );
+  }
 }
 
 export async function deleteRound(db: Database, roundId: string) {
@@ -345,7 +405,39 @@ export async function deleteRound(db: Database, roundId: string) {
         "Cannot delete round — a match in this round has already started",
     });
   }
+
+  // Collect entry owners BEFORE deletion so we can notify them. Cascade
+  // will remove entries + contest members when the round is deleted.
+  let entryUsers: { userId: string }[] = [];
+  try {
+    entryUsers = await db
+      .select({ userId: cmEntries.userId })
+      .from(cmEntries)
+      .where(eq(cmEntries.roundId, roundId));
+  } catch {
+    /* non-fatal */
+  }
+
   await db.delete(cmRounds).where(eq(cmRounds.id, roundId));
+
+  const uids = [...new Set(entryUsers.map((e) => e.userId))];
+  if (uids.length > 0) {
+    try {
+      await sendBatchNotifications(
+        db,
+        uids,
+        NOTIFICATION_TYPES.STATUS_ALERT,
+        `${round.name} was cancelled`,
+        "the admin removed this round. no action needed — you can join the next one.",
+        {
+          type: "cm_round_deleted",
+          leagueId: round.leagueId,
+        }
+      );
+    } catch (err) {
+      log.warn({ err, roundId }, "round-deleted notify failed");
+    }
+  }
 }
 
 // ─── Player pool population ────────────────────────────────────────────
@@ -618,6 +710,26 @@ export async function submitEntry(
     { entryId: entry.id, userId, roundId: input.roundId },
     "CM entry submitted"
   );
+
+  // Fire-and-forget: confirmation that the entry is in. Useful for
+  // push / in-app toast acknowledging a successful submit, especially
+  // on slow networks where the user might resubmit out of doubt.
+  sendBatchNotifications(
+    db,
+    [userId],
+    NOTIFICATION_TYPES.TEAM_CREATED,
+    `Entry locked in for ${round.name}`,
+    `your 11 + orders are saved. we'll notify you when the round goes live.`,
+    {
+      type: "cm_entry_submitted",
+      roundId: round.id,
+      leagueId: round.leagueId,
+      entryId: entry.id,
+    }
+  ).catch((err) => {
+    log.warn({ err, entryId: entry.id }, "entry-submitted notify failed");
+  });
+
   return entry;
 }
 
@@ -1054,6 +1166,46 @@ export async function onMatchPhaseTransition(
             { roundId: round.id, matchId },
             "CM round settled (all matches complete)"
           );
+        } else if (
+          completedCount < matchRows.length &&
+          round.status === "live"
+        ) {
+          // Mid-round match complete — nudge entry owners with their
+          // current NRR and progress. Skips the last match because
+          // settleRound fires the richer CONTEST_RESULT notification.
+          try {
+            const justCompleted = matchRows.find((m) => m.id === matchId);
+            const matchLabel = justCompleted
+              ? `${justCompleted.teamHome} vs ${justCompleted.teamAway}`
+              : "a match";
+            const entryRows = await db
+              .select({ userId: cmEntries.userId, nrr: cmEntries.nrr })
+              .from(cmEntries)
+              .where(eq(cmEntries.roundId, round.id));
+            for (const e of entryRows) {
+              const nrrNum = Number(e.nrr ?? 0);
+              const nrrLabel =
+                nrrNum > 0 ? `+${nrrNum.toFixed(2)}` : nrrNum.toFixed(2);
+              await sendBatchNotifications(
+                db,
+                [e.userId],
+                NOTIFICATION_TYPES.SCORE_UPDATE,
+                `${matchLabel} done · ${round.name}`,
+                `NRR ${nrrLabel} · ${completedCount}/${matchRows.length} matches complete.`,
+                {
+                  type: "cm_match_complete",
+                  roundId: round.id,
+                  leagueId: round.leagueId,
+                  matchId,
+                }
+              );
+            }
+          } catch (err) {
+            log.warn(
+              { err, roundId: round.id, matchId },
+              "CM mid-round match-complete notify failed"
+            );
+          }
         }
       }
     } catch (err) {
@@ -1128,6 +1280,90 @@ export async function tickRoundLifecycles(db: Database) {
     }
   } catch (err) {
     log.error({ err }, "tick: pre_match scan failed");
+  }
+
+  // ── Pass 1b: Deadline reminders — for every open round whose window
+  //             starts within the next 6 hours, nudge league members
+  //             who haven't submitted an entry yet. Dedupe via the
+  //             notifications table (check if we already sent one for
+  //             this round + user combo).
+  try {
+    const in6h = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+    const in6hIso = in6h.toISOString();
+    const nowIso = now.toISOString();
+    const soonRounds = await db
+      .select()
+      .from(cmRounds)
+      .where(
+        and(
+          eq(cmRounds.status, "open"),
+          sql`${cmRounds.windowStart} <= ${in6hIso}`,
+          sql`${cmRounds.windowStart} > ${nowIso}`
+        )
+      );
+    for (const r of soonRounds) {
+      try {
+        const memberRows = await db
+          .select({ userId: leagueMembers.userId })
+          .from(leagueMembers)
+          .where(eq(leagueMembers.leagueId, r.leagueId));
+        if (memberRows.length === 0) continue;
+        const memberIds = memberRows.map((m) => m.userId);
+
+        const entryRows = await db
+          .select({ userId: cmEntries.userId })
+          .from(cmEntries)
+          .where(
+            and(
+              eq(cmEntries.roundId, r.id),
+              inArray(cmEntries.userId, memberIds)
+            )
+          );
+        const submitted = new Set(entryRows.map((e) => e.userId));
+        const unsubmitted = memberIds.filter((u) => !submitted.has(u));
+        if (unsubmitted.length === 0) continue;
+
+        // Dedupe: skip users who already got an urgent_deadline for
+        // this round. The notifications table stores the roundId in
+        // `data` so we can check by jsonb path.
+        const alreadyNotified = await db
+          .select({ userId: notifications.userId })
+          .from(notifications)
+          .where(
+            and(
+              inArray(notifications.userId, unsubmitted),
+              eq(notifications.type, NOTIFICATION_TYPES.URGENT_DEADLINE),
+              sql`${notifications.data}->>'roundId' = ${r.id}`
+            )
+          );
+        const notifiedSet = new Set(alreadyNotified.map((n) => n.userId));
+        const toNotify = unsubmitted.filter((u) => !notifiedSet.has(u));
+        if (toNotify.length === 0) continue;
+
+        const hoursLeft = Math.max(
+          1,
+          Math.round(
+            (new Date(r.windowStart).getTime() - now.getTime()) / 3_600_000
+          )
+        );
+        await sendBatchNotifications(
+          db,
+          toNotify,
+          NOTIFICATION_TYPES.URGENT_DEADLINE,
+          `${r.name} locks in ~${hoursLeft}h`,
+          "you haven't built your entry yet — last chance to pick your 11.",
+          {
+            type: "cm_round_deadline",
+            roundId: r.id,
+            leagueId: r.leagueId,
+          }
+        );
+      } catch (err) {
+        log.warn({ err, roundId: r.id }, "deadline reminder failed");
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "tick: deadline reminder scan failed");
   }
 
   // ── Pass 2: CM round reconciliation
@@ -1813,6 +2049,42 @@ export async function joinCmLeague(
     userId,
     role: "member",
   });
+
+  // Welcome nudge — if the league has an open round right now, point
+  // them at it; otherwise tell them we'll notify when one opens.
+  try {
+    const openRound = await db.query.cmRounds.findFirst({
+      where: and(
+        eq(cmRounds.leagueId, leagueId),
+        eq(cmRounds.status, "open")
+      ),
+    });
+    if (openRound) {
+      await sendBatchNotifications(
+        db,
+        [userId],
+        NOTIFICATION_TYPES.STATUS_ALERT,
+        `Welcome to ${league.name}`,
+        `${openRound.name} is open now — build your entry.`,
+        {
+          type: "cm_league_joined_with_open_round",
+          leagueId,
+          roundId: openRound.id,
+        }
+      );
+    } else {
+      await sendBatchNotifications(
+        db,
+        [userId],
+        NOTIFICATION_TYPES.STATUS_ALERT,
+        `Welcome to ${league.name}`,
+        "we'll notify you when the next round opens.",
+        { type: "cm_league_joined", leagueId }
+      );
+    }
+  } catch (err) {
+    log.warn({ err, userId, leagueId }, "league-joined welcome notify failed");
+  }
 
   log.info({ userId, leagueId, entryFee }, "User joined CM league");
   return league;

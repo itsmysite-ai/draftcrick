@@ -3,7 +3,7 @@
  * Called from refreshScores (admin) and backgroundRefreshMatch (auto-refresh).
  */
 
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import type { Database } from "@draftplay/db";
 import { matches, contests, fantasyTeams, players } from "@draftplay/db";
 import { getLogger } from "../lib/logger";
@@ -173,6 +173,49 @@ export async function fetchAndStorePlayingXI(
         { matchId },
       );
     } catch { /* best effort */ }
+  }
+
+  // Also notify CM entry owners whose rounds include this match.
+  // Their `cmEntries.players` only have playerIds, so we notify any
+  // entry that could be affected — the round hub shows the XI status
+  // per-player. Low-signal, but important for CM parity with salary cap.
+  try {
+    const { cmRounds, cmEntries } = await import("@draftplay/db");
+    const affectedRounds = await db
+      .select({ id: cmRounds.id, name: cmRounds.name, leagueId: cmRounds.leagueId })
+      .from(cmRounds)
+      .where(
+        and(
+          inArray(cmRounds.status, ["open", "live"]),
+          sql`${cmRounds.matchIds} @> ${JSON.stringify([matchId])}::jsonb`
+        )
+      );
+    if (affectedRounds.length > 0) {
+      const { sendBatchNotifications, NOTIFICATION_TYPES } = await import("./notifications");
+      for (const r of affectedRounds) {
+        const entryUsers = await db
+          .select({ userId: cmEntries.userId })
+          .from(cmEntries)
+          .where(eq(cmEntries.roundId, r.id));
+        const uids = [...new Set(entryUsers.map((e) => e.userId))];
+        if (uids.length === 0) continue;
+        await sendBatchNotifications(
+          db,
+          uids,
+          NOTIFICATION_TYPES.PLAYING_XI_ANNOUNCED,
+          `Playing XI out — ${match.teamHome} vs ${match.teamAway}`,
+          `confirmed lineup is in for your ${r.name}. check if your picks are in the XI.`,
+          {
+            type: "cm_xi_announced",
+            matchId,
+            roundId: r.id,
+            leagueId: r.leagueId,
+          },
+        );
+      }
+    }
+  } catch (err) {
+    log.warn({ err, matchId }, "CM XI-announced notify failed");
   }
 
   return { stored: true, benchNotifications: usersToNotify.length };
