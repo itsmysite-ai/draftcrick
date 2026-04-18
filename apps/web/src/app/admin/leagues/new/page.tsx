@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
+import { FULL_LEAGUE_TEMPLATES } from "@draftplay/shared";
 
 type Format =
   | "cricket_manager"
@@ -11,6 +12,8 @@ type Format =
   | "draft"
   | "auction"
   | "prediction";
+
+type Template = "casual" | "competitive" | "pro" | "custom";
 
 const FORMAT_OPTIONS: Array<{ value: Format; label: string; description: string }> = [
   {
@@ -44,6 +47,7 @@ const FORMAT_OPTIONS: Array<{ value: Format; label: string; description: string 
 export default function NewAdminLeaguePage() {
   const router = useRouter();
   const [format, setFormat] = useState<Format>("cricket_manager");
+  const [template, setTemplate] = useState<Template>("casual");
   const [name, setName] = useState("");
   const [tournament, setTournament] = useState<string>("");
   // 100000 is the "practically unlimited" sentinel — the existing
@@ -63,6 +67,35 @@ export default function NewAdminLeaguePage() {
   const [finalPct, setFinalPct] = useState(50);
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // ── Salary cap custom overrides ────────────────────────────────────
+  // Seeded from the casual template so the custom path has sensible
+  // starting values rather than all-zeros.
+  const [scTeamSize, setScTeamSize] = useState(11);
+  const [scMinBat, setScMinBat] = useState(1);
+  const [scMaxBat, setScMaxBat] = useState(6);
+  const [scMinBowl, setScMinBowl] = useState(1);
+  const [scMaxBowl, setScMaxBowl] = useState(6);
+  const [scMinAr, setScMinAr] = useState(1);
+  const [scMaxAr, setScMaxAr] = useState(6);
+  const [scMinWk, setScMinWk] = useState(1);
+  const [scMaxWk, setScMaxWk] = useState(4);
+  const [scMaxFromOneTeam, setScMaxFromOneTeam] = useState(7);
+  const [scBudget, setScBudget] = useState(100);
+  const [scCaptainMult, setScCaptainMult] = useState(2);
+  const [scViceCaptainMult, setScViceCaptainMult] = useState(1.5);
+
+  // ── Draft custom overrides ─────────────────────────────────────────
+  const [drMaxRounds, setDrMaxRounds] = useState(11);
+  const [drTimePerPick, setDrTimePerPick] = useState(60);
+  const [drSnake, setDrSnake] = useState(true);
+
+  // ── Auction custom overrides ───────────────────────────────────────
+  const [auBudget, setAuBudget] = useState(100);
+  const [auMinBid, setAuMinBid] = useState(1);
+  const [auBidIncrement, setAuBidIncrement] = useState(1);
+  const [auMaxBidTime, setAuMaxBidTime] = useState(15);
+  const [auMaxPlayersPerTeam, setAuMaxPlayersPerTeam] = useState(11);
 
   const tournaments = trpc.admin.tournaments.list.useQuery();
   const tournamentOptions = useMemo(
@@ -101,6 +134,43 @@ export default function NewAdminLeaguePage() {
         ],
         roundPrizeSplit: { perRoundPct: roundPct, finalPct },
       };
+    } else if (template === "custom") {
+      // Custom → apply format-specific overrides from the UI. Other
+      // categories fall back to CASUAL defaults server-side via the
+      // deepMergeRules helper so the league is still playable.
+      if (format === "salary_cap") {
+        rules.teamComposition = {
+          teamSize: scTeamSize,
+          minBatsmen: scMinBat,
+          maxBatsmen: scMaxBat,
+          minBowlers: scMinBowl,
+          maxBowlers: scMaxBowl,
+          minAllRounders: scMinAr,
+          maxAllRounders: scMaxAr,
+          minWicketKeepers: scMinWk,
+          maxWicketKeepers: scMaxWk,
+          maxFromOneTeam: scMaxFromOneTeam,
+        };
+        rules.salary = { totalBudget: scBudget };
+        rules.boosters = {
+          captainMultiplier: scCaptainMult,
+          viceCaptainMultiplier: scViceCaptainMult,
+        };
+      } else if (format === "draft") {
+        rules.draft = {
+          maxRounds: drMaxRounds,
+          timePerPick: drTimePerPick,
+          snakeDraftEnabled: drSnake,
+        };
+      } else if (format === "auction") {
+        rules.auction = {
+          auctionBudget: auBudget,
+          minBid: auMinBid,
+          bidIncrement: auBidIncrement,
+          maxBidTime: auMaxBidTime,
+          maxPlayersPerTeam: auMaxPlayersPerTeam,
+        };
+      }
     }
 
     create.mutate({
@@ -110,10 +180,20 @@ export default function NewAdminLeaguePage() {
       tournament,
       isPrivate: false,
       maxMembers: effectiveMaxMembers,
-      template: "custom",
+      // Non-CM formats honor the selected template; CM ignores it because
+      // its rules are all in the cricketManager sub-object.
+      template: format === "cricket_manager" ? "custom" : template,
       rules,
     });
   }
+
+  // Pull the active template's settings so we can show them to the admin
+  // as a read-only summary (so they know what's being applied without
+  // needing to click into custom).
+  const activeTemplate = useMemo(() => {
+    if (format === "cricket_manager" || template === "custom") return null;
+    return FULL_LEAGUE_TEMPLATES[template as "casual" | "competitive" | "pro"];
+  }, [template, format]);
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -240,6 +320,222 @@ export default function NewAdminLeaguePage() {
             style={inputStyle}
           />
         </Field>
+
+        {format !== "cricket_manager" && (
+          <>
+            <Divider label="Rules template" />
+            <Field label="Preset">
+              <select
+                value={template}
+                onChange={(e) => setTemplate(e.target.value as Template)}
+                style={inputStyle}
+              >
+                <option value="casual">Casual</option>
+                <option value="competitive">Competitive</option>
+                <option value="pro">Pro</option>
+                <option value="custom">Custom</option>
+              </select>
+              <p style={hintStyle}>
+                Casual / Competitive / Pro apply the matching preset rules (team composition, boosters, transfers, playoffs, salary).
+                Pick Custom to override below.
+              </p>
+            </Field>
+
+            {activeTemplate && (
+              <TemplateSummary rules={activeTemplate} format={format} />
+            )}
+
+            {template === "custom" && format === "salary_cap" && (
+              <>
+                <Divider label="Salary cap — custom rules" />
+
+                <Field label="Total budget (credits)">
+                  <input
+                    type="number"
+                    min={10}
+                    max={500}
+                    value={scBudget}
+                    onChange={(e) => setScBudget(Number(e.target.value) || 100)}
+                    style={inputStyle}
+                  />
+                </Field>
+
+                <Divider label="Team composition" />
+                <TwoCol
+                  left={
+                    <Field label="Team size">
+                      <input
+                        type="number"
+                        min={6}
+                        max={15}
+                        value={scTeamSize}
+                        onChange={(e) => setScTeamSize(Number(e.target.value) || 11)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Max from one team">
+                      <input
+                        type="number"
+                        min={1}
+                        max={11}
+                        value={scMaxFromOneTeam}
+                        onChange={(e) => setScMaxFromOneTeam(Number(e.target.value) || 7)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+
+                <RoleRangeRow label="Batsmen" min={scMinBat} max={scMaxBat} onMin={setScMinBat} onMax={setScMaxBat} />
+                <RoleRangeRow label="Bowlers" min={scMinBowl} max={scMaxBowl} onMin={setScMinBowl} onMax={setScMaxBowl} />
+                <RoleRangeRow label="All-rounders" min={scMinAr} max={scMaxAr} onMin={setScMinAr} onMax={setScMaxAr} />
+                <RoleRangeRow label="Wicket-keepers" min={scMinWk} max={scMaxWk} onMin={setScMinWk} onMax={setScMaxWk} />
+
+                <Divider label="Boosters" />
+                <TwoCol
+                  left={
+                    <Field label="Captain multiplier">
+                      <input
+                        type="number"
+                        step={0.5}
+                        min={1}
+                        max={5}
+                        value={scCaptainMult}
+                        onChange={(e) => setScCaptainMult(Number(e.target.value) || 2)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Vice-captain multiplier">
+                      <input
+                        type="number"
+                        step={0.25}
+                        min={1}
+                        max={3}
+                        value={scViceCaptainMult}
+                        onChange={(e) => setScViceCaptainMult(Number(e.target.value) || 1.5)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+              </>
+            )}
+
+            {template === "custom" && format === "draft" && (
+              <>
+                <Divider label="Draft — custom rules" />
+                <Field label="Max rounds">
+                  <input
+                    type="number"
+                    min={5}
+                    max={30}
+                    value={drMaxRounds}
+                    onChange={(e) => setDrMaxRounds(Number(e.target.value) || 11)}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Time per pick (seconds)">
+                  <input
+                    type="number"
+                    min={10}
+                    max={300}
+                    value={drTimePerPick}
+                    onChange={(e) => setDrTimePerPick(Number(e.target.value) || 60)}
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Snake draft">
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={drSnake}
+                      onChange={(e) => setDrSnake(e.target.checked)}
+                    />
+                    reverse order every other round
+                  </label>
+                </Field>
+              </>
+            )}
+
+            {template === "custom" && format === "auction" && (
+              <>
+                <Divider label="Auction — custom rules" />
+                <TwoCol
+                  left={
+                    <Field label="Auction budget">
+                      <input
+                        type="number"
+                        min={10}
+                        max={1000}
+                        value={auBudget}
+                        onChange={(e) => setAuBudget(Number(e.target.value) || 100)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Max players per team">
+                      <input
+                        type="number"
+                        min={5}
+                        max={25}
+                        value={auMaxPlayersPerTeam}
+                        onChange={(e) =>
+                          setAuMaxPlayersPerTeam(Number(e.target.value) || 11)
+                        }
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+                <TwoCol
+                  left={
+                    <Field label="Min bid">
+                      <input
+                        type="number"
+                        step={0.5}
+                        min={0.5}
+                        max={50}
+                        value={auMinBid}
+                        onChange={(e) => setAuMinBid(Number(e.target.value) || 1)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Bid increment">
+                      <input
+                        type="number"
+                        step={0.5}
+                        min={0.5}
+                        max={10}
+                        value={auBidIncrement}
+                        onChange={(e) =>
+                          setAuBidIncrement(Number(e.target.value) || 1)
+                        }
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+                <Field label="Max bid time (seconds)">
+                  <input
+                    type="number"
+                    min={5}
+                    max={60}
+                    value={auMaxBidTime}
+                    onChange={(e) => setAuMaxBidTime(Number(e.target.value) || 15)}
+                    style={inputStyle}
+                  />
+                </Field>
+              </>
+            )}
+          </>
+        )}
 
         {format === "cricket_manager" && (
           <>
@@ -401,6 +697,145 @@ function Divider({ label }: { label: string }) {
       }}
     >
       {label}
+    </div>
+  );
+}
+
+function TwoCol({ left, right }: { left: React.ReactNode; right: React.ReactNode }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      {left}
+      {right}
+    </div>
+  );
+}
+
+function RoleRangeRow({
+  label,
+  min,
+  max,
+  onMin,
+  onMax,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  onMin: (n: number) => void;
+  onMax: (n: number) => void;
+}) {
+  return (
+    <TwoCol
+      left={
+        <Field label={`${label} — min`}>
+          <input
+            type="number"
+            min={0}
+            max={11}
+            value={min}
+            onChange={(e) => onMin(Number(e.target.value) || 0)}
+            style={inputStyle}
+          />
+        </Field>
+      }
+      right={
+        <Field label={`${label} — max`}>
+          <input
+            type="number"
+            min={0}
+            max={11}
+            value={max}
+            onChange={(e) => onMax(Number(e.target.value) || 0)}
+            style={inputStyle}
+          />
+        </Field>
+      }
+    />
+  );
+}
+
+function TemplateSummary({
+  rules,
+  format,
+}: {
+  rules: any;
+  format: Format;
+}) {
+  const rows: Array<{ label: string; value: string }> = [];
+  const tc = rules.teamComposition;
+  if (tc) {
+    rows.push({ label: "team size", value: `${tc.teamSize}` });
+    rows.push({
+      label: "role ranges",
+      value: `BAT ${tc.minBatsmen}-${tc.maxBatsmen} · BOWL ${tc.minBowlers}-${tc.maxBowlers} · AR ${tc.minAllRounders}-${tc.maxAllRounders} · WK ${tc.minWicketKeepers}-${tc.maxWicketKeepers}`,
+    });
+    rows.push({ label: "max from one team", value: `${tc.maxFromOneTeam}` });
+  }
+  if (rules.boosters) {
+    rows.push({
+      label: "captain / vc",
+      value: `${rules.boosters.captainMultiplier}× / ${rules.boosters.viceCaptainMultiplier}×`,
+    });
+  }
+  if (format === "salary_cap" && rules.salary) {
+    rows.push({ label: "budget", value: `${rules.salary.totalBudget} credits` });
+    rows.push({
+      label: "player price range",
+      value: `${rules.salary.playerPriceMin}-${rules.salary.playerPriceMax} credits`,
+    });
+  }
+  if (format === "draft" && rules.draft) {
+    rows.push({ label: "draft rounds", value: `${rules.draft.maxRounds}` });
+    rows.push({ label: "time per pick", value: `${rules.draft.timePerPick}s` });
+    rows.push({
+      label: "snake order",
+      value: rules.draft.snakeDraftEnabled ? "yes" : "no",
+    });
+  }
+  if (format === "auction" && rules.auction) {
+    rows.push({ label: "budget", value: `${rules.auction.auctionBudget}` });
+    rows.push({
+      label: "bid",
+      value: `min ${rules.auction.minBid}, increment ${rules.auction.bidIncrement}`,
+    });
+    rows.push({
+      label: "max players per team",
+      value: `${rules.auction.maxPlayersPerTeam}`,
+    });
+  }
+  if (rules.transfers) {
+    rows.push({
+      label: "transfers",
+      value: `${rules.transfers.freeTransfersPerWeek} free/wk${rules.transfers.transferPenaltyPoints > 0 ? ` (−${rules.transfers.transferPenaltyPoints} per extra)` : ""}`,
+    });
+  }
+  if (rules.playoffs?.playoffsEnabled) {
+    rows.push({
+      label: "playoffs",
+      value: `${rules.playoffs.playoffFormat} · size ${rules.playoffs.playoffSize}`,
+    });
+  }
+
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        padding: 12,
+        backgroundColor: "var(--bg)",
+        border: "1px dashed var(--border)",
+        borderRadius: 6,
+      }}
+    >
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.6 }}>
+        preset includes
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {rows.map((r) => (
+          <div key={r.label} style={{ display: "flex", gap: 8, fontSize: 12 }}>
+            <span style={{ color: "var(--text-secondary)", minWidth: 120 }}>{r.label}</span>
+            <span style={{ color: "var(--text-primary)" }}>{r.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

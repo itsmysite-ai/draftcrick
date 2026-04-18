@@ -70,6 +70,7 @@ import type { Sport } from "@draftplay/shared";
 import { determineMatchPhase, calculateNextRefreshAfter, calculateFantasyPoints, DEFAULT_T20_SCORING, DEFAULT_SQUAD_RULES } from "@draftplay/shared";
 import { lockMatchContests, processScoreUpdate, completeMatch } from "../jobs/score-updater";
 import { settleMatchContests } from "../jobs/settle-contest";
+import { autoCreateContestsForLeague } from "./league";
 import {
   applyMatchPhaseChange,
   onPhaseTransition,
@@ -2419,6 +2420,30 @@ const leaguesRouter = router({
         userId: ctx.user.id,
         role: "owner",
       });
+
+      // Auto-create contests for match-based formats. Without this the
+      // league page on mobile shows "no contests" even though matches
+      // are available. CM uses round composition instead.
+      if (
+        input.format === "salary_cap" ||
+        input.format === "auction" ||
+        input.format === "draft"
+      ) {
+        try {
+          const created = await autoCreateContestsForLeague(
+            ctx.db,
+            league!.id,
+            input.tournament,
+            input.maxMembers,
+          );
+          log.info(
+            { leagueId: league!.id, contestsCreated: created },
+            "Admin league — auto-created contests"
+          );
+        } catch (err) {
+          log.error({ leagueId: league!.id, err }, "Admin league — auto-contest failed");
+        }
+      }
 
       log.info({ leagueId: league!.id, format: input.format }, "Admin league created");
       return league;

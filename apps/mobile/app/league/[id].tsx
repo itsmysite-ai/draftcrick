@@ -1,5 +1,5 @@
 import { SafeBackButton } from "../../components/SafeBackButton";
-import { FlatList, Alert, Share, Image } from "react-native";
+import { FlatList, Alert, Share, Image, Modal, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -30,6 +30,8 @@ import { useAuth } from "../../providers/AuthProvider";
 import { HeaderControls } from "../../components/HeaderControls";
 import { MemberBreakdownSheet } from "../../components/MemberBreakdownSheet";
 import { FullStandingsSheet } from "../../components/FullStandingsSheet";
+import { useTheme } from "../../providers/ThemeProvider";
+import { ScrollView } from "react-native";
 
 const STATUS_ORDER: Record<string, number> = { live: 0, open: 1, upcoming: 2, locked: 3, settling: 4, settled: 5, cancelled: 6 };
 const STATUS_VARIANT: Record<string, string> = { live: "live", open: "default", upcoming: "role", locked: "role", settling: "role", settled: "default", cancelled: "danger" };
@@ -286,6 +288,8 @@ export default function LeagueDetailScreen() {
             )}
           </Card>
           )}
+
+          <LeagueRulesCard league={league} />
 
           <LeaguePrizesCard leagueId={id!} />
 
@@ -1234,5 +1238,337 @@ function LeaguePrizesCard({ leagueId }: { leagueId: string }) {
         })}
       </YStack>
     </Card>
+  );
+}
+
+// ─── How you win — dynamic rules modal ─────────────────────────────────────
+// Reads league.rules and renders a human-readable summary. Mirrors the CM
+// NrrExplainerModal pattern (plain View + RN Modal to avoid iOS Chrome NaN
+// crashes from Tamagui-shorthand insets). Any format with meaningful rules
+// gets a card — formats without configured rules just hide the card.
+
+export function LeagueRulesCard({ league }: { league: any }) {
+  const [open, setOpen] = useState(false);
+
+  const sections = useMemo(
+    () => buildRuleSections(league),
+    [league]
+  );
+
+  // Don't show the card if there's nothing to explain.
+  if (sections.length === 0) return null;
+
+  const intro = introForFormat(league.format);
+
+  return (
+    <>
+      <Card
+        padding="$4"
+        marginBottom="$4"
+        pressable
+        onPress={() => setOpen(true)}
+      >
+        <XStack alignItems="center" justifyContent="space-between">
+          <XStack alignItems="center" gap="$2" flex={1}>
+            <Text fontSize={18}>🏆</Text>
+            <YStack flex={1}>
+              <Text
+                fontFamily="$mono"
+                fontWeight="700"
+                fontSize={14}
+                color="$color"
+                letterSpacing={-0.3}
+              >
+                {formatUIText("how you win")}
+              </Text>
+              <Text
+                fontFamily="$body"
+                fontSize={11}
+                color="$colorMuted"
+                marginTop={2}
+              >
+                {formatUIText("tap to see this league's rules")}
+              </Text>
+            </YStack>
+          </XStack>
+          <Ionicons name="chevron-forward" size={16} color="#888" />
+        </XStack>
+      </Card>
+      <LeagueRulesModal
+        visible={open}
+        onClose={() => setOpen(false)}
+        intro={intro}
+        sections={sections}
+        title={formatBadgeText(league.format ?? "league")}
+      />
+    </>
+  );
+}
+
+function introForFormat(fmt: string): string {
+  switch (fmt) {
+    case "salary_cap":
+      return "pick 11 players within the credit budget. captain doubles their points. highest total wins the contest.";
+    case "draft":
+      return "take turns picking unique players. the pool empties as you go — a player you miss is gone. highest-scoring squad across the season wins.";
+    case "auction":
+      return "bid credits for each player. once you own them, they score for you all season. spend wisely — your budget is all you get.";
+    case "prediction":
+      return "answer questions about matches. correct predictions earn points. top of the leaderboard wins.";
+    default:
+      return "compete against your league members — highest points wins.";
+  }
+}
+
+function buildRuleSections(league: any): Array<{ title: string; rows: Array<{ label: string; value: string }> }> {
+  const rules = league?.rules ?? {};
+  const sections: Array<{ title: string; rows: Array<{ label: string; value: string }> }> = [];
+  const fmt = league?.format;
+
+  const tc = rules.teamComposition;
+  if (tc) {
+    const rows: Array<{ label: string; value: string }> = [
+      { label: "squad size", value: `${tc.teamSize} players` },
+    ];
+    if (typeof tc.minBatsmen === "number" || typeof tc.maxBatsmen === "number") {
+      rows.push({
+        label: "role limits",
+        value: `BAT ${tc.minBatsmen}-${tc.maxBatsmen} · BOWL ${tc.minBowlers}-${tc.maxBowlers} · AR ${tc.minAllRounders}-${tc.maxAllRounders} · WK ${tc.minWicketKeepers}-${tc.maxWicketKeepers}`,
+      });
+    }
+    if (typeof tc.maxFromOneTeam === "number") {
+      rows.push({ label: "max from one team", value: `${tc.maxFromOneTeam}` });
+    }
+    if (typeof tc.maxOverseasPlayers === "number") {
+      rows.push({ label: "max overseas", value: `${tc.maxOverseasPlayers}` });
+    }
+    sections.push({ title: "squad", rows });
+  }
+
+  if (fmt === "salary_cap" && rules.salary) {
+    const rows: Array<{ label: string; value: string }> = [
+      { label: "budget", value: `${rules.salary.totalBudget} credits` },
+    ];
+    if (rules.salary.playerPriceMin != null && rules.salary.playerPriceMax != null) {
+      rows.push({
+        label: "player prices",
+        value: `${rules.salary.playerPriceMin} – ${rules.salary.playerPriceMax} credits`,
+      });
+    }
+    sections.push({ title: "budget", rows });
+  }
+
+  if (rules.boosters) {
+    const b = rules.boosters;
+    const rows: Array<{ label: string; value: string }> = [
+      { label: "captain", value: `${b.captainMultiplier}× points` },
+      { label: "vice-captain", value: `${b.viceCaptainMultiplier}× points` },
+    ];
+    if (b.tripleCaptainEnabled) {
+      rows.push({ label: "triple captain chip", value: `${b.tripleCaptainUsesPerSeason ?? 1}× per season` });
+    }
+    if (b.benchBoostEnabled) {
+      rows.push({ label: "bench boost chip", value: `${b.benchBoostUsesPerSeason ?? 1}× per season` });
+    }
+    sections.push({ title: "boosters", rows });
+  }
+
+  if (fmt === "draft" && rules.draft) {
+    const d = rules.draft;
+    sections.push({
+      title: "draft",
+      rows: [
+        { label: "rounds", value: `${d.maxRounds}` },
+        { label: "time per pick", value: `${d.timePerPick}s` },
+        { label: "order", value: d.snakeDraftEnabled ? "snake (reverses each round)" : "fixed" },
+        ...(d.keeperPlayersEnabled
+          ? [{ label: "keeper slots", value: `${d.keeperPlayerSlots}` }]
+          : []),
+      ],
+    });
+  }
+
+  if (fmt === "auction" && rules.auction) {
+    const a = rules.auction;
+    sections.push({
+      title: "auction",
+      rows: [
+        { label: "budget", value: `${a.auctionBudget}` },
+        { label: "min bid", value: `${a.minBid}` },
+        { label: "bid increment", value: `${a.bidIncrement}` },
+        { label: "max bid time", value: `${a.maxBidTime}s` },
+        { label: "players per team", value: `${a.maxPlayersPerTeam}` },
+      ],
+    });
+  }
+
+  if (rules.transfers && (rules.transfers.maxTransfersPerWeek ?? 0) > 0) {
+    const t = rules.transfers;
+    const rows: Array<{ label: string; value: string }> = [
+      {
+        label: "transfers / week",
+        value: `${t.maxTransfersPerWeek} (${t.freeTransfersPerWeek} free${t.transferPenaltyPoints > 0 ? `, −${t.transferPenaltyPoints} pts after` : ""})`,
+      },
+    ];
+    if (t.tradeWindowOpen) {
+      rows.push({
+        label: "trade window",
+        value: `day ${t.tradeWindowStartDay}–${t.tradeWindowEndDay} of the week`,
+      });
+    }
+    if (t.waiverWireEnabled) {
+      rows.push({ label: "waiver wire", value: t.waiverWirePriority?.replace(/_/g, " ") ?? "on" });
+    }
+    sections.push({ title: "transfers", rows });
+  }
+
+  if (rules.playoffs?.playoffsEnabled) {
+    const p = rules.playoffs;
+    sections.push({
+      title: "playoffs",
+      rows: [
+        { label: "format", value: `${p.playoffFormat?.replace(/_/g, " ") ?? "knockout"}` },
+        { label: "size", value: `${p.playoffSize} teams` },
+        { label: "rounds", value: `${p.playoffRounds}` },
+        ...(p.homeAdvantageEnabled
+          ? [{ label: "home advantage", value: `+${p.homeAdvantageBonus} pts` }]
+          : []),
+      ],
+    });
+  }
+
+  return sections;
+}
+
+function LeagueRulesModal({
+  visible,
+  onClose,
+  intro,
+  sections,
+  title,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  intro: string;
+  sections: Array<{ title: string; rows: Array<{ label: string; value: string }> }>;
+  title: string;
+}) {
+  const insets = useSafeAreaInsets();
+  const { t } = useTheme();
+  const safeTop = typeof insets?.top === "number" ? insets.top : 0;
+  const safeBottom = typeof insets?.bottom === "number" ? insets.bottom : 0;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: t.overlay,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 16,
+          paddingTop: safeTop + 24,
+          paddingBottom: safeBottom + 24,
+        }}
+      >
+        <Pressable
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+          onPress={onClose}
+        />
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            flexShrink: 1,
+            backgroundColor: t.bgSurface,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: t.border,
+            overflow: "hidden",
+          }}
+        >
+          <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <Text
+              fontFamily="$mono"
+              fontWeight="700"
+              fontSize={20}
+              color="$color"
+              letterSpacing={-0.5}
+              marginBottom="$2"
+            >
+              {formatUIText("how you win")}
+            </Text>
+            <Badge variant="role" size="sm" alignSelf="flex-start" marginBottom="$3">
+              {title}
+            </Badge>
+            <Text
+              fontFamily="$body"
+              fontSize={13}
+              color="$colorMuted"
+              marginBottom="$4"
+              lineHeight={19}
+            >
+              {formatUIText(intro)}
+            </Text>
+
+            {sections.map((s) => (
+              <YStack
+                key={s.title}
+                padding="$3"
+                backgroundColor="$backgroundSurfaceAlt"
+                borderRadius={10}
+                marginBottom="$3"
+              >
+                <Text
+                  fontFamily="$mono"
+                  fontWeight="700"
+                  fontSize={12}
+                  color="$accentBackground"
+                  textTransform="uppercase"
+                  letterSpacing={1}
+                  marginBottom="$2"
+                >
+                  {s.title}
+                </Text>
+                <YStack gap="$2">
+                  {s.rows.map((r) => (
+                    <XStack key={r.label} justifyContent="space-between" gap="$3">
+                      <Text
+                        fontFamily="$body"
+                        fontSize={12}
+                        color="$colorMuted"
+                        flex={1}
+                      >
+                        {r.label}
+                      </Text>
+                      <Text
+                        fontFamily="$mono"
+                        fontWeight="600"
+                        fontSize={12}
+                        color="$color"
+                        flex={1}
+                        textAlign="right"
+                      >
+                        {r.value}
+                      </Text>
+                    </XStack>
+                  ))}
+                </YStack>
+              </YStack>
+            ))}
+
+            <Button variant="primary" size="lg" onPress={onClose}>
+              {formatUIText("got it")}
+            </Button>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
