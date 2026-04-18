@@ -1176,63 +1176,60 @@ function LeaguePrizesCard({ leagueId }: { leagueId: string }) {
           {formatBadgeText(`${prizes.length}`)}
         </Badge>
       </XStack>
-      <YStack gap="$3">
+      <YStack gap="$4">
         {prizes.map((p: any) => {
           const rankLabel =
             p.rankFrom === p.rankTo
               ? `#${p.rankFrom}`
               : `#${p.rankFrom}–${p.rankTo}`;
           return (
-            <XStack key={p.id} gap="$3" alignItems="flex-start">
+            <YStack key={p.id} gap="$2" alignItems="stretch">
               {p.imageUrl ? (
                 <Image
                   source={{ uri: p.imageUrl }}
-                  style={{ width: 56, height: 56, borderRadius: 6 }}
+                  style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 8 }}
                   resizeMode="cover"
                 />
               ) : (
                 <YStack
-                  width={56}
-                  height={56}
-                  borderRadius={6}
+                  width="100%"
+                  aspectRatio={16 / 9}
+                  borderRadius={8}
                   backgroundColor="$backgroundSurfaceAlt"
                   alignItems="center"
                   justifyContent="center"
                 >
-                  <Text fontSize={22}>🏆</Text>
+                  <Text fontSize={40}>🏆</Text>
                 </YStack>
               )}
-              <YStack flex={1} minWidth={0}>
-                <Text
-                  fontFamily="$mono"
-                  fontWeight="700"
-                  fontSize={11}
-                  color="$accentBackground"
-                  marginBottom={2}
-                >
-                  {rankLabel}
-                </Text>
+              <Text
+                fontFamily="$mono"
+                fontWeight="700"
+                fontSize={11}
+                color="$accentBackground"
+                marginTop="$1"
+              >
+                {rankLabel}
+              </Text>
+              <Text
+                fontFamily="$body"
+                fontWeight="600"
+                fontSize={15}
+                color="$color"
+              >
+                {p.title}
+              </Text>
+              {p.description ? (
                 <Text
                   fontFamily="$body"
-                  fontWeight="600"
-                  fontSize={13}
-                  color="$color"
+                  fontSize={12}
+                  color="$colorMuted"
+                  lineHeight={17}
                 >
-                  {p.title}
+                  {p.description}
                 </Text>
-                {p.description ? (
-                  <Text
-                    fontFamily="$body"
-                    fontSize={11}
-                    color="$colorMuted"
-                    marginTop={2}
-                    lineHeight={15}
-                  >
-                    {p.description}
-                  </Text>
-                ) : null}
-              </YStack>
-            </XStack>
+              ) : null}
+            </YStack>
           );
         })}
       </YStack>

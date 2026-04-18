@@ -53,7 +53,7 @@ function LeagueCard({
               fontWeight="600"
               fontSize={16}
               color="$color"
-              numberOfLines={1}
+              numberOfLines={2}
               marginBottom={2}
             >
               {league.name}
