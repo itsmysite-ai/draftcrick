@@ -27,6 +27,7 @@ import {
 import { trpc } from "../../../../../lib/trpc";
 import { HeaderControls } from "../../../../../components/HeaderControls";
 import { usePaywall } from "../../../../../hooks/usePaywall";
+import { useTheme } from "../../../../../providers/ThemeProvider";
 
 type Step = "squad" | "batting" | "bowling" | "review";
 type RoleKey = "BAT" | "BOWL" | "AR" | "WK";
@@ -2985,6 +2986,7 @@ function NrrExplainerModal({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useTheme();
   // Defensive: insets can be undefined on web before SafeAreaProvider
   // hydrates. Coalesce to 0 so we never compute NaN.
   const safeTop = typeof insets?.top === "number" ? insets.top : 0;
@@ -3000,7 +3002,7 @@ function NrrExplainerModal({
       <View
         style={{
           flex: 1,
-          backgroundColor: "rgba(0,0,0,0.6)",
+          backgroundColor: t.overlay,
           alignItems: "center",
           justifyContent: "center",
           padding: 16,
@@ -3023,10 +3025,10 @@ function NrrExplainerModal({
             width: "100%",
             maxWidth: 420,
             flexShrink: 1,
-            backgroundColor: "#1a1a1a",
+            backgroundColor: t.bgSurface,
             borderRadius: 20,
             borderWidth: 1,
-            borderColor: "#333",
+            borderColor: t.border,
             overflow: "hidden",
           }}
         >
@@ -3050,7 +3052,7 @@ function NrrExplainerModal({
             lineHeight={17}
           >
             {formatUIText(
-              "your 11 players play a mini cricket match against themselves. we calculate your NRR — higher wins the round."
+              "your 11 players play a mini cricket match against themselves. we calculate your net run rate (NRR) — higher wins the round."
             )}
           </Text>
 

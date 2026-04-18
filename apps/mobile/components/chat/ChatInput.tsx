@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TextInput, Pressable } from "react-native";
+import { TextInput, Pressable, Platform } from "react-native";
 import { XStack } from "tamagui";
 import { Text } from "../SportText";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -43,7 +43,9 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
         editable={!disabled}
         style={{
           flex: 1,
-          fontSize: 14,
+          // iOS Safari auto-zooms focused inputs whose font-size is
+          // < 16px. Bump to 16 on web only; native stays at 14.
+          fontSize: Platform.OS === "web" ? 16 : 14,
           fontFamily: FontFamily.body,
           color: t.text,
           backgroundColor: t.bgSurface,
