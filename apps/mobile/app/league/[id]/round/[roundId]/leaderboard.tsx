@@ -145,7 +145,9 @@ export default function RoundLeaderboardScreen() {
         }
         renderItem={({ item, index }: { item: any; index: number }) => {
           const isMe = item.userId === user?.id;
-          const label = item.email ? item.email.split("@")[0] : "player";
+          // Use the anonymous username — email can leak the user's
+          // real identity, username never does.
+          const label = item.username ?? "player";
           const delta = rankDeltas.get(item.userId) ?? 0;
           const rank = item.rank ?? index + 1;
           const canReveal = isSettled;

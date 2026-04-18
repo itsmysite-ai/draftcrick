@@ -226,7 +226,12 @@ export const cricketManagerRouter = router({
           bowlingTotal: cmEntries.bowlingTotal,
           battingWickets: cmEntries.battingWickets,
           bowlingWickets: cmEntries.bowlingWickets,
-          email: users.email,
+          // Expose username — the anonymous profile handle — for the
+          // leaderboard UI. We used to return email (mobile split on @)
+          // but that leaked the user's real identity when their email
+          // was first.last@... Username is always the right handle to
+          // show in competitive contexts.
+          username: users.username,
         })
         .from(cmContestMembers)
         .innerJoin(cmEntries, eq(cmContestMembers.entryId, cmEntries.id))
@@ -523,7 +528,9 @@ export const cricketManagerRouter = router({
           currentWinStreak: cmLeagueStandings.currentWinStreak,
           bestWinStreak: cmLeagueStandings.bestWinStreak,
           prizeWon: cmLeagueStandings.prizeWon,
-          email: users.email,
+          // Username instead of email — see rationale on
+          // getRoundLeaderboard above.
+          username: users.username,
         })
         .from(cmLeagueStandings)
         .innerJoin(users, eq(cmLeagueStandings.userId, users.id))

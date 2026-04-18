@@ -913,7 +913,7 @@ export default function HomeScreen() {
             <YStack marginBottom="$4" paddingHorizontal="$4">
               <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
                 <Text {...textStyles.sectionHeader}>
-                  {formatUIText("your cricket manager entries")}
+                  {formatUIText("my cricket manager entries")}
                 </Text>
               </XStack>
               <YStack gap="$2">

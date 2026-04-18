@@ -966,7 +966,9 @@ function CricketManagerLeagueView({
           if (cmTab === "standings") {
             const s = item;
             const isMe = s.userId === user?.id;
-            const label = s.email ? s.email.split("@")[0] : "player";
+            // Use the anonymous username — email can leak the user's
+            // real identity, username never does.
+            const label = s.username ?? "player";
             return (
               <Animated.View
                 entering={FadeInDown.delay(index * 30).springify()}
