@@ -901,87 +901,201 @@ export default function HomeScreen() {
           </YStack>
         )}
 
-        {/* ── My CM Entries — in-progress CM rounds with a submitted entry.
-            Sits directly under "my contests" so users see all active
-            competitions together in one visual band rather than hunting
-            for CM further down the feed. */}
+        {/* ── My CM Entries — mirrors the visual shape of MyContestsSection
+            so the home feed has one consistent card treatment. Same
+            card size, header layout, stat-tile row with vertical
+            dividers, and bottom strip with border-top. Content is
+            adapted to CM's round/NRR model: round name "in" league,
+            NRR/BAT/BOWL tiles, bottom strip shows match progress
+            (X/Y matches) + entry-fee stance. */}
         {user && (cmActiveEntriesQuery.data?.length ?? 0) > 0 && (
-          <YStack marginBottom="$4" paddingHorizontal="$4">
-            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$color" marginBottom="$2">
-              {formatUIText("your cricket manager entries")}
-            </Text>
-            {(cmActiveEntriesQuery.data ?? []).map((e: any) => {
-              const isLive = e.roundStatus === "live";
-              const progress = e.matchesTotal > 0 ? e.matchesCompleted / e.matchesTotal : 0;
-              const nrrLabel = e.nrr > 0 ? `+${e.nrr.toFixed(2)}` : e.nrr.toFixed(2);
-              return (
-                <Animated.View key={e.entryId} entering={FadeInDown.springify()}>
-                  <Card
-                    marginBottom="$2"
-                    padding="$3"
-                    pressable
-                    onPress={() => router.push(`/league/${e.leagueId}/round/${e.roundId}`)}
-                    cursor="pointer"
-                    borderColor={isLive ? "$colorCricket" : "$borderColor"}
-                    borderWidth={isLive ? 2 : 1}
-                  >
-                    <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
-                      <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" flex={1} numberOfLines={1}>
-                        🏆 {e.leagueName} · {e.roundName}
-                      </Text>
-                      <Badge variant={isLive ? "live" : "role"} size="sm">
-                        {formatBadgeText(e.roundStatus)}
-                      </Badge>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="center">
-                      <XStack gap="$3" alignItems="center">
-                        <YStack>
-                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                            {formatBadgeText("nrr")}
-                          </Text>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={e.nrr >= 0 ? "$colorCricket" : "$error"}>
-                            {nrrLabel}
-                          </Text>
-                        </YStack>
-                        <YStack>
-                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                            {formatBadgeText("bat")}
-                          </Text>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
-                            {e.battingTotal ?? 0}
-                          </Text>
-                        </YStack>
-                        <YStack>
-                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                            {formatBadgeText("bowl")}
-                          </Text>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
-                            {e.bowlingTotal ?? 0}
-                          </Text>
-                        </YStack>
-                      </XStack>
-                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                        {e.matchesCompleted}/{e.matchesTotal} {formatUIText("matches")}
-                      </Text>
-                    </XStack>
-                    <YStack
-                      marginTop="$2"
-                      height={3}
-                      backgroundColor="$backgroundSurfaceAlt"
-                      borderRadius={2}
+          <Animated.View entering={FadeInDown.delay(0).springify()}>
+            <YStack marginBottom="$4" paddingHorizontal="$4">
+              <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+                <Text {...textStyles.sectionHeader}>
+                  {formatUIText("your cricket manager entries")}
+                </Text>
+              </XStack>
+              <YStack gap="$2">
+                {(cmActiveEntriesQuery.data ?? []).map((e: any) => {
+                  const isLive = e.roundStatus === "live";
+                  const isSettled = e.roundStatus === "settled";
+                  const nrrLabel =
+                    e.nrr > 0 ? `+${e.nrr.toFixed(2)}` : e.nrr.toFixed(2);
+                  return (
+                    <Card
+                      key={e.entryId}
+                      pressable
+                      live={isLive}
+                      padding={0}
                       overflow="hidden"
+                      onPress={() =>
+                        router.push(
+                          `/league/${e.leagueId}/round/${e.roundId}`
+                        )
+                      }
+                      testID={`my-cm-entry-${e.entryId}`}
                     >
-                      <YStack
-                        width={`${Math.round(progress * 100)}%`}
-                        height={3}
-                        backgroundColor={isLive ? "$colorCricket" : "$accentBackground"}
-                      />
-                    </YStack>
-                  </Card>
-                </Animated.View>
-              );
-            })}
-          </YStack>
+                      {/* Main content area */}
+                      <YStack padding="$3" paddingBottom="$3">
+                        {/* Row 1: "round name in league name" + status badge */}
+                        <XStack
+                          justifyContent="space-between"
+                          alignItems="flex-start"
+                          marginBottom="$3"
+                        >
+                          <Text flex={1} marginRight="$2" numberOfLines={2}>
+                            <Text
+                              fontFamily="$body"
+                              fontWeight="700"
+                              fontSize={15}
+                              color="$accentBackground"
+                            >
+                              🏆 {formatUIText(e.roundName ?? `round ${e.roundNumber}`)}
+                            </Text>
+                            <Text
+                              fontFamily="$mono"
+                              fontSize={12}
+                              color="$colorMuted"
+                            >
+                              {" "}{formatUIText("in")}{" "}
+                            </Text>
+                            <Text
+                              fontFamily="$body"
+                              fontWeight="600"
+                              fontSize={13}
+                              color="$color"
+                            >
+                              {formatUIText(e.leagueName)}
+                            </Text>
+                          </Text>
+                          <Badge variant={isLive ? "live" : "default"} size="sm">
+                            {formatBadgeText(e.roundStatus)}
+                          </Badge>
+                        </XStack>
+
+                        {/* Row 2: NRR / BAT / BOWL stat tiles — same shape as
+                            rank/points on MyContestsSection */}
+                        <XStack
+                          justifyContent="center"
+                          alignItems="center"
+                          gap="$5"
+                        >
+                          <YStack alignItems="center">
+                            <Text
+                              fontFamily="$mono"
+                              fontWeight="800"
+                              fontSize={18}
+                              color={e.nrr >= 0 ? "$colorCricket" : "$error"}
+                            >
+                              {nrrLabel}
+                            </Text>
+                            <Text
+                              fontFamily="$mono"
+                              fontSize={9}
+                              color="$colorMuted"
+                            >
+                              {formatUIText("nrr")}
+                            </Text>
+                          </YStack>
+                          <YStack
+                            width={1}
+                            height={28}
+                            backgroundColor="$borderColor"
+                          />
+                          <YStack alignItems="center">
+                            <Text
+                              fontFamily="$mono"
+                              fontWeight="800"
+                              fontSize={18}
+                              color="$color"
+                            >
+                              {e.battingTotal ?? 0}
+                            </Text>
+                            <Text
+                              fontFamily="$mono"
+                              fontSize={9}
+                              color="$colorMuted"
+                            >
+                              {formatUIText("bat")}
+                            </Text>
+                          </YStack>
+                          <YStack
+                            width={1}
+                            height={28}
+                            backgroundColor="$borderColor"
+                          />
+                          <YStack alignItems="center">
+                            <Text
+                              fontFamily="$mono"
+                              fontWeight="800"
+                              fontSize={18}
+                              color="$color"
+                            >
+                              {e.bowlingTotal ?? 0}
+                            </Text>
+                            <Text
+                              fontFamily="$mono"
+                              fontSize={9}
+                              color="$colorMuted"
+                            >
+                              {formatUIText("bowl")}
+                            </Text>
+                          </YStack>
+                        </XStack>
+                      </YStack>
+
+                      {/* Bottom strip — match progress + status */}
+                      <XStack
+                        backgroundColor="$backgroundSurfaceAlt"
+                        paddingVertical="$3"
+                        paddingHorizontal="$4"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        borderTopWidth={1}
+                        borderTopColor="$borderColor"
+                      >
+                        <Text
+                          fontFamily="$mono"
+                          fontSize={11}
+                          fontWeight="600"
+                          color="$colorAccent"
+                          numberOfLines={1}
+                        >
+                          {e.matchesCompleted}/{e.matchesTotal}{" "}
+                          {formatUIText("matches")}
+                          {isLive ? (
+                            <Text
+                              fontFamily="$mono"
+                              fontSize={11}
+                              color="$colorMuted"
+                            >
+                              {"  ·  "}{formatUIText("live")}
+                            </Text>
+                          ) : isSettled ? (
+                            <Text
+                              fontFamily="$mono"
+                              fontSize={11}
+                              color="$colorMuted"
+                            >
+                              {"  ·  "}{formatUIText("settled")}
+                            </Text>
+                          ) : null}
+                        </Text>
+                        <Text
+                          fontFamily="$mono"
+                          fontSize={10}
+                          color="$colorMuted"
+                        >
+                          {formatUIText("free entry")}
+                        </Text>
+                      </XStack>
+                    </Card>
+                  );
+                })}
+              </YStack>
+            </YStack>
+          </Animated.View>
         )}
 
         {/* ── Waiting for your team — both salary-cap contests AND CM rounds
