@@ -901,6 +901,89 @@ export default function HomeScreen() {
           </YStack>
         )}
 
+        {/* ── My CM Entries — in-progress CM rounds with a submitted entry.
+            Sits directly under "my contests" so users see all active
+            competitions together in one visual band rather than hunting
+            for CM further down the feed. */}
+        {user && (cmActiveEntriesQuery.data?.length ?? 0) > 0 && (
+          <YStack marginBottom="$4" paddingHorizontal="$4">
+            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$color" marginBottom="$2">
+              {formatUIText("your cricket manager entries")}
+            </Text>
+            {(cmActiveEntriesQuery.data ?? []).map((e: any) => {
+              const isLive = e.roundStatus === "live";
+              const progress = e.matchesTotal > 0 ? e.matchesCompleted / e.matchesTotal : 0;
+              const nrrLabel = e.nrr > 0 ? `+${e.nrr.toFixed(2)}` : e.nrr.toFixed(2);
+              return (
+                <Animated.View key={e.entryId} entering={FadeInDown.springify()}>
+                  <Card
+                    marginBottom="$2"
+                    padding="$3"
+                    pressable
+                    onPress={() => router.push(`/league/${e.leagueId}/round/${e.roundId}`)}
+                    cursor="pointer"
+                    borderColor={isLive ? "$colorCricket" : "$borderColor"}
+                    borderWidth={isLive ? 2 : 1}
+                  >
+                    <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
+                      <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" flex={1} numberOfLines={1}>
+                        🏆 {e.leagueName} · {e.roundName}
+                      </Text>
+                      <Badge variant={isLive ? "live" : "role"} size="sm">
+                        {formatBadgeText(e.roundStatus)}
+                      </Badge>
+                    </XStack>
+                    <XStack justifyContent="space-between" alignItems="center">
+                      <XStack gap="$3" alignItems="center">
+                        <YStack>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatBadgeText("nrr")}
+                          </Text>
+                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={e.nrr >= 0 ? "$colorCricket" : "$error"}>
+                            {nrrLabel}
+                          </Text>
+                        </YStack>
+                        <YStack>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatBadgeText("bat")}
+                          </Text>
+                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
+                            {e.battingTotal ?? 0}
+                          </Text>
+                        </YStack>
+                        <YStack>
+                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
+                            {formatBadgeText("bowl")}
+                          </Text>
+                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
+                            {e.bowlingTotal ?? 0}
+                          </Text>
+                        </YStack>
+                      </XStack>
+                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                        {e.matchesCompleted}/{e.matchesTotal} {formatUIText("matches")}
+                      </Text>
+                    </XStack>
+                    <YStack
+                      marginTop="$2"
+                      height={3}
+                      backgroundColor="$backgroundSurfaceAlt"
+                      borderRadius={2}
+                      overflow="hidden"
+                    >
+                      <YStack
+                        width={`${Math.round(progress * 100)}%`}
+                        height={3}
+                        backgroundColor={isLive ? "$colorCricket" : "$accentBackground"}
+                      />
+                    </YStack>
+                  </Card>
+                </Animated.View>
+              );
+            })}
+          </YStack>
+        )}
+
         {/* ── Waiting for your team — both salary-cap contests AND CM rounds
             that the user is eligible for but hasn't built a team / entry
             for yet. Unified section so users don't have to check two
@@ -1016,88 +1099,6 @@ export default function HomeScreen() {
                       </YStack>
                       <Badge variant="role" size="sm">{formatBadgeText("build entry")}</Badge>
                     </XStack>
-                  </Card>
-                </Animated.View>
-              );
-            })}
-          </YStack>
-        )}
-
-        {/* ── My CM Entries — rounds with a submitted entry, still in
-            progress (not settled). CM equivalent of "my contests". */}
-        {user && (cmActiveEntriesQuery.data?.length ?? 0) > 0 && (
-          <YStack marginBottom="$4" paddingHorizontal="$4">
-            <Text fontFamily="$mono" fontWeight="700" fontSize={13} color="$color" marginBottom="$2">
-              {formatUIText("your cricket manager entries")}
-            </Text>
-            {(cmActiveEntriesQuery.data ?? []).map((e: any) => {
-              const isLive = e.roundStatus === "live";
-              const progress = e.matchesTotal > 0 ? e.matchesCompleted / e.matchesTotal : 0;
-              const nrrLabel = e.nrr > 0 ? `+${e.nrr.toFixed(2)}` : e.nrr.toFixed(2);
-              return (
-                <Animated.View key={e.entryId} entering={FadeInDown.springify()}>
-                  <Card
-                    marginBottom="$2"
-                    padding="$3"
-                    pressable
-                    onPress={() => router.push(`/league/${e.leagueId}/round/${e.roundId}`)}
-                    cursor="pointer"
-                    borderColor={isLive ? "$colorCricket" : "$borderColor"}
-                    borderWidth={isLive ? 2 : 1}
-                  >
-                    <XStack justifyContent="space-between" alignItems="center" marginBottom="$2">
-                      <Text fontFamily="$body" fontWeight="700" fontSize={14} color="$color" flex={1} numberOfLines={1}>
-                        🏆 {e.leagueName} · {e.roundName}
-                      </Text>
-                      <Badge variant={isLive ? "live" : "role"} size="sm">
-                        {formatBadgeText(e.roundStatus)}
-                      </Badge>
-                    </XStack>
-                    <XStack justifyContent="space-between" alignItems="center">
-                      <XStack gap="$3" alignItems="center">
-                        <YStack>
-                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                            {formatBadgeText("nrr")}
-                          </Text>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color={e.nrr >= 0 ? "$colorCricket" : "$error"}>
-                            {nrrLabel}
-                          </Text>
-                        </YStack>
-                        <YStack>
-                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                            {formatBadgeText("bat")}
-                          </Text>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
-                            {e.battingTotal ?? 0}
-                          </Text>
-                        </YStack>
-                        <YStack>
-                          <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                            {formatBadgeText("bowl")}
-                          </Text>
-                          <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
-                            {e.bowlingTotal ?? 0}
-                          </Text>
-                        </YStack>
-                      </XStack>
-                      <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                        {e.matchesCompleted}/{e.matchesTotal} {formatUIText("matches")}
-                      </Text>
-                    </XStack>
-                    {/* Thin progress bar under the stats */}
-                    <YStack
-                      marginTop="$2"
-                      height={3}
-                      backgroundColor="$backgroundSurfaceAlt"
-                      borderRadius={2}
-                      overflow="hidden"
-                    >
-                      <YStack
-                        width={`${Math.round(progress * 100)}%`}
-                        height={3}
-                        backgroundColor={isLive ? "$colorCricket" : "$accentBackground"}
-                      />
-                    </YStack>
                   </Card>
                 </Animated.View>
               );

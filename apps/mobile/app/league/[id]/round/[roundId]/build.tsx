@@ -390,17 +390,14 @@ export default function EntryBuilderScreen() {
         const pB = projectionsByPlayerId.get(b.playerId)?.projectedPoints ?? 0;
         return pB - pA;
       });
-    } else if (smartFilter === "form") {
-      // Sort by recent SR (for batters) / 1/ER (for bowlers) as a form proxy
+    } else if (smartFilter === "form" || sortBy === "form") {
+      // Sort by the `recentForm` score that's displayed on the card —
+      // previously the sort used recentSr / recentEcon as a proxy, which
+      // didn't match the number users saw and made the "form" sort
+      // look broken.
       list = [...list].sort((a, b) => {
-        const fA =
-          canBowl(a.role) && a.recentEcon
-            ? 10 - a.recentEcon
-            : a.recentSr ?? 0;
-        const fB =
-          canBowl(b.role) && b.recentEcon
-            ? 10 - b.recentEcon
-            : b.recentSr ?? 0;
+        const fA = a.recentForm ?? -1;
+        const fB = b.recentForm ?? -1;
         return fB - fA;
       });
     } else if (sortBy === "projected" && projectionsByPlayerId.size > 0) {
@@ -410,10 +407,10 @@ export default function EntryBuilderScreen() {
         return pB - pA;
       });
     } else {
-      // Default: sort by strike rate / inverse economy (form proxy)
+      // Default: same as the form sort so the card and the order agree.
       list = [...list].sort((a, b) => {
-        const fA = a.recentSr ?? 0;
-        const fB = b.recentSr ?? 0;
+        const fA = a.recentForm ?? -1;
+        const fB = b.recentForm ?? -1;
         return fB - fA;
       });
     }
@@ -1007,12 +1004,19 @@ export default function EntryBuilderScreen() {
             </XStack>
           </XStack>
 
-          {/* Role tabs */}
-          <XStack
-            paddingHorizontal="$3"
-            paddingVertical="$2"
-            gap="$2"
-            flexWrap="wrap"
+          {/* Role tabs — horizontal scroll to keep them in one row.
+              Previously flex-wrapped into two rows which ate ~30px of
+              vertical budget on top of everything else. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              gap: 8,
+              alignItems: "center",
+            }}
+            style={{ flexGrow: 0, flexShrink: 0, height: 40 }}
           >
             {ROLE_TABS.map((tab) => {
               const count =
@@ -1022,7 +1026,6 @@ export default function EntryBuilderScreen() {
                   ? 0
                   : roleCounts[tab.key] ?? 0;
               const isActive = selectedTab === tab.key;
-              // Don't show "picked" tab at all until something is selected
               if (tab.key === "picked" && count === 0) return null;
               return (
                 <FilterPill
@@ -1042,23 +1045,43 @@ export default function EntryBuilderScreen() {
                 </FilterPill>
               );
             })}
-          </XStack>
+          </ScrollView>
 
-          {/* Sort toggles */}
-          <XStack
-            justifyContent="space-between"
-            alignItems="center"
-            paddingHorizontal="$4"
-            marginBottom="$1"
+          {/* Sort + smart filters merged into a single horizontally-scrolling
+              row. The "min X bowlers" hint was removed since the same
+              info is already in the round summary bar above ("6/5 bowl"). */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              gap: 6,
+              alignItems: "center",
+            }}
+            style={{ flexGrow: 0, flexShrink: 0, height: 36 }}
           >
-            <Text fontFamily="$body" fontSize={12} color="$colorMuted">
-              {formatUIText(`min ${round.minBowlers} bowlers (bowler or all-rounder)`)}
-            </Text>
-            <XStack gap="$1">
+            <FilterPill
+              active={sortBy === "form"}
+              onPress={() => {
+                setSortBy("form");
+                setSmartFilter("all");
+              }}
+            >
+              <Text
+                fontFamily="$mono"
+                fontSize={9}
+                fontWeight="700"
+                color={sortBy === "form" ? "$background" : "$colorMuted"}
+              >
+                {formatBadgeText("form")}
+              </Text>
+            </FilterPill>
+            {projectionsByPlayerId.size > 0 ? (
               <FilterPill
-                active={sortBy === "form"}
+                active={sortBy === "projected" && smartFilter === "all"}
                 onPress={() => {
-                  setSortBy("form");
+                  setSortBy("projected");
                   setSmartFilter("all");
                 }}
               >
@@ -1066,142 +1089,119 @@ export default function EntryBuilderScreen() {
                   fontFamily="$mono"
                   fontSize={9}
                   fontWeight="700"
-                  color={sortBy === "form" ? "$background" : "$colorMuted"}
+                  color={
+                    sortBy === "projected" && smartFilter === "all"
+                      ? "$background"
+                      : "$colorMuted"
+                  }
                 >
-                  {formatBadgeText("form")}
+                  {formatBadgeText("projected")}
                 </Text>
               </FilterPill>
-              {projectionsByPlayerId.size > 0 ? (
-                <FilterPill
-                  active={sortBy === "projected" && smartFilter === "all"}
-                  onPress={() => {
-                    setSortBy("projected");
-                    setSmartFilter("all");
-                  }}
+            ) : !canAccess("hasProjectedPoints") ? (
+              <Pressable
+                onPress={() =>
+                  gateFeature(
+                    "hasProjectedPoints",
+                    "pro",
+                    "Projected Points",
+                    "AI-estimated fantasy points for each player"
+                  )
+                }
+              >
+                <XStack
+                  paddingHorizontal={10}
+                  paddingVertical={6}
+                  borderRadius={14}
+                  borderWidth={1}
+                  borderColor="$borderColor"
+                  backgroundColor="$backgroundSurface"
+                  alignItems="center"
+                  gap={4}
+                  opacity={0.5}
                 >
                   <Text
                     fontFamily="$mono"
                     fontSize={9}
                     fontWeight="700"
-                    color={
-                      sortBy === "projected" && smartFilter === "all"
-                        ? "$background"
-                        : "$colorMuted"
-                    }
+                    color="$colorMuted"
                   >
                     {formatBadgeText("projected")}
                   </Text>
-                </FilterPill>
-              ) : !canAccess("hasProjectedPoints") ? (
-                <Pressable
-                  onPress={() =>
-                    gateFeature(
-                      "hasProjectedPoints",
-                      "pro",
-                      "Projected Points",
-                      "AI-estimated fantasy points for each player"
-                    )
-                  }
-                >
-                  <XStack
-                    paddingHorizontal={10}
-                    paddingVertical={6}
-                    borderRadius={14}
-                    borderWidth={1}
-                    borderColor="$borderColor"
-                    backgroundColor="$backgroundSurface"
-                    alignItems="center"
-                    gap={4}
-                    opacity={0.5}
-                  >
-                    <Text
-                      fontFamily="$mono"
-                      fontSize={9}
-                      fontWeight="700"
-                      color="$colorMuted"
-                    >
-                      {formatBadgeText("projected")}
-                    </Text>
-                    <TierBadge tier="pro" size="sm" />
-                  </XStack>
-                </Pressable>
-              ) : null}
-            </XStack>
-          </XStack>
+                  <TierBadge tier="pro" size="sm" />
+                </XStack>
+              </Pressable>
+            ) : null}
 
-          {/* Smart Picks filter strip */}
-          {selectedIds.length >= 3 && projectionsByPlayerId.size > 0 && (
-            <XStack
-              paddingHorizontal="$4"
-              paddingBottom="$2"
-              gap="$2"
-              flexWrap="wrap"
-            >
-              <SmartPill
-                emoji="🔮"
-                label="ai top"
-                active={smartFilter === "all" && sortBy === "projected"}
-                onPress={() => {
-                  setSmartFilter("all");
-                  setSortBy("projected");
-                }}
-              />
-              {differentialNames.size > 0 ? (
+            {/* Smart Picks inline (only when projections ready + 3+ picks) */}
+            {selectedIds.length >= 3 && projectionsByPlayerId.size > 0 && (
+              <>
                 <SmartPill
-                  emoji="💎"
-                  label="diffs"
-                  active={smartFilter === "differentials"}
-                  onPress={() => setSmartFilter("differentials")}
+                  emoji="🔮"
+                  label="ai top"
+                  active={smartFilter === "all" && sortBy === "projected"}
+                  onPress={() => {
+                    setSmartFilter("all");
+                    setSortBy("projected");
+                  }}
                 />
-              ) : !canAccess("hasDifferentials") ? (
-                <Pressable
-                  onPress={() =>
-                    gateFeature(
-                      "hasDifferentials",
-                      "pro",
-                      "Differentials",
-                      "Low-ownership high-upside picks"
-                    )
-                  }
-                >
-                  <XStack
-                    paddingHorizontal={10}
-                    paddingVertical={5}
-                    borderRadius={14}
-                    borderWidth={1}
-                    borderColor="$borderColor"
-                    backgroundColor="$backgroundSurface"
-                    alignItems="center"
-                    gap={4}
-                    opacity={0.5}
+                {differentialNames.size > 0 ? (
+                  <SmartPill
+                    emoji="💎"
+                    label="diffs"
+                    active={smartFilter === "differentials"}
+                    onPress={() => setSmartFilter("differentials")}
+                  />
+                ) : !canAccess("hasDifferentials") ? (
+                  <Pressable
+                    onPress={() =>
+                      gateFeature(
+                        "hasDifferentials",
+                        "pro",
+                        "Differentials",
+                        "Low-ownership high-upside picks"
+                      )
+                    }
                   >
-                    <Text fontSize={10}>💎</Text>
-                    <Text
-                      fontFamily="$mono"
-                      fontSize={9}
-                      fontWeight="700"
-                      color="$colorMuted"
+                    <XStack
+                      paddingHorizontal={10}
+                      paddingVertical={5}
+                      borderRadius={14}
+                      borderWidth={1}
+                      borderColor="$borderColor"
+                      backgroundColor="$backgroundSurface"
+                      alignItems="center"
+                      gap={4}
+                      opacity={0.5}
                     >
-                      {formatBadgeText("diffs")}
-                    </Text>
-                    <TierBadge tier="pro" size="sm" />
-                  </XStack>
-                </Pressable>
-              ) : null}
-              <SmartPill
-                emoji="📈"
-                label="value"
-                active={smartFilter === "value"}
-                onPress={() => setSmartFilter("value")}
-              />
-              <SmartPill
-                emoji="🔥"
-                label="form"
-                active={smartFilter === "form"}
-                onPress={() => setSmartFilter("form")}
-              />
-            </XStack>
-          )}
+                      <Text fontSize={10}>💎</Text>
+                      <Text
+                        fontFamily="$mono"
+                        fontSize={9}
+                        fontWeight="700"
+                        color="$colorMuted"
+                      >
+                        {formatBadgeText("diffs")}
+                      </Text>
+                      <TierBadge tier="pro" size="sm" />
+                    </XStack>
+                  </Pressable>
+                ) : null}
+                <SmartPill
+                  emoji="📈"
+                  label="value"
+                  active={smartFilter === "value"}
+                  onPress={() => setSmartFilter("value")}
+                />
+                <SmartPill
+                  emoji="🔥"
+                  label="form"
+                  active={smartFilter === "form"}
+                  onPress={() => setSmartFilter("form")}
+                />
+              </>
+            )}
+          </ScrollView>
 
           {/* Player list — virtualized via FlatList. Previously this was a
               ScrollView mapping all 247 eligible players at once, which

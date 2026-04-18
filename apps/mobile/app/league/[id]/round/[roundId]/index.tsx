@@ -413,6 +413,100 @@ export default function RoundHubScreen() {
             </Animated.View>
           )}
 
+        {/* Primary actions — elevated above the match list so users don't
+            have to scroll to start the core flow. Secondary "leaderboard"
+            link stays a quiet text link, not a full-width button, so it
+            doesn't dilute the CTA hierarchy. */}
+        <YStack marginTop="$4" gap="$2">
+          <Button
+            variant={cta.variant}
+            size="lg"
+            disabled={cta.disabled}
+            onPress={onCtaPress}
+            testID="round-cta"
+          >
+            {formatUIText(cta.label)}
+          </Button>
+          {round.status !== "upcoming" && (
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={() =>
+                router.push(
+                  `/league/${leagueId}/round/${roundId}/leaderboard` as never
+                )
+              }
+            >
+              {formatUIText("leaderboard")}
+            </Button>
+          )}
+        </YStack>
+
+        {/* Your squad — render the user's picks in a horizontally-scrollable
+            strip once they've built an entry, so they can see who's playing
+            for them from the round page without going back to the build
+            flow. Hidden until an entry exists. */}
+        {round.myEntry && (
+          <YStack marginTop="$4">
+            <Text
+              fontFamily="$mono"
+              fontSize={12}
+              color="$colorMuted"
+              textTransform="uppercase"
+              letterSpacing={1}
+              marginBottom="$2"
+            >
+              {formatUIText("your squad")}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 12, paddingVertical: 4 }}
+            >
+              {(
+                (round.myEntry.players ?? []) as Array<{ playerId: string }>
+              ).map((pick) => {
+                const p = eligibleById.get(pick.playerId);
+                if (!p) return null;
+                return (
+                  <YStack
+                    key={pick.playerId}
+                    alignItems="center"
+                    width={52}
+                  >
+                    <InitialsAvatar
+                      name={p.name}
+                      playerRole={
+                        p.role === "bowler"
+                          ? "BOWL"
+                          : p.role === "all_rounder"
+                            ? "AR"
+                            : p.role === "wicket_keeper"
+                              ? "WK"
+                              : "BAT"
+                      }
+                      ovr={0}
+                      size={40}
+                      hideBadge
+                      imageUrl={p.photoUrl ?? undefined}
+                    />
+                    <Text
+                      fontFamily="$body"
+                      fontSize={9}
+                      color="$color"
+                      numberOfLines={1}
+                      marginTop={4}
+                      textAlign="center"
+                    >
+                      {p.name.split(" ").pop() ?? p.name}
+                    </Text>
+                  </YStack>
+                );
+              })}
+            </ScrollView>
+          </YStack>
+        )}
+
         {/* Matches in this round */}
         <Text
           fontFamily="$mono"
@@ -508,31 +602,6 @@ export default function RoundHubScreen() {
           })
         )}
 
-        {/* CTA */}
-        <YStack marginTop="$4" gap="$2">
-          <Button
-            variant={cta.variant}
-            size="lg"
-            disabled={cta.disabled}
-            onPress={onCtaPress}
-            testID="round-cta"
-          >
-            {formatUIText(cta.label)}
-          </Button>
-          {round.status !== "upcoming" && (
-            <Button
-              variant="secondary"
-              size="md"
-              onPress={() =>
-                router.push(
-                  `/league/${leagueId}/round/${roundId}/leaderboard` as never
-                )
-              }
-            >
-              {formatUIText("leaderboard")}
-            </Button>
-          )}
-        </YStack>
       </ScrollView>
     </YStack>
   );
