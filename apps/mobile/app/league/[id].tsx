@@ -1396,6 +1396,33 @@ function buildRuleSections(league: any): Array<{ title: string; rows: Array<{ la
     });
   }
 
+  if (rules.scoring) {
+    const s = rules.scoring;
+    const battingRows: Array<{ label: string; value: string }> = [];
+    if (s.runPoints != null) battingRows.push({ label: "run", value: `${s.runPoints} pt${s.runPoints === 1 ? "" : "s"}` });
+    if (s.boundaryBonus != null) battingRows.push({ label: "four bonus", value: `+${s.boundaryBonus}` });
+    if (s.sixBonus != null) battingRows.push({ label: "six bonus", value: `+${s.sixBonus}` });
+    if (s.halfCenturyBonus != null) battingRows.push({ label: "50 bonus", value: `+${s.halfCenturyBonus}` });
+    if (s.centuryBonus != null) battingRows.push({ label: "100 bonus", value: `+${s.centuryBonus}` });
+    if (s.duckPenalty != null && s.duckPenalty !== 0) battingRows.push({ label: "duck", value: `${s.duckPenalty}` });
+    if (battingRows.length) sections.push({ title: "scoring — batting", rows: battingRows });
+
+    const bowlingRows: Array<{ label: string; value: string }> = [];
+    if (s.wicketPoints != null) bowlingRows.push({ label: "wicket", value: `${s.wicketPoints}` });
+    if (s.maidenOverPoints != null) bowlingRows.push({ label: "maiden over", value: `+${s.maidenOverPoints}` });
+    if (s.threeWicketBonus != null) bowlingRows.push({ label: "3 wickets", value: `+${s.threeWicketBonus}` });
+    if (s.fiveWicketBonus != null) bowlingRows.push({ label: "5 wickets", value: `+${s.fiveWicketBonus}` });
+    if (bowlingRows.length) sections.push({ title: "scoring — bowling", rows: bowlingRows });
+
+    const fieldingRows: Array<{ label: string; value: string }> = [];
+    if (s.catchPoints != null) fieldingRows.push({ label: "catch", value: `${s.catchPoints}` });
+    if (s.stumpingPoints != null) fieldingRows.push({ label: "stumping", value: `${s.stumpingPoints}` });
+    if (s.runOutDirectPoints != null) fieldingRows.push({ label: "run-out (direct)", value: `${s.runOutDirectPoints}` });
+    if (s.runOutIndirectPoints != null) fieldingRows.push({ label: "run-out (assist)", value: `${s.runOutIndirectPoints}` });
+    if (s.playerOfMatchBonus != null) fieldingRows.push({ label: "player of match", value: `+${s.playerOfMatchBonus}` });
+    if (fieldingRows.length) sections.push({ title: "scoring — fielding + match", rows: fieldingRows });
+  }
+
   if (rules.transfers && (rules.transfers.maxTransfersPerWeek ?? 0) > 0) {
     const t = rules.transfers;
     const rows: Array<{ label: string; value: string }> = [

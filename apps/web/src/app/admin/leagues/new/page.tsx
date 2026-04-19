@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
-import { FULL_LEAGUE_TEMPLATES } from "@draftplay/shared";
+import { FULL_LEAGUE_TEMPLATES, DEFAULT_T20_SCORING } from "@draftplay/shared";
 
 type Format =
   | "cricket_manager"
@@ -97,6 +97,23 @@ export default function NewAdminLeaguePage() {
   const [auMaxBidTime, setAuMaxBidTime] = useState(15);
   const [auMaxPlayersPerTeam, setAuMaxPlayersPerTeam] = useState(11);
 
+  // ── Scoring rules (cricket) — seeded from the T20 default ──────────
+  const [sRunPoints, setSRunPoints] = useState(DEFAULT_T20_SCORING.runPoints ?? 1);
+  const [sBoundaryBonus, setSBoundaryBonus] = useState(DEFAULT_T20_SCORING.boundaryBonus ?? 1);
+  const [sSixBonus, setSSixBonus] = useState(DEFAULT_T20_SCORING.sixBonus ?? 2);
+  const [sHalfCenturyBonus, setSHalfCenturyBonus] = useState(DEFAULT_T20_SCORING.halfCenturyBonus ?? 20);
+  const [sCenturyBonus, setSCenturyBonus] = useState(DEFAULT_T20_SCORING.centuryBonus ?? 50);
+  const [sDuckPenalty, setSDuckPenalty] = useState(DEFAULT_T20_SCORING.duckPenalty ?? -5);
+  const [sWicketPoints, setSWicketPoints] = useState(DEFAULT_T20_SCORING.wicketPoints ?? 25);
+  const [sMaidenOverPoints, setSMaidenOverPoints] = useState(DEFAULT_T20_SCORING.maidenOverPoints ?? 15);
+  const [sThreeWicketBonus, setSThreeWicketBonus] = useState(DEFAULT_T20_SCORING.threeWicketBonus ?? 15);
+  const [sFiveWicketBonus, setSFiveWicketBonus] = useState(DEFAULT_T20_SCORING.fiveWicketBonus ?? 30);
+  const [sCatchPoints, setSCatchPoints] = useState(DEFAULT_T20_SCORING.catchPoints ?? 10);
+  const [sStumpingPoints, setSStumpingPoints] = useState(DEFAULT_T20_SCORING.stumpingPoints ?? 15);
+  const [sRunOutDirect, setSRunOutDirect] = useState(DEFAULT_T20_SCORING.runOutDirectPoints ?? 15);
+  const [sRunOutIndirect, setSRunOutIndirect] = useState(DEFAULT_T20_SCORING.runOutIndirectPoints ?? 10);
+  const [sPotmBonus, setSPotmBonus] = useState(DEFAULT_T20_SCORING.playerOfMatchBonus ?? 25);
+
   const tournaments = trpc.admin.tournaments.list.useQuery();
   const tournamentOptions = useMemo(
     () => (tournaments.data ?? []).map((t: { id: string; name: string }) => t),
@@ -138,6 +155,29 @@ export default function NewAdminLeaguePage() {
       // Custom → apply format-specific overrides from the UI. Other
       // categories fall back to CASUAL defaults server-side via the
       // deepMergeRules helper so the league is still playable.
+
+      // Scoring rules apply to every cricket match-based format. Users
+      // can tune them from the form; remaining CricketScoringRules
+      // fields (strikeRateBonus / economyRateBonus tiers) inherit the
+      // T20 defaults on the backend.
+      rules.scoring = {
+        runPoints: sRunPoints,
+        boundaryBonus: sBoundaryBonus,
+        sixBonus: sSixBonus,
+        halfCenturyBonus: sHalfCenturyBonus,
+        centuryBonus: sCenturyBonus,
+        duckPenalty: sDuckPenalty,
+        wicketPoints: sWicketPoints,
+        maidenOverPoints: sMaidenOverPoints,
+        threeWicketBonus: sThreeWicketBonus,
+        fiveWicketBonus: sFiveWicketBonus,
+        catchPoints: sCatchPoints,
+        stumpingPoints: sStumpingPoints,
+        runOutDirectPoints: sRunOutDirect,
+        runOutIndirectPoints: sRunOutIndirect,
+        playerOfMatchBonus: sPotmBonus,
+      };
+
       if (format === "salary_cap") {
         rules.teamComposition = {
           teamSize: scTeamSize,
@@ -343,6 +383,179 @@ export default function NewAdminLeaguePage() {
 
             {activeTemplate && (
               <TemplateSummary rules={activeTemplate} format={format} />
+            )}
+
+            {template === "custom" && format !== "prediction" && (
+              <>
+                <Divider label="Scoring — batting" />
+                <TwoCol
+                  left={
+                    <Field label="Run (per run)">
+                      <input
+                        type="number"
+                        step={0.5}
+                        value={sRunPoints}
+                        onChange={(e) => setSRunPoints(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Duck penalty">
+                      <input
+                        type="number"
+                        value={sDuckPenalty}
+                        onChange={(e) => setSDuckPenalty(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+                <TwoCol
+                  left={
+                    <Field label="Boundary bonus (per 4)">
+                      <input
+                        type="number"
+                        value={sBoundaryBonus}
+                        onChange={(e) => setSBoundaryBonus(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Six bonus (per 6)">
+                      <input
+                        type="number"
+                        value={sSixBonus}
+                        onChange={(e) => setSSixBonus(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+                <TwoCol
+                  left={
+                    <Field label="Half-century bonus">
+                      <input
+                        type="number"
+                        value={sHalfCenturyBonus}
+                        onChange={(e) => setSHalfCenturyBonus(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Century bonus">
+                      <input
+                        type="number"
+                        value={sCenturyBonus}
+                        onChange={(e) => setSCenturyBonus(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+
+                <Divider label="Scoring — bowling" />
+                <TwoCol
+                  left={
+                    <Field label="Wicket points">
+                      <input
+                        type="number"
+                        value={sWicketPoints}
+                        onChange={(e) => setSWicketPoints(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Maiden over bonus">
+                      <input
+                        type="number"
+                        value={sMaidenOverPoints}
+                        onChange={(e) => setSMaidenOverPoints(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+                <TwoCol
+                  left={
+                    <Field label="3-wicket bonus">
+                      <input
+                        type="number"
+                        value={sThreeWicketBonus}
+                        onChange={(e) => setSThreeWicketBonus(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="5-wicket bonus">
+                      <input
+                        type="number"
+                        value={sFiveWicketBonus}
+                        onChange={(e) => setSFiveWicketBonus(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+
+                <Divider label="Scoring — fielding + match" />
+                <TwoCol
+                  left={
+                    <Field label="Catch points">
+                      <input
+                        type="number"
+                        value={sCatchPoints}
+                        onChange={(e) => setSCatchPoints(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Stumping points">
+                      <input
+                        type="number"
+                        value={sStumpingPoints}
+                        onChange={(e) => setSStumpingPoints(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+                <TwoCol
+                  left={
+                    <Field label="Run-out (direct)">
+                      <input
+                        type="number"
+                        value={sRunOutDirect}
+                        onChange={(e) => setSRunOutDirect(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                  right={
+                    <Field label="Run-out (indirect)">
+                      <input
+                        type="number"
+                        value={sRunOutIndirect}
+                        onChange={(e) => setSRunOutIndirect(Number(e.target.value) || 0)}
+                        style={inputStyle}
+                      />
+                    </Field>
+                  }
+                />
+                <Field label="Player of the match bonus">
+                  <input
+                    type="number"
+                    value={sPotmBonus}
+                    onChange={(e) => setSPotmBonus(Number(e.target.value) || 0)}
+                    style={inputStyle}
+                  />
+                </Field>
+              </>
             )}
 
             {template === "custom" && format === "salary_cap" && (
