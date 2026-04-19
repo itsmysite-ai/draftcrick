@@ -766,14 +766,17 @@ export default function MatchScreen() {
                 {dbContests.map((contest: any, i: number) => {
                   const isJoined = myContestIds.has(contest.id);
                   const isFull = contest.currentEntries >= contest.maxEntries;
+                  const isUnlimited = contest.maxEntries >= 10000;
                   return (
                     <ContestOption
                       key={contest.id}
                       title={contest.name}
-                      subtitle={`${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
+                      subtitle={isUnlimited
+                        ? `${contest.contestType} · ${contest.currentEntries} joined`
+                        : `${contest.contestType} · ${contest.currentEntries}/${contest.maxEntries} joined`}
                       prize={contest.prizePool > 0 ? `${contest.prizePool.toLocaleString()} pc` : "glory"}
                       entry={contest.entryFee === 0 ? "free" : String(contest.entryFee)}
-                      spots={`${contest.maxEntries - contest.currentEntries}`}
+                      spots={isUnlimited ? "open" : `${contest.maxEntries - contest.currentEntries}`}
                       joined={isJoined}
                       onPlay={!isJoined && !isFull && match?.draftEnabled ? () => goToTeamCreate(contest.id) : undefined}
                       highlight={(() => {

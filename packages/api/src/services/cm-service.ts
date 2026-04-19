@@ -1252,13 +1252,19 @@ export async function tickRoundLifecycles(db: Database) {
     // silently every poll, blocking idle→pre_match transitions and the
     // round lifecycle reconciliation that follows.
     const in24hIso = in24h.toISOString();
+    // Only auto-phase matches that belong to tournaments the admin
+    // has flipped on. Invisible tournaments are parked — we don't want
+    // their matches going live on the user app before the admin is
+    // ready to promote them.
     const toPhaseUp = await db
       .select({ id: matches.id, teamHome: matches.teamHome, teamAway: matches.teamAway })
       .from(matches)
+      .innerJoin(tournaments, eq(tournaments.id, matches.tournamentId))
       .where(
         and(
           eq(matches.status, "upcoming"),
           eq(matches.matchPhase, "idle"),
+          eq(tournaments.isVisible, true),
           sql`${matches.startTime} < ${in24hIso}`
         )
       );

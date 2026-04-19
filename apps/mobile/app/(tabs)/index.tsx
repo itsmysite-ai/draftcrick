@@ -307,7 +307,11 @@ function MyContestsSection({
 
           // Countdown for pre-match
           const countdownText = matchDate ? formatCountdown(matchDate) : null;
-          const spotsLeft = contest?.maxEntries && contest?.currentEntries != null ? contest.maxEntries - contest.currentEntries : null;
+          // Unlimited leagues use a 100k sentinel for maxEntries — hide
+          // the cap / spots-left on those because "99,999 spots left"
+          // is meaningless noise. Threshold: any cap >= 10k.
+          const isUnlimitedCap = (contest?.maxEntries ?? 0) >= 10000;
+          const spotsLeft = !isUnlimitedCap && contest?.maxEntries && contest?.currentEntries != null ? contest.maxEntries - contest.currentEntries : null;
 
           return (
             <Card
@@ -369,7 +373,10 @@ function MyContestsSection({
                       <YStack width={1} height={28} backgroundColor="$borderColor" />
                       <YStack alignItems="center">
                         <Text fontFamily="$mono" fontWeight="800" fontSize={18} color="$color">
-                          {contest?.currentEntries ?? 0}<Text fontWeight="400" fontSize={13} color="$colorMuted">/{contest?.maxEntries ?? "?"}</Text>
+                          {contest?.currentEntries ?? 0}
+                          {!isUnlimitedCap && (
+                            <Text fontWeight="400" fontSize={13} color="$colorMuted">/{contest?.maxEntries ?? "?"}</Text>
+                          )}
                         </Text>
                         <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
                           {formatUIText("joined")}
@@ -1156,7 +1163,9 @@ export default function HomeScreen() {
                             </XStack>
                           )}
                           <Text fontFamily="$mono" fontSize={9} color="$colorMuted">
-                            {pc.currentEntries}/{pc.maxEntries} {formatUIText("joined")} · {pc.entryFee === 0 ? formatUIText("free") : `${pc.entryFee} PC`}
+                            {pc.currentEntries}
+                            {(pc.maxEntries ?? 0) < 10000 ? `/${pc.maxEntries}` : ""}
+                            {" "}{formatUIText("joined")} · {pc.entryFee === 0 ? formatUIText("free") : `${pc.entryFee} PC`}
                           </Text>
                         </XStack>
                       </YStack>

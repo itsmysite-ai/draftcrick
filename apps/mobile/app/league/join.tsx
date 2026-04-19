@@ -153,7 +153,9 @@ export default function JoinLeagueScreen() {
                   </Text>
                 )}
                 <Text fontFamily="$mono" fontSize={11} color="$colorMuted">
-                  {preview.memberCount}/{preview.maxMembers} {formatUIText("members")}
+                  {preview.memberCount}
+                  {preview.maxMembers < 10000 ? `/${preview.maxMembers}` : ""}
+                  {" "}{formatUIText("members")}
                   {preview.isFull && ` · ${formatUIText("full")}`}
                 </Text>
               </Card>

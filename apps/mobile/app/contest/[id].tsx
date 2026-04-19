@@ -763,7 +763,9 @@ export default function ContestDetailScreen() {
                 {c.currentEntries < c.maxEntries && (
                   <Card padding="$3" alignItems="center" borderColor="$borderColor" borderWidth={1} gap="$2">
                     <Text fontFamily="$mono" fontSize={11} fontWeight="600" color="$colorMuted">
-                      {formatUIText(`${c.maxEntries - c.currentEntries} spots left — invite friends`)}
+                      {c.maxEntries >= 10000
+                        ? formatUIText("open contest — invite friends")
+                        : formatUIText(`${c.maxEntries - c.currentEntries} spots left — invite friends`)}
                     </Text>
                     <XStack gap="$2">
                       <Button variant="secondary" size="sm" flex={1} onPress={() => {
@@ -1106,7 +1108,7 @@ export default function ContestDetailScreen() {
           {[
             { label: formatUIText("prize pool"), value: c.prizePool > 0 ? `${c.prizePool.toLocaleString()} PC` : formatBadgeText("glory"), tid: "contest-prize-pool" },
             { label: formatUIText("entry fee"), value: c.entryFee === 0 ? formatBadgeText("free") : `${c.entryFee} PC`, tid: "contest-entry-fee" },
-            { label: formatUIText("spots"), value: `${c.currentEntries}/${c.maxEntries}`, tid: "contest-spots" },
+            { label: formatUIText("spots"), value: c.maxEntries >= 10000 ? `${c.currentEntries}` : `${c.currentEntries}/${c.maxEntries}`, tid: "contest-spots" },
             { label: formatUIText("type"), value: formatBadgeText(c.contestType ?? ""), tid: "contest-type" },
           ].map((item) => (
             <Card key={item.label} testID={item.tid} flex={1} minWidth="45%" padding="$3">
@@ -1119,8 +1121,9 @@ export default function ContestDetailScreen() {
         </XStack>
       )}
 
-      {/* Progress Bar */}
-      {!isLive && !isSettling && (
+      {/* Progress Bar — skipped for unlimited contests (bar and
+          "spots left" are meaningless when the cap is 100k) */}
+      {!isLive && !isSettling && c.maxEntries < 10000 && (
         <YStack paddingHorizontal="$4" marginBottom="$4">
           <YStack height={6} backgroundColor="$borderColor" borderRadius={3}>
             <YStack height={6} backgroundColor="$accentBackground" borderRadius={3} width={`${Math.min(100, (c.currentEntries / c.maxEntries) * 100)}%` as any} />

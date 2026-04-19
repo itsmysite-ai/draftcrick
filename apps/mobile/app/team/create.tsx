@@ -934,7 +934,9 @@ export default function TeamBuilderScreen() {
                           </Badge>
                         )}
                         <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                          {c.currentEntries}/{c.maxEntries} {formatUIText("joined")}
+                          {c.currentEntries}
+                          {c.maxEntries < 10000 ? `/${c.maxEntries}` : ""}
+                          {" "}{formatUIText("joined")}
                         </Text>
                       </XStack>
                     </YStack>
