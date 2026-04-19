@@ -822,6 +822,8 @@ function PerPlayerScorecard({
       wickets: number;
     }
   >();
+  let realBallsBowled = 0;
+  let realRunsConceded = 0;
   for (const d of (entry.bowlingDetails ?? []) as Array<{
     playerId: string;
     cappedOvers: number;
@@ -829,7 +831,24 @@ function PerPlayerScorecard({
     wickets: number;
   }>) {
     bowlingDetails.set(d.playerId, d);
+    if (d.cappedOvers > 0) {
+      const full = Math.floor(d.cappedOvers);
+      const partial = Math.round((d.cappedOvers - full) * 10);
+      realBallsBowled += full * 6 + partial;
+      realRunsConceded += d.runsConceded ?? 0;
+    }
   }
+  // bowlingBallsBowled on the entry is always 120 after phantom fill
+  // (bat_first toss) or the actual real total (bowl_first). The delta
+  // between that and the sum of per-bowler real balls is the phantom
+  // contribution that hasn't been bowled yet.
+  const totalBallsShown = entry.bowlingBallsBowled ?? 0;
+  const phantomBalls = Math.max(0, totalBallsShown - realBallsBowled);
+  const phantomRuns = Math.max(
+    0,
+    (entry.bowlingTotal ?? 0) - realRunsConceded
+  );
+  const hasPhantom = phantomBalls > 0 && !roundSettled;
 
   // Icon reflects the AGGREGATED state across all of a team's matches
   // in the round. A team with 1 done + 1 upcoming is "partial" (⏱), not
@@ -1049,23 +1068,37 @@ function PerPlayerScorecard({
         );
       })}
 
-      <XStack
+      <YStack
         marginTop="$2"
         paddingTop="$2"
         borderTopWidth={1}
         borderTopColor="$borderColor"
-        justifyContent="space-between"
+        gap={4}
       >
-        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-          {roundSettled ? "overs bowled" : "overs bowled so far"}
-        </Text>
-        <Text fontFamily="$mono" fontSize={10} color="$color" fontWeight="700">
-          {ballsToCricketOvers(entry.bowlingBallsBowled ?? 0).toFixed(1)}/20.0
-          {!roundSettled && (entry.bowlingBallsBowled ?? 0) < 120
-            ? " · more to come"
-            : ""}
-        </Text>
-      </XStack>
+        <XStack justifyContent="space-between">
+          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+            {roundSettled ? "overs bowled" : "overs bowled so far"}
+          </Text>
+          <Text fontFamily="$mono" fontSize={10} color="$color" fontWeight="700">
+            {ballsToCricketOvers(realBallsBowled).toFixed(1)}/20.0
+          </Text>
+        </XStack>
+        {hasPhantom && (
+          // The engine fills any gap between your bowlers' real overs
+          // and 20 overs with a projection at the round's average
+          // economy rate. Users were confused to see "20.0/20.0 overs
+          // bowled" while their bowlers clearly hadn't — make the
+          // projection visible so the bowling total makes sense.
+          <XStack justifyContent="space-between">
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+              {formatUIText("remaining (projected)")}
+            </Text>
+            <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+              +{ballsToCricketOvers(phantomBalls).toFixed(1)} ov · +{phantomRuns} runs
+            </Text>
+          </XStack>
+        )}
+      </YStack>
     </Card>
   );
 }

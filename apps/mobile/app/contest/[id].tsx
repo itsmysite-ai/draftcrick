@@ -754,11 +754,14 @@ export default function ContestDetailScreen() {
                 <Button variant="primary" size="lg" onPress={() => { if (match) { useNavigationStore.getState().setMatchContext({ matchId: match.id, contestId: c.id, teamA: match.teamHome, teamB: match.teamAway, format: match.format, venue: match.venue, tournament: match.tournament, editTeamId: myTeam.data?.id }); router.push(teamBuilderRoute as any); } }} testID="edit-team-btn">
                   {formatUIText("edit team")}
                 </Button>
+                {/* Swap teams — temporarily disabled. Revisit when we have
+                    clearer UX around swapping between multi-team entries.
                 {swappableTeams.length > 0 && (
                   <Button variant="secondary" size="md" onPress={() => setShowSwap(!showSwap)} testID="swap-team-btn">
                     {formatUIText(showSwap ? "cancel swap" : "swap with another team")}
                   </Button>
                 )}
+                */}
                 {/* Invite friends when spots available */}
                 {c.currentEntries < c.maxEntries && (
                   <Card padding="$3" alignItems="center" borderColor="$borderColor" borderWidth={1} gap="$2">
@@ -816,7 +819,7 @@ export default function ContestDetailScreen() {
         )}
       </YStack>
 
-      {/* Swap Team Picker */}
+      {/* Swap Team Picker — temporarily disabled. Revisit UX later.
       {showSwap && swappableTeams.length > 0 && (
         <Animated.View entering={FadeInDown.springify()}>
           <YStack paddingHorizontal="$4" marginBottom="$4" gap="$2">
@@ -850,6 +853,7 @@ export default function ContestDetailScreen() {
           </YStack>
         </Animated.View>
       )}
+      */}
 
       {/* Prize Distribution */}
       {c.prizePool > 0 && c.prizeDistribution && Array.isArray(c.prizeDistribution) && (c.prizeDistribution as Array<{ rank: number; amount: number }>).length > 0 && (
