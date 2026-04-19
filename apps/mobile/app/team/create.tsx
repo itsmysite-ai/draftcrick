@@ -92,9 +92,15 @@ function generateTeamName(teamA?: string, teamB?: string): string {
   ])();
 }
 
-const MAX_BUDGET = 100;
+const DEFAULT_MAX_BUDGET = 100;
 const TEAM_SIZE = 11;
-const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = { wicket_keeper: { min: 1, max: 4, label: "keeper" }, batsman: { min: 1, max: 6, label: "batter" }, all_rounder: { min: 1, max: 6, label: "all-rounder" }, bowler: { min: 1, max: 6, label: "bowler" } };
+const ROLE_LABELS: Record<string, string> = { wicket_keeper: "keeper", batsman: "batter", all_rounder: "all-rounder", bowler: "bowler" };
+const DEFAULT_ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = {
+  wicket_keeper: { min: 1, max: 4, label: "keeper" },
+  batsman: { min: 1, max: 6, label: "batter" },
+  all_rounder: { min: 1, max: 6, label: "all-rounder" },
+  bowler: { min: 1, max: 6, label: "bowler" },
+};
 const TABS = [{ key: "wicket_keeper", label: "keeper" }, { key: "batsman", label: "batter" }, { key: "all_rounder", label: "all-rounder" }, { key: "bowler", label: "bowler" }] as const;
 type SelectedPlayer = { playerId: string; role: string; name: string; team: string; credits: number; photoUrl?: string | null; nationality?: string };
 
@@ -179,6 +185,31 @@ export default function TeamBuilderScreen() {
   const [sortBy, setSortBy] = useState<"credits" | "projected">("projected");
   const editTeamId = navCtx?.editTeamId;
   const updateTeam = trpc.team.update.useMutation();
+
+  // Effective rules = global + tournament overrides + league overrides.
+  // When the builder is opened from a public match without a contest
+  // we fall back to the defaults (no league to pull from).
+  const effectiveRulesQuery = trpc.team.getEffectiveRules.useQuery(
+    { contestId: contestId ?? undefined, matchId: matchId ?? undefined },
+    { enabled: !!contestId || !!matchId, staleTime: 5 * 60 * 1000 }
+  );
+  const effectiveRules = effectiveRulesQuery.data;
+  const MAX_BUDGET = effectiveRules?.maxBudget ?? DEFAULT_MAX_BUDGET;
+  const ROLE_LIMITS: Record<string, { min: number; max: number; label: string }> = useMemo(() => {
+    const src = effectiveRules?.roleLimits;
+    if (!src) return DEFAULT_ROLE_LIMITS;
+    const result: Record<string, { min: number; max: number; label: string }> = {};
+    for (const key of ["wicket_keeper", "batsman", "all_rounder", "bowler"]) {
+      const entry = (src as any)[key];
+      const fallback = DEFAULT_ROLE_LIMITS[key]!;
+      result[key] = {
+        min: entry?.min ?? fallback.min,
+        max: entry?.max ?? fallback.max,
+        label: ROLE_LABELS[key] ?? fallback.label,
+      };
+    }
+    return result;
+  }, [effectiveRules?.roleLimits]);
 
   // Load existing team for editing
   const editTeamQuery = trpc.team.getByContest.useQuery(

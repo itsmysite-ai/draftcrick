@@ -5,9 +5,82 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { fantasyTeams, contests, players, matches, playerMatchScores, leagueMembers, users, leagues, draftRooms, draftPicks } from "@draftplay/db";
 import { TRPCError } from "@trpc/server";
 import { getPlayerCredits } from "../services/cricket-data";
-import { getEffectiveTeamRules } from "../services/admin-config";
+import { getEffectiveTeamRules, type TeamRules } from "../services/admin-config";
 import { getTierConfigs } from "../services/subscription";
 import { deductCoins } from "../services/pop-coins";
+
+// Apply league-level rule overrides onto the tournament-level TeamRules.
+// Custom-template leagues save rules as `league.rules.{teamComposition,
+// salary, ...}` (CompleteLeagueRules shape). Those overrides trump the
+// tournament defaults so admins can, e.g. set totalBudget=95 per league.
+// Safe to call with empty/missing rules — unmapped fields are left alone.
+function applyLeagueRulesOverride(
+  base: TeamRules,
+  leagueRules: Record<string, any> | null | undefined,
+): TeamRules {
+  if (!leagueRules) return base;
+  const tc = leagueRules.teamComposition;
+  const salary = leagueRules.salary;
+  const out: TeamRules = {
+    maxBudget: base.maxBudget,
+    maxOverseas: base.maxOverseas,
+    maxFromOneTeam: base.maxFromOneTeam,
+    roleLimits: { ...base.roleLimits },
+  };
+  if (salary && typeof salary.totalBudget === "number") {
+    out.maxBudget = salary.totalBudget;
+  }
+  if (tc) {
+    if (typeof tc.maxFromOneTeam === "number") out.maxFromOneTeam = tc.maxFromOneTeam;
+    if (typeof tc.maxOverseasPlayers === "number") out.maxOverseas = tc.maxOverseasPlayers;
+    const rl = { ...out.roleLimits };
+    if (typeof tc.minBatsmen === "number" || typeof tc.maxBatsmen === "number") {
+      rl.batsman = {
+        min: tc.minBatsmen ?? rl.batsman?.min ?? 1,
+        max: tc.maxBatsmen ?? rl.batsman?.max ?? 6,
+      };
+    }
+    if (typeof tc.minBowlers === "number" || typeof tc.maxBowlers === "number") {
+      rl.bowler = {
+        min: tc.minBowlers ?? rl.bowler?.min ?? 1,
+        max: tc.maxBowlers ?? rl.bowler?.max ?? 6,
+      };
+    }
+    if (typeof tc.minAllRounders === "number" || typeof tc.maxAllRounders === "number") {
+      rl.all_rounder = {
+        min: tc.minAllRounders ?? rl.all_rounder?.min ?? 1,
+        max: tc.maxAllRounders ?? rl.all_rounder?.max ?? 6,
+      };
+    }
+    if (typeof tc.minWicketKeepers === "number" || typeof tc.maxWicketKeepers === "number") {
+      rl.wicket_keeper = {
+        min: tc.minWicketKeepers ?? rl.wicket_keeper?.min ?? 1,
+        max: tc.maxWicketKeepers ?? rl.wicket_keeper?.max ?? 4,
+      };
+    }
+    out.roleLimits = rl;
+  }
+  return out;
+}
+
+// Fetch league rules for a contest. Returns null if the team has no
+// contest, the contest has no league, or the league has no custom rules.
+async function fetchLeagueRulesForContest(
+  db: any,
+  contestId: string | undefined,
+): Promise<Record<string, any> | null> {
+  if (!contestId) return null;
+  const contest = await db.query.contests.findFirst({
+    where: eq(contests.id, contestId),
+    columns: { leagueId: true },
+  });
+  if (!contest?.leagueId) return null;
+  const league = await db.query.leagues.findFirst({
+    where: eq(leagues.id, contest.leagueId),
+    columns: { rules: true },
+  });
+  return (league?.rules as Record<string, any>) ?? null;
+}
 
 // Fun team name generator — multiple patterns for variety
 const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
@@ -278,8 +351,15 @@ export const teamRouter = router({
         }
       }
 
-      // Get effective team rules (global + per-tournament overrides)
-      const rules = await getEffectiveTeamRules(tournamentId);
+      // Get effective team rules (global + per-tournament overrides),
+      // then layer league-level custom rules on top so admin-created
+      // leagues with bespoke budgets / squad composition are honored.
+      const baseRules = await getEffectiveTeamRules(tournamentId);
+      const leagueRulesForTeam = await fetchLeagueRulesForContest(
+        ctx.db,
+        input.contestId
+      );
+      const rules = applyLeagueRulesOverride(baseRules, leagueRulesForTeam);
 
       // Vice-captain defaults to captain if not provided (1-player team)
       const effectiveVC = input.viceCaptainId ?? input.captainId;
@@ -594,12 +674,26 @@ export const teamRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "No valid players found" });
       }
 
-      // Budget validation
+      // Budget validation — pull tournament id from the team's match so
+      // tournament-specific rules apply, then layer league rules on top.
+      let tournamentIdForUpdate: string | undefined;
+      if (team.matchId) {
+        const match = await ctx.db.query.matches.findFirst({
+          where: eq(matches.id, team.matchId),
+          columns: { tournamentId: true },
+        });
+        tournamentIdForUpdate = match?.tournamentId ?? undefined;
+      }
       let totalCredits = 0;
       for (const p of playerRecords) {
         totalCredits += getPlayerCredits(p.stats as Record<string, unknown>);
       }
-      const rules = await getEffectiveTeamRules(undefined);
+      const baseRules = await getEffectiveTeamRules(tournamentIdForUpdate);
+      const leagueRulesForTeam = await fetchLeagueRulesForContest(
+        ctx.db,
+        team.contestId ?? undefined
+      );
+      const rules = applyLeagueRulesOverride(baseRules, leagueRulesForTeam);
       if (totalCredits > rules.maxBudget) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `Budget exceeded: ${totalCredits.toFixed(1)} / ${rules.maxBudget}` });
       }
@@ -624,6 +718,47 @@ export const teamRouter = router({
   /**
    * Get user's team for a specific contest
    */
+  // Returns the fully-resolved team rules for a contest or match —
+  // global defaults + tournament overrides + league overrides merged
+  // into a single TeamRules shape. Used by the mobile team builder so
+  // the UI shows the real budget / role limits instead of hardcoded
+  // constants.
+  getEffectiveRules: protectedProcedure
+    .input(
+      z.object({
+        contestId: z.string().uuid().optional(),
+        matchId: z.string().uuid().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      let tournamentId: string | undefined;
+      if (input.matchId) {
+        const match = await ctx.db.query.matches.findFirst({
+          where: eq(matches.id, input.matchId),
+          columns: { tournamentId: true },
+        });
+        tournamentId = match?.tournamentId ?? undefined;
+      } else if (input.contestId) {
+        const contest = await ctx.db.query.contests.findFirst({
+          where: eq(contests.id, input.contestId),
+          columns: { matchId: true },
+        });
+        if (contest?.matchId) {
+          const match = await ctx.db.query.matches.findFirst({
+            where: eq(matches.id, contest.matchId),
+            columns: { tournamentId: true },
+          });
+          tournamentId = match?.tournamentId ?? undefined;
+        }
+      }
+      const base = await getEffectiveTeamRules(tournamentId);
+      const leagueRules = await fetchLeagueRulesForContest(
+        ctx.db,
+        input.contestId
+      );
+      return applyLeagueRulesOverride(base, leagueRules);
+    }),
+
   getByContest: protectedProcedure
     .input(z.object({ contestId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
