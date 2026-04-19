@@ -1228,6 +1228,9 @@ function ContestScoringRulesCard({
     (leagueRules?.scoring as Record<string, number> | undefined) ??
     DEFAULT_T20_SCORING;
   const isCustom = !!leagueRules?.scoring;
+  // Collapsed by default — most members already know the basics and
+  // the full table was pushing the rest of the contest page down.
+  const [open, setOpen] = useState(false);
 
   const row = (label: string, key: string, sign: "+" | "" = "") => {
     const v = scoring[key];
@@ -1262,37 +1265,49 @@ function ContestScoringRulesCard({
 
   return (
     <YStack paddingHorizontal="$4" marginBottom="$6">
-      <XStack alignItems="center" gap="$2" marginBottom="$3">
-        <Text {...textStyles.sectionHeader}>
-          {formatUIText("scoring rules")}
-        </Text>
-        {isCustom ? (
-          <Badge variant="success" size="sm">
-            {formatBadgeText("league custom")}
-          </Badge>
-        ) : (
-          <Badge variant="role" size="sm">
-            {formatBadgeText("platform default")}
-          </Badge>
-        )}
-      </XStack>
-      <Text
-        fontFamily="$body"
-        fontSize={11}
-        color="$colorMuted"
-        marginBottom="$3"
-        lineHeight={16}
-      >
-        {formatUIText(
-          isCustom
-            ? "these points are configured by your league admin. each player on your team earns these in the real match — captain × 2, vice-captain × 1.5."
-            : "no custom scoring set — this league uses draftplay's standard t20 scoring. captain × 2, vice-captain × 1.5."
-        )}
-      </Text>
+      <Card padding="$4" pressable onPress={() => setOpen((v) => !v)}>
+        <XStack justifyContent="space-between" alignItems="center">
+          <XStack alignItems="center" gap="$2" flex={1}>
+            <Text fontSize={16}>📊</Text>
+            <YStack flex={1}>
+              <Text
+                fontFamily="$mono"
+                fontWeight="700"
+                fontSize={14}
+                color="$color"
+                letterSpacing={-0.3}
+              >
+                {formatUIText("scoring rules")}
+              </Text>
+              <Text
+                fontFamily="$body"
+                fontSize={11}
+                color="$colorMuted"
+                marginTop={2}
+              >
+                {formatUIText(
+                  isCustom
+                    ? "admin-set — tap to see how points are earned"
+                    : "tap to see how points are earned · captain × 2, vc × 1.5"
+                )}
+              </Text>
+            </YStack>
+          </XStack>
+          <Ionicons
+            name={open ? "chevron-up" : "chevron-down"}
+            size={18}
+            color="#888"
+          />
+        </XStack>
 
-      <ScoringRuleGroup title="batting" rows={batting} />
-      <ScoringRuleGroup title="bowling" rows={bowling} />
-      <ScoringRuleGroup title="fielding + match" rows={fielding} />
+        {open && (
+          <YStack marginTop="$3" gap="$2">
+            <ScoringRuleGroup title="batting" rows={batting} />
+            <ScoringRuleGroup title="bowling" rows={bowling} />
+            <ScoringRuleGroup title="fielding + match" rows={fielding} />
+          </YStack>
+        )}
+      </Card>
     </YStack>
   );
 }
