@@ -55,29 +55,24 @@ export function DiscoverPublicLeagues({ limit = 3 }: DiscoverPublicLeaguesProps)
   // reads so the feed pivots from "discover" → "your contests / rounds"
   // without a manual refresh. Previously only browsePublic refetched,
   // so the user had to hard-reload to see their new league's contests.
+  // For salary cap specifically, pendingLeagueContests is the query
+  // that feeds the "waiting for your team" section — that's the
+  // equivalent of cm.pendingRoundsForMe for CM. Without invalidating
+  // it, a SC join looked like nothing happened on the dashboard.
   const invalidateDashboard = () => {
     utils.league.myLeagues.invalidate();
     utils.team.myTeams.invalidate();
     utils.contest.myContests.invalidate();
+    utils.contest.pendingLeagueContests.invalidate();
     utils.cricketManager.pendingRoundsForMe.invalidate();
     utils.cricketManager.myActiveEntries.invalidate();
     query.refetch();
   };
 
-  // After a CM join, CM-specific surfaces (pending rounds, active
-  // entries) refresh on the dashboard — the user sees action items
-  // right away. After a salary-cap/draft/auction join there's no
-  // equivalent trigger because contests are just sitting in the
-  // league — nothing draws the user in. So for non-CM joins we also
-  // navigate to the league page so the contests + rules + prizes
-  // show immediately.
   const joinPublic = trpc.league.joinPublic.useMutation({
-    onSuccess: (_result, variables) => {
+    onSuccess: () => {
       setJoiningId(null);
       invalidateDashboard();
-      if (variables?.leagueId) {
-        router.push(`/league/${variables.leagueId}` as any);
-      }
     },
     onError: () => setJoiningId(null),
   });
