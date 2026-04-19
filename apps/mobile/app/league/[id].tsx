@@ -56,7 +56,13 @@ export default function LeagueDetailScreen() {
   const [tab, setTab] = useState<"members" | "contests">("contests");
   const [showQR, setShowQR] = useState(false);
   const [showFullStandings, setShowFullStandings] = useState(false);
-  const [confirmAlert, setConfirmAlert] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const [confirmAlert, setConfirmAlert] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmLabel?: string;
+    confirmVariant?: "primary" | "danger";
+  } | null>(null);
   // Drill-down state for the standings rows — tapping any opens a bottom
   // sheet with the per-contest breakdown for that member.
   const [selectedMember, setSelectedMember] = useState<{
@@ -721,16 +727,33 @@ export default function LeagueDetailScreen() {
           ) : null
         }
         ListFooterComponent={!isOwner && myMembership ? (
-          <Button variant="danger" size="md" marginTop="$4" onPress={() => Alert.alert(
-            formatUIText("leave league?"),
-            // Salary cap + CM build per-contest/round teams; nothing to
-            // "lose" beyond future participation. Draft + auction have a
-            // persistent roster you forfeit.
-            league.format === "draft" || league.format === "auction"
-              ? formatUIText("your roster will be released and you'll forfeit your standing.")
-              : formatUIText("you'll stop appearing in this league's standings going forward — your past contest history is preserved."),
-            [{ text: formatUIText("cancel"), style: "cancel" }, { text: formatUIText("leave"), style: "destructive", onPress: () => leaveMutation.mutate({ leagueId: id! }) }],
-          )}>
+          <Button
+            variant="danger"
+            size="md"
+            marginTop="$4"
+            onPress={() => {
+              // Salary cap + CM build per-contest/round teams; nothing to
+              // "lose" beyond future participation. Draft + auction have a
+              // persistent roster you forfeit. Either way, any PC entry
+              // fees already spent on joined contests are non-refundable.
+              const base =
+                league.format === "draft" || league.format === "auction"
+                  ? "your roster will be released and you'll forfeit your standing."
+                  : "you'll stop appearing in this league's standings going forward — your past contest history is preserved.";
+              setConfirmAlert({
+                title: "leave league?",
+                message:
+                  base +
+                  " any pop coins you've already spent on entry fees in this league will NOT be refunded.",
+                confirmLabel: "leave league",
+                confirmVariant: "danger",
+                onConfirm: () => {
+                  setConfirmAlert(null);
+                  leaveMutation.mutate({ leagueId: id! });
+                },
+              });
+            }}
+          >
             {formatUIText("leave league")}
           </Button>
         ) : null}
@@ -743,7 +766,11 @@ export default function LeagueDetailScreen() {
           onDismiss={() => setConfirmAlert(null)}
           actions={[
             { label: "cancel", variant: "ghost", onPress: () => setConfirmAlert(null) },
-            { label: "start", variant: "primary", onPress: confirmAlert.onConfirm },
+            {
+              label: confirmAlert.confirmLabel ?? "start",
+              variant: confirmAlert.confirmVariant ?? "primary",
+              onPress: confirmAlert.onConfirm,
+            },
           ]}
         />
       )}
@@ -799,6 +826,7 @@ function CricketManagerLeagueView({
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [cmTab, setCmTab] = useState<"rounds" | "standings" | "members">("rounds");
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   const roundsQuery = trpc.cricketManager.getLeagueRounds.useQuery(
     { leagueId },
@@ -808,6 +836,15 @@ function CricketManagerLeagueView({
     { leagueId, limit: 200, offset: 0 },
     { enabled: cmTab === "standings", refetchInterval: 15000 }
   );
+  const leaveMutation = trpc.league.leave.useMutation({
+    onSuccess: () => router.back(),
+  });
+
+  const cmMembership = (league.members ?? []).find(
+    (m: any) => m.userId === user?.id || m.user?.email === user?.email
+  );
+  const cmIsOwner =
+    cmMembership?.role === "owner" || league.ownerId === user?.id;
 
   const roundsData = roundsQuery.data ?? [];
   const standingsData = standingsQuery.data ?? [];
@@ -1146,7 +1183,44 @@ function CricketManagerLeagueView({
             </Card>
           ) : null
         }
+        ListFooterComponent={
+          !cmIsOwner && cmMembership ? (
+            <Button
+              variant="danger"
+              size="md"
+              marginTop="$4"
+              onPress={() => setConfirmLeave(true)}
+            >
+              {formatUIText("leave league")}
+            </Button>
+          ) : null
+        }
       />
+      {confirmLeave && (
+        <AlertModal
+          visible={confirmLeave}
+          title={formatUIText("leave league?")}
+          message={formatUIText(
+            "you'll stop appearing in future rounds and standings. your past entries stay on record. any pop coins you've already spent on round entry fees will NOT be refunded."
+          )}
+          onDismiss={() => setConfirmLeave(false)}
+          actions={[
+            {
+              label: "cancel",
+              variant: "ghost",
+              onPress: () => setConfirmLeave(false),
+            },
+            {
+              label: "leave league",
+              variant: "danger",
+              onPress: () => {
+                setConfirmLeave(false);
+                leaveMutation.mutate({ leagueId });
+              },
+            },
+          ]}
+        />
+      )}
     </YStack>
   );
 }

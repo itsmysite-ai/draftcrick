@@ -137,6 +137,14 @@ export default function NewAdminLeaguePage() {
     }
 
     const rules: Record<string, unknown> = {};
+    // Entry fee + prize pool live at the top level of rules for all
+    // non-CM formats. autoCreateContestsForLeague reads
+    // `rules.entryFee` — if this isn't set, auto-created contests ship
+    // with entryFee=0 and prizePool=0 no matter what the admin typed.
+    if (format !== "cricket_manager") {
+      rules.entryFee = entryFee;
+      rules.prizePool = prizePool;
+    }
     if (format === "cricket_manager") {
       rules.cricketManager = {
         ballLimit,

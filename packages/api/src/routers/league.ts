@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { randomBytes } from "crypto";
 import { getUserTier } from "../services/subscription";
 import { sendBatchNotifications, sendPushNotification, NOTIFICATION_TYPES } from "../services/notifications";
+import { calculatePrizeDistribution } from "../services/settlement";
 import { getLogger } from "../lib/logger";
 
 const log = getLogger("league");
@@ -95,6 +96,16 @@ export async function autoCreateContestsForLeague(
   // keep the pre-computed pool model since their member cap is small.
   const useDynamicPool = isPublicLeague && maxMembers > 1000;
 
+  // Build a real prize distribution so winners actually get paid on
+  // settlement. Without this the settle job finds [] and awards 0 PC
+  // even though the prize pool shows X thousand. For unlimited public
+  // leagues we defer distribution until join-time when the true pool
+  // size is known.
+  const staticPrizeDistribution =
+    leagueEntryFee > 0 && !useDynamicPool
+      ? calculatePrizeDistribution(leagueEntryFee, maxMembers)
+      : [];
+
   const contestValues = newMatches.map((m) => ({
     matchId: m.id,
     leagueId,
@@ -104,7 +115,7 @@ export async function autoCreateContestsForLeague(
     maxEntries: maxMembers,
     contestType: isPublicLeague ? "public" as const : "private" as const,
     isGuaranteed: !useDynamicPool,
-    prizeDistribution: [] as { rank: number; amount: number }[],
+    prizeDistribution: staticPrizeDistribution,
     status: m.draftEnabled ? "open" as const : "upcoming" as const,
   }));
 
