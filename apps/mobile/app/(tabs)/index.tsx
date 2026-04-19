@@ -791,6 +791,15 @@ export default function HomeScreen() {
   const liveMatches = upcomingMatches.filter((m: any) => m.status === "live");
   const draftOpenMatches = upcomingMatches.filter((m: any) => m.draftEnabled && m.status !== "live");
   const otherMatches = upcomingMatches.filter((m: any) => !m.draftEnabled && m.status !== "live").slice(0, 4);
+  // Onboarding step-2 needs a match the user can actually act on.
+  // A live match is already locked in — showing it there only
+  // frustrates the user. Prefer a draft-open upcoming match; fall
+  // back to the next plain upcoming one with a "comes back when it
+  // opens" message.
+  const nextBuildableMatch =
+    draftOpenMatches[0] ??
+    upcomingMatches.find((m: any) => m.status !== "live") ??
+    null;
   const activeTournaments = dashboardQuery.data?.tournaments ?? [];
 
   // Build team logo lookup from tournament teams data
@@ -947,7 +956,11 @@ export default function HomeScreen() {
                 m.league?.format === "draft" ||
                 m.league?.format === "auction"
             );
-          const showSalaryCapCard = hasSalaryCapLeague && !!nextMatch;
+          // Step-2 uses the next *buildable* match (skips live, prefers
+          // draft-enabled). A live match can't be entered, so showing
+          // it here with a dead CTA was a dead end.
+          const scMatch = nextBuildableMatch;
+          const showSalaryCapCard = hasSalaryCapLeague && !!scMatch;
           const showCmCard = !!firstCmPending;
           const showFallback = !showSalaryCapCard && !showCmCard;
 
@@ -1008,39 +1021,39 @@ export default function HomeScreen() {
                     </Button>
                   </YStack>
                 )}
-                {showSalaryCapCard && (
+                {showSalaryCapCard && scMatch && (
                   <YStack gap="$2">
                     <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                      {formatUIText(nextMatch.draftEnabled
+                      {formatUIText(scMatch.draftEnabled
                         ? "your salary-cap league has an open contest — pick 11 players within budget. your team earns points based on real match performance."
-                        : "your next contest opens closer to match time. we'll notify you when it's ready."
+                        : `contests for this match open closer to kick-off. come back ${formatCountdown(parseSafeDate(scMatch.date, scMatch.time))} before it starts to build your team.`
                       )}
                     </Text>
                     <Card padding="$3">
                       <XStack justifyContent="space-between" alignItems="center">
                         <YStack flex={1} gap={2}>
                           <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
-                            💰 {formatBadgeText(nextMatch.tournamentName || nextMatch.tournament || "upcoming")}
+                            💰 {formatBadgeText(scMatch.tournamentName || scMatch.tournament || "upcoming")}
                           </Text>
                           <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
-                            {formatTeamName(nextMatch.teamA || nextMatch.teamHome || "TBA")} {formatUIText("vs")} {formatTeamName(nextMatch.teamB || nextMatch.teamAway || "TBA")}
+                            {formatTeamName(scMatch.teamA || scMatch.teamHome || "TBA")} {formatUIText("vs")} {formatTeamName(scMatch.teamB || scMatch.teamAway || "TBA")}
                           </Text>
                           <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                            {formatBadgeText(nextMatch.format || "T20")} · {formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
+                            {formatBadgeText(scMatch.format || "T20")} · {formatCountdown(parseSafeDate(scMatch.date, scMatch.time))}
                           </Text>
                         </YStack>
-                        <Badge variant={nextMatch.draftEnabled ? "live" : "default"} size="sm">
-                          {nextMatch.draftEnabled ? formatBadgeText("open") : formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
+                        <Badge variant={scMatch.draftEnabled ? "live" : "default"} size="sm">
+                          {scMatch.draftEnabled ? formatBadgeText("open") : formatCountdown(parseSafeDate(scMatch.date, scMatch.time))}
                         </Badge>
                       </XStack>
                     </Card>
                     <Button
                       variant={showCmCard ? "secondary" : "primary"}
                       size="md"
-                      onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.dbId || nextMatch.id)}`)}
+                      onPress={() => router.push(`/match/${encodeURIComponent(scMatch.dbId || scMatch.id)}`)}
                       testID="onboard-go-to-match-btn"
                     >
-                      {formatUIText(nextMatch.draftEnabled ? "build salary-cap team" : "view next match")}
+                      {formatUIText(scMatch.draftEnabled ? "build salary-cap team" : "view next match")}
                     </Button>
                   </YStack>
                 )}

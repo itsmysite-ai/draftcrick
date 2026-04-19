@@ -64,10 +64,20 @@ export function DiscoverPublicLeagues({ limit = 3 }: DiscoverPublicLeaguesProps)
     query.refetch();
   };
 
+  // After a CM join, CM-specific surfaces (pending rounds, active
+  // entries) refresh on the dashboard — the user sees action items
+  // right away. After a salary-cap/draft/auction join there's no
+  // equivalent trigger because contests are just sitting in the
+  // league — nothing draws the user in. So for non-CM joins we also
+  // navigate to the league page so the contests + rules + prizes
+  // show immediately.
   const joinPublic = trpc.league.joinPublic.useMutation({
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       setJoiningId(null);
       invalidateDashboard();
+      if (variables?.leagueId) {
+        router.push(`/league/${variables.leagueId}` as any);
+      }
     },
     onError: () => setJoiningId(null),
   });
