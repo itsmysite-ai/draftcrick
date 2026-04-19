@@ -110,6 +110,21 @@ export const contestRouter = router({
 
       if (!contest) return null;
 
+      // Pull the parent league's rules so the contest page can surface
+      // scoring + other admin-configured rules to members. A contest
+      // with no league (rare) gets null and the UI falls back to the
+      // platform T20 defaults.
+      let leagueRules: Record<string, unknown> | null = null;
+      let leagueName: string | null = null;
+      if (contest.leagueId) {
+        const league = await ctx.db.query.leagues.findFirst({
+          where: eq(leagues.id, contest.leagueId),
+          columns: { rules: true, name: true },
+        });
+        leagueRules = (league?.rules as Record<string, unknown>) ?? null;
+        leagueName = league?.name ?? null;
+      }
+
       const leaderboard = await getContestLeaderboard(ctx.db, input.id);
 
       return {
@@ -117,6 +132,8 @@ export const contestRouter = router({
         entryFee: contest.entryFee,
         prizePool: contest.prizePool,
         leaderboard,
+        leagueRules,
+        leagueName,
       };
     }),
 

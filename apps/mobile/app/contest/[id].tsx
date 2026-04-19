@@ -855,6 +855,12 @@ export default function ContestDetailScreen() {
       )}
       */}
 
+      {/* Scoring rules — pulled from league.rules.scoring (admin-set) or
+          the platform's T20 default. Renders as a tidy breakdown so
+          members know exactly how points are earned for this contest's
+          parent league. */}
+      <ContestScoringRulesCard leagueRules={(c as any).leagueRules ?? null} />
+
       {/* Prize Distribution */}
       {c.prizePool > 0 && c.prizeDistribution && Array.isArray(c.prizeDistribution) && (c.prizeDistribution as Array<{ rank: number; amount: number }>).length > 0 && (
         <YStack paddingHorizontal="$4" marginBottom="$6">
@@ -1187,5 +1193,148 @@ export default function ContestDetailScreen() {
       )}
     </ScrollView>
     </YStack>
+  );
+}
+
+// ─── Scoring rules card — reads the league's rules.scoring (admin-set)
+// and falls back to the platform's T20 defaults so members always see
+// a full breakdown of how points are earned. Broken into three
+// sub-sections (batting / bowling / fielding + match) for readability.
+
+const DEFAULT_T20_SCORING: Record<string, number> = {
+  runPoints: 1,
+  boundaryBonus: 1,
+  sixBonus: 2,
+  halfCenturyBonus: 20,
+  centuryBonus: 50,
+  duckPenalty: -5,
+  wicketPoints: 25,
+  maidenOverPoints: 15,
+  threeWicketBonus: 15,
+  fiveWicketBonus: 30,
+  catchPoints: 10,
+  stumpingPoints: 15,
+  runOutDirectPoints: 15,
+  runOutIndirectPoints: 10,
+  playerOfMatchBonus: 25,
+};
+
+function ContestScoringRulesCard({
+  leagueRules,
+}: {
+  leagueRules: Record<string, unknown> | null;
+}) {
+  const scoring =
+    (leagueRules?.scoring as Record<string, number> | undefined) ??
+    DEFAULT_T20_SCORING;
+  const isCustom = !!leagueRules?.scoring;
+
+  const row = (label: string, key: string, sign: "+" | "" = "") => {
+    const v = scoring[key];
+    if (v == null) return null;
+    const display = sign === "+" && v > 0 ? `+${v}` : `${v}`;
+    return { label, value: display };
+  };
+
+  const batting = [
+    row("per run", "runPoints"),
+    row("four bonus", "boundaryBonus", "+"),
+    row("six bonus", "sixBonus", "+"),
+    row("50 bonus", "halfCenturyBonus", "+"),
+    row("100 bonus", "centuryBonus", "+"),
+    row("duck penalty", "duckPenalty"),
+  ].filter((r): r is { label: string; value: string } => r !== null);
+
+  const bowling = [
+    row("wicket", "wicketPoints", "+"),
+    row("maiden over", "maidenOverPoints", "+"),
+    row("3 wickets", "threeWicketBonus", "+"),
+    row("5 wickets", "fiveWicketBonus", "+"),
+  ].filter((r): r is { label: string; value: string } => r !== null);
+
+  const fielding = [
+    row("catch", "catchPoints", "+"),
+    row("stumping", "stumpingPoints", "+"),
+    row("run-out (direct)", "runOutDirectPoints", "+"),
+    row("run-out (assist)", "runOutIndirectPoints", "+"),
+    row("player of match", "playerOfMatchBonus", "+"),
+  ].filter((r): r is { label: string; value: string } => r !== null);
+
+  return (
+    <YStack paddingHorizontal="$4" marginBottom="$6">
+      <XStack alignItems="center" gap="$2" marginBottom="$3">
+        <Text {...textStyles.sectionHeader}>
+          {formatUIText("scoring rules")}
+        </Text>
+        {isCustom ? (
+          <Badge variant="success" size="sm">
+            {formatBadgeText("league custom")}
+          </Badge>
+        ) : (
+          <Badge variant="role" size="sm">
+            {formatBadgeText("platform default")}
+          </Badge>
+        )}
+      </XStack>
+      <Text
+        fontFamily="$body"
+        fontSize={11}
+        color="$colorMuted"
+        marginBottom="$3"
+        lineHeight={16}
+      >
+        {formatUIText(
+          isCustom
+            ? "these points are configured by your league admin. each player on your team earns these in the real match — captain × 2, vice-captain × 1.5."
+            : "no custom scoring set — this league uses draftplay's standard t20 scoring. captain × 2, vice-captain × 1.5."
+        )}
+      </Text>
+
+      <ScoringRuleGroup title="batting" rows={batting} />
+      <ScoringRuleGroup title="bowling" rows={bowling} />
+      <ScoringRuleGroup title="fielding + match" rows={fielding} />
+    </YStack>
+  );
+}
+
+function ScoringRuleGroup({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ label: string; value: string }>;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <Card padding="$3" marginBottom="$2">
+      <Text
+        fontFamily="$mono"
+        fontWeight="700"
+        fontSize={10}
+        color="$accentBackground"
+        textTransform="uppercase"
+        letterSpacing={1}
+        marginBottom="$2"
+      >
+        {title}
+      </Text>
+      <YStack gap={4}>
+        {rows.map((r) => (
+          <XStack key={r.label} justifyContent="space-between">
+            <Text fontFamily="$body" fontSize={12} color="$colorMuted">
+              {r.label}
+            </Text>
+            <Text
+              fontFamily="$mono"
+              fontWeight="600"
+              fontSize={12}
+              color="$color"
+            >
+              {r.value}
+            </Text>
+          </XStack>
+        ))}
+      </YStack>
+    </Card>
   );
 }
