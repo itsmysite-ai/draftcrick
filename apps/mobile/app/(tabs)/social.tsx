@@ -180,7 +180,7 @@ export default function SocialScreen() {
         ListHeaderComponent={
           <>
             <Animated.View entering={FadeInDown.delay(30).springify()}>
-              <XStack gap="$3" marginBottom="$6">
+              <XStack gap="$3" marginBottom="$3">
                 <Button
                   flex={1}
                   variant="primary"
@@ -212,6 +212,22 @@ export default function SocialScreen() {
                   {formatUIText("join league")}
                 </Button>
               </XStack>
+              <Button
+                variant="secondary"
+                size="md"
+                marginBottom="$6"
+                icon={
+                  <Ionicons
+                    name="globe-outline"
+                    size={20}
+                    color={t.accent}
+                  />
+                }
+                onPress={() => router.push("/leagues/browse" as any)}
+                testID="social-discover-public-btn"
+              >
+                {formatUIText("discover public leagues")}
+              </Button>
             </Animated.View>
             {leagueCount > 0 && teamCount === 0 && (
               <Animated.View entering={FadeInDown.delay(60).springify()}>

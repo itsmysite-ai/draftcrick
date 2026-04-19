@@ -869,6 +869,213 @@ export default function HomeScreen() {
         }
         contentContainerStyle={{ padding: 20, paddingTop: 10, paddingBottom: 120 }}
       >
+        {/* ── Onboarding + discover block — always first on the dashboard ──
+            Keeps the "what do I do now" guidance at eye-level no matter
+            how deep the rest of the feed grows. Each card hides itself
+            when not applicable, so the block collapses cleanly once the
+            user is fully set up. */}
+        {user && <DiscoverPublicLeagues limit={3} />}
+
+        {user && leagueCount === 0 && teamCount === 0 && (
+          <Animated.View entering={FadeInDown.delay(30).springify()}>
+            <Card padding="$4" marginBottom="$4" testID="how-it-works-card">
+              <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" marginBottom="$3">
+                {formatUIText("how it works")}
+              </Text>
+              <YStack gap="$3">
+                <XStack alignItems="flex-start" gap="$3">
+                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">1</Text>
+                  </YStack>
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
+                      {formatUIText("join or create a league")}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                      {formatUIText("jump into a public league above, or create a private one with friends")}
+                    </Text>
+                  </YStack>
+                </XStack>
+                <XStack alignItems="flex-start" gap="$3">
+                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">2</Text>
+                  </YStack>
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
+                      {formatUIText("contests & rounds open before every match")}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
+                      {formatUIText("salary cap = per-match, cricket manager = multi-match rounds — the app surfaces both automatically")}
+                    </Text>
+                  </YStack>
+                </XStack>
+                <XStack alignItems="flex-start" gap="$3">
+                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
+                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">3</Text>
+                  </YStack>
+                  <YStack flex={1}>
+                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
+                      {formatUIText("build your 11 & compete")}
+                    </Text>
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
+                      {formatUIText("pick players within a budget, or strategise a batting + bowling order across a round — climb the standings")}
+                    </Text>
+                  </YStack>
+                </XStack>
+              </YStack>
+              <XStack gap="$2" marginTop="$3">
+                <Button variant="secondary" size="md" flex={1} onPress={() => router.push("/leagues/browse" as any)} testID="how-it-works-browse-public-btn">
+                  {formatUIText("browse public")}
+                </Button>
+                <Button variant="primary" size="md" flex={1} onPress={() => router.push("/league/create" as any)} testID="how-it-works-get-started-btn">
+                  {formatUIText("create a league")}
+                </Button>
+              </XStack>
+            </Card>
+          </Animated.View>
+        )}
+        {user && leagueCount > 0 && teamCount === 0 && (() => {
+          const firstCmPending = (cmPendingRoundsQuery.data ?? [])[0];
+          const hasCmLeague =
+            (myLeaguesQuery.data ?? []).some(
+              (m: any) => m.league?.format === "cricket_manager"
+            );
+          const hasSalaryCapLeague =
+            (myLeaguesQuery.data ?? []).some(
+              (m: any) =>
+                m.league?.format === "salary_cap" ||
+                m.league?.format === "draft" ||
+                m.league?.format === "auction"
+            );
+          const showSalaryCapCard = hasSalaryCapLeague && !!nextMatch;
+          const showCmCard = !!firstCmPending;
+          const showFallback = !showSalaryCapCard && !showCmCard;
+
+          return (
+          <Animated.View entering={FadeInDown.delay(30).springify()}>
+            <Card padding="$4" marginBottom="$4" testID="onboard-build-team-card">
+              <XStack alignItems="center" gap="$3" marginBottom="$3">
+                <YStack width={24} height={24} borderRadius={12} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
+                  <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">2</Text>
+                </YStack>
+                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
+                  {formatUIText(
+                    showCmCard && showSalaryCapCard
+                      ? "next: jump into your leagues"
+                      : showCmCard
+                        ? "next: build your round entry"
+                        : "next: build your team"
+                  )}
+                </Text>
+              </XStack>
+              <YStack gap="$3">
+                {showCmCard && (
+                  <YStack gap="$2">
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                      {formatUIText(
+                        "your cricket manager league has a round open — pick 11 players across the round's matches, set your batting and bowling orders."
+                      )}
+                    </Text>
+                    <Card padding="$3">
+                      <XStack justifyContent="space-between" alignItems="center">
+                        <YStack flex={1} gap={2}>
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
+                            🏆 {formatBadgeText(firstCmPending!.leagueName ?? "cricket manager")}
+                          </Text>
+                          <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                            {firstCmPending!.name ?? `Round ${firstCmPending!.roundNumber}`}
+                          </Text>
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                            {firstCmPending!.matchesTotal} {formatUIText("matches")}
+                          </Text>
+                        </YStack>
+                        <Badge variant="live" size="sm">
+                          {formatBadgeText("open")}
+                        </Badge>
+                      </XStack>
+                    </Card>
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onPress={() =>
+                        router.push(
+                          `/league/${firstCmPending!.leagueId}/round/${firstCmPending!.id}/build`
+                        )
+                      }
+                      testID="onboard-go-to-cm-round-btn"
+                    >
+                      {formatUIText("build round entry")}
+                    </Button>
+                  </YStack>
+                )}
+                {showSalaryCapCard && (
+                  <YStack gap="$2">
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                      {formatUIText(nextMatch.draftEnabled
+                        ? "your salary-cap league has an open contest — pick 11 players within budget. your team earns points based on real match performance."
+                        : "your next contest opens closer to match time. we'll notify you when it's ready."
+                      )}
+                    </Text>
+                    <Card padding="$3">
+                      <XStack justifyContent="space-between" alignItems="center">
+                        <YStack flex={1} gap={2}>
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
+                            💰 {formatBadgeText(nextMatch.tournamentName || nextMatch.tournament || "upcoming")}
+                          </Text>
+                          <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
+                            {formatTeamName(nextMatch.teamA || nextMatch.teamHome || "TBA")} {formatUIText("vs")} {formatTeamName(nextMatch.teamB || nextMatch.teamAway || "TBA")}
+                          </Text>
+                          <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
+                            {formatBadgeText(nextMatch.format || "T20")} · {formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
+                          </Text>
+                        </YStack>
+                        <Badge variant={nextMatch.draftEnabled ? "live" : "default"} size="sm">
+                          {nextMatch.draftEnabled ? formatBadgeText("open") : formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
+                        </Badge>
+                      </XStack>
+                    </Card>
+                    <Button
+                      variant={showCmCard ? "secondary" : "primary"}
+                      size="md"
+                      onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.dbId || nextMatch.id)}`)}
+                      testID="onboard-go-to-match-btn"
+                    >
+                      {formatUIText(nextMatch.draftEnabled ? "build salary-cap team" : "view next match")}
+                    </Button>
+                  </YStack>
+                )}
+                {showFallback && (
+                  <YStack gap="$2">
+                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                      {formatUIText(
+                        hasCmLeague
+                          ? "no rounds open right now. the admin will compose new rounds as matches approach — we'll surface them here."
+                          : "no upcoming matches right now. contests will appear automatically when matches are scheduled."
+                      )}
+                    </Text>
+                    <Button variant="secondary" size="md" onPress={() => router.push("/(tabs)/social")} testID="onboard-go-to-league-btn">
+                      {formatUIText("view my leagues")}
+                    </Button>
+                  </YStack>
+                )}
+              </YStack>
+            </Card>
+          </Animated.View>
+          );
+        })()}
+        {user && leagueCount > 0 && teamCount > 0 && (myContestsQuery.data?.length ?? 0) === 0 && nextMatch && !nextMatch.draftEnabled && (
+          <Animated.View entering={FadeInDown.delay(30).springify()}>
+            <Card padding="$4" marginBottom="$4" testID="onboard-next-match-card">
+              <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$accentBackground" marginBottom="$1">
+                {formatUIText("you're all set")}
+              </Text>
+              <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
+                {formatUIText("drafts open closer to match time. we'll notify you when it's time to pick your team.")}
+              </Text>
+            </Card>
+          </Animated.View>
+        )}
+
         {/* ── Live Auction Banner ── */}
         {(activeAuctionsQuery.data ?? []).map((auction: any) => (
           <Animated.View key={auction.roomId} entering={FadeInDown.delay(0).springify()}>
@@ -1229,202 +1436,8 @@ export default function HomeScreen() {
           </YStack>
         )}
 
-        {/* ── Discover public leagues — hides itself when there's nothing
-            new to show. Sits here so it naturally fills the "what now?"
-            gap between pending-contest callouts and live match surface. */}
-        {user && <DiscoverPublicLeagues limit={3} />}
-
-        {/* ── Progressive Onboarding — adapts to user stage ── */}
-        {user && leagueCount === 0 && teamCount === 0 && (
-          <Animated.View entering={FadeInDown.delay(30).springify()}>
-            <Card padding="$4" marginBottom="$4" testID="how-it-works-card">
-              <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color" marginBottom="$3">
-                {formatUIText("how it works")}
-              </Text>
-              <YStack gap="$3">
-                <XStack alignItems="flex-start" gap="$3">
-                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
-                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">1</Text>
-                  </YStack>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color">
-                      {formatUIText("join or create a league")}
-                    </Text>
-                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                      {formatUIText("jump into a public league above, or create a private one with friends")}
-                    </Text>
-                  </YStack>
-                </XStack>
-                <XStack alignItems="flex-start" gap="$3">
-                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
-                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">2</Text>
-                  </YStack>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
-                      {formatUIText("contests & rounds open before every match")}
-                    </Text>
-                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
-                      {formatUIText("salary cap = per-match, cricket manager = multi-match rounds — the app surfaces both automatically")}
-                    </Text>
-                  </YStack>
-                </XStack>
-                <XStack alignItems="flex-start" gap="$3">
-                  <YStack width={24} height={24} borderRadius={12} backgroundColor="$backgroundSurfaceAlt" alignItems="center" justifyContent="center">
-                    <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="$colorMuted">3</Text>
-                  </YStack>
-                  <YStack flex={1}>
-                    <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$colorMuted">
-                      {formatUIText("build your 11 & compete")}
-                    </Text>
-                    <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16} opacity={0.6}>
-                      {formatUIText("pick players within a budget, or strategise a batting + bowling order across a round — climb the standings")}
-                    </Text>
-                  </YStack>
-                </XStack>
-              </YStack>
-              <XStack gap="$2" marginTop="$3">
-                <Button variant="secondary" size="md" flex={1} onPress={() => router.push("/leagues/browse" as any)} testID="how-it-works-browse-public-btn">
-                  {formatUIText("browse public")}
-                </Button>
-                <Button variant="primary" size="md" flex={1} onPress={() => router.push("/league/create" as any)} testID="how-it-works-get-started-btn">
-                  {formatUIText("create a league")}
-                </Button>
-              </XStack>
-            </Card>
-          </Animated.View>
-        )}
-        {user && leagueCount > 0 && teamCount === 0 && (() => {
-          // Figure out which format the user's leagues are — when they
-          // have a pending CM round, send them there instead of the
-          // salary-cap next-match flow. The CM path was missing
-          // entirely before, so CM-only users got stranded on
-          // "your next contest opens closer to match time" forever.
-          const firstCmPending = (cmPendingRoundsQuery.data ?? [])[0];
-          const hasCmLeague =
-            (myLeaguesQuery.data ?? []).some(
-              (m: any) => m.league?.format === "cricket_manager"
-            );
-
-          return (
-          <Animated.View entering={FadeInDown.delay(30).springify()}>
-            <Card padding="$4" marginBottom="$4" testID="onboard-build-team-card">
-              <XStack alignItems="center" gap="$3" marginBottom="$3">
-                <YStack width={24} height={24} borderRadius={12} backgroundColor="$accentBackground" alignItems="center" justifyContent="center">
-                  <Text fontFamily="$mono" fontWeight="700" fontSize={12} color="white">2</Text>
-                </YStack>
-                <Text fontFamily="$mono" fontWeight="700" fontSize={14} color="$color">
-                  {formatUIText(
-                    firstCmPending ? "next: build your round entry" : "next: build your team"
-                  )}
-                </Text>
-              </XStack>
-              {firstCmPending ? (
-                // CM branch — pending round takes priority over salary-cap
-                // next-match, since round locking is time-bounded.
-                <YStack gap="$2">
-                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                    {formatUIText(
-                      "your cricket manager league has a round open — pick 11 players across the round's matches, set your batting and bowling orders."
-                    )}
-                  </Text>
-                  <Card padding="$3" marginTop="$1">
-                    <XStack justifyContent="space-between" alignItems="center">
-                      <YStack flex={1} gap={2}>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
-                          🏆 {formatBadgeText(firstCmPending.leagueName ?? "cricket manager")}
-                        </Text>
-                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
-                          {firstCmPending.name ?? `Round ${firstCmPending.roundNumber}`}
-                        </Text>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                          {firstCmPending.matchesTotal} {formatUIText("matches")}
-                        </Text>
-                      </YStack>
-                      <Badge variant="live" size="sm">
-                        {formatBadgeText("open")}
-                      </Badge>
-                    </XStack>
-                  </Card>
-                  <Button
-                    variant="primary"
-                    size="md"
-                    marginTop="$1"
-                    onPress={() =>
-                      router.push(
-                        `/league/${firstCmPending.leagueId}/round/${firstCmPending.id}/build`
-                      )
-                    }
-                    testID="onboard-go-to-cm-round-btn"
-                  >
-                    {formatUIText("build entry")}
-                  </Button>
-                </YStack>
-              ) : nextMatch ? (
-                <YStack gap="$2">
-                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                    {formatUIText(nextMatch.draftEnabled
-                      ? "your league has an open contest — pick 11 players within budget. your team earns points based on real match performance."
-                      : "your next contest opens closer to match time. we'll notify you when it's ready."
-                    )}
-                  </Text>
-                  <Card padding="$3" marginTop="$1">
-                    <XStack justifyContent="space-between" alignItems="center">
-                      <YStack flex={1} gap={2}>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted" letterSpacing={0.5}>
-                          {formatBadgeText(nextMatch.tournamentName || nextMatch.tournament || "upcoming")}
-                        </Text>
-                        <Text fontFamily="$body" fontWeight="600" fontSize={13} color="$color" numberOfLines={1}>
-                          {formatTeamName(nextMatch.teamA || nextMatch.teamHome || "TBA")} {formatUIText("vs")} {formatTeamName(nextMatch.teamB || nextMatch.teamAway || "TBA")}
-                        </Text>
-                        <Text fontFamily="$mono" fontSize={10} color="$colorMuted">
-                          {formatBadgeText(nextMatch.format || "T20")} · {formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
-                        </Text>
-                      </YStack>
-                      <Badge variant={nextMatch.draftEnabled ? "live" : "default"} size="sm">
-                        {nextMatch.draftEnabled ? formatBadgeText("open") : formatCountdown(parseSafeDate(nextMatch.date, nextMatch.time))}
-                      </Badge>
-                    </XStack>
-                  </Card>
-                  <Button
-                    variant="primary"
-                    size="md"
-                    marginTop="$1"
-                    onPress={() => router.push(`/match/${encodeURIComponent(nextMatch.dbId || nextMatch.id)}`)}
-                    testID="onboard-go-to-match-btn"
-                  >
-                    {formatUIText(nextMatch.draftEnabled ? "play" : "view match")}
-                  </Button>
-                </YStack>
-              ) : (
-                <YStack gap="$2">
-                  <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                    {formatUIText(
-                      hasCmLeague
-                        ? "no rounds open right now. the admin will compose new rounds as matches approach — we'll surface them here."
-                        : "no upcoming matches right now. contests will appear automatically when matches are scheduled."
-                    )}
-                  </Text>
-                  <Button variant="secondary" size="md" marginTop="$1" onPress={() => router.push("/(tabs)/social")} testID="onboard-go-to-league-btn">
-                    {formatUIText("view my leagues")}
-                  </Button>
-                </YStack>
-              )}
-            </Card>
-          </Animated.View>
-          );
-        })()}
-        {user && leagueCount > 0 && teamCount > 0 && (myContestsQuery.data?.length ?? 0) === 0 && nextMatch && !nextMatch.draftEnabled && (
-          <Animated.View entering={FadeInDown.delay(30).springify()}>
-            <Card padding="$4" marginBottom="$4" testID="onboard-next-match-card">
-              <Text fontFamily="$mono" fontWeight="600" fontSize={12} color="$accentBackground" marginBottom="$1">
-                {formatUIText("you're all set")}
-              </Text>
-              <Text fontFamily="$mono" fontSize={11} color="$colorMuted" lineHeight={16}>
-                {formatUIText("drafts open closer to match time. we'll notify you when it's time to pick your team.")}
-              </Text>
-            </Card>
-          </Animated.View>
-        )}
+        {/* Onboarding step-1 card moved to the top of the scroll view. */}
+        {/* Onboarding step-2 card + "you're all set" moved to the top. */}
 
         {/* ── Live Matches — shown prominently above everything else ── */}
         {liveMatches.length > 0 && (

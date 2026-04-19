@@ -40,6 +40,7 @@ interface DiscoverPublicLeaguesProps {
 
 export function DiscoverPublicLeagues({ limit = 3 }: DiscoverPublicLeaguesProps) {
   const router = useRouter();
+  const utils = trpc.useUtils();
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   // Over-fetch slightly so if the user joins a card, the list auto-fills
@@ -50,17 +51,30 @@ export function DiscoverPublicLeagues({ limit = 3 }: DiscoverPublicLeaguesProps)
     { staleTime: 60 * 1000 }
   );
 
+  // On successful join we invalidate everything the home dashboard
+  // reads so the feed pivots from "discover" → "your contests / rounds"
+  // without a manual refresh. Previously only browsePublic refetched,
+  // so the user had to hard-reload to see their new league's contests.
+  const invalidateDashboard = () => {
+    utils.league.myLeagues.invalidate();
+    utils.team.myTeams.invalidate();
+    utils.contest.myContests.invalidate();
+    utils.cricketManager.pendingRoundsForMe.invalidate();
+    utils.cricketManager.myActiveEntries.invalidate();
+    query.refetch();
+  };
+
   const joinPublic = trpc.league.joinPublic.useMutation({
     onSuccess: () => {
       setJoiningId(null);
-      query.refetch();
+      invalidateDashboard();
     },
     onError: () => setJoiningId(null),
   });
   const joinCmLeague = trpc.cricketManager.joinLeague.useMutation({
     onSuccess: () => {
       setJoiningId(null);
-      query.refetch();
+      invalidateDashboard();
     },
     onError: () => setJoiningId(null),
   });
