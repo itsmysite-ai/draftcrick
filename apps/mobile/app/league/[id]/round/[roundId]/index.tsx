@@ -398,6 +398,16 @@ export default function RoundHubScreen() {
             </Animated.View>
           )}
 
+        {/* ── Score-explainer card — shown only while the round is live
+            and there's still phantom fill inflating the bowling total.
+            Uses the user's real numbers so it explains *their* score,
+            not a generic formula. Disappears once the round is settled. */}
+        {round.myEntry && round.status === "live" && (
+          <Animated.View entering={FadeInDown.delay(120).springify()}>
+            <ScoreExplainerCard entry={round.myEntry} eligibleById={eligibleById} />
+          </Animated.View>
+        )}
+
         {/* ── Per-player live scorecard ── */}
         {round.myEntry &&
           (round.status === "live" ||
@@ -604,6 +614,186 @@ export default function RoundHubScreen() {
 
       </ScrollView>
     </YStack>
+  );
+}
+
+// Convert raw balls bowled to cricket notation overs (e.g. 41 balls → 6.5
+// not 6.8). Shared by ScoreExplainerCard + PerPlayerScorecard footer.
+function ballsToCricketOvers(balls: number): number {
+  const full = Math.floor(balls / 6);
+  const partial = balls % 6;
+  return full + partial / 10;
+}
+
+// ─── Score explainer — narrates real vs projected with user's numbers
+// The CM engine runs a full 20-over virtual innings every poll, filling
+// the gap between real bowling data and 20 overs at the round's live
+// economy rate. Without context, BOWL totals can look absurd (e.g. 249
+// runs conceded while none of the user's bowlers has actually bowled).
+// This card turns those numbers into a story: "here's what's real,
+// here's what's projected, here's why."
+
+function ScoreExplainerCard({
+  entry,
+  eligibleById,
+}: {
+  entry: any;
+  eligibleById: Map<string, any>;
+}) {
+  // Batting — runs on the board are always real; there is no phantom
+  // fill on the batting side. Count batters who've actually faced
+  // deliveries so we can say "N of 11 batters have played".
+  const battingRows = (entry.battingDetails ?? []) as Array<{
+    playerId: string;
+    runs: number;
+    ballsFaced: number;
+  }>;
+  const realBatters = battingRows.filter((d) => (d.ballsFaced ?? 0) > 0);
+  const topBatter =
+    realBatters.sort((a, b) => (b.runs ?? 0) - (a.runs ?? 0))[0] ?? null;
+  const topBatterName = topBatter
+    ? eligibleById.get(topBatter.playerId)?.name ?? "your batter"
+    : null;
+
+  // Bowling — break the total into real runs (bowlers who've actually
+  // bowled in live matches) vs projected (the engine's phantom fill).
+  const bowlingRows = (entry.bowlingDetails ?? []) as Array<{
+    playerId: string;
+    cappedOvers: number;
+    runsConceded: number;
+    wickets: number;
+  }>;
+  let realBallsBowled = 0;
+  let realRunsConceded = 0;
+  let realBowlerCount = 0;
+  for (const d of bowlingRows) {
+    if ((d.cappedOvers ?? 0) > 0) {
+      const full = Math.floor(d.cappedOvers);
+      const partial = Math.round((d.cappedOvers - full) * 10);
+      realBallsBowled += full * 6 + partial;
+      realRunsConceded += d.runsConceded ?? 0;
+      realBowlerCount += 1;
+    }
+  }
+  const totalBalls = entry.bowlingBallsBowled ?? 0;
+  const phantomBalls = Math.max(0, totalBalls - realBallsBowled);
+  const phantomRuns = Math.max(
+    0,
+    (entry.bowlingTotal ?? 0) - realRunsConceded
+  );
+  const phantomOvers = phantomBalls / 6;
+  const projectedER =
+    phantomOvers > 0 ? phantomRuns / phantomOvers : null;
+
+  const battingTotal = entry.battingTotal ?? 0;
+  const bowlingTotal = entry.bowlingTotal ?? 0;
+
+  // Skip rendering when there's nothing to explain — no projection and
+  // no real data yet means the card would be noise.
+  if (phantomBalls === 0 && realBatters.length === 0) return null;
+
+  return (
+    <Card
+      padding="$3"
+      marginBottom="$4"
+      backgroundColor="$backgroundSurfaceAlt"
+      borderColor="$borderColor"
+      borderWidth={1}
+    >
+      <XStack alignItems="center" gap="$2" marginBottom="$2">
+        <Text fontSize={14}>🧮</Text>
+        <Text
+          fontFamily="$mono"
+          fontWeight="700"
+          fontSize={11}
+          color="$color"
+          textTransform="uppercase"
+          letterSpacing={1}
+        >
+          {formatUIText("why these numbers")}
+        </Text>
+      </XStack>
+
+      {/* Batting explanation */}
+      <XStack alignItems="flex-start" gap="$2" marginBottom="$2">
+        <Text fontSize={11} color="$accentBackground" fontFamily="$mono" fontWeight="700" width={36}>
+          BAT {battingTotal}
+        </Text>
+        <Text
+          fontFamily="$body"
+          fontSize={11}
+          color="$colorMuted"
+          flex={1}
+          lineHeight={15}
+        >
+          {realBatters.length === 0
+            ? formatUIText("no one in your order has batted yet. all 120 balls to come.")
+            : topBatter
+              ? `${realBatters.length}/11 ${formatUIText("batters played so far")}. ${
+                  topBatterName
+                } ${formatUIText("top-scoring with")} ${topBatter.runs} (${topBatter.ballsFaced}).`
+              : formatUIText("all runs are from completed real-match scoring — no projection.")}
+        </Text>
+      </XStack>
+
+      {/* Bowling explanation */}
+      <XStack alignItems="flex-start" gap="$2" marginBottom={projectedER != null ? 6 : 0}>
+        <Text fontSize={11} color="$colorCricket" fontFamily="$mono" fontWeight="700" width={36}>
+          BOWL {bowlingTotal}
+        </Text>
+        <Text
+          fontFamily="$body"
+          fontSize={11}
+          color="$colorMuted"
+          flex={1}
+          lineHeight={15}
+        >
+          {realBallsBowled === 0 && phantomBalls > 0
+            ? `${formatUIText("none of your bowlers has bowled yet.")} ${phantomRuns} ${formatUIText(
+                "runs projected over"
+              )} ${phantomOvers.toFixed(1)} ${formatUIText("overs")}.`
+            : phantomBalls === 0
+              ? formatUIText(
+                  "all 20 overs covered by your real bowlers — no projection needed."
+                )
+              : `${realBowlerCount} ${formatUIText(
+                  "bowler(s) have bowled"
+                )} ${ballsToCricketOvers(realBallsBowled).toFixed(
+                  1
+                )} ${formatUIText(
+                  "overs for"
+                )} ${realRunsConceded} ${formatUIText(
+                  "runs. the remaining"
+                )} ${phantomOvers.toFixed(1)} ${formatUIText("overs are projected at")} ${phantomRuns} ${formatUIText("runs")}.`}
+        </Text>
+      </XStack>
+
+      {projectedER != null && (
+        <XStack
+          marginTop="$1"
+          padding="$2"
+          backgroundColor="$background"
+          borderRadius={6}
+          gap="$2"
+          alignItems="center"
+        >
+          <Text fontSize={10} color="$colorMuted" fontFamily="$mono">
+            {formatUIText("projection uses round's live ER of")}
+          </Text>
+          <Text
+            fontSize={11}
+            color="$colorCricket"
+            fontFamily="$mono"
+            fontWeight="700"
+          >
+            {projectedER.toFixed(2)}
+          </Text>
+          <Text fontSize={10} color="$colorMuted" fontFamily="$mono" flex={1}>
+            {formatUIText("— it shifts toward real as matches play.")}
+          </Text>
+        </XStack>
+      )}
+    </Card>
   );
 }
 
@@ -868,15 +1058,6 @@ function PerPlayerScorecard({
   function hasMoreToCome(playerTeam: string): boolean {
     const s = teamMatchState.get(playerTeam);
     return !!s && (s.live > 0 || s.upcoming > 0);
-  }
-
-  // Convert raw balls bowled to cricket notation overs (e.g. 41 balls → 6.5
-  // not 6.8). The engine writes cappedOvers per-bowler in cricket notation
-  // already, but the aggregate footer was using decimal math — this fixes it.
-  function ballsToCricketOvers(balls: number): number {
-    const full = Math.floor(balls / 6);
-    const partial = balls % 6;
-    return full + partial / 10;
   }
 
   return (
