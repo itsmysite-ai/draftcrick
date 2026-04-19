@@ -1,5 +1,6 @@
 import { SafeBackButton } from "../../components/SafeBackButton";
 import { Fireworks } from "../../components/Fireworks";
+import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, RefreshControl, Share as RNShare, Clipboard } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useCallback, useEffect, useRef } from "react";
