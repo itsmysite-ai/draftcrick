@@ -1180,63 +1180,57 @@ function LeaguePrizesCard({ leagueId }: { leagueId: string }) {
           {formatBadgeText(`${prizes.length}`)}
         </Badge>
       </XStack>
-      <YStack gap="$4">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 12, paddingRight: 4 }}
+      >
         {prizes.map((p: any) => {
           const rankLabel =
             p.rankFrom === p.rankTo
               ? `#${p.rankFrom}`
               : `#${p.rankFrom}–${p.rankTo}`;
           return (
-            <YStack key={p.id} gap="$2" alignItems="stretch">
+            <YStack key={p.id} width={140} gap="$2">
               {p.imageUrl ? (
                 <Image
                   source={{ uri: p.imageUrl }}
-                  style={{ width: "100%", aspectRatio: 16 / 9, borderRadius: 8 }}
+                  style={{ width: 140, height: 140, borderRadius: 8 }}
                   resizeMode="cover"
                 />
               ) : (
                 <YStack
-                  width="100%"
-                  aspectRatio={16 / 9}
+                  width={140}
+                  height={140}
                   borderRadius={8}
                   backgroundColor="$backgroundSurfaceAlt"
                   alignItems="center"
                   justifyContent="center"
                 >
-                  <Text fontSize={40}>🏆</Text>
+                  <Text fontSize={36}>🏆</Text>
                 </YStack>
               )}
               <Text
                 fontFamily="$mono"
                 fontWeight="700"
-                fontSize={11}
+                fontSize={10}
                 color="$accentBackground"
-                marginTop="$1"
               >
                 {rankLabel}
               </Text>
               <Text
                 fontFamily="$body"
                 fontWeight="600"
-                fontSize={15}
+                fontSize={13}
                 color="$color"
+                numberOfLines={2}
               >
                 {p.title}
               </Text>
-              {p.description ? (
-                <Text
-                  fontFamily="$body"
-                  fontSize={12}
-                  color="$colorMuted"
-                  lineHeight={17}
-                >
-                  {p.description}
-                </Text>
-              ) : null}
             </YStack>
           );
         })}
-      </YStack>
+      </ScrollView>
     </Card>
   );
 }
